@@ -7,19 +7,29 @@ import { appearanceModule } from "@/modules/appearance/module";
 import { authModule } from "@/modules/auth/module";
 import { billingModule } from "@/modules/billing/module";
 import { classesModule } from "@/modules/classes/module";
+import { CLASS_PERMISSIONS } from "@/modules/classes/permissions";
 import { configurationModule } from "@/modules/configuration/module";
 import { CONFIGURATION_PERMISSIONS } from "@/modules/configuration/permissions";
 import { contextModule } from "@/modules/context/module";
 import { dashboardModule } from "@/modules/dashboard/module";
+import { enrolmentModule } from "@/modules/enrolment/module";
+import { ENROLMENT_PERMISSIONS } from "@/modules/enrolment/permissions";
 import { facilitiesModule } from "@/modules/facilities/module";
+import { familiesModule } from "@/modules/families/module";
+import { FAMILY_PERMISSIONS } from "@/modules/families/permissions";
 import { organizationModule } from "@/modules/organization/module";
 import { ORGANIZATION_PERMISSIONS } from "@/modules/organization/permissions";
 import { profileModule } from "@/modules/profile/module";
+import { schoolLifeModule } from "@/modules/school-life/module";
+import { SCHOOL_LIFE_PERMISSIONS } from "@/modules/school-life/permissions";
 import { schoolYearsModule } from "@/modules/school-years/module";
 import { SCHOOL_YEAR_PERMISSIONS } from "@/modules/school-years/permissions";
 import { schoolsModule } from "@/modules/schools/module";
 import { SCHOOL_PERMISSIONS } from "@/modules/schools/permissions";
+import { studentsModule } from "@/modules/students/module";
+import { STUDENT_PERMISSIONS } from "@/modules/students/permissions";
 import { timetableModule } from "@/modules/timetable/module";
+import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
 import { usersModule } from "@/modules/users/module";
 import { USER_PERMISSIONS } from "@/modules/users/permissions";
 
@@ -60,13 +70,23 @@ export const MODULES: readonly AppModule[] = [
   profileModule,
   appearanceModule,
 
-  // Academic configuration. Tables and enums only so far — no UI, so they
-  // contribute no nav entry and no permissions yet. Registered because the
-  // registry is the inventory of which module owns which schema folder.
-  academicsModule,
-  facilitiesModule,
+  // ── Vie scolaire ──────────────────────────────────────────────────────────
+  // The running of a year: the families, the children, their inscriptions and
+  // the fee schedules those generate, the classes they sit in and the weeks
+  // they follow. `school-life` owns no tables — it is the overview and the
+  // header search — and `enrolment` contributes no nav, since an inscription is
+  // always reached through the pupil or the class it belongs to.
+  schoolLifeModule,
+  familiesModule,
+  studentsModule,
+  enrolmentModule,
   classesModule,
   timetableModule,
+
+  // Academic configuration. Tables and enums only — edited through the generic
+  // configuration screens, so they contribute no nav entry and no permissions.
+  academicsModule,
+  facilitiesModule,
   billingModule,
 
   // No nav, no tables — registered so the registry is a complete inventory.
@@ -90,4 +110,10 @@ export const PERMISSIONS = {
   ...USER_PERMISSIONS,
   ...ROLE_PERMISSIONS,
   ...CONFIGURATION_PERMISSIONS,
+  ...SCHOOL_LIFE_PERMISSIONS,
+  ...FAMILY_PERMISSIONS,
+  ...STUDENT_PERMISSIONS,
+  ...ENROLMENT_PERMISSIONS,
+  ...CLASS_PERMISSIONS,
+  ...TIMETABLE_PERMISSIONS,
 } as const;

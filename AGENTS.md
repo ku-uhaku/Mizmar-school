@@ -54,13 +54,41 @@ has no write invariants, so it has no `service.ts`.
 | `school-years` | `SchoolYear` | `/school-years` |
 | `users` | `User`, `Profile` | `/users`, `/users/[userId]`, `/users/new` |
 | `access` | `Role`, `Permission`, `RolePermission`, `Membership` | `/roles`, `/roles/[roleId]`, `/roles/new` |
+| `configuration` | — (edits other modules' tables) | `/configuration/[section]/[resource]` |
 | `profile` | — (writes own `Profile` row) | `/profile` |
 | `appearance` | — (writes own `Profile` row) | `/appearance` |
 | `auth` | — (reads `User`) | `/login` |
 | `context` | — (writes own `User` row) | — (header) |
+| **Vie scolaire** | | |
+| `school-life` | — (composes the others' counts) | `/school-life`, and the header search |
+| `families` | `Family`, `Guardian` | `/families`, `/families/[familyId]`, `/families/new` |
+| `students` | `Student` | `/students`, `/students/[studentId]`, `/students/new` |
+| `enrolment` | `Enrollment`, `EnrollmentFee` | — (reached through the pupil or the class) |
+| `classes` | `LevelOffering`, `SchoolClass`, `ClassGroup`, `TeachingAssignment` | `/classes`, `/classes/[classId]` |
+| `timetable` | `TimeSlot`, `TimetableEntry` | `/timetable` |
+| **Academic configuration** | | |
+| `academics` | `EducationLevel`, `Level`, `Track`, `Subject`, `LevelSubject` | — (edited under `/configuration`) |
+| `facilities` | `Room` | — (edited under `/configuration`) |
+| `billing` | `FeeType`, `FeeRate`, `Discount` | — (edited under `/configuration`) |
 
 Owning a table means owning its schema file, its enums and its write
 invariants. Other modules may **read** it through the owner's `queries.ts`.
+
+## Where a pupil's record lives
+
+Identity and the year are deliberately split, and it is the split most of the
+vie scolaire follows:
+
+* **`Student`** is who a child *is* — name, birth date, dossier familial. It
+  outlives every year and is never enough to say where the child sits.
+* **`Enrollment`** is what is true of them *in one year* — the level admitted
+  to, the class and group seated in, and the whole year's fee schedule
+  (`EnrollmentFee`, one row per charge per instalment, written at enrolment).
+
+So a child who repeats 3AP has two enrolments and one student row, and last
+year's class list keeps resolving after this year's is drawn up.
+`Student.status` is **derived** from the enrolments — only
+`refreshStudentStatus` writes it, and no form ever submits it.
 
 # Database
 

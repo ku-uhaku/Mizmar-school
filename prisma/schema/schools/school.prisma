@@ -43,6 +43,12 @@ model School {
   /// What the school can charge. How much, per year, is FeeRate.
   feeTypes        FeeType[]
 
+  // ── Vie scolaire ──────────────────────────────────────────────────────────
+  /// Dossiers familiaux and the children on the books. Both are identity only;
+  /// what a child does in a given year is an Enrollment, reached through it.
+  families Family[]
+  students Student[]
+
   @@unique([organizationId, code])
   @@index([organizationId])
   @@map("schools")

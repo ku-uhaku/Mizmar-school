@@ -28,6 +28,29 @@ import users, {
   nav as usersNav,
   permissions as usersPermissions,
 } from "@/modules/users/i18n/en";
+import classes, {
+  nav as classesNav,
+  permissions as classesPermissions,
+} from "@/modules/classes/i18n/en";
+import enrolment, {
+  permissions as enrolmentPermissions,
+} from "@/modules/enrolment/i18n/en";
+import families, {
+  nav as familiesNav,
+  permissions as familiesPermissions,
+} from "@/modules/families/i18n/en";
+import schoolLife, {
+  nav as schoolLifeNav,
+  permissions as schoolLifePermissions,
+} from "@/modules/school-life/i18n/en";
+import students, {
+  nav as studentsNav,
+  permissions as studentsPermissions,
+} from "@/modules/students/i18n/en";
+import timetable, {
+  nav as timetableNav,
+  permissions as timetablePermissions,
+} from "@/modules/timetable/i18n/en";
 
 /**
  * The canonical dictionary, assembled from the core strings plus every module's
@@ -62,6 +85,14 @@ const en = {
   ...profile,
   ...appearance,
 
+  // Vie scolaire.
+  ...schoolLife,
+  ...families,
+  ...students,
+  ...enrolment,
+  ...classes,
+  ...timetable,
+
   // Merged namespaces — contributed to by many modules.
   nav: {
     ...coreNav,
@@ -74,6 +105,11 @@ const en = {
     ...configurationNav,
     ...profileNav,
     ...appearanceNav,
+    ...schoolLifeNav,
+    ...familiesNav,
+    ...studentsNav,
+    ...classesNav,
+    ...timetableNav,
   },
   permissions: {
     groups: {
@@ -83,6 +119,12 @@ const en = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...schoolLifePermissions.groups,
+      ...familiesPermissions.groups,
+      ...studentsPermissions.groups,
+      ...enrolmentPermissions.groups,
+      ...classesPermissions.groups,
+      ...timetablePermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -91,6 +133,12 @@ const en = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...schoolLifePermissions.codes,
+      ...familiesPermissions.codes,
+      ...studentsPermissions.codes,
+      ...enrolmentPermissions.codes,
+      ...classesPermissions.codes,
+      ...timetablePermissions.codes,
     },
   },
 } as const;

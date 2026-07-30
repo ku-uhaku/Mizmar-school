@@ -37,6 +37,15 @@ export function isTeachingDay(value: number): value is TeachingDay {
   return (TEACHING_DAYS as readonly number[]).includes(value);
 }
 
+/**
+ * The most consecutive periods one lesson may occupy.
+ *
+ * Four, because a Moroccan timetable runs 2h blocks for TP and the odd 3h
+ * atelier, and anything longer is a data-entry slip rather than a lesson. Each
+ * period is still its own row — see the note in `service.ts`.
+ */
+export const MAX_LESSON_SPAN = 4;
+
 /** `HH:MM`, 24-hour — the format `TimeSlot.startTime` / `endTime` are stored in. */
 export const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 

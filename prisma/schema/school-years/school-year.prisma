@@ -27,6 +27,9 @@ model SchoolYear {
   feeRates  FeeRate[]
   discounts Discount[]
 
+  /// The pupils inscribed for this year.
+  enrollments Enrollment[]
+
   @@unique([schoolId, name])
   @@index([schoolId])
   @@map("school_years")

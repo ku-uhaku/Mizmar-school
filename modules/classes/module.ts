@@ -1,4 +1,5 @@
 import { defineModule } from "@/lib/module";
+import { CLASS_PERMISSIONS } from "@/modules/classes/permissions";
 
 /**
  * The cohorts of one school year: which levels the school opened, the classes
@@ -8,9 +9,21 @@ import { defineModule } from "@/lib/module";
  * This is the module that turns the curriculum into a running year, so
  * everything it owns hangs off `SchoolYear` rather than `School`.
  *
- * No nav or permissions yet — tables only.
+ * Creating the classes themselves stays in `configuration`; this module's
+ * screens are for running the ones that exist.
  */
 export const classesModule = defineModule({
   id: "classes",
   schemaFolder: "classes",
+  nav: [
+    {
+      href: "/classes",
+      icon: "classes",
+      section: "main",
+      labelKey: "classes",
+      order: 34,
+      schoolPermission: CLASS_PERMISSIONS.CLASS_VIEW,
+    },
+  ],
+  permissions: [{ group: "class", codes: Object.values(CLASS_PERMISSIONS) }],
 });

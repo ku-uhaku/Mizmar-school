@@ -30,6 +30,7 @@ model ClassGroup {
 
   assignments      TeachingAssignment[]
   timetableEntries TimetableEntry[]
+  enrollments      Enrollment[]
 
   @@unique([schoolClassId, code])
   @@index([schoolClassId])

@@ -44,6 +44,10 @@ model FeeRate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Schedule lines that were priced from this rate. Kept for provenance only —
+  /// they carry their own amount, so correcting a rate never restates them.
+  enrollmentFees EnrollmentFee[]
+
   @@unique([schoolYearId, feeTypeId, scopeKey])
   @@index([schoolYearId])
   @@index([feeTypeId])

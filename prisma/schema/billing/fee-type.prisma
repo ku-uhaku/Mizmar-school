@@ -39,6 +39,8 @@ model FeeType {
 
   rates     FeeRate[]
   discounts Discount[]
+  /// Pupils' schedule lines raised against this charge.
+  enrollmentFees EnrollmentFee[]
 
   @@unique([schoolId, code])
   @@index([schoolId])

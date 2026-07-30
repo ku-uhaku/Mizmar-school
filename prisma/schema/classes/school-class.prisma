@@ -49,6 +49,8 @@ model SchoolClass {
   groups           ClassGroup[]
   assignments      TeachingAssignment[]
   timetableEntries TimetableEntry[]
+  /// The roster: enrolments seated in this class.
+  enrollments      Enrollment[]
 
   @@unique([levelOfferingId, code])
   @@index([schoolId])

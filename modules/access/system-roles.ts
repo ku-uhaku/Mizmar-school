@@ -41,6 +41,16 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.USER_VIEW,
       PERMISSIONS.ROLE_VIEW,
       PERMISSIONS.CONFIGURATION_VIEW,
+      // Reads the whole vie scolaire across the schools they oversee, and runs
+      // the pedagogical side of it — but does not touch fee schedules.
+      PERMISSIONS.SCHOOL_LIFE_VIEW,
+      PERMISSIONS.FAMILY_VIEW,
+      PERMISSIONS.STUDENT_VIEW,
+      PERMISSIONS.ENROLMENT_VIEW,
+      PERMISSIONS.CLASS_VIEW,
+      PERMISSIONS.CLASS_ASSIGN_TEACHER,
+      PERMISSIONS.TIMETABLE_VIEW,
+      PERMISSIONS.TIMETABLE_MANAGE,
     ],
   },
   {
@@ -65,6 +75,27 @@ export const SYSTEM_ROLES: {
       // that confined to their school.
       PERMISSIONS.CONFIGURATION_VIEW,
       PERMISSIONS.CONFIGURATION_MANAGE,
+      // The whole vie scolaire of their own school, fees included — a director
+      // is who a family negotiates a reduction with.
+      PERMISSIONS.SCHOOL_LIFE_VIEW,
+      PERMISSIONS.FAMILY_VIEW,
+      PERMISSIONS.FAMILY_CREATE,
+      PERMISSIONS.FAMILY_UPDATE,
+      PERMISSIONS.FAMILY_DELETE,
+      PERMISSIONS.STUDENT_VIEW,
+      PERMISSIONS.STUDENT_CREATE,
+      PERMISSIONS.STUDENT_UPDATE,
+      PERMISSIONS.STUDENT_DELETE,
+      PERMISSIONS.ENROLMENT_VIEW,
+      PERMISSIONS.ENROLMENT_CREATE,
+      PERMISSIONS.ENROLMENT_UPDATE,
+      PERMISSIONS.ENROLMENT_DELETE,
+      PERMISSIONS.ENROLMENT_FEES,
+      PERMISSIONS.CLASS_VIEW,
+      PERMISSIONS.CLASS_ROSTER,
+      PERMISSIONS.CLASS_ASSIGN_TEACHER,
+      PERMISSIONS.TIMETABLE_VIEW,
+      PERMISSIONS.TIMETABLE_MANAGE,
     ],
   },
   {
@@ -75,12 +106,36 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.SCHOOL_VIEW,
       PERMISSIONS.SCHOOL_YEAR_VIEW,
       PERMISSIONS.USER_VIEW,
+      // The desk job: opens files, enrols, seats pupils in classes. Not
+      // ENROLMENT_FEES — what a family is charged is the bursar's, and the
+      // whole point of that code being separate.
+      PERMISSIONS.SCHOOL_LIFE_VIEW,
+      PERMISSIONS.FAMILY_VIEW,
+      PERMISSIONS.FAMILY_CREATE,
+      PERMISSIONS.FAMILY_UPDATE,
+      PERMISSIONS.STUDENT_VIEW,
+      PERMISSIONS.STUDENT_CREATE,
+      PERMISSIONS.STUDENT_UPDATE,
+      PERMISSIONS.ENROLMENT_VIEW,
+      PERMISSIONS.ENROLMENT_CREATE,
+      PERMISSIONS.ENROLMENT_UPDATE,
+      PERMISSIONS.CLASS_VIEW,
+      PERMISSIONS.CLASS_ROSTER,
+      PERMISSIONS.TIMETABLE_VIEW,
     ],
   },
   {
     name: "Enseignant",
     description: "Accès en lecture seule à son école.",
     scope: "SCHOOL",
-    permissions: [PERMISSIONS.SCHOOL_VIEW, PERMISSIONS.SCHOOL_YEAR_VIEW],
+    permissions: [
+      PERMISSIONS.SCHOOL_VIEW,
+      PERMISSIONS.SCHOOL_YEAR_VIEW,
+      // Sees the pupils and the week they are taught, and nothing about money
+      // or dossiers familiaux.
+      PERMISSIONS.STUDENT_VIEW,
+      PERMISSIONS.CLASS_VIEW,
+      PERMISSIONS.TIMETABLE_VIEW,
+    ],
   },
 ];

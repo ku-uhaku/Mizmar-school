@@ -31,7 +31,12 @@ export type NavIcon =
   | "roles"
   | "profile"
   | "appearance"
-  | "configuration";
+  | "configuration"
+  | "schoolLife"
+  | "students"
+  | "families"
+  | "classes"
+  | "timetable";
 
 /** Where a nav entry sits in the sidebar. Rendered in this order. */
 export const NAV_SECTIONS = ["main", "administration", "account"] as const;

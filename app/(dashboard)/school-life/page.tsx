@@ -1,0 +1,283 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  AlertCircleIcon,
+  ClockIcon,
+  GraduationCapIcon,
+  HomeIcon,
+  WalletIcon,
+} from "lucide-react";
+
+import { ColumnChart } from "@/components/charts/column-chart";
+import { Meter } from "@/components/charts/meter";
+import { StatTile } from "@/components/charts/stat-tile";
+import { EmptyState } from "@/components/shell/empty-state";
+import { PageHeader } from "@/components/shell/page-header";
+import { ForbiddenState } from "@/components/shell/states";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { requireAuth } from "@/lib/dal";
+import { formatNumber, interpolate } from "@/lib/i18n/format";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { PERMISSIONS } from "@/lib/permissions";
+import { centimesToDirhams } from "@/modules/classes/enums";
+import { loadSchoolLifeStats } from "@/modules/school-life/queries";
+
+export const metadata: Metadata = { title: "Vie scolaire" };
+
+/**
+ * The year seen whole.
+ *
+ * Every figure here is live and scoped to what this user may see — there is no
+ * placeholder band, unlike the main dashboard, because every table it counts
+ * now exists. The page owns no queries of its own; it composes each module's.
+ */
+export default async function SchoolLifePage() {
+  const context = await requireAuth();
+  const t = await getDictionary();
+  const locale = await getLocale();
+
+  if (!context.can(PERMISSIONS.SCHOOL_LIFE_VIEW)) {
+    return <ForbiddenState />;
+  }
+
+  const stats = await loadSchoolLifeStats(context);
+
+  const description = context.currentSchoolYear
+    ? interpolate(t.schoolLife.subtitle, {
+        school: context.currentSchool?.name ?? "—",
+        year: context.currentSchoolYear.name,
+      })
+    : t.schoolLife.noYear;
+
+  const levelColumns = stats.byLevel.filter((entry) => entry.value > 0);
+
+  return (
+    <>
+      <PageHeader title={t.schoolLife.title} description={description}>
+        {context.can(PERMISSIONS.STUDENT_VIEW) ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href="/students">{t.schoolLife.openStudents}</Link>
+          </Button>
+        ) : null}
+      </PageHeader>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          label={t.schoolLife.students}
+          value={stats.students.total}
+          detail={interpolate(t.schoolLife.studentsDetail, {
+            count: formatNumber(stats.enrolment.enrolled, locale),
+          })}
+          icon={<GraduationCapIcon className="size-4" />}
+          locale={locale}
+          href={context.can(PERMISSIONS.STUDENT_VIEW) ? "/students" : null}
+        />
+        <StatTile
+          label={t.schoolLife.families}
+          value={stats.families}
+          detail={t.schoolLife.familiesDetail}
+          icon={<HomeIcon className="size-4" />}
+          locale={locale}
+          href={context.can(PERMISSIONS.FAMILY_VIEW) ? "/families" : null}
+        />
+        <StatTile
+          label={t.schoolLife.unplaced}
+          value={stats.enrolment.unplaced}
+          detail={t.schoolLife.unplacedDetail}
+          icon={<AlertCircleIcon className="size-4" />}
+          locale={locale}
+          href={context.can(PERMISSIONS.CLASS_VIEW) ? "/classes" : null}
+        />
+        <StatTile
+          label={t.schoolLife.billed}
+          value={Math.round(centimesToDirhams(stats.enrolment.billedCentimes))}
+          detail={`${t.schoolLife.discounted}: ${formatNumber(
+            Math.round(centimesToDirhams(stats.enrolment.discountedCentimes)),
+            locale,
+          )} MAD`}
+          icon={<WalletIcon className="size-4" />}
+          locale={locale}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Card className="gap-4 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">{t.schoolLife.byLevel}</CardTitle>
+            <CardDescription>{t.schoolLife.byLevelHint}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {levelColumns.length === 0 ? (
+              <p className="text-muted-foreground py-6 text-center text-sm">
+                {t.schoolLife.noLevels}
+              </p>
+            ) : (
+              <ColumnChart
+                columns={levelColumns}
+                unitLabel={t.schoolLife.students}
+                tableCaption={t.dashboard.viewData}
+                categoryLabel={t.enrolment.level}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="gap-4">
+          <CardHeader className="flex flex-row items-start justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="text-base">
+                {t.schoolLife.classFill}
+              </CardTitle>
+              <CardDescription>{t.schoolLife.classFillHint}</CardDescription>
+            </div>
+            {context.can(PERMISSIONS.CLASS_VIEW) ? (
+              <Button asChild variant="ghost" size="sm" className="shrink-0">
+                <Link href="/classes">{t.nav.classes}</Link>
+              </Button>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            {stats.classFill.length === 0 ? (
+              <p className="text-muted-foreground py-6 text-center text-sm">
+                {t.schoolLife.noClasses}
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {stats.classFill.slice(0, 8).map((schoolClass) => (
+                  <Meter
+                    key={schoolClass.id}
+                    // A class with no cap has nothing to be a percentage of;
+                    // showing it as full would be a lie, so it reads as 0.
+                    value={
+                      schoolClass.capacity
+                        ? Math.min(
+                            100,
+                            Math.round(
+                              (schoolClass.enrolled / schoolClass.capacity) * 100,
+                            ),
+                          )
+                        : 0
+                    }
+                    label={schoolClass.code}
+                    caption={
+                      schoolClass.capacity
+                        ? interpolate(t.schoolClass.fill, {
+                            enrolled: schoolClass.enrolled,
+                            capacity: schoolClass.capacity,
+                          })
+                        : `${formatNumber(schoolClass.enrolled, locale)} · ${
+                            t.schoolClass.noCapacity
+                          }`
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">{t.schoolLife.pipeline}</CardTitle>
+            <CardDescription>{t.schoolLife.pipelineHint}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.students.preRegistered === 0 &&
+            stats.enrolment.pending === 0 &&
+            stats.enrolment.unplaced === 0 ? (
+              <EmptyState title={t.schoolLife.allDone} />
+            ) : (
+              <ul className="divide-y">
+                <PipelineRow
+                  icon={<GraduationCapIcon className="size-4" />}
+                  label={t.studentOptions.statuses.PRE_REGISTERED}
+                  detail={t.student.notEnrolled}
+                  count={stats.students.preRegistered}
+                  href={
+                    context.can(PERMISSIONS.STUDENT_VIEW) ? "/students" : null
+                  }
+                  locale={locale}
+                />
+                <PipelineRow
+                  icon={<ClockIcon className="size-4" />}
+                  label={t.schoolLife.pending}
+                  detail={t.schoolLife.pendingDetail}
+                  count={stats.enrolment.pending}
+                  href={
+                    context.can(PERMISSIONS.STUDENT_VIEW) ? "/students" : null
+                  }
+                  locale={locale}
+                />
+                <PipelineRow
+                  icon={<AlertCircleIcon className="size-4" />}
+                  label={t.schoolLife.unplaced}
+                  detail={t.schoolLife.unplacedDetail}
+                  count={stats.enrolment.unplaced}
+                  href={context.can(PERMISSIONS.CLASS_VIEW) ? "/classes" : null}
+                  locale={locale}
+                />
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function PipelineRow({
+  icon,
+  label,
+  detail,
+  count,
+  href,
+  locale,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  detail: string;
+  count: number;
+  href: string | null;
+  locale: Parameters<typeof formatNumber>[1];
+}) {
+  const body = (
+    <>
+      <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{label}</span>
+        <span className="text-muted-foreground block truncate text-xs">
+          {detail}
+        </span>
+      </span>
+      <span className="shrink-0 text-lg font-semibold tabular-nums">
+        {formatNumber(count, locale)}
+      </span>
+    </>
+  );
+
+  return (
+    <li className="first:pt-0 last:pb-0">
+      {href ? (
+        <Link
+          href={href}
+          className="hover:bg-muted/50 -mx-2 flex items-center gap-3 rounded-md px-2 py-2.5"
+        >
+          {body}
+        </Link>
+      ) : (
+        <div className="flex items-center gap-3 py-2.5">{body}</div>
+      )}
+    </li>
+  );
+}

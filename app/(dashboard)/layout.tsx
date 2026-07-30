@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { ContextSwitcher } from "@/modules/context/components/context-switcher";
+import { GlobalSearch } from "@/modules/school-life/components/global-search";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
 import { visibleSections } from "@/lib/nav";
 import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
@@ -62,6 +63,9 @@ export default async function DashboardLayout({
           />
 
           <div className="ms-auto flex items-center gap-1">
+            {/* Scoped to the working context and filtered by permission inside
+                the action — see modules/school-life/actions.ts. */}
+            <GlobalSearch />
             <LocaleSwitcher />
             <ThemeModeToggle />
             <UserMenu

@@ -1,4 +1,5 @@
 import { defineModule } from "@/lib/module";
+import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
 
 /**
  * The emploi du temps: the bell schedule for the year and the lesson in each
@@ -8,9 +9,23 @@ import { defineModule } from "@/lib/module";
  * class list is settled at enrolment and rarely moves, while the timetable is
  * rewritten repeatedly and switches wholesale for Ramadan.
  *
- * No nav or permissions yet — tables only.
+ * The bell schedule itself is edited under `configuration`; this module owns
+ * what is *in* the grid.
  */
 export const timetableModule = defineModule({
   id: "timetable",
   schemaFolder: "timetable",
+  nav: [
+    {
+      href: "/timetable",
+      icon: "timetable",
+      section: "main",
+      labelKey: "timetable",
+      order: 36,
+      schoolPermission: TIMETABLE_PERMISSIONS.TIMETABLE_VIEW,
+    },
+  ],
+  permissions: [
+    { group: "timetable", codes: Object.values(TIMETABLE_PERMISSIONS) },
+  ],
 });

@@ -1,0 +1,98 @@
+/// One line of a pupil's échéancier: what is owed, for which charge, in which
+/// month of the year.
+///
+/// The whole year is written at enrolment, in one transaction — twelve or so
+/// rows per pupil, not one row that a screen divides on the fly. Three reasons,
+/// and they are the reason this table exists at all:
+///
+///   1. **The price is fixed the day the family signs.** A rate corrected in
+///      November must not silently restate what was agreed in September, so the
+///      amount is copied here rather than looked up through `feeRateId` (which
+///      is kept only to show where the figure came from).
+///   2. **A reduction is per pupil, per month.** A sibling reduction on
+///      scolarité only, a month waived after a mid-year arrival, an amount
+///      renegotiated at the desk — none of that is expressible as a property of
+///      the price list, and all of it is ordinary.
+///   3. **It is what a payment will attach to.** Collection is not built yet;
+///      when it is, a receipt settles these rows. Generating them now is what
+///      makes the échéancier a fact rather than a projection.
+///
+/// The screen this feeds is a grid: one row per fee type, one column per month,
+/// the net amount in the cell. `dueMonth` and `dueYear` are what put a line in
+/// its column — see the note on them.
+model EnrollmentFee {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a fee type still owed by somebody cannot be deleted out from
+  /// under the schedule that references it.
+  feeTypeId String
+  feeType   FeeType @relation(fields: [feeTypeId], references: [id], onDelete: Restrict)
+
+  /// Where the amount came from, for the "why am I being charged this?"
+  /// conversation. SetNull, and never read to compute a total — see reason 1.
+  feeRateId String?
+  feeRate   FeeRate? @relation(fields: [feeRateId], references: [id], onDelete: SetNull)
+
+  /// 1-based instalment number within the year: 1 of 9, 2 of 9…
+  periodIndex Int
+
+  dueDate DateTime
+
+  /// The grid column, denormalised from `dueDate`.
+  ///
+  /// A calendar month, not an index: the school year straddles two calendar
+  /// years, so September 2025 and September 2026 are different columns, and
+  /// SQLite has no date-part function Prisma can group by. Set together with
+  /// `dueDate`, always from it.
+  dueMonth Int
+  dueYear  Int
+
+  /// The price before any reduction, in centimes of dirham — copied from the
+  /// rate at enrolment. Editable at the desk: a negotiated amount is entered
+  /// here, and the reduction below stays a reduction.
+  baseAmountCentimes Int
+
+  /// The reduction applied to this line. Both may be set — a percentage and
+  /// then a flat sum off — and both are integers for the reason every amount in
+  /// the schema is: this is money that gets summed and disputed.
+  ///
+  /// INVARIANT (service layer): `amountCentimes` is always
+  /// `netAmount(baseAmountCentimes, discountBps, discountCentimes)` from
+  /// modules/enrolment/enums.ts, and never negative.
+  discountBps      Int @default(0)
+  discountCentimes Int @default(0)
+
+  /// The school's declared reduction this line was granted under, when it was
+  /// granted under one at all. Null for an amount agreed at the desk.
+  /// SetNull: retiring a reduction must not silently restate an issued
+  /// schedule, and the amounts above already stand on their own.
+  discountId String?
+  discount   Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
+
+  /// What is actually owed: base, less the reductions. Stored rather than
+  /// derived so a total is a `SUM` and cannot disagree with the cell above it.
+  amountCentimes Int
+
+  /// "DUE" | "WAIVED" | "CANCELLED" — see modules/enrolment/enums.ts.
+  /// WAIVED and CANCELLED both stop the line counting toward what is owed; they
+  /// are kept apart because one is a favour and the other is an administrative
+  /// correction, and a school reports on them separately.
+  status String @default("DUE")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One line per charge per instalment. This is what makes generating the
+  /// schedule idempotent: re-running it upserts instead of doubling the year.
+  @@unique([enrollmentId, feeTypeId, periodIndex])
+  @@index([enrollmentId])
+  @@index([feeTypeId])
+  @@index([feeRateId])
+  @@index([discountId])
+  @@index([dueYear, dueMonth])
+  @@map("enrollment_fees")
+}

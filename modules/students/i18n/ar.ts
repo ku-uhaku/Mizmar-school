@@ -1,0 +1,107 @@
+/**
+ * Students translations (ar). Same shape as `en.ts`, which is canonical — a key
+ * added there is a compile error here until it is supplied.
+ */
+const ar = {
+  student: {
+    title: "التلاميذ",
+    subtitle: "جميع الأطفال المسجّلين في سجلات المدرسة.",
+    newStudent: "تلميذ جديد",
+    editStudent: "تعديل التلميذ",
+    createStudent: "إنشاء التلميذ",
+    identity: "الهوية",
+    identityHint: "من هو الطفل. أما مكانه فيحدّده التسجيل.",
+    code: "رقم التلميذ",
+    codeHint: "اتركه فارغًا لتخصيص الرقم التالي، مثل E-2025-0431.",
+    massarCode: "رمز مسار",
+    massarCodeHint: "رمز التلميذ في منظومة الوزارة.",
+    firstName: "الاسم الشخصي",
+    lastName: "الاسم العائلي",
+    firstNameAr: "الاسم الشخصي (بالعربية)",
+    lastNameAr: "الاسم العائلي (بالعربية)",
+    gender: "الجنس",
+    birthDate: "تاريخ الازدياد",
+    birthDateHint: "يحدّد المستوى الذي يمكن قبول الطفل فيه.",
+    birthPlace: "مكان الازدياد",
+    birthPlaceAr: "مكان الازدياد (بالعربية)",
+    nationality: "الجنسية",
+    nationalId: "البطاقة الوطنية",
+    nationalIdHint: "للتلاميذ البالغين سنّ الحصول عليها.",
+    photoUrl: "رابط الصورة",
+    age: "السن",
+    entryDate: "تاريخ الالتحاق",
+    exitDate: "تاريخ المغادرة",
+    medical: "الصحة",
+    medicalNotes: "معلومات طبية",
+    medicalNotesHint: "الحساسيات والعلاجات التي يجب أن تعرفها المصحّة.",
+    notes: "ملاحظات",
+    family: "الأسرة",
+    familyHint: "الملف الأسري المرتبط به هذا الطفل.",
+    noFamily: "غير مرتبط بأسرة بعد.",
+    attachHint: "اربط الطفل بملف أسري لتسجيل أوليائه.",
+    attachFamily: "الربط بأسرة",
+    detachFamily: "فصل عن الأسرة",
+    viewFamily: "فتح الملف الأسري",
+    created: "تم فتح ملف التلميذ.",
+    updated: "تم تحديث التلميذ.",
+    deleted: "تم حذف التلميذ.",
+    codeTaken: "رقم التلميذ مستعمل بالفعل.",
+    massarTaken: "رمز مسار مرتبط بتلميذ آخر.",
+    hasEnrolments: "لهذا التلميذ تسجيلات — عطّل الملف بدل حذفه.",
+    deleteTitle: "حذف ملف هذا التلميذ؟",
+    deleteBody: "سيتم حذف «{name}».",
+    noStudents: "لا يوجد تلاميذ.",
+    searchPlaceholder: "البحث بالاسم أو رقم التلميذ أو رمز مسار…",
+    studentColumn: "التلميذ",
+    placement: "الإسناد",
+    notPlaced: "غير مسند",
+    notEnrolled: "غير مسجّل",
+    tabInformation: "المعلومات",
+    tabFamily: "الأسرة",
+    tabEnrolment: "التسجيل",
+    tabFees: "الرسوم",
+    tabTimetable: "استعمال الزمن",
+    workflow: "المسار",
+    workflowHint: "إلى أين وصل هذا الملف.",
+    nextStep: "التالي: {step}",
+    workflowComplete: "هذا الملف مكتمل.",
+    steps: {
+      FILE: "فتح الملف",
+      FAMILY: "ربط الأسرة",
+      ENROLMENT: "التسجيل",
+      CLASS: "إسناد القسم",
+      FEES: "جدولة الرسوم",
+    },
+  },
+  studentOptions: {
+    genders: {
+      MALE: "ذكر",
+      FEMALE: "أنثى",
+    },
+    statuses: {
+      PRE_REGISTERED: "مسجّل أوليًا",
+      ENROLLED: "مسجّل",
+      TRANSFERRED: "منقول",
+      WITHDRAWN: "منقطع",
+      GRADUATED: "متخرّج",
+    },
+  },
+};
+
+export const nav = {
+  students: "التلاميذ",
+};
+
+export const permissions = {
+  groups: {
+    student: "التلاميذ",
+  },
+  codes: {
+    "student.view": "الاطلاع على التلاميذ",
+    "student.create": "فتح ملفات التلاميذ",
+    "student.update": "تعديل ملفات التلاميذ",
+    "student.delete": "حذف ملفات التلاميذ",
+  },
+};
+
+export default ar;

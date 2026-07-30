@@ -35,6 +35,11 @@ model User {
   teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
   timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
 
+  /// Portal accounts opened for parents. Almost always empty — a guardian is a
+  /// row in the dossier familial, and only becomes a User if a school chooses
+  /// to let them sign in.
+  guardianProfiles Guardian[] @relation("GuardianAccount")
+
   @@index([organizationId])
   @@map("users")
 }

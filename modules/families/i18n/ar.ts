@@ -1,0 +1,102 @@
+/**
+ * Families translations (ar). Same shape as `en.ts`, which is canonical — a key
+ * added there is a compile error here until it is supplied.
+ */
+const ar = {
+  family: {
+    title: "الأسر",
+    subtitle: "ملفات الأسر لدى المدرسة — الأولياء والأبناء.",
+    newFamily: "أسرة جديدة",
+    editFamily: "تعديل الأسرة",
+    createFamily: "إنشاء الأسرة",
+    code: "رقم الملف",
+    codeHint: "اتركه فارغًا لتخصيص الرقم التالي، مثل F-2025-0142.",
+    name: "اسم الأسرة",
+    nameAr: "اسم الأسرة (بالعربية)",
+    situation: "الحالة",
+    address: "العنوان",
+    addressLine: "العنوان",
+    city: "المدينة",
+    postalCode: "الرمز البريدي",
+    phone: "الهاتف",
+    email: "البريد الإلكتروني",
+    notes: "ملاحظات",
+    contact: "الاتصال",
+    household: "الأسرة",
+    primaryContact: "جهة الاتصال الأولى",
+    primaryContactHint: "الشخص الذي تتصل به المدرسة أولًا.",
+    noContact: "لا توجد جهة اتصال",
+    guardians: "الأولياء",
+    guardiansHint: "الأب والأم وأي ولي قانوني.",
+    children: "الأبناء",
+    childrenHint: "التلاميذ المرتبطون بهذا الملف.",
+    noChildren: "لا يوجد أبناء في هذا الملف.",
+    noGuardians: "لا يوجد أولياء في هذا الملف.",
+    addGuardian: "إضافة ولي",
+    editGuardian: "تعديل الولي",
+    relationship: "صلة القرابة",
+    firstName: "الاسم الشخصي",
+    lastName: "الاسم العائلي",
+    guardianNameAr: "الاسم الكامل (بالعربية)",
+    nationalId: "البطاقة الوطنية",
+    phoneAlt: "هاتف ثانٍ",
+    profession: "المهنة",
+    employer: "جهة العمل",
+    ownAddress: "عنوان خاص",
+    ownAddressHint: "فقط إذا كان مختلفًا عن عنوان الأسرة.",
+    isPrimaryContact: "جهة الاتصال الأولى",
+    isEmergencyContact: "جهة اتصال الطوارئ",
+    canPickUp: "مرخّص له باصطحاب الأبناء",
+    makePrimary: "تعيين كجهة اتصال أولى",
+    created: "تم إنشاء الأسرة.",
+    updated: "تم تحديث الأسرة.",
+    deleted: "تم حذف الأسرة.",
+    guardianAdded: "تمت إضافة الولي.",
+    guardianUpdated: "تم تحديث الولي.",
+    guardianDeleted: "تم حذف الولي.",
+    codeTaken: "رقم الملف مستعمل بالفعل.",
+    relationshipTaken: "هذه الأسرة لديها واحد بالفعل.",
+    hasChildren: "افصل الأبناء عن هذا الملف قبل حذفه.",
+    deleteTitle: "حذف ملف هذه الأسرة؟",
+    deleteBody: "سيتم حذف «{name}» وأولياؤها.",
+    deleteGuardianTitle: "حذف هذا الولي؟",
+    deleteGuardianBody: "سيتم حذف «{name}» من الملف.",
+    noFamilies: "لا توجد ملفات أسر.",
+    searchPlaceholder: "البحث بالاسم أو رقم الملف أو الهاتف…",
+    familyColumn: "الأسرة",
+    countLabel: "{count} أبناء",
+    attachTitle: "الربط بأسرة",
+  },
+  familyOptions: {
+    situations: {
+      MARRIED: "متزوج(ة)",
+      DIVORCED: "مطلق(ة)",
+      SEPARATED: "منفصل(ة)",
+      WIDOWED: "أرمل(ة)",
+      OTHER: "أخرى",
+    },
+    relationships: {
+      FATHER: "الأب",
+      MOTHER: "الأم",
+      GUARDIAN: "الولي",
+    },
+  },
+};
+
+export const nav = {
+  families: "الأسر",
+};
+
+export const permissions = {
+  groups: {
+    family: "الأسر",
+  },
+  codes: {
+    "family.view": "الاطلاع على ملفات الأسر",
+    "family.create": "إنشاء ملفات الأسر",
+    "family.update": "تعديل الملفات والأولياء",
+    "family.delete": "حذف ملفات الأسر",
+  },
+};
+
+export default ar;

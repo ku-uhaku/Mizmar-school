@@ -1,0 +1,79 @@
+/// An adult answerable for a family's children: le père, la mère, or a tuteur
+/// when neither parent is the one the school deals with.
+///
+/// One table rather than three, keyed by `relationship`, because the school
+/// needs exactly the same facts about each of them — a name, a CIN, a phone
+/// that is answered, a profession for the dossier — and asking "who do I call
+/// about this child" must not mean querying three tables and merging.
+///
+/// Not a `User`. A parent has no reason to sign in, and giving every mother a
+/// row in the account table would put thousands of dormant logins in front of
+/// the permission system. `userId` is the opt-in the other way round: set it
+/// when a school does open a parent portal account, and the two rows point at
+/// each other without the guardian ever depending on one existing.
+model Guardian {
+  id       String @id @default(cuid())
+  familyId String
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  /// "FATHER" | "MOTHER" | "GUARDIAN" — see modules/families/enums.ts.
+  ///
+  /// INVARIANT (service layer): a family has at most one FATHER and at most one
+  /// MOTHER, but any number of GUARDIAN rows — an uncle and a grandmother may
+  /// both be on the file. A unique index cannot say "only for two of the three
+  /// values", so the rule is enforced on write.
+  relationship String
+
+  firstName String
+  lastName  String
+  nameAr    String?
+
+  /// Carte nationale d'identité électronique, e.g. "BE123456". What Moroccan
+  /// school paperwork identifies an adult by — a birth date does not.
+  nationalId String?
+
+  /// The number that is actually answered, and a fallback. Kept as two plain
+  /// columns rather than a contacts table: schools record two at most, and a
+  /// join to reach a phone number earns nothing.
+  phone    String?
+  phoneAlt String?
+  email    String?
+
+  profession String?
+  employer   String?
+
+  /// Set only when this guardian does not live at the family address — a
+  /// divorced father, a tuteur in another city. Null means "use the family's".
+  addressLine String?
+  city        String?
+
+  /// The one the school calls first.
+  ///
+  /// INVARIANT (service layer): at most one per family. Promoting a guardian
+  /// demotes whichever held it, the same way a default school year works.
+  isPrimaryContact Boolean @default(false)
+
+  /// Called when the first contact cannot be reached.
+  isEmergencyContact Boolean @default(false)
+
+  /// Whether this adult may collect the child at the gate. Legally distinct
+  /// from being a parent — a custody order can remove it — so it is its own
+  /// column and not derived from `relationship`.
+  canPickUp Boolean @default(true)
+
+  /// Set when the school has opened a portal account for this guardian.
+  /// SetNull: deleting the account must not delete the parent from the dossier.
+  userId String?
+  user   User?   @relation("GuardianAccount", fields: [userId], references: [id], onDelete: SetNull)
+
+  notes    String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([familyId])
+  @@index([userId])
+  @@index([lastName])
+  @@map("guardians")
+}

@@ -1,0 +1,85 @@
+/**
+ * Classes translations (ar). Same shape as `en.ts`, which is canonical — a key
+ * added there is a compile error here until it is supplied.
+ */
+const ar = {
+  schoolClass: {
+    title: "الأقسام",
+    subtitle: "أقسام هذه السنة — من ينتمي إليها ومن يدرّس فيها.",
+    noClasses: "لا توجد أقسام لهذه السنة.",
+    noClassesHint: "افتح مستوى في الإعدادات، ثم أنشئ أقسامه.",
+    searchPlaceholder: "البحث برمز القسم أو المستوى…",
+    classColumn: "القسم",
+    level: "المستوى",
+    mainTeacher: "الأستاذ الرئيسي",
+    room: "القاعة",
+    capacity: "الطاقة الاستيعابية",
+    enrolled: "العدد",
+    fill: "{enrolled} / {capacity}",
+    noCapacity: "بلا حد",
+    overCapacity: "تجاوز الطاقة",
+    groups: "الأفواج",
+    lessons: "الحصص",
+
+    tabRoster: "التلاميذ",
+    tabTeaching: "الأساتذة",
+    tabTimetable: "استعمال الزمن",
+
+    roster: "لائحة القسم",
+    rosterHint: "التلاميذ المسندون إلى هذا القسم لهذه السنة.",
+    rosterAssignHint:
+      "انقل التلاميذ بين اللائحتين. على اليمين كل المسجّلين في هذا المستوى بلا قسم.",
+    tabAssign: "الإسناد",
+    tabList: "لائحة القسم",
+    availableTitle: "مسجّلون بلا قسم",
+    assignedTitle: "في {class}",
+    studentsRemoved: "تم سحب {count} تلاميذ من القسم.",
+    seatsLeftHint: "بقيت {count} أماكن في هذا القسم.",
+    emptyRoster: "لا يوجد تلاميذ في هذا القسم.",
+    emptyRosterHint: "أضف تلاميذ مسجّلين في هذا المستوى وغير مسندين بعد.",
+    noCandidates: "جميع المسجّلين في هذا المستوى لديهم قسم بالفعل.",
+    studentsAdded: "تمت إضافة {count} تلاميذ.",
+    group: "الفوج",
+    noGroup: "لا يوجد فوج",
+    setGroup: "تغيير الفوج",
+
+    teaching: "الإسنادات التربوية",
+    teachingHint: "من هو المسؤول عن كل مادة في هذا القسم.",
+    emptyTeaching: "لا توجد مواد مسندة.",
+    emptyTeachingHint: "أسند أستاذًا لكل مادة في البرنامج.",
+    assignTeacher: "إسناد أستاذ",
+    editAssignment: "تعديل الإسناد",
+    subject: "المادة",
+    teacher: "الأستاذ",
+    weeklyMinutes: "الدقائق الأسبوعية",
+    weeklyMinutesHint: "عادةً حصة البرنامج. اتركه فارغًا لاستعمالها.",
+    isPrimary: "مسؤول عن النقط",
+    isPrimaryHint: "أستاذ واحد فقط لكل مادة يتحمّل هذه المسؤولية.",
+    primaryBadge: "النقط",
+    wholeClass: "القسم كاملًا",
+    assignmentSaved: "تم حفظ الإسناد.",
+    assignmentDeleted: "تم حذف الإسناد.",
+    assignmentExists: "هذا الأستاذ يدرّس هذه المادة هنا بالفعل.",
+    teacherUnavailable: "هذا الأستاذ لا يملك ولوجًا إلى هذه المدرسة.",
+    deleteAssignmentTitle: "حذف هذا الإسناد؟",
+    deleteAssignmentBody: "لن يدرّس «{name}» مادة {subject} هنا بعد الآن.",
+    openTimetable: "فتح استعمال الزمن الكامل",
+  },
+};
+
+export const nav = {
+  classes: "الأقسام",
+};
+
+export const permissions = {
+  groups: {
+    class: "الأقسام",
+  },
+  codes: {
+    "class.view": "الاطلاع على الأقسام",
+    "class.roster": "إدارة لوائح الأقسام",
+    "class.assignTeacher": "إسناد الأساتذة للمواد",
+  },
+};
+
+export default ar;

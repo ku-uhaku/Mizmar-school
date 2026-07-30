@@ -1,0 +1,81 @@
+/// An inscription: one child, in one school year, at one level.
+///
+/// This is the row that turns a file into a pupil. Everything that is true only
+/// for a year hangs off it — the level and filière admitted to, the class and
+/// the group sat in, whether the bus and the canteen were taken, and the whole
+/// year's fee schedule (see EnrollmentFee).
+///
+/// The level comes first and the class comes later, which is why they are
+/// separate columns and only one of them is required. A school admits a child
+/// to 4AP in June and decides in September which of 4AP-A and 4AP-B it sits in;
+/// until then the enrolment is real, billable, and classless.
+model Enrollment {
+  id        String  @id @default(cuid())
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// The level (and filière, in the qualifying cycle) the child is admitted to,
+  /// as opened by the school this year. Restrict: a level offering with pupils
+  /// on it cannot be dropped without dealing with them first.
+  levelOfferingId String
+  levelOffering   LevelOffering @relation(fields: [levelOfferingId], references: [id], onDelete: Restrict)
+
+  /// The class. Null until the child is seated — see the note above.
+  /// SetNull: dissolving a class must not delete its pupils' enrolments, it
+  /// must leave them waiting to be re-seated.
+  schoolClassId String?
+  schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: SetNull)
+
+  /// The group within the class, for the subjects taught in halves.
+  ///
+  /// INVARIANT (service layer): must belong to `schoolClassId`, and is cleared
+  /// whenever the class changes. A group of a class the child is not in would
+  /// put it in two rooms at once on the timetable.
+  classGroupId String?
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+
+  /// "PENDING" | "ACTIVE" | "TRANSFERRED" | "WITHDRAWN" | "COMPLETED"
+  /// see modules/enrolment/enums.ts.
+  status String @default("ACTIVE")
+
+  /// When the family signed. Distinct from `createdAt`, which is when a
+  /// secretary got round to typing it in.
+  enrolledOn DateTime @default(now())
+  /// Set when the child leaves mid-year. Fee lines falling after it are the
+  /// ones an accountant will want to cancel.
+  leftOn     DateTime?
+
+  /// Redoublant. Kept because it changes nothing about the fees but everything
+  /// about how a class list is read.
+  isRepeating Boolean @default(false)
+
+  /// Which optional charges this family signed up for. The fee schedule is
+  /// generated from the price list *filtered by these* — a mandatory fee is
+  /// billed to everyone, an optional one only to subscribers. Modelled as flags
+  /// rather than a join table because a school offers a handful of opt-ins and
+  /// a table of two rows per pupil is a join for nothing.
+  usesTransport Boolean @default(false)
+  usesCanteen   Boolean @default(false)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fees EnrollmentFee[]
+
+  /// A child is enrolled once per year. Re-admitting after a withdrawal edits
+  /// the existing row rather than adding a second, so the year's fee schedule
+  /// cannot be generated twice.
+  @@unique([studentId, schoolYearId])
+  @@index([schoolYearId])
+  @@index([studentId])
+  @@index([levelOfferingId])
+  @@index([schoolClassId])
+  @@index([classGroupId])
+  @@index([schoolYearId, status])
+  @@map("enrollments")
+}

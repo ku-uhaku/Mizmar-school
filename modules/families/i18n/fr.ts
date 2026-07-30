@@ -1,0 +1,102 @@
+/**
+ * Families translations (fr). Same shape as `en.ts`, which is canonical — a key
+ * added there is a compile error here until it is supplied.
+ */
+const fr = {
+  family: {
+    title: "Familles",
+    subtitle: "Les dossiers familiaux de l'école — tuteurs et enfants.",
+    newFamily: "Nouvelle famille",
+    editFamily: "Modifier la famille",
+    createFamily: "Créer la famille",
+    code: "N° de dossier",
+    codeHint: "Laisser vide pour attribuer le suivant, ex. F-2025-0142.",
+    name: "Nom de famille",
+    nameAr: "Nom de famille (arabe)",
+    situation: "Situation",
+    address: "Adresse",
+    addressLine: "Adresse",
+    city: "Ville",
+    postalCode: "Code postal",
+    phone: "Téléphone",
+    email: "E-mail",
+    notes: "Remarques",
+    contact: "Contact",
+    household: "Foyer",
+    primaryContact: "Contact principal",
+    primaryContactHint: "La personne que l'école appelle en premier.",
+    noContact: "Aucun contact",
+    guardians: "Tuteurs",
+    guardiansHint: "Le père, la mère et tout tuteur légal.",
+    children: "Enfants",
+    childrenHint: "Élèves rattachés à ce dossier.",
+    noChildren: "Aucun enfant sur ce dossier.",
+    noGuardians: "Aucun tuteur sur ce dossier.",
+    addGuardian: "Ajouter un tuteur",
+    editGuardian: "Modifier le tuteur",
+    relationship: "Lien",
+    firstName: "Prénom",
+    lastName: "Nom",
+    guardianNameAr: "Nom complet (arabe)",
+    nationalId: "CIN",
+    phoneAlt: "Second téléphone",
+    profession: "Profession",
+    employer: "Employeur",
+    ownAddress: "Adresse personnelle",
+    ownAddressHint: "Uniquement si différente de l'adresse de la famille.",
+    isPrimaryContact: "Contact principal",
+    isEmergencyContact: "Contact d'urgence",
+    canPickUp: "Autorisé à récupérer les enfants",
+    makePrimary: "Définir comme contact principal",
+    created: "Famille créée.",
+    updated: "Famille mise à jour.",
+    deleted: "Famille supprimée.",
+    guardianAdded: "Tuteur ajouté.",
+    guardianUpdated: "Tuteur mis à jour.",
+    guardianDeleted: "Tuteur retiré.",
+    codeTaken: "Ce numéro de dossier est déjà utilisé.",
+    relationshipTaken: "Cette famille en a déjà un.",
+    hasChildren: "Détachez les enfants de ce dossier avant de le supprimer.",
+    deleteTitle: "Supprimer ce dossier familial ?",
+    deleteBody: "« {name} » et ses tuteurs seront supprimés.",
+    deleteGuardianTitle: "Retirer ce tuteur ?",
+    deleteGuardianBody: "« {name} » sera retiré du dossier.",
+    noFamilies: "Aucun dossier familial.",
+    searchPlaceholder: "Rechercher par nom, n° de dossier ou téléphone…",
+    familyColumn: "Famille",
+    countLabel: "{count} enfants",
+    attachTitle: "Rattacher à une famille",
+  },
+  familyOptions: {
+    situations: {
+      MARRIED: "Marié(e)",
+      DIVORCED: "Divorcé(e)",
+      SEPARATED: "Séparé(e)",
+      WIDOWED: "Veuf / veuve",
+      OTHER: "Autre",
+    },
+    relationships: {
+      FATHER: "Père",
+      MOTHER: "Mère",
+      GUARDIAN: "Tuteur",
+    },
+  },
+};
+
+export const nav = {
+  families: "Familles",
+};
+
+export const permissions = {
+  groups: {
+    family: "Familles",
+  },
+  codes: {
+    "family.view": "Consulter les dossiers familiaux",
+    "family.create": "Créer des dossiers familiaux",
+    "family.update": "Modifier les dossiers et les tuteurs",
+    "family.delete": "Supprimer des dossiers familiaux",
+  },
+};
+
+export default fr;

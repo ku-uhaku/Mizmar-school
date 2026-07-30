@@ -41,6 +41,9 @@ model LevelOffering {
   updatedAt DateTime @updatedAt
 
   classes SchoolClass[]
+  /// Pupils admitted to this level this year — including those not yet seated
+  /// in one of its classes.
+  enrollments Enrollment[]
 
   @@unique([schoolYearId, levelId, scopeKey])
   @@index([schoolYearId])

@@ -30,6 +30,29 @@ import users, {
   nav as usersNav,
   permissions as usersPermissions,
 } from "@/modules/users/i18n/fr";
+import classes, {
+  nav as classesNav,
+  permissions as classesPermissions,
+} from "@/modules/classes/i18n/fr";
+import enrolment, {
+  permissions as enrolmentPermissions,
+} from "@/modules/enrolment/i18n/fr";
+import families, {
+  nav as familiesNav,
+  permissions as familiesPermissions,
+} from "@/modules/families/i18n/fr";
+import schoolLife, {
+  nav as schoolLifeNav,
+  permissions as schoolLifePermissions,
+} from "@/modules/school-life/i18n/fr";
+import students, {
+  nav as studentsNav,
+  permissions as studentsPermissions,
+} from "@/modules/students/i18n/fr";
+import timetable, {
+  nav as timetableNav,
+  permissions as timetablePermissions,
+} from "@/modules/timetable/i18n/fr";
 
 /**
  * French. Assembled exactly like `en.ts` — see that file for the registration
@@ -50,6 +73,14 @@ const fr: Dictionary = {
   ...profile,
   ...appearance,
 
+  // Vie scolaire.
+  ...schoolLife,
+  ...families,
+  ...students,
+  ...enrolment,
+  ...classes,
+  ...timetable,
+
   nav: {
     ...coreNav,
     ...dashboardNav,
@@ -61,6 +92,11 @@ const fr: Dictionary = {
     ...configurationNav,
     ...profileNav,
     ...appearanceNav,
+    ...schoolLifeNav,
+    ...familiesNav,
+    ...studentsNav,
+    ...classesNav,
+    ...timetableNav,
   },
   permissions: {
     groups: {
@@ -70,6 +106,12 @@ const fr: Dictionary = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...schoolLifePermissions.groups,
+      ...familiesPermissions.groups,
+      ...studentsPermissions.groups,
+      ...enrolmentPermissions.groups,
+      ...classesPermissions.groups,
+      ...timetablePermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -78,6 +120,12 @@ const fr: Dictionary = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...schoolLifePermissions.codes,
+      ...familiesPermissions.codes,
+      ...studentsPermissions.codes,
+      ...enrolmentPermissions.codes,
+      ...classesPermissions.codes,
+      ...timetablePermissions.codes,
     },
   },
 };

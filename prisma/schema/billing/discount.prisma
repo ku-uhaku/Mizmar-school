@@ -55,6 +55,10 @@ model Discount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Schedule lines granted under this reduction. This is the "who qualifies"
+  /// the note above defers — decided per pupil at enrolment, recorded there.
+  enrollmentFees EnrollmentFee[]
+
   /// INVARIANT (service layer): exactly one of `percentBps` / `amountCentimes`
   /// is set, and it is the one matching `kind`. A CHECK constraint would say
   /// this in the database, but Prisma cannot declare one.

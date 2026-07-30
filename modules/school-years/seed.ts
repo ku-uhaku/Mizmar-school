@@ -29,6 +29,10 @@ export type SeededYear = {
   id: string;
   name: string;
   status: string;
+  /** Carried through so later seeds can date rows against the year rather than
+   *  against today — an enrolment's ages and due dates both hang off it. */
+  startDate: Date;
+  endDate: Date;
   /** Term number → id. */
   terms: Record<number, string>;
 };
@@ -102,7 +106,14 @@ export async function seedSchoolYears(
       terms[term.number] = termRow.id;
     }
 
-    seeded.push({ id: row.id, name: row.name, status: row.status, terms });
+    seeded.push({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      startDate: start,
+      endDate: end,
+      terms,
+    });
   }
 
   log("school years", `${seeded.length} × ${TERMS.length} terms`);
