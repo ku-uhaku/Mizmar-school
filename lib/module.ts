@@ -30,7 +30,8 @@ export type NavIcon =
   | "users"
   | "roles"
   | "profile"
-  | "appearance";
+  | "appearance"
+  | "configuration";
 
 /** Where a nav entry sits in the sidebar. Rendered in this order. */
 export const NAV_SECTIONS = ["main", "administration", "account"] as const;

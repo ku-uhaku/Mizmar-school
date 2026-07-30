@@ -1,0 +1,59 @@
+/// A classe: the cohort a student belongs to for the whole year, e.g. "1AP-A",
+/// "2BAC-SM-B".
+///
+/// Named `SchoolClass` rather than `Class` because `class` is a reserved word in
+/// JavaScript — a model called `Class` generates code that cannot be destructured.
+/// The table itself is `classes`.
+model SchoolClass {
+  id              String        @id @default(cuid())
+  levelOfferingId String
+  levelOffering   LevelOffering @relation(fields: [levelOfferingId], references: [id], onDelete: Cascade)
+
+  /// Denormalised from `levelOffering.schoolYear.schoolId`. Classes are the most
+  /// frequently listed rows in the app and are always scoped by school; reaching
+  /// the school through two joins on every query is not worth it.
+  ///
+  /// INVARIANT (service layer): must equal the offering's year's school. Set it
+  /// from the offering, never from the request.
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Code as printed on lists and report cards, e.g. "2BAC-SM-B".
+  code String
+  name String?
+
+  /// Section letter on its own ("A", "B", "C"), for sorting and for generating
+  /// `code` consistently.
+  section String?
+
+  /// Seats in this class specifically. Moroccan public classes commonly run to
+  /// 40+; private schools cap far lower, so this is per class, not per level.
+  capacity Int?
+
+  /// Professeur principal — the teacher answerable for the class: report cards,
+  /// class council, contact with families. Nullable because it is often assigned
+  /// after the class itself exists.
+  mainTeacherId String?
+  mainTeacher   User?   @relation("ClassMainTeacher", fields: [mainTeacherId], references: [id], onDelete: SetNull)
+
+  /// Home room. Individual timetable entries may send the class elsewhere (lab,
+  /// gym); this is where it sits by default.
+  roomId String?
+  room   Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  groups           ClassGroup[]
+  assignments      TeachingAssignment[]
+  timetableEntries TimetableEntry[]
+
+  @@unique([levelOfferingId, code])
+  @@index([schoolId])
+  @@index([levelOfferingId])
+  @@index([mainTeacherId])
+  @@index([roomId])
+  @@map("classes")
+}

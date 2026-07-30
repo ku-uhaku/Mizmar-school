@@ -1,0 +1,56 @@
+/// One period in the school's bell schedule, e.g. Monday 08:00–09:00.
+///
+/// Per school year rather than per school: the timetable grid is renegotiated
+/// each year, and last year's slots must keep resolving for last year's
+/// timetable.
+///
+/// Two Moroccan specifics drive the shape of this table:
+///
+///   * The week runs **Monday to Saturday**, with Saturday usually morning only
+///     and Sunday off — so `dayOfWeek` goes 1–6, not 1–5.
+///   * **Ramadan** is taught on a compressed continuous timetable (horaire
+///     continu, no afternoon session). Rather than rewrite the grid twice a year,
+///     a school keeps both sets of slots and switches `scheduleKind`.
+model TimeSlot {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// 1 = Monday … 6 = Saturday. ISO-8601 numbering, so it lines up with
+  /// `Date.getDay()` once Sunday (0/7) is excluded.
+  dayOfWeek Int
+
+  /// "MORNING" | "AFTERNOON" — see modules/timetable/enums.ts.
+  /// Moroccan schools run a split day, and many rules (canteen, transport,
+  /// half-day absence) key off the session rather than the clock.
+  session String
+
+  /// Wall-clock "HH:MM", 24-hour.
+  ///
+  /// Text, not DateTime: these are times of day with no date attached. Storing
+  /// them as DateTime forces a fake date and invites the value to shift by an
+  /// hour when the server's offset or DST assumption changes.
+  startTime String
+  endTime   String
+
+  /// "STANDARD" | "RAMADAN" — see modules/timetable/enums.ts.
+  scheduleKind String @default("STANDARD")
+
+  /// Order within the day. Kept explicit so a break can sit between periods
+  /// without the numbering implying a duration.
+  position Int @default(0)
+
+  /// Recreation and lunch occupy the grid but hold no lesson.
+  isBreak Boolean @default(false)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  timetableEntries TimetableEntry[]
+
+  @@unique([schoolYearId, scheduleKind, dayOfWeek, startTime])
+  @@index([schoolYearId])
+  @@map("time_slots")
+}

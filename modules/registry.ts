@@ -1,11 +1,17 @@
 import type { AppModule } from "@/lib/module";
 
+import { academicsModule } from "@/modules/academics/module";
 import { accessModule } from "@/modules/access/module";
 import { ROLE_PERMISSIONS } from "@/modules/access/permissions";
 import { appearanceModule } from "@/modules/appearance/module";
 import { authModule } from "@/modules/auth/module";
+import { billingModule } from "@/modules/billing/module";
+import { classesModule } from "@/modules/classes/module";
+import { configurationModule } from "@/modules/configuration/module";
+import { CONFIGURATION_PERMISSIONS } from "@/modules/configuration/permissions";
 import { contextModule } from "@/modules/context/module";
 import { dashboardModule } from "@/modules/dashboard/module";
+import { facilitiesModule } from "@/modules/facilities/module";
 import { organizationModule } from "@/modules/organization/module";
 import { ORGANIZATION_PERMISSIONS } from "@/modules/organization/permissions";
 import { profileModule } from "@/modules/profile/module";
@@ -13,6 +19,7 @@ import { schoolYearsModule } from "@/modules/school-years/module";
 import { SCHOOL_YEAR_PERMISSIONS } from "@/modules/school-years/permissions";
 import { schoolsModule } from "@/modules/schools/module";
 import { SCHOOL_PERMISSIONS } from "@/modules/schools/permissions";
+import { timetableModule } from "@/modules/timetable/module";
 import { usersModule } from "@/modules/users/module";
 import { USER_PERMISSIONS } from "@/modules/users/permissions";
 
@@ -49,8 +56,19 @@ export const MODULES: readonly AppModule[] = [
   schoolYearsModule,
   usersModule,
   accessModule,
+  configurationModule,
   profileModule,
   appearanceModule,
+
+  // Academic configuration. Tables and enums only so far — no UI, so they
+  // contribute no nav entry and no permissions yet. Registered because the
+  // registry is the inventory of which module owns which schema folder.
+  academicsModule,
+  facilitiesModule,
+  classesModule,
+  timetableModule,
+  billingModule,
+
   // No nav, no tables — registered so the registry is a complete inventory.
   authModule,
   contextModule,
@@ -71,4 +89,5 @@ export const PERMISSIONS = {
   ...SCHOOL_YEAR_PERMISSIONS,
   ...USER_PERMISSIONS,
   ...ROLE_PERMISSIONS,
+  ...CONFIGURATION_PERMISSIONS,
 } as const;

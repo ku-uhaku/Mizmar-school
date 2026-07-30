@@ -1,0 +1,65 @@
+/// A reduction the school offers in a given year: réduction fratrie, enfant du
+/// personnel, paiement anticipé, bourse.
+///
+/// Declared per school year because discount policy is renegotiated with the
+/// price list — last year's 15% sibling reduction must stay readable on last
+/// year's invoices even after this year's drops to 10%.
+///
+/// This table is the *definition* of a reduction, not a grant of one. Who
+/// qualifies (which sibling, which member of staff, which hardship case) is
+/// decided at enrolment and recorded against the student's own billing rows —
+/// that lives with enrolment, which does not exist yet. Keeping the two apart is
+/// what stops this table turning into a rules engine.
+model Discount {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "FRATRIE-2", "PERSONNEL", "ANTICIPE", "BOURSE".
+  code   String
+  name   String
+  nameAr String?
+
+  /// "PERCENTAGE" | "FIXED_AMOUNT" — see modules/billing/enums.ts.
+  kind String
+
+  /// Set when `kind` is PERCENTAGE. Basis points, so 1250 = 12,5 %.
+  ///
+  /// Basis points rather than a float percentage: a discount is multiplied into
+  /// a money amount, and 12.5 stored as a float would put centimes of error into
+  /// every invoice it touches.
+  percentBps Int?
+
+  /// Set when `kind` is FIXED_AMOUNT. Centimes of dirham, like every other
+  /// amount in the schema.
+  amountCentimes Int?
+
+  /// Why the reduction exists: "SIBLING" | "STAFF" | "EARLY_PAYMENT"
+  /// | "SCHOLARSHIP" | "MERIT" | "HARDSHIP" | "OTHER"
+  /// see modules/billing/enums.ts. Used for reporting on what the school gives
+  /// away, which is a figure its accountant will ask for.
+  reason String @default("OTHER")
+
+  /// Null = may reduce any fee. Set = only this fee type, which is how a school
+  /// limits a sibling reduction to scolarité and keeps it off the bus.
+  feeTypeId String?
+  feeType   FeeType? @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
+
+  /// Whether this reduction may combine with others on the same charge. Most
+  /// schools allow exactly one, so the default is the safe one.
+  isStackable Boolean @default(false)
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// INVARIANT (service layer): exactly one of `percentBps` / `amountCentimes`
+  /// is set, and it is the one matching `kind`. A CHECK constraint would say
+  /// this in the database, but Prisma cannot declare one.
+  @@unique([schoolYearId, code])
+  @@index([schoolYearId])
+  @@index([feeTypeId])
+  @@map("discounts")
+}

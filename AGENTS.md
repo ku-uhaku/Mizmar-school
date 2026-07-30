@@ -111,6 +111,16 @@ npm run db:seed         # idempotent, safe to re-run
 npm run db:studio
 ```
 
+`prisma migrate dev` prompts before adding a unique constraint, which fails in a
+non-interactive shell. The CI-friendly path is to generate the SQL, read it, then
+apply:
+
+```bash
+npx prisma migrate diff --from-migrations prisma/migrations \
+  --to-schema prisma/schema --script > prisma/migrations/<stamp>_<name>/migration.sql
+npx prisma migrate deploy
+```
+
 Never hand-edit a file in `prisma/migrations/`. After reorganising schema files
 without intending a schema change, prove it:
 
@@ -120,6 +130,28 @@ npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/s
 ```
 
 `lib/generated/prisma/` is generated output. Never edit it.
+
+**`lib/db.ts` caches the client on `globalThis` in development.** A dev server
+started before a `prisma generate` keeps the old client, and every new model
+reads as `undefined` ("Cannot read properties of undefined"). Restart
+`npm run dev` after adding tables.
+
+## Seeding
+
+`prisma/seed.ts` is only an orchestrator: it decides the order and passes ids
+along. **Each module seeds its own tables** in `modules/<module>/seed.ts`, so a
+new module means a new seed file and one call, never another few hundred lines in
+a shared script. The client and the shared `SeedContext` live in
+`prisma/seed/client.ts`; `@/` aliases resolve under `tsx`.
+
+- Seeds must be **idempotent** — upsert on the table's unique constraint, never
+  `create`. Re-running is the normal case and must change nothing.
+- Seeds **never delete**. A school you added by hand survives a re-seed; use
+  `npm run db:reset` for a clean slate.
+- Set derived columns (`scopeKey`, `bookingKey`) through their helpers, exactly
+  as an action would — the seed is bound by the same invariants as the app.
+- Prove a change with counts before and after, and re-run once to prove
+  idempotency.
 
 # Layering
 

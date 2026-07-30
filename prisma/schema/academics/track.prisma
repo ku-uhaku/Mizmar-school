@@ -1,0 +1,39 @@
+/// A filière (stream) within a level.
+///
+/// Only the qualifying cycle streams in Morocco; primaire and collégial have no
+/// tracks at all, which is why every reference to a track is nullable:
+///
+///   TC    Sciences · Lettres et Sciences Humaines · Technologique · Originel
+///   1BAC  SE (Sciences Expérimentales) · SM (Sciences Maths) · L · SH · SEG
+///         · STE · STM · Arts Appliqués
+///   2BAC  SVT · PC · SM-A · SM-B · Lettres · SH · SEG · SGC · STE · STM
+///
+/// Kept as rows rather than an enum because private schools open and close
+/// streams year to year, and the Ministry's list itself changes.
+model Track {
+  id      String @id @default(cuid())
+  levelId String
+  level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  /// e.g. "SM-A", "SVT", "PC", "LSH", "SEG", "STE".
+  code   String
+  name   String
+  nameAr String?
+
+  /// The filière's code in MASSAR. See the note on Subject.massarCode.
+  massarCode String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subjects  LevelSubject[]
+  offerings LevelOffering[]
+
+  @@unique([levelId, code])
+  @@unique([levelId, massarCode])
+  @@index([levelId])
+  @@map("tracks")
+}

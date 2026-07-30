@@ -56,6 +56,7 @@ const core = {
     unexpected: "Une erreur est survenue. Veuillez réessayer.",
     forbidden: "Vous n'avez pas la permission d'effectuer cette action.",
     notFound: "Introuvable.",
+    noSchoolYearContext: "Sélectionnez d'abord une année scolaire.",
     noSchoolContext: "Sélectionnez d'abord une école.",
     invalid: "Veuillez vérifier les champs en surbrillance.",
     pageNotFoundTitle: "Page introuvable",

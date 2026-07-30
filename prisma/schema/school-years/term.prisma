@@ -1,0 +1,36 @@
+/// A semestre within a school year.
+///
+/// Moroccan schools run **two** semesters since the 2000s reform, each closed by
+/// a normalised exam; marks are entered per semester and the year average is
+/// their mean. Some primary schools still speak in trimesters, so this is a
+/// table with a `number` rather than a fixed pair of columns.
+///
+/// Owned by the school-years module because a semester is a subdivision of a
+/// year, not a thing of its own.
+model Term {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// 1-based sequence within the year: 1 or 2 for a two-semester calendar.
+  number Int
+
+  name   String
+  nameAr String?
+
+  startDate DateTime
+  endDate   DateTime
+
+  /// "PLANNED" | "ACTIVE" | "CLOSED" — see modules/school-years/enums.ts.
+  /// Mark entry is normally locked once a term is closed.
+  status String @default("PLANNED")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  timetableEntries TimetableEntry[]
+
+  @@unique([schoolYearId, number])
+  @@index([schoolYearId])
+  @@map("terms")
+}

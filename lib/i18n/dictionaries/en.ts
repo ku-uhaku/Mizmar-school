@@ -5,6 +5,10 @@ import access, {
 } from "@/modules/access/i18n/en";
 import appearance, { nav as appearanceNav } from "@/modules/appearance/i18n/en";
 import auth from "@/modules/auth/i18n/en";
+import configuration, {
+  nav as configurationNav,
+  permissions as configurationPermissions,
+} from "@/modules/configuration/i18n/en";
 import context from "@/modules/context/i18n/en";
 import dashboard, { nav as dashboardNav } from "@/modules/dashboard/i18n/en";
 import organization, {
@@ -54,6 +58,7 @@ const en = {
   ...schoolYears,
   ...users,
   ...access,
+  ...configuration,
   ...profile,
   ...appearance,
 
@@ -66,6 +71,7 @@ const en = {
     ...schoolYearsNav,
     ...usersNav,
     ...accessNav,
+    ...configurationNav,
     ...profileNav,
     ...appearanceNav,
   },
@@ -76,6 +82,7 @@ const en = {
       ...schoolYearsPermissions.groups,
       ...usersPermissions.groups,
       ...accessPermissions.groups,
+      ...configurationPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -83,6 +90,7 @@ const en = {
       ...schoolYearsPermissions.codes,
       ...usersPermissions.codes,
       ...accessPermissions.codes,
+      ...configurationPermissions.codes,
     },
   },
 } as const;

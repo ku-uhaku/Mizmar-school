@@ -1,0 +1,46 @@
+/// A kind of charge the school can bill: scolarité, frais d'inscription,
+/// assurance, transport, cantine, club, fournitures, tenue.
+///
+/// Declared **per school** and year-independent — the school decides *what* it
+/// charges once, and sets *how much* each year in FeeRate. That split is what
+/// lets a price list be rebuilt for a new year without redefining the catalogue,
+/// and what keeps last year's invoices pointing at a fee type that still exists.
+model FeeType {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "SCOLARITE", "INSCRIPTION", "ASSURANCE",
+  /// "TRANSPORT", "CANTINE", "CLUB-FOOT", "FOURNITURES".
+  code   String
+  name   String
+  nameAr String?
+
+  /// "TUITION" | "REGISTRATION" | "INSURANCE" | "TRANSPORT" | "CANTEEN"
+  /// | "CLUB" | "SUPPLIES" | "UNIFORM" | "EXAM" | "OTHER"
+  /// see modules/billing/enums.ts
+  kind String @default("OTHER")
+
+  /// "ANNUAL" | "MONTHLY" | "TERM" | "ONE_OFF" — see modules/billing/enums.ts.
+  ///
+  /// Moroccan private schools quote scolarité as an annual figure but collect it
+  /// monthly, so the cycle is a property of the charge, not of the amount.
+  billingCycle String @default("ANNUAL")
+
+  /// Mandatory charges are billed to every enrolled student; optional ones
+  /// (a club, the bus) only to those who subscribe.
+  isMandatory Boolean @default(true)
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rates     FeeRate[]
+  discounts Discount[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("fee_types")
+}

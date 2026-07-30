@@ -1,360 +1,238 @@
-import "dotenv/config";
-
-import bcrypt from "bcryptjs";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-
-import { PrismaClient } from "../lib/generated/prisma/client";
-import { PERMISSION_GROUPS, type PermissionCode } from "../lib/permissions";
-import { SYSTEM_ROLES } from "../modules/access/system-roles";
+import {
+  FULL_RANGE_PRESET,
+  PRIMARY_ONLY_PRESET,
+  seedAcademics,
+  type AcademicsPreset,
+} from "@/modules/academics/seed";
+import { seedPermissions, seedRoles } from "@/modules/access/seed";
+import {
+  FULL_RANGE_FEES,
+  FULL_RANGE_RATES,
+  PRIMARY_ONLY_FEES,
+  PRIMARY_ONLY_RATES,
+  seedFeeRatesAndDiscounts,
+  seedFeeTypes,
+  type FeeRateSeed,
+  type FeeTypeSeed,
+} from "@/modules/billing/seed";
+import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
+import {
+  FULL_RANGE_ROOMS,
+  PRIMARY_ONLY_ROOMS,
+  seedRooms,
+  type RoomSeed,
+} from "@/modules/facilities/seed";
+import { seedOrganization } from "@/modules/organization/seed";
+import { seedSchoolYears } from "@/modules/school-years/seed";
+import { seedSchools } from "@/modules/schools/seed";
+import { seedTimeSlots, seedTimetable } from "@/modules/timetable/seed";
+import { seedUsers } from "@/modules/users/seed";
+import { db } from "@/prisma/seed/client";
 
 /**
- * Idempotent seed: safe to re-run. It upserts the permission catalogue and the
- * system roles, then creates a demo organisation with three schools and a set
- * of users covering each role, so the dashboard has something to show.
+ * Idempotent seed: safe to re-run.
+ *
+ * Each module seeds its own tables — this file only decides the order and hands
+ * ids along, so a new module means a new `modules/<x>/seed.ts` and one call
+ * here rather than another few hundred lines in a single script.
+ *
+ * What it builds: one organisation, **two schools** with deliberately different
+ * setups, **three school years each**, and a full configuration for every one of
+ * them — cycles, levels, filières, subjects with their components, programmes,
+ * rooms, semesters, timetable grids (standard and Ramadan), levels opened,
+ * classes, groups, teaching assignments, a worked timetable, fee catalogues,
+ * price lists and discounts.
+ *
+ * Note: it upserts and never deletes, so schools you created yourself — or ones
+ * seeded by an earlier version of this file — are left in place. Use
+ * `npm run db:reset` for a clean slate.
  */
-
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL ?? "file:./dev.db",
-});
-const db = new PrismaClient({ adapter });
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@groupescolaire.ma";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Admin123!";
 
-async function seedPermissions() {
-  for (const { group, codes } of PERMISSION_GROUPS) {
-    for (const code of codes) {
-      await db.permission.upsert({
-        where: { code },
-        update: { group },
-        create: { code, group },
-      });
-    }
-  }
-  console.log("  permissions ✓");
-}
+/** How many parallel classes each school opens, per level and track. */
+const FULL_RANGE_PLANS: OfferingPlan[] = [
+  ...["1AP", "2AP", "3AP", "4AP", "5AP", "6AP"].map((levelCode) => ({
+    levelCode,
+    trackCode: null,
+    classCount: 2,
+    capacity: 30,
+  })),
+  ...["1AC", "2AC", "3AC"].map((levelCode) => ({
+    levelCode,
+    trackCode: null,
+    classCount: 2,
+    capacity: 34,
+  })),
+  { levelCode: "TC", trackCode: "TC-S", classCount: 2, capacity: 36 },
+  { levelCode: "TC", trackCode: "TC-LSH", classCount: 1, capacity: 36 },
+  { levelCode: "1BAC", trackCode: "1B-SE", classCount: 1, capacity: 34 },
+  { levelCode: "1BAC", trackCode: "1B-SM", classCount: 1, capacity: 30 },
+  { levelCode: "1BAC", trackCode: "1B-L", classCount: 1, capacity: 36 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", classCount: 1, capacity: 34 },
+  { levelCode: "2BAC", trackCode: "2B-PC", classCount: 1, capacity: 32 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", classCount: 1, capacity: 28 },
+  { levelCode: "2BAC", trackCode: "2B-L", classCount: 1, capacity: 36 },
+];
 
-async function seedOrganization() {
-  const existing = await db.organization.findFirst();
-  if (existing) return existing;
+const PRIMARY_ONLY_PLANS: OfferingPlan[] = [
+  { levelCode: "MS", trackCode: null, classCount: 1, capacity: 20 },
+  { levelCode: "GS", trackCode: null, classCount: 1, capacity: 20 },
+  ...["1AP", "2AP", "3AP", "4AP", "5AP", "6AP"].map((levelCode) => ({
+    levelCode,
+    trackCode: null,
+    classCount: 1,
+    capacity: 26,
+  })),
+];
 
-  return db.organization.create({
-    data: {
-      name: "Groupe Scolaire Al Manar",
-      legalName: "Groupe Scolaire Al Manar SARL",
-      ice: "001945872000047",
-      taxId: "14582369",
-      email: "contact@almanar.ma",
-      phone: "+212 522 45 67 89",
-      website: "https://almanar.ma",
-      addressLine: "12, Boulevard Zerktouni",
-      city: "Casablanca",
-      region: "Casablanca-Settat",
-      postalCode: "20250",
-      country: "MA",
-      defaultLocale: "fr",
-    },
-  });
-}
+type SchoolPlan = {
+  code: string;
+  academics: AcademicsPreset;
+  rooms: RoomSeed[];
+  plans: OfferingPlan[];
+  feeTypes: FeeTypeSeed[];
+  rates: FeeRateSeed[];
+};
 
-async function seedRoles(organizationId: string) {
-  const permissions = await db.permission.findMany();
-  const idByCode = new Map(permissions.map((p) => [p.code, p.id]));
-
-  const roles = new Map<string, string>();
-
-  for (const definition of SYSTEM_ROLES) {
-    const role = await db.role.upsert({
-      where: {
-        organizationId_name: { organizationId, name: definition.name },
-      },
-      update: {
-        description: definition.description,
-        scope: definition.scope,
-        isSystem: true,
-      },
-      create: {
-        organizationId,
-        name: definition.name,
-        description: definition.description,
-        scope: definition.scope,
-        isSystem: true,
-      },
-    });
-
-    // Reset to the declared permission set so re-running the seed repairs any
-    // drift in the built-in roles.
-    await db.rolePermission.deleteMany({ where: { roleId: role.id } });
-    await db.rolePermission.createMany({
-      data: definition.permissions
-        .map((code: PermissionCode) => idByCode.get(code))
-        .filter((id): id is string => Boolean(id))
-        .map((permissionId) => ({ roleId: role.id, permissionId })),
-    });
-
-    roles.set(definition.name, role.id);
-  }
-
-  console.log(`  roles ✓ (${roles.size})`);
-  return roles;
-}
-
-const SCHOOLS = [
+const PLANS: SchoolPlan[] = [
   {
     code: "ALM-CASA",
-    name: "Al Manar Casablanca",
-    level: "GROUP",
-    city: "Casablanca",
-    region: "Casablanca-Settat",
-    postalCode: "20250",
-    addressLine: "12, Boulevard Zerktouni",
-    directorName: "Nadia Benali",
-    capacity: 840,
-    phone: "+212 522 45 67 90",
-    email: "casablanca@almanar.ma",
+    academics: FULL_RANGE_PRESET,
+    rooms: FULL_RANGE_ROOMS,
+    plans: FULL_RANGE_PLANS,
+    feeTypes: FULL_RANGE_FEES,
+    rates: FULL_RANGE_RATES,
   },
   {
     code: "ALM-RABAT",
-    name: "Al Manar Rabat Agdal",
-    level: "PRIMARY",
-    city: "Rabat",
-    region: "Rabat-Salé-Kénitra",
-    postalCode: "10090",
-    addressLine: "45, Avenue de France, Agdal",
-    directorName: "Youssef El Amrani",
-    capacity: 520,
-    phone: "+212 537 77 12 34",
-    email: "rabat@almanar.ma",
-  },
-  {
-    code: "ALM-MARR",
-    name: "Al Manar Marrakech",
-    level: "HIGH",
-    city: "Marrakech",
-    region: "Marrakech-Safi",
-    postalCode: "40000",
-    addressLine: "Route de Targa, Quartier Semlalia",
-    directorName: "Salma Cherkaoui",
-    capacity: 610,
-    phone: "+212 524 43 21 08",
-    email: "marrakech@almanar.ma",
+    academics: PRIMARY_ONLY_PRESET,
+    rooms: PRIMARY_ONLY_ROOMS,
+    plans: PRIMARY_ONLY_PLANS,
+    feeTypes: PRIMARY_ONLY_FEES,
+    rates: PRIMARY_ONLY_RATES,
   },
 ];
 
-async function seedSchools(organizationId: string) {
-  const schools = [];
-  for (const school of SCHOOLS) {
-    schools.push(
-      await db.school.upsert({
-        where: {
-          organizationId_code: { organizationId, code: school.code },
-        },
-        update: {},
-        create: { organizationId, ...school },
-      }),
-    );
+/**
+ * The subjects actually timetabled at each level: the programme's rows, minus
+ * the components (which are marked inside their parent, not taught separately).
+ */
+function programmeByLevel(preset: AcademicsPreset): Record<string, string[]> {
+  const componentCodes = new Set(
+    preset.subjects
+      .filter((subject) => subject.parent)
+      .map((subject) => subject.code),
+  );
+
+  const byLevel: Record<string, string[]> = {};
+  for (const row of preset.programme) {
+    if (componentCodes.has(row.subjectCode)) continue;
+    const list = (byLevel[row.levelCode] ??= []);
+    if (!list.includes(row.subjectCode)) list.push(row.subjectCode);
   }
-  console.log(`  schools ✓ (${schools.length})`);
-  return schools;
-}
-
-/** Three years per school: last one closed, current active, next planned. */
-async function seedSchoolYears(schoolIds: string[]) {
-  let count = 0;
-  const definitions = [
-    { name: "2024-2025", start: "2024-09-09", end: "2025-07-04", status: "CLOSED", isDefault: false },
-    { name: "2025-2026", start: "2025-09-08", end: "2026-07-03", status: "ACTIVE", isDefault: true },
-    { name: "2026-2027", start: "2026-09-07", end: "2027-07-02", status: "PLANNED", isDefault: false },
-  ];
-
-  for (const schoolId of schoolIds) {
-    for (const year of definitions) {
-      await db.schoolYear.upsert({
-        where: { schoolId_name: { schoolId, name: year.name } },
-        update: {},
-        create: {
-          schoolId,
-          name: year.name,
-          startDate: new Date(year.start),
-          endDate: new Date(year.end),
-          status: year.status,
-          isDefault: year.isDefault,
-        },
-      });
-      count += 1;
-    }
-  }
-  console.log(`  school years ✓ (${count})`);
-}
-
-async function seedUsers(
-  organizationId: string,
-  roles: Map<string, string>,
-  schools: { id: string; name: string }[],
-) {
-  const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, 12);
-  const defaultYear = await db.schoolYear.findFirst({
-    where: { schoolId: schools[0].id, isDefault: true },
-  });
-
-  // Language and appearance are reset on every seed so re-running restores a
-  // known demo state. Everything else about an existing user is left alone.
-  const DEFAULT_PREFS = {
-    locale: "fr",
-    themeMode: "system",
-    accent: "blue",
-    fontFamily: "geist",
-    fontSize: "md",
-    radius: "md",
-  };
-
-  // The super administrator. Deliberately keeps `isSuperAdmin` so the org can
-  // never be locked out by an unlucky role edit.
-  await db.user.upsert({
-    where: { email: ADMIN_EMAIL },
-    update: {
-      profile: { update: { ...DEFAULT_PREFS, birthDate: new Date("1978-04-12") } },
-    },
-    create: {
-      organizationId,
-      email: ADMIN_EMAIL,
-      passwordHash,
-      isSuperAdmin: true,
-      orgRoleId: roles.get("Administrateur"),
-      currentSchoolId: schools[0].id,
-      currentSchoolYearId: defaultYear?.id,
-      profile: {
-        create: {
-          firstName: "Amine",
-          lastName: "Tazi",
-          jobTitle: "Directeur général",
-          phone: "+212 661 23 45 67",
-          birthDate: new Date("1978-04-12"),
-          locale: "fr",
-        },
-      },
-    },
-  });
-
-  const staff = [
-    {
-      email: "pedagogie@almanar.ma",
-      firstName: "Hafsa",
-      birthDate: new Date("1985-09-03"),
-      lastName: "Idrissi",
-      jobTitle: "Responsable pédagogique",
-      orgRole: "Responsable pédagogique",
-      memberships: [] as { schoolIndex: number; role: string }[],
-    },
-    {
-      email: "directeur.casa@almanar.ma",
-      firstName: "Nadia",
-      birthDate: new Date("1981-01-27"),
-      lastName: "Benali",
-      jobTitle: "Directrice",
-      orgRole: null,
-      memberships: [{ schoolIndex: 0, role: "Directeur d'école" }],
-    },
-    {
-      email: "directeur.rabat@almanar.ma",
-      firstName: "Youssef",
-      birthDate: new Date("1976-11-15"),
-      lastName: "El Amrani",
-      jobTitle: "Directeur",
-      orgRole: null,
-      memberships: [{ schoolIndex: 1, role: "Directeur d'école" }],
-    },
-    {
-      email: "secretariat.casa@almanar.ma",
-      firstName: "Imane",
-      birthDate: new Date("1993-06-08"),
-      lastName: "Ouazzani",
-      jobTitle: "Secrétaire",
-      orgRole: null,
-      memberships: [{ schoolIndex: 0, role: "Secrétaire" }],
-    },
-    {
-      email: "prof.marrakech@almanar.ma",
-      firstName: "Karim",
-      birthDate: new Date("1990-02-19"),
-      lastName: "Bennis",
-      jobTitle: "Enseignant",
-      orgRole: null,
-      memberships: [{ schoolIndex: 2, role: "Enseignant" }],
-    },
-  ];
-
-  for (const person of staff) {
-    const firstSchool = person.memberships[0]
-      ? schools[person.memberships[0].schoolIndex]
-      : schools[0];
-
-    const year = await db.schoolYear.findFirst({
-      where: { schoolId: firstSchool.id, isDefault: true },
-    });
-
-    const user = await db.user.upsert({
-      where: { email: person.email },
-      update: {
-        profile: { update: { ...DEFAULT_PREFS, birthDate: person.birthDate } },
-      },
-      create: {
-        organizationId,
-        email: person.email,
-        passwordHash,
-        orgRoleId: person.orgRole ? roles.get(person.orgRole) : null,
-        currentSchoolId: firstSchool.id,
-        currentSchoolYearId: year?.id,
-        profile: {
-          create: {
-            firstName: person.firstName,
-            lastName: person.lastName,
-            jobTitle: person.jobTitle,
-            birthDate: person.birthDate,
-            locale: "fr",
-          },
-        },
-      },
-    });
-
-    for (const membership of person.memberships) {
-      const roleId = roles.get(membership.role);
-      if (!roleId) continue;
-      await db.membership.upsert({
-        where: {
-          userId_schoolId: {
-            userId: user.id,
-            schoolId: schools[membership.schoolIndex].id,
-          },
-        },
-        update: { roleId },
-        create: {
-          userId: user.id,
-          schoolId: schools[membership.schoolIndex].id,
-          roleId,
-        },
-      });
-    }
-  }
-
-  console.log(`  users ✓ (${staff.length + 1})`);
+  return byLevel;
 }
 
 async function main() {
-  console.log("Seeding…");
+  console.log("Seeding…\n");
 
-  await seedPermissions();
+  await seedPermissions(db);
+  const organization = await seedOrganization(db);
+  const roles = await seedRoles(db, organization.id);
+  const schools = await seedSchools(db, organization.id);
 
-  const organization = await seedOrganization();
-  const roles = await seedRoles(organization.id);
-  const schools = await seedSchools(organization.id);
-  await seedSchoolYears(schools.map((school) => school.id));
-  await seedUsers(organization.id, roles, schools);
+  // Years first: users land in a working context, and everything year-scoped
+  // needs them.
+  const yearsBySchool: Record<
+    string,
+    Awaited<ReturnType<typeof seedSchoolYears>>
+  > = {};
+  for (const school of schools) {
+    yearsBySchool[school.id] = await seedSchoolYears(db, school.id);
+  }
+
+  const teachersBySchool = await seedUsers(db, {
+    organizationId: organization.id,
+    schools,
+    roles,
+    adminEmail: ADMIN_EMAIL,
+    adminPassword: ADMIN_PASSWORD,
+  });
+
+  for (const plan of PLANS) {
+    const school = schools.find((entry) => entry.code === plan.code);
+    if (!school) continue;
+
+    console.log(`\n${school.name}`);
+
+    const { levelIdByCode, trackIdByCode, subjectIdByCode } =
+      await seedAcademics(db, school.id, plan.academics);
+    const roomIdByCode = await seedRooms(db, school.id, plan.rooms);
+    const feeTypeIdByCode = await seedFeeTypes(db, school.id, plan.feeTypes);
+
+    const labSubjectCodes = plan.academics.subjects
+      .filter((subject) => subject.requiresLab)
+      .map((subject) => subject.code);
+    const labRoomIds = plan.rooms
+      .filter(
+        (room) => room.kind === "LAB_SCIENCE" || room.kind === "LAB_COMPUTER",
+      )
+      .map((room) => roomIdByCode[room.code])
+      .filter(Boolean);
+    const classroomIds = plan.rooms
+      .filter((room) => room.kind === "CLASSROOM")
+      .map((room) => roomIdByCode[room.code])
+      .filter(Boolean);
+
+    const byLevel = programmeByLevel(plan.academics);
+    const teachers = teachersBySchool[school.id] ?? [];
+
+    for (const year of yearsBySchool[school.id]) {
+      console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
+
+      const slots = await seedTimeSlots(db, year.id);
+      await seedFeeRatesAndDiscounts(db, {
+        schoolYearId: year.id,
+        rates: plan.rates,
+        feeTypeIdByCode,
+        levelIdByCode,
+      });
+
+      // Only the running year gets staffing and a timetable — a closed year's
+      // grid is not interesting, and a planned one has no staff yet.
+      const isActive = year.status === "ACTIVE";
+
+      const classes = await seedClasses(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        plans: plan.plans,
+        levelIdByCode,
+        trackIdByCode,
+        subjectIdByCode,
+        labSubjectCodes,
+        roomIds: classroomIds,
+        teachers,
+        withStaffing: isActive,
+        programmeByLevel: byLevel,
+      });
+
+      if (isActive) {
+        await seedTimetable(db, {
+          classes,
+          slots,
+          termId: year.terms[1],
+          labRoomIds,
+        });
+      }
+    }
+  }
 
   console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);
   console.log(
-    "Other accounts share the same password: pedagogie@, directeur.casa@,\n" +
-      "directeur.rabat@, secretariat.casa@, prof.marrakech@almanar.ma\n",
+    "Every other account shares the same password. Teachers use\n" +
+      "firstname.lastname@almanar.ma — for example karim.bennis@almanar.ma.\n",
   );
 }
 

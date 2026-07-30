@@ -1,0 +1,53 @@
+/// An affectation: this teacher teaches this subject to this class (or to one of
+/// its groups) for the year.
+///
+/// Separate from the timetable on purpose. The assignment answers "who is
+/// responsible for Maths in 2BAC-SM-B" — it is what mark entry, report cards and
+/// teacher workload read. The timetable answers "when and where", and there are
+/// several TimetableEntry rows per assignment.
+model TeachingAssignment {
+  id            String      @id @default(cuid())
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Null = the assignment covers the whole class. Set = this group only, which
+  /// is how a split subject gets a different teacher per group.
+  classGroupId String?
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  /// The teacher. A User, not a separate Staff table — teachers sign in, and
+  /// their permissions already come from the role system.
+  teacherId String
+  teacher   User   @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  /// Contracted load for this assignment, in minutes per week. Usually mirrors
+  /// the programme's `LevelSubject.weeklyMinutes`, but may differ when a subject
+  /// is shared between two teachers.
+  weeklyMinutes Int?
+
+  /// The teacher answerable for marks when a subject is co-taught. Exactly one
+  /// primary per (class, group, subject) — a service-layer invariant, since a
+  /// partial unique index is not available here.
+  isPrimary Boolean @default(true)
+
+  /// Mirrors the nullable `classGroupId` so the unique index below actually
+  /// fires — without it the same teacher could be assigned twice to the same
+  /// subject for the whole class, double-counting their load. See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `assignmentScopeKey(classGroupId)` from
+  /// modules/classes/enums.ts.
+  scopeKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolClassId, subjectId, teacherId, scopeKey])
+  @@index([schoolClassId])
+  @@index([classGroupId])
+  @@index([subjectId])
+  @@index([teacherId])
+  @@map("teaching_assignments")
+}

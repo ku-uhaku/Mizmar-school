@@ -1,0 +1,52 @@
+/// The price of one fee type, for one school year, optionally for one level.
+///
+/// This is the school's price list — "scolarité 2025-2026, 2BAC: 24 000 MAD;
+/// 1AP: 16 000 MAD; assurance, all levels: 150 MAD". A new year means new rows,
+/// never edited old ones, so an invoice raised last year keeps resolving to the
+/// price that was actually charged.
+///
+/// `levelId` null means "every level this year", which is how the flat charges
+/// (assurance, inscription) are declared once instead of per level.
+model FeeRate {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  feeTypeId String
+  feeType   FeeType @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
+
+  /// Null = applies to every level. Set = this level's price, which overrides
+  /// the null row for students at that level.
+  levelId String?
+  level   Level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  /// The amount, in centimes of dirham (MAD).
+  ///
+  /// Integer centimes, never a float: these are summed, discounted and split
+  /// into instalments, and money that drifts is money a parent disputes.
+  amountCentimes Int
+
+  /// How many instalments the amount is collected in. Null falls back to the
+  /// fee type's `billingCycle` — set it when a school splits scolarité over,
+  /// say, 9 months rather than the whole year.
+  instalmentCount Int?
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  /// Mirrors the nullable `levelId` so the unique index below actually fires —
+  /// without it the same fee could be given two "all levels" prices in one year
+  /// and which one applied would be arbitrary. See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `feeRateScopeKey(levelId)` from modules/billing/enums.ts.
+  scopeKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolYearId, feeTypeId, scopeKey])
+  @@index([schoolYearId])
+  @@index([feeTypeId])
+  @@index([levelId])
+  @@map("fee_rates")
+}

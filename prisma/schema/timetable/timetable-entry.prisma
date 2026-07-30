@@ -1,0 +1,70 @@
+/// One cell of an emploi du temps: a class (or group) has a subject, with a
+/// teacher, in a room, during one time slot.
+///
+/// Three clash rules a timetable must respect:
+///
+///   1. a class cannot be in two places at once  → enforced here, see bookingKey
+///   2. a teacher cannot be in two rooms at once → service-layer check
+///   3. a room cannot host two classes at once   → service-layer check
+///
+/// Only the first is a property of a single row's key. The other two span rows a
+/// constraint cannot see, so they are validated on write; the indexes on
+/// `teacherId` and `roomId` are there to make those checks cheap.
+model TimetableEntry {
+  id            String      @id @default(cuid())
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Set when only one group attends this period, so the other group is free to
+  /// be timetabled elsewhere in the same slot.
+  classGroupId String?
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  timeSlotId String
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  /// Nullable so a grid can be laid out before staffing is settled.
+  teacherId String?
+  teacher   User?   @relation("TeacherTimetable", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  /// Falls back to the class's home room when null.
+  roomId String?
+  room   Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  /// Set to restrict the entry to one semester — a subject that runs only in
+  /// semester 2, or a grid that changes after the first exams. Null = all year.
+  termId String?
+  term   Term?   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  /// Makes rule 1 enforceable by the database.
+  ///
+  /// Both `classGroupId` and `termId` are nullable, and SQLite treats NULLs as
+  /// *distinct* in a unique index — so a unique index over the nullable columns
+  /// does not constrain the commonest row of all: whole class, all year. Two
+  /// identical bookings would both be accepted and the timetable would silently
+  /// show a class in two rooms at once.
+  ///
+  /// This column mirrors the two nullable keys with "" standing in for null, so
+  /// the index below has nothing nullable in it.
+  ///
+  /// INVARIANT: always `bookingKeyOf(classGroupId, termId)` from
+  /// modules/timetable/enums.ts. Never set it by hand.
+  bookingKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Rule 1: one lesson per class (or group) per slot per term.
+  @@unique([schoolClassId, timeSlotId, bookingKey])
+  @@index([schoolClassId])
+  @@index([classGroupId])
+  @@index([timeSlotId])
+  @@index([subjectId])
+  @@index([teacherId])
+  @@index([roomId])
+  @@index([termId])
+  @@map("timetable_entries")
+}

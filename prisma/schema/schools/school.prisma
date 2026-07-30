@@ -32,6 +32,17 @@ model School {
   /// Users who currently have this school selected as their working context.
   usersInContext User[]       @relation("UserCurrentSchool")
 
+  // ── Academic configuration (year-independent) ──────────────────────────────
+  educationLevels EducationLevel[]
+  levels          Level[]
+  subjects        Subject[]
+  rooms           Room[]
+  /// Denormalised back-reference; a class always belongs to one of this school's
+  /// years. See the invariant note on SchoolClass.schoolId.
+  classes         SchoolClass[]
+  /// What the school can charge. How much, per year, is FeeRate.
+  feeTypes        FeeType[]
+
   @@unique([organizationId, code])
   @@index([organizationId])
   @@map("schools")

@@ -1,0 +1,71 @@
+/// A matière the school teaches, e.g. Mathématiques, Arabe, SVT, Éducation
+/// Islamique, EPS, Tamazight — and its components (see `parentId`).
+///
+/// School-scoped so a private school can add its own (a second foreign language,
+/// robotics) without affecting its siblings. What a subject *weighs* is not
+/// here — that depends on the level, so it lives in LevelSubject.
+model Subject {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "MATH", "AR", "FR", "EN", "SVT", "PC", "HG",
+  /// "ISL", "EPS", "INFO", "PHILO", "AMZ".
+  code   String
+  name   String
+  nameAr String?
+  /// Abbreviation for timetable cells, where a full name will not fit.
+  shortName String?
+
+  /// The subject's code in MASSAR (منظومة مسار), the Ministry's national system.
+  ///
+  /// Schools keep their own `code` for day-to-day use, but marks and class lists
+  /// have to be exported to MASSAR under its nomenclature, and the two rarely
+  /// match. Null until an administrator maps the subject.
+  ///
+  /// Nullable-unique is deliberate here, and is the one place the SQLite
+  /// NULL-distinct behaviour is what we want: many subjects may be unmapped,
+  /// but no two may claim the same MASSAR code. (Contrast lib/db-keys.ts, where
+  /// that behaviour is the bug.)
+  massarCode String?
+
+  /// Set when this row is a *component* of another subject rather than a subject
+  /// in its own right — القراءة and التعبير الكتابي under اللغة العربية, or
+  /// grammaire, conjugaison and orthographe under Français.
+  ///
+  /// Moroccan primary report cards mark these components separately and combine
+  /// them into the parent's mark, so each needs its own row, its own coefficient
+  /// (in LevelSubject) and often its own MASSAR code.
+  ///
+  /// Nesting is **two levels only**: a subject, and its components. A component
+  /// may not itself have components — enforced in the service layer, since a
+  /// self-relation cannot express depth.
+  parentId String?
+  parent   Subject?  @relation("SubjectComponents", fields: [parentId], references: [id], onDelete: Cascade)
+  children Subject[] @relation("SubjectComponents")
+
+  /// Tailwind-independent hex colour for timetable and report-card rendering.
+  colorHex String?
+
+  /// Languages and lab subjects are the ones normally taught in split groups,
+  /// so the timetable UI offers group splitting for them first.
+  isLanguage    Boolean @default(false)
+  requiresLab   Boolean @default(false)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  levels           LevelSubject[]
+  classGroups      ClassGroup[]
+  assignments      TeachingAssignment[]
+  timetableEntries TimetableEntry[]
+
+  @@unique([schoolId, code])
+  /// No two subjects may map to the same MASSAR code. Many may be unmapped.
+  @@unique([schoolId, massarCode])
+  @@index([schoolId])
+  @@index([parentId])
+  @@map("subjects")
+}

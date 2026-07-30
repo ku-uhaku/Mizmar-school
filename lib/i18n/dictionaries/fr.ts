@@ -7,6 +7,10 @@ import access, {
 } from "@/modules/access/i18n/fr";
 import appearance, { nav as appearanceNav } from "@/modules/appearance/i18n/fr";
 import auth from "@/modules/auth/i18n/fr";
+import configuration, {
+  nav as configurationNav,
+  permissions as configurationPermissions,
+} from "@/modules/configuration/i18n/fr";
 import context from "@/modules/context/i18n/fr";
 import dashboard, { nav as dashboardNav } from "@/modules/dashboard/i18n/fr";
 import organization, {
@@ -42,6 +46,7 @@ const fr: Dictionary = {
   ...schoolYears,
   ...users,
   ...access,
+  ...configuration,
   ...profile,
   ...appearance,
 
@@ -53,6 +58,7 @@ const fr: Dictionary = {
     ...schoolYearsNav,
     ...usersNav,
     ...accessNav,
+    ...configurationNav,
     ...profileNav,
     ...appearanceNav,
   },
@@ -63,6 +69,7 @@ const fr: Dictionary = {
       ...schoolYearsPermissions.groups,
       ...usersPermissions.groups,
       ...accessPermissions.groups,
+      ...configurationPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -70,6 +77,7 @@ const fr: Dictionary = {
       ...schoolYearsPermissions.codes,
       ...usersPermissions.codes,
       ...accessPermissions.codes,
+      ...configurationPermissions.codes,
     },
   },
 };

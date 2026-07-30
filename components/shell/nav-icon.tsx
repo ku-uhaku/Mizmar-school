@@ -1,5 +1,6 @@
 import {
   BuildingIcon,
+  SettingsIcon,
   CalendarRangeIcon,
   LayoutDashboardIcon,
   PaletteIcon,
@@ -29,4 +30,5 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   roles: ShieldCheckIcon,
   profile: UserIcon,
   appearance: PaletteIcon,
+  configuration: SettingsIcon,
 };

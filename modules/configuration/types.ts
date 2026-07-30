@@ -1,0 +1,100 @@
+/**
+ * The descriptors the configuration screens are generated from.
+ *
+ * There are fourteen configuration tables and they all need the same thing: a
+ * table, a "new" dialog, an "edit" dialog and a delete confirmation. Writing
+ * fourteen near-identical manager/dialog pairs would be four thousand lines that
+ * drift apart the first time one of them is fixed, so a resource is described
+ * once here and rendered by one generic manager.
+ *
+ * Pure data — no server imports, no React. The descriptors cross to the client,
+ * where the dialog builds its form from them. Anything that needs the database
+ * (scoping, relation choices) lives in `schema.server.ts` instead.
+ */
+
+/** How a field is edited and rendered. */
+export type FieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  /** Stored as integer centimes, entered and shown in dirhams. */
+  | "money"
+  | "boolean"
+  | "select"
+  /** A row from another resource, picked from a dropdown. */
+  | "reference"
+  | "color"
+  /** Wall-clock "HH:MM". */
+  | "time"
+  | "date";
+
+export type FieldDef = {
+  name: string;
+  type: FieldType;
+  /** Key under `configuration.fields` in the dictionary. */
+  labelKey: string;
+  /** Key under `configuration.hints`. */
+  hintKey?: string;
+  required?: boolean;
+  placeholder?: string;
+  /** Force LTR for codes and times, which stay left-to-right even in Arabic. */
+  dir?: "ltr";
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  /** `select` only: allowed values, and the dictionary namespace for labels. */
+  options?: readonly string[];
+  /** Dictionary path under `configuration.options`, e.g. "roomKinds". */
+  optionsKey?: string;
+  /**
+   * `reference` only: what to pick from. Either a resource id, or one of the
+   * `@`-prefixed loaders in schema.server.ts (`@teachers`).
+   */
+  referenceTo?: string;
+  /** Whether a blank value is accepted. Defaults to `!required`. */
+  nullable?: boolean;
+  defaultValue?: string | number | boolean;
+  /** Show as a column in the table. */
+  inTable?: boolean;
+  /** Span both columns of the dialog grid. */
+  wide?: boolean;
+};
+
+export type ResourceDef = {
+  /** URL segment and lookup key, e.g. "levels". */
+  id: string;
+  /** Which top-level tab it sits under. */
+  section: string;
+  /** Key under `configuration.resources`. */
+  labelKey: string;
+  /**
+   * What the rows belong to, and therefore which working context must be set
+   * before the screen can do anything:
+   *
+   *   SCHOOL → scoped to `context.currentSchool`
+   *   YEAR   → scoped to `context.currentSchoolYear`
+   *
+   * The generic query and the generic action both derive their `where` from
+   * this, so a resource cannot accidentally read or write outside the context
+   * the user has selected.
+   */
+  scope: "SCHOOL" | "YEAR";
+  fields: FieldDef[];
+  /** Fields joined with " — " to name a row in reference dropdowns. */
+  labelFields: string[];
+};
+
+export type SectionDef = {
+  id: string;
+  /** Key under `configuration.sections`. */
+  labelKey: string;
+};
+
+/** One row as the client sees it: primitives only, ready to serialise. */
+export type ResourceRow = {
+  id: string;
+  [field: string]: string | number | boolean | null;
+};
+
+/** A choice in a reference dropdown. */
+export type Choice = { id: string; label: string };

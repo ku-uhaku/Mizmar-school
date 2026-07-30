@@ -1,0 +1,50 @@
+/// A level (and, in the qualifying cycle, a track) that the school actually
+/// opens in a given school year.
+///
+/// This is the join that turns *configuration* into a *year*: `Level` says the
+/// school is authorised to teach 2BAC Sciences Maths; a LevelOffering says it is
+/// running it in 2025-2026. It is what lets a school drop a stream for one year
+/// without deleting its curriculum, and it is the parent of that year's classes.
+model LevelOffering {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  levelId String
+  level   Level  @relation(fields: [levelId], references: [id], onDelete: Restrict)
+
+  /// Null for primaire and collégial, which have no streams.
+  trackId String?
+  track   Track?  @relation(fields: [trackId], references: [id], onDelete: Restrict)
+
+  /// Seats the school intends to open across all classes of this level. The sum
+  /// of the classes' own capacities is the real figure; this is the target, used
+  /// to flag over- and under-opening at enrolment time.
+  plannedCapacity Int?
+
+  /// Pricing is NOT here. Tuition for a level lives in `FeeRate`, keyed by
+  /// school year, fee type and level, alongside every other charge the school
+  /// bills. Holding a second copy on the offering would be a second source of
+  /// truth for the same number, and the two would drift the first time a price
+  /// was corrected in one place only.
+  isActive Boolean @default(true)
+
+  /// Mirrors the nullable `trackId` so the unique index below actually fires —
+  /// without it a track-less level (all of primaire and collégial) could be
+  /// opened twice in the same year, splitting its classes across two offerings.
+  /// See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `offeringScopeKey(trackId)` from modules/classes/enums.ts.
+  scopeKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes SchoolClass[]
+
+  @@unique([schoolYearId, levelId, scopeKey])
+  @@index([schoolYearId])
+  @@index([levelId])
+  @@index([trackId])
+  @@map("level_offerings")
+}

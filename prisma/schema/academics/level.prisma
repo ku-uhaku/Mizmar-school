@@ -1,0 +1,55 @@
+/// A grade within a cycle: 1AP…6AP, 1AC…3AC, TC, 1BAC, 2BAC.
+///
+/// `code` uses the Ministry's short form, which is what appears on Moroccan
+/// report cards, class lists and certificates:
+///
+///   AP  année primaire            1AP … 6AP
+///   AC  année collégiale          1AC … 3AC
+///   TC  tronc commun              TC
+///   BAC année baccalauréat        1BAC, 2BAC
+model Level {
+  id               String         @id @default(cuid())
+  educationLevelId String
+  educationLevel   EducationLevel @relation(fields: [educationLevelId], references: [id], onDelete: Cascade)
+
+  /// Denormalised from `educationLevel.schoolId`. Levels are read constantly and
+  /// always scoped by school, and it is what makes `code` unique school-wide
+  /// instead of only within one cycle.
+  ///
+  /// INVARIANT (service layer): must always equal `educationLevel.schoolId`.
+  /// Set it from the parent, never from the request.
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Ministry short code, e.g. "1AP", "3AC", "TC", "2BAC".
+  code   String
+  name   String
+  nameAr String?
+
+  /// The level's code in MASSAR. A mark export is filed against a level and a
+  /// filière as well as a subject, so mapping only subjects is not enough.
+  /// See the note on Subject.massarCode.
+  massarCode String?
+
+  /// Position within the cycle, 1-based: 1AP → 1, 6AP → 6, 1BAC → 2.
+  /// Drives progression ("who moves up to what") without parsing `code`.
+  gradeYear Int
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tracks    Track[]
+  subjects  LevelSubject[]
+  offerings LevelOffering[]
+  /// Per-level pricing, e.g. scolarité is dearer at 2BAC than at 1AP.
+  feeRates  FeeRate[]
+
+  @@unique([schoolId, code])
+  @@unique([schoolId, massarCode])
+  @@index([educationLevelId])
+  @@index([schoolId])
+  @@map("levels")
+}

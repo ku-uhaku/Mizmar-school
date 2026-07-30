@@ -29,6 +29,12 @@ model User {
   profile     Profile?
   memberships Membership[]
 
+  // ── Teaching ──────────────────────────────────────────────────────────────
+  /// Classes this user is professeur principal of.
+  mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
+  teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
+  timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
+
   @@index([organizationId])
   @@map("users")
 }

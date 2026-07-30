@@ -1,0 +1,43 @@
+/// A teachable space: salle de classe, laboratoire, salle informatique, atelier,
+/// salle de sport, bibliothèque.
+///
+/// School-scoped and independent of the school year — a room outlives any one
+/// year, which is why it is configuration rather than a per-year record. Rooms
+/// taken out of service are deactivated rather than deleted so past timetables
+/// keep resolving.
+model Room {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short code as written on the door and on printed timetables, e.g. "B12",
+  /// "LAB-SVT-1".
+  code String
+  name String?
+
+  /// "CLASSROOM" | "LAB_SCIENCE" | "LAB_COMPUTER" | "WORKSHOP" | "SPORTS"
+  /// | "LIBRARY" | "MULTIPURPOSE" | "OUTDOOR" — see modules/facilities/enums.ts
+  kind String @default("CLASSROOM")
+
+  /// Free text rather than a Building table: Moroccan schools label blocks
+  /// informally ("Bâtiment A", "Annexe"), and a table would be a join for no
+  /// gain until buildings need their own data.
+  building String?
+  floor    Int?
+
+  /// Seats. Used to warn when a class is timetabled into a room too small for it.
+  capacity Int?
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes          SchoolClass[]
+  timetableEntries TimetableEntry[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("rooms")
+}

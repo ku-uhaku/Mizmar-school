@@ -56,6 +56,7 @@ const core = {
     unexpected: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
     forbidden: "ليست لديك صلاحية القيام بذلك.",
     notFound: "غير موجود.",
+    noSchoolYearContext: "اختر أولا سنة دراسية.",
     noSchoolContext: "اختر مدرسة أولاً.",
     invalid: "يرجى مراجعة الحقول المميزة.",
     pageNotFoundTitle: "الصفحة غير موجودة",

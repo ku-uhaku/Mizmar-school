@@ -1,0 +1,38 @@
+/// A groupe: a subdivision of a class that meets separately for some subjects.
+///
+/// A class of 36 does not fit in a physics lab and is not taught a language in
+/// one block, so it splits into two or three groups for those hours only. The
+/// class stays the administrative unit — report cards, absences and the class
+/// council are per class; the group exists purely for timetabling and lab work.
+model ClassGroup {
+  id            String      @id @default(cuid())
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Short code within the class, e.g. "G1", "G2".
+  code String
+  name String?
+
+  /// "LAB" | "LANGUAGE" | "SPORTS" | "SUPPORT" | "OTHER"
+  /// see modules/classes/enums.ts
+  purpose String @default("OTHER")
+
+  /// Set when the group exists for one subject in particular (the English group,
+  /// the SVT lab group). Null for a general-purpose half.
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  capacity Int?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments      TeachingAssignment[]
+  timetableEntries TimetableEntry[]
+
+  @@unique([schoolClassId, code])
+  @@index([schoolClassId])
+  @@index([subjectId])
+  @@map("class_groups")
+}

@@ -56,6 +56,7 @@ const core = {
     unexpected: "Something went wrong. Please try again.",
     forbidden: "You do not have permission to do that.",
     notFound: "Not found.",
+    noSchoolYearContext: "Select a school year first.",
     noSchoolContext: "Select a school first.",
     invalid: "Please check the highlighted fields.",
     pageNotFoundTitle: "Page not found",

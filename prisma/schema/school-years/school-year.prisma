@@ -18,6 +18,15 @@ model SchoolYear {
 
   usersInContext User[] @relation("UserCurrentSchoolYear")
 
+  /// Semesters, the bell schedule and the levels actually opened this year.
+  terms          Term[]
+  timeSlots      TimeSlot[]
+  levelOfferings LevelOffering[]
+
+  /// This year's price list and the reductions offered against it.
+  feeRates  FeeRate[]
+  discounts Discount[]
+
   @@unique([schoolId, name])
   @@index([schoolId])
   @@map("school_years")

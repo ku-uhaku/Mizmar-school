@@ -1,0 +1,37 @@
+/// A cycle of the Moroccan system as run by one school: préscolaire, primaire,
+/// secondaire collégial, secondaire qualifiant.
+///
+/// The four cycles are national, but a school runs only the ones it is
+/// authorised for — a `PRIMARY` school has one row, a `GROUP` (groupe scolaire)
+/// may have all four. Modelled per school rather than globally so each school
+/// can name, order and deactivate its own cycles without touching its siblings.
+model EducationLevel {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// "PRESCHOOL" | "PRIMARY" | "SECONDARY_COLLEGE" | "SECONDARY_QUALIFYING"
+  /// see modules/academics/enums.ts
+  cycle String
+
+  /// Name as the school writes it, e.g. "Enseignement primaire".
+  name String
+  /// Arabic name. School-entered data cannot live in the UI dictionaries, and
+  /// Moroccan school paperwork is issued in both Arabic and French.
+  nameAr String?
+
+  /// Display order in menus and reports. Cycles are naturally ordered, but a
+  /// school may want its own sequence.
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  levels Level[]
+
+  /// A school runs each cycle at most once.
+  @@unique([schoolId, cycle])
+  @@index([schoolId])
+  @@map("education_levels")
+}

@@ -40,6 +40,7 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.SCHOOL_YEAR_UPDATE,
       PERMISSIONS.USER_VIEW,
       PERMISSIONS.ROLE_VIEW,
+      PERMISSIONS.CONFIGURATION_VIEW,
     ],
   },
   {
@@ -60,6 +61,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.USER_UPDATE,
       PERMISSIONS.USER_ASSIGN_ROLE,
       PERMISSIONS.ROLE_VIEW,
+      // A director sets their own school up; the working context is what keeps
+      // that confined to their school.
+      PERMISSIONS.CONFIGURATION_VIEW,
+      PERMISSIONS.CONFIGURATION_MANAGE,
     ],
   },
   {
