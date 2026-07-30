@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { SchoolForm } from "@/components/schools/school-form";
+import { SchoolForm } from "@/modules/schools/components/school-form";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";

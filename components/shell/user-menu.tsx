@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { LogOutIcon, PaletteIcon, UserIcon } from "lucide-react";
 
-import { logoutAction } from "@/app/actions/auth";
+import { logoutAction } from "@/modules/auth/actions";
 import { useT } from "@/components/providers/i18n-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";

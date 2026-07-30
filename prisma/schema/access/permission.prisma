@@ -1,0 +1,15 @@
+/// Fixed catalogue of permission codes. Seeded from the module registry — each
+/// module declares its own codes in `modules/<module>/permissions.ts`, and
+/// `prisma/seed.ts` upserts the aggregated catalogue.
+model Permission {
+  id          String  @id @default(cuid())
+  /// e.g. "school.create"
+  code        String  @unique
+  /// Grouping used to lay out the permission matrix, e.g. "school".
+  group       String
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}

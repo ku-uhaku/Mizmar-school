@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { RoleForm } from "@/components/roles/role-form";
+import { RoleForm } from "@/modules/access/components/role-form";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";

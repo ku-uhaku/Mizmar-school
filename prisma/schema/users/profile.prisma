@@ -1,0 +1,32 @@
+/// Personal details and UI preferences for a user. Written by the `users`
+/// module (admin editing someone else) and the `profile` / `appearance` modules
+/// (a user editing their own).
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  phone     String?
+  avatarUrl String?
+  jobTitle  String?
+  bio       String?
+  /// Age is always derived from this, never stored — a stored age silently rots.
+  birthDate DateTime?
+
+  /// Preferred UI language, mirrored into a cookie on login for fast SSR.
+  locale     String @default("fr")
+  /// Appearance preferences, mirrored into the `ui-prefs` cookie.
+  /// Allowed values live in modules/appearance/enums.ts.
+  themeMode  String @default("system")
+  accent     String @default("blue")
+  fontFamily String @default("geist")
+  fontSize   String @default("md")
+  radius     String @default("md")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}

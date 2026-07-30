@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { SchoolIcon } from "lucide-react";
 
-import { SchoolYearsManager } from "@/components/school-years/school-years-manager";
+import { SchoolYearsManager } from "@/modules/school-years/components/school-years-manager";
 import { PageHeader } from "@/components/shell/page-header";
 import { EmptyState } from "@/components/shell/empty-state";
 import { ForbiddenState } from "@/components/shell/states";

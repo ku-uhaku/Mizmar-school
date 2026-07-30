@@ -17,7 +17,7 @@ import { SplitBar } from "@/components/charts/split-bar";
 import { StatTile } from "@/components/charts/stat-tile";
 import { TrendChart } from "@/components/charts/trend-chart";
 import { PageHeader } from "@/components/shell/page-header";
-import { PreviewCard } from "@/components/shell/preview-card";
+import { PreviewCard } from "@/modules/dashboard/components/preview-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,9 +38,9 @@ import {
   STUDENTS_BY_LEVEL,
   STUDENTS_BY_SCHOOL,
   UPCOMING,
-} from "@/lib/dashboard-preview";
-import { db } from "@/lib/db";
-import { SCHOOL_LEVELS } from "@/lib/enums";
+} from "@/modules/dashboard/preview";
+import { loadDashboardStats } from "@/modules/dashboard/queries";
+import { SCHOOL_LEVELS } from "@/modules/schools/enums";
 import {
   formatDate,
   formatNumber,
@@ -64,32 +64,10 @@ export default async function DashboardPage() {
   const t = await getDictionary();
   const locale = await getLocale();
 
-  const organizationId = context.organization.id;
-  const visibleSchoolIds = context.schools.map((school) => school.id);
-
-  // Counts are scoped to what this user can actually see, so a school director
-  // does not learn the size of the rest of the organisation.
-  const [activeSchools, userCount, activeUserCount, roleCount, yearCount] =
-    await Promise.all([
-      db.school.count({
-        where: { id: { in: visibleSchoolIds }, isActive: true },
-      }),
-      context.canOrg(PERMISSIONS.USER_VIEW)
-        ? db.user.count({ where: { organizationId } })
-        : db.user.count({
-            where: { memberships: { some: { schoolId: { in: visibleSchoolIds } } } },
-          }),
-      context.canOrg(PERMISSIONS.USER_VIEW)
-        ? db.user.count({ where: { organizationId, isActive: true } })
-        : db.user.count({
-            where: {
-              isActive: true,
-              memberships: { some: { schoolId: { in: visibleSchoolIds } } },
-            },
-          }),
-      db.role.count({ where: { organizationId } }),
-      db.schoolYear.count({ where: { schoolId: { in: visibleSchoolIds } } }),
-    ]);
+  // Each count is scoped inside its owning module to what this user may see, so
+  // a school director does not learn the size of the rest of the organisation.
+  const { activeSchools, userCount, activeUserCount, roleCount, yearCount } =
+    await loadDashboardStats(context);
 
   const badge = {
     badgeLabel: t.dashboard.preview,

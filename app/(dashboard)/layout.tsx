@@ -1,8 +1,8 @@
 import { AppSidebar } from "@/components/shell/app-sidebar";
-import { ContextSwitcher } from "@/components/shell/context-switcher";
+import { ContextSwitcher } from "@/modules/context/components/context-switcher";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
-import { visibleSections } from "@/components/shell/nav-items";
-import { ThemeModeToggle } from "@/components/shell/theme-mode-toggle";
+import { visibleSections } from "@/lib/nav";
+import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
 import { Separator } from "@/components/ui/separator";
 import {

@@ -1,0 +1,24 @@
+// Generator and datasource only — no models live in this file.
+//
+// The schema is a *folder*: `prisma.config.ts` points at `prisma/schema`, which
+// Prisma searches recursively for `*.prisma`. Models are grouped one subfolder
+// per application module, mirroring `modules/`:
+//
+//   prisma/schema/<module>/<table>.prisma   <->   modules/<module>/
+//
+// Adding a table means adding one small file under the owning module's folder.
+// Nothing central has to be edited, and no file grows without bound.
+// See AGENTS.md ("Database") for the full convention.
+//
+// Note: SQLite has no native enum type, so every "enum-like" column is a String
+// validated in TypeScript. The allowed values live in the owning module's
+// `enums.ts` — keep the two in sync.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}

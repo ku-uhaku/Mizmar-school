@@ -5,7 +5,7 @@ import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon
 
 // Swapped off next-themes: this app resolves light/dark through the cookie-backed
 // AppearanceProvider so there is a single source of truth for theme state.
-import { useAppearance } from "@/components/providers/appearance-provider"
+import { useAppearance } from "@/modules/appearance/components/appearance-provider"
 import { useI18n } from "@/components/providers/i18n-provider"
 
 const Toaster = ({ ...props }: ToasterProps) => {

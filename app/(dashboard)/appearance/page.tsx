@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AppearanceSettings } from "@/components/appearance/appearance-settings";
+import { AppearanceSettings } from "@/modules/appearance/components/appearance-settings";
 import { PageHeader } from "@/components/shell/page-header";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";

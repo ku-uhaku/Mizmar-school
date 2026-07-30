@@ -4,11 +4,8 @@ import bcrypt from "bcryptjs";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
 import { PrismaClient } from "../lib/generated/prisma/client";
-import {
-  PERMISSION_GROUPS,
-  SYSTEM_ROLES,
-  type PermissionCode,
-} from "../lib/permissions";
+import { PERMISSION_GROUPS, type PermissionCode } from "../lib/permissions";
+import { SYSTEM_ROLES } from "../modules/access/system-roles";
 
 /**
  * Idempotent seed: safe to re-run. It upserts the permission catalogue and the

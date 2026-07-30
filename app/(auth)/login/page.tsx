@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { GraduationCapIcon } from "lucide-react";
 
-import { LoginForm } from "@/components/auth/login-form";
+import { LoginForm } from "@/modules/auth/components/login-form";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
-import { ThemeModeToggle } from "@/components/shell/theme-mode-toggle";
+import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDictionary } from "@/lib/i18n/server";
 

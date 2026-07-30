@@ -1,0 +1,38 @@
+model School {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Short human code used in listings and exports, e.g. "AL-AMAL-CASA".
+  code  String
+  name  String
+  /// "PRESCHOOL" | "PRIMARY" | "MIDDLE" | "HIGH" | "GROUP"
+  /// see modules/schools/enums.ts
+  level String @default("GROUP")
+
+  email   String?
+  phone   String?
+  website String?
+
+  addressLine String?
+  city        String?
+  region      String?
+  postalCode  String?
+  country     String  @default("MA")
+
+  directorName String?
+  capacity     Int?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolYears    SchoolYear[]
+  memberships    Membership[]
+  /// Users who currently have this school selected as their working context.
+  usersInContext User[]       @relation("UserCurrentSchool")
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("schools")
+}

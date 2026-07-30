@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { OrganizationForm } from "@/components/organization/organization-form";
+import { OrganizationForm } from "@/modules/organization/components/organization-form";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";

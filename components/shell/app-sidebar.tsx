@@ -2,20 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BuildingIcon,
-  CalendarRangeIcon,
-  GraduationCapIcon,
-  LayoutDashboardIcon,
-  PaletteIcon,
-  SchoolIcon,
-  ShieldCheckIcon,
-  UserIcon,
-  UsersIcon,
-} from "lucide-react";
+import { GraduationCapIcon } from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
-import type { NavIcon, NavSection } from "@/components/shell/nav-items";
+import { NAV_ICONS } from "@/components/shell/nav-icon";
+import type { NavGroup } from "@/lib/nav";
 import {
   Sidebar,
   SidebarContent,
@@ -29,22 +20,15 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
-const ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
-  dashboard: LayoutDashboardIcon,
-  organization: BuildingIcon,
-  schools: SchoolIcon,
-  schoolYears: CalendarRangeIcon,
-  users: UsersIcon,
-  roles: ShieldCheckIcon,
-  profile: UserIcon,
-  appearance: PaletteIcon,
-};
-
+/**
+ * `sections` is built on the server by `visibleSections` (lib/nav.ts) from the
+ * module registry, already filtered to what this user may reach.
+ */
 export function AppSidebar({
   sections,
   organizationName,
 }: {
-  sections: NavSection[];
+  sections: NavGroup[];
   organizationName: string;
 }) {
   const t = useT();
@@ -75,13 +59,13 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        {sections.map((section) => (
-          <SidebarGroup key={section.titleKey}>
-            <SidebarGroupLabel>{t.nav[section.titleKey]}</SidebarGroupLabel>
+        {sections.map((group) => (
+          <SidebarGroup key={group.section}>
+            <SidebarGroupLabel>{t.nav[group.titleKey]}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {section.items.map((item) => {
-                  const Icon = ICONS[item.icon];
+                {group.items.map((item) => {
+                  const Icon = NAV_ICONS[item.icon];
                   // "/" must match exactly, or it would light up everywhere.
                   const isActive =
                     item.href === "/"

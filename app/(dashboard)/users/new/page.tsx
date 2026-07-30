@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
-import { UserForm } from "@/components/users/user-form";
+import { UserForm } from "@/modules/users/components/user-form";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { loadUserFormChoices } from "@/lib/queries/user-form-data";
+import { loadUserFormChoices } from "@/modules/users/queries";
 
 export const metadata: Metadata = { title: "Nouvel utilisateur" };
 

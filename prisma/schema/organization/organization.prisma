@@ -1,0 +1,32 @@
+/// The single tenant this deployment serves. It owns every school, user and
+/// role. Modelled as a table (rather than config) so it can be edited in-app.
+model Organization {
+  id        String  @id @default(cuid())
+  name      String
+  legalName String?
+  /// Moroccan "Identifiant Commun de l'Entreprise".
+  ice       String?
+  taxId     String?
+
+  email   String?
+  phone   String?
+  website String?
+
+  addressLine String?
+  city        String?
+  region      String?
+  postalCode  String?
+  country     String  @default("MA")
+
+  logoUrl       String?
+  defaultLocale String  @default("fr")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schools School[]
+  users   User[]
+  roles   Role[]
+
+  @@map("organizations")
+}

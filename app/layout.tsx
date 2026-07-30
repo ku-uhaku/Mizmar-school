@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter, Noto_Sans_Arabic } from "next/font/google";
 import { cookies } from "next/headers";
 
-import { AppearanceProvider, AppearanceScript } from "@/components/providers/appearance-provider";
+import { AppearanceProvider, AppearanceScript } from "@/modules/appearance/components/appearance-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { DirectionProvider } from "@/components/ui/direction";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { parseUiPrefsCookie, UI_PREFS_COOKIE, uiPrefsToDataAttributes } from "@/lib/appearance";
+import { parseUiPrefsCookie, UI_PREFS_COOKIE, uiPrefsToDataAttributes } from "@/modules/appearance/prefs";
 import { dirOf } from "@/lib/i18n/config";
 import { getDictionaryFor, getLocale } from "@/lib/i18n/server";
 

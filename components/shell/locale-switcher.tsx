@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { GlobeIcon } from "lucide-react";
 
-import { setLocaleAction } from "@/app/actions/appearance";
+import { setLocaleAction } from "@/modules/appearance/actions";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import {

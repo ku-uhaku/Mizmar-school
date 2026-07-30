@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import {
   PasswordChangeForm,
   ProfileDetailsForm,
-} from "@/components/profile/profile-forms";
+} from "@/modules/profile/components/profile-forms";
 import { PageHeader } from "@/components/shell/page-header";
 import { Badge } from "@/components/ui/badge";
 import {

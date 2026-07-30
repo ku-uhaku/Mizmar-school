@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { SchoolsManager } from "@/components/schools/schools-manager";
+import { SchoolsManager } from "@/modules/schools/components/schools-manager";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { listSchools } from "@/modules/schools/queries";
 
 export const metadata: Metadata = { title: "Écoles" };
 
@@ -18,14 +18,7 @@ export default async function SchoolsPage() {
     return <ForbiddenState />;
   }
 
-  // Only the schools this user can see, with the counts the table shows.
-  const schools = await db.school.findMany({
-    where: { id: { in: context.schools.map((school) => school.id) } },
-    orderBy: { name: "asc" },
-    include: {
-      _count: { select: { schoolYears: true, memberships: true } },
-    },
-  });
+  const schools = await listSchools(context);
 
   return (
     <>
@@ -44,25 +37,7 @@ export default async function SchoolsPage() {
             )
             .map((school) => school.id),
         }}
-        schools={schools.map((school) => ({
-          id: school.id,
-          code: school.code,
-          name: school.name,
-          level: school.level,
-          directorName: school.directorName,
-          capacity: school.capacity,
-          email: school.email,
-          phone: school.phone,
-          website: school.website,
-          addressLine: school.addressLine,
-          city: school.city,
-          region: school.region,
-          postalCode: school.postalCode,
-          country: school.country,
-          isActive: school.isActive,
-          yearCount: school._count.schoolYears,
-          memberCount: school._count.memberships,
-        }))}
+        schools={schools}
       />
     </>
   );

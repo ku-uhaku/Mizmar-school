@@ -1,0 +1,21 @@
+/// Grants a user a school-scoped role. One role per user per school.
+///
+/// Owned by `access` because it is the grant mechanism, even though the UI that
+/// edits it lives with the user form (modules/users/components).
+model Membership {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  roleId   String
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, schoolId])
+  @@index([schoolId])
+  @@index([roleId])
+  @@map("memberships")
+}

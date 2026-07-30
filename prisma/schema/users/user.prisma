@@ -1,0 +1,34 @@
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email        String  @unique
+  passwordHash String
+  isActive     Boolean @default(true)
+  /// Bypasses every permission check. Kept out of the role system on purpose so
+  /// an org can never lock itself out by editing roles.
+  isSuperAdmin Boolean @default(false)
+
+  /// Organisation-wide role. Its permissions apply in every school.
+  orgRoleId String?
+  orgRole   Role?   @relation("UserOrgRole", fields: [orgRoleId], references: [id], onDelete: SetNull)
+
+  /// The working context the user last selected. Persisted per user (not in a
+  /// cookie) so it survives across devices and cannot be forged by the client.
+  currentSchoolId String?
+  currentSchool   School? @relation("UserCurrentSchool", fields: [currentSchoolId], references: [id], onDelete: SetNull)
+
+  currentSchoolYearId String?
+  currentSchoolYear   SchoolYear? @relation("UserCurrentSchoolYear", fields: [currentSchoolYearId], references: [id], onDelete: SetNull)
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  profile     Profile?
+  memberships Membership[]
+
+  @@index([organizationId])
+  @@map("users")
+}

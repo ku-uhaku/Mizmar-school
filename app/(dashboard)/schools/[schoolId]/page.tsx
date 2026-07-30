@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { SchoolForm } from "@/components/schools/school-form";
+import { SchoolForm } from "@/modules/schools/components/school-form";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { findSchool } from "@/modules/schools/queries";
 
 export const metadata: Metadata = { title: "Modifier l'école" };
 
@@ -26,10 +26,7 @@ export default async function EditSchoolPage(
     return <ForbiddenState />;
   }
 
-  const school = await db.school.findFirst({
-    where: { id: schoolId, organizationId: context.organization.id },
-    include: { _count: { select: { schoolYears: true, memberships: true } } },
-  });
+  const school = await findSchool(context, schoolId);
   if (!school) notFound();
 
   return (
@@ -40,27 +37,7 @@ export default async function EditSchoolPage(
         backHref="/schools"
         backLabel={t.nav.schools}
       />
-      <SchoolForm
-        school={{
-          id: school.id,
-          code: school.code,
-          name: school.name,
-          level: school.level,
-          directorName: school.directorName,
-          capacity: school.capacity,
-          email: school.email,
-          phone: school.phone,
-          website: school.website,
-          addressLine: school.addressLine,
-          city: school.city,
-          region: school.region,
-          postalCode: school.postalCode,
-          country: school.country,
-          isActive: school.isActive,
-          yearCount: school._count.schoolYears,
-          memberCount: school._count.memberships,
-        }}
-      />
+      <SchoolForm school={school} />
     </>
   );
 }

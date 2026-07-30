@@ -4,7 +4,9 @@ import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  // A folder, not a file: Prisma searches it recursively for *.prisma. Models
+  // are grouped one subfolder per application module — see AGENTS.md.
+  schema: "prisma/schema",
   migrations: {
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
