@@ -1,26 +1,384 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-grid: var(--grid);
+  --color-success: var(--success);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
+/* ---------------------------------------------------------------------------
+   Appearance system
+   ---------------------------------------------------------------------------
+   Driven by data-* attributes on <html>, which are rendered server-side from
+   the `ui-prefs` cookie (see lib/appearance.ts). Because the attributes are in
+   the initial HTML there is no flash of the wrong theme.
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+   Selectors use html[...] / html.dark[...] so they out-specify the :root and
+   .dark blocks above without needing !important.
+--------------------------------------------------------------------------- */
+
+/* --- Font stacks ---------------------------------------------------------
+   Latin faces have no Arabic glyphs, so listing the Arabic face after the
+   chosen font makes the browser fall through per-glyph. That means Arabic
+   renders correctly under every font choice without a special case. */
+:root {
+  --font-arabic-stack: var(--font-noto-arabic), "Segoe UI", Tahoma, sans-serif;
+  --font-sans: var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+html[data-font="geist"] {
+  --font-sans: var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+html[data-font="inter"] {
+  --font-sans: var(--font-inter), var(--font-arabic-stack), ui-sans-serif,
+    system-ui, sans-serif;
+}
+
+html[data-font="system"] {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    var(--font-arabic-stack), sans-serif;
+}
+
+html[data-font="mono"] {
+  --font-sans: var(--font-geist-mono), var(--font-arabic-stack), ui-monospace,
+    monospace;
+}
+
+/* --- Text size -----------------------------------------------------------
+   Tailwind's spacing and type scales are rem-based, so moving the root font
+   size scales the whole interface proportionally rather than only the text. */
+html[data-size="sm"] {
+  font-size: 14px;
+}
+html[data-size="md"] {
+  font-size: 16px;
+}
+html[data-size="lg"] {
+  font-size: 18px;
+}
+html[data-size="xl"] {
+  font-size: 20px;
+}
+
+/* --- Corner radius ------------------------------------------------------- */
+html[data-radius="none"] {
+  --radius: 0rem;
+}
+html[data-radius="sm"] {
+  --radius: 0.35rem;
+}
+html[data-radius="md"] {
+  --radius: 0.625rem;
+}
+html[data-radius="lg"] {
+  --radius: 0.9rem;
+}
+html[data-radius="xl"] {
+  --radius: 1.25rem;
+}
+
+/* --- Accent colours ------------------------------------------------------
+   Each accent redefines the primary/ring/sidebar-primary trio plus the chart
+   ramp. Light and dark get separate values so contrast stays comfortable in
+   both. `neutral` deliberately keeps the stock shadcn greyscale. */
+html[data-accent="blue"] {
+  --primary: oklch(0.546 0.198 258.3);
+  --primary-foreground: oklch(0.985 0.005 258);
+  --ring: oklch(0.546 0.198 258.3);
+  --sidebar-primary: oklch(0.546 0.198 258.3);
+  --sidebar-primary-foreground: oklch(0.985 0.005 258);
+  --sidebar-ring: oklch(0.546 0.198 258.3);
+  --chart-1: oklch(0.546 0.198 258.3);
+  --chart-2: oklch(0.646 0.155 250);
+  --chart-3: oklch(0.72 0.115 242);
+  --chart-4: oklch(0.79 0.085 234);
+  --chart-5: oklch(0.86 0.055 226);
+}
+html.dark[data-accent="blue"] {
+  --primary: oklch(0.685 0.169 258.3);
+  --primary-foreground: oklch(0.19 0.04 258);
+  --ring: oklch(0.685 0.169 258.3);
+  --sidebar-primary: oklch(0.685 0.169 258.3);
+  --sidebar-primary-foreground: oklch(0.19 0.04 258);
+  --sidebar-ring: oklch(0.685 0.169 258.3);
+}
+
+html[data-accent="emerald"] {
+  --primary: oklch(0.575 0.132 163.2);
+  --primary-foreground: oklch(0.985 0.01 163);
+  --ring: oklch(0.575 0.132 163.2);
+  --sidebar-primary: oklch(0.575 0.132 163.2);
+  --sidebar-primary-foreground: oklch(0.985 0.01 163);
+  --sidebar-ring: oklch(0.575 0.132 163.2);
+  --chart-1: oklch(0.575 0.132 163.2);
+  --chart-2: oklch(0.66 0.115 168);
+  --chart-3: oklch(0.74 0.09 173);
+  --chart-4: oklch(0.81 0.07 178);
+  --chart-5: oklch(0.88 0.05 183);
+}
+html.dark[data-accent="emerald"] {
+  --primary: oklch(0.723 0.136 163.2);
+  --primary-foreground: oklch(0.19 0.04 163);
+  --ring: oklch(0.723 0.136 163.2);
+  --sidebar-primary: oklch(0.723 0.136 163.2);
+  --sidebar-primary-foreground: oklch(0.19 0.04 163);
+  --sidebar-ring: oklch(0.723 0.136 163.2);
+}
+
+html[data-accent="violet"] {
+  --primary: oklch(0.548 0.229 292.8);
+  --primary-foreground: oklch(0.985 0.008 293);
+  --ring: oklch(0.548 0.229 292.8);
+  --sidebar-primary: oklch(0.548 0.229 292.8);
+  --sidebar-primary-foreground: oklch(0.985 0.008 293);
+  --sidebar-ring: oklch(0.548 0.229 292.8);
+  --chart-1: oklch(0.548 0.229 292.8);
+  --chart-2: oklch(0.638 0.185 288);
+  --chart-3: oklch(0.72 0.14 283);
+  --chart-4: oklch(0.8 0.1 278);
+  --chart-5: oklch(0.87 0.065 273);
+}
+html.dark[data-accent="violet"] {
+  --primary: oklch(0.706 0.176 292.8);
+  --primary-foreground: oklch(0.2 0.05 293);
+  --ring: oklch(0.706 0.176 292.8);
+  --sidebar-primary: oklch(0.706 0.176 292.8);
+  --sidebar-primary-foreground: oklch(0.2 0.05 293);
+  --sidebar-ring: oklch(0.706 0.176 292.8);
+}
+
+html[data-accent="amber"] {
+  --primary: oklch(0.702 0.161 70.7);
+  --primary-foreground: oklch(0.23 0.05 70);
+  --ring: oklch(0.702 0.161 70.7);
+  --sidebar-primary: oklch(0.702 0.161 70.7);
+  --sidebar-primary-foreground: oklch(0.23 0.05 70);
+  --sidebar-ring: oklch(0.702 0.161 70.7);
+  --chart-1: oklch(0.702 0.161 70.7);
+  --chart-2: oklch(0.762 0.135 77);
+  --chart-3: oklch(0.82 0.11 83);
+  --chart-4: oklch(0.87 0.085 89);
+  --chart-5: oklch(0.92 0.06 95);
+}
+html.dark[data-accent="amber"] {
+  --primary: oklch(0.798 0.152 75.4);
+  --primary-foreground: oklch(0.22 0.05 70);
+  --ring: oklch(0.798 0.152 75.4);
+  --sidebar-primary: oklch(0.798 0.152 75.4);
+  --sidebar-primary-foreground: oklch(0.22 0.05 70);
+  --sidebar-ring: oklch(0.798 0.152 75.4);
+}
+
+html[data-accent="rose"] {
+  --primary: oklch(0.586 0.215 16.2);
+  --primary-foreground: oklch(0.985 0.008 16);
+  --ring: oklch(0.586 0.215 16.2);
+  --sidebar-primary: oklch(0.586 0.215 16.2);
+  --sidebar-primary-foreground: oklch(0.985 0.008 16);
+  --sidebar-ring: oklch(0.586 0.215 16.2);
+  --chart-1: oklch(0.586 0.215 16.2);
+  --chart-2: oklch(0.668 0.175 12);
+  --chart-3: oklch(0.745 0.135 8);
+  --chart-4: oklch(0.82 0.095 4);
+  --chart-5: oklch(0.885 0.06 0);
+}
+html.dark[data-accent="rose"] {
+  --primary: oklch(0.712 0.178 16.2);
+  --primary-foreground: oklch(0.2 0.05 16);
+  --ring: oklch(0.712 0.178 16.2);
+  --sidebar-primary: oklch(0.712 0.178 16.2);
+  --sidebar-primary-foreground: oklch(0.2 0.05 16);
+  --sidebar-ring: oklch(0.712 0.178 16.2);
+}
+
+html[data-accent="teal"] {
+  --primary: oklch(0.577 0.115 195.4);
+  --primary-foreground: oklch(0.985 0.01 195);
+  --ring: oklch(0.577 0.115 195.4);
+  --sidebar-primary: oklch(0.577 0.115 195.4);
+  --sidebar-primary-foreground: oklch(0.985 0.01 195);
+  --sidebar-ring: oklch(0.577 0.115 195.4);
+  --chart-1: oklch(0.577 0.115 195.4);
+  --chart-2: oklch(0.662 0.1 199);
+  --chart-3: oklch(0.742 0.082 203);
+  --chart-4: oklch(0.815 0.062 207);
+  --chart-5: oklch(0.882 0.042 211);
+}
+html.dark[data-accent="teal"] {
+  --primary: oklch(0.725 0.118 195.4);
+  --primary-foreground: oklch(0.19 0.04 195);
+  --ring: oklch(0.725 0.118 195.4);
+  --sidebar-primary: oklch(0.725 0.118 195.4);
+  --sidebar-primary-foreground: oklch(0.19 0.04 195);
+  --sidebar-ring: oklch(0.725 0.118 195.4);
+}
+
+/* `neutral` inherits the stock greyscale from :root / .dark — nothing to do. */
+
+/* --- Chart series (categorical) ------------------------------------------
+   Deliberately NOT themed by the accent. These carry *identity* — which school
+   a segment belongs to — so they must stay put when the user changes accent,
+   and they must stay distinct from each other under colour-vision deficiency.
+   The single-series charts use --primary instead and do follow the accent.
+
+   Validated with the data-viz palette checker against this app's own card
+   surfaces (#ffffff light, #171717 dark), all-pairs, both modes: lightness
+   band, chroma floor, CVD separation (worst ΔE 9.2 light / 9.4 dark) and the
+   normal-vision floor (24.0 / 20.9) all pass. Light-mode series-3 sits at
+   2.82:1 against white, below the 3:1 bar — so every chart using these ships a
+   legend and direct labels rather than relying on colour alone. */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  /* One step off the surface: gridlines must recede behind the data. */
+  --grid: oklch(0.922 0 0);
+  /* Reserved for "up and that is good" deltas — never used as a series colour.
+     Darker than the series green because it is worn by text, not by a mark. */
+  --success: #006300;
+}
+
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --grid: oklch(1 0 0 / 10%);
+  --success: #0ca30c;
+}
+
+/* --- RTL -----------------------------------------------------------------
+   shadcn's own components already handle [dir="rtl"]; these cover the few
+   places we hand-roll direction-sensitive layout. */
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
 }

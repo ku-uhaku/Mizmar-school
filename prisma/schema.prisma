@@ -1,0 +1,244 @@
+// Prisma 7 schema — SQLite via the better-sqlite3 driver adapter.
+//
+// Note: SQLite has no native enum type, so every "enum-like" column is a String
+// validated in TypeScript. The allowed values live in lib/enums.ts — keep the
+// two in sync.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// The single tenant this deployment serves. It owns every school, user and
+/// role. Modelled as a table (rather than config) so it can be edited in-app.
+model Organization {
+  id        String  @id @default(cuid())
+  name      String
+  legalName String?
+  /// Moroccan "Identifiant Commun de l'Entreprise".
+  ice       String?
+  taxId     String?
+
+  email   String?
+  phone   String?
+  website String?
+
+  addressLine String?
+  city        String?
+  region      String?
+  postalCode  String?
+  country     String  @default("MA")
+
+  logoUrl       String?
+  defaultLocale String  @default("fr")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schools School[]
+  users   User[]
+  roles   Role[]
+
+  @@map("organizations")
+}
+
+model School {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Short human code used in listings and exports, e.g. "AL-AMAL-CASA".
+  code  String
+  name  String
+  /// "PRESCHOOL" | "PRIMARY" | "MIDDLE" | "HIGH" | "GROUP" — see lib/enums.ts
+  level String @default("GROUP")
+
+  email   String?
+  phone   String?
+  website String?
+
+  addressLine String?
+  city        String?
+  region      String?
+  postalCode  String?
+  country     String  @default("MA")
+
+  directorName String?
+  capacity     Int?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schoolYears    SchoolYear[]
+  memberships    Membership[]
+  /// Users who currently have this school selected as their working context.
+  usersInContext User[]       @relation("UserCurrentSchool")
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("schools")
+}
+
+/// An academic year, owned by a school so each school can run its own calendar.
+model SchoolYear {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Display label, e.g. "2025-2026".
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  /// "PLANNED" | "ACTIVE" | "CLOSED" — see lib/enums.ts
+  status    String   @default("PLANNED")
+  /// Exactly one year per school may be the default; enforced in the service layer.
+  isDefault Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usersInContext User[] @relation("UserCurrentSchoolYear")
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("school_years")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email        String  @unique
+  passwordHash String
+  isActive     Boolean @default(true)
+  /// Bypasses every permission check. Kept out of the role system on purpose so
+  /// an org can never lock itself out by editing roles.
+  isSuperAdmin Boolean @default(false)
+
+  /// Organisation-wide role. Its permissions apply in every school.
+  orgRoleId String?
+  orgRole   Role?   @relation("UserOrgRole", fields: [orgRoleId], references: [id], onDelete: SetNull)
+
+  /// The working context the user last selected. Persisted per user (not in a
+  /// cookie) so it survives across devices and cannot be forged by the client.
+  currentSchoolId String?
+  currentSchool   School? @relation("UserCurrentSchool", fields: [currentSchoolId], references: [id], onDelete: SetNull)
+
+  currentSchoolYearId String?
+  currentSchoolYear   SchoolYear? @relation("UserCurrentSchoolYear", fields: [currentSchoolYearId], references: [id], onDelete: SetNull)
+
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  profile     Profile?
+  memberships Membership[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  phone     String?
+  avatarUrl String?
+  jobTitle  String?
+  bio       String?
+  /// Age is always derived from this, never stored — a stored age silently rots.
+  birthDate DateTime?
+
+  /// Preferred UI language, mirrored into a cookie on login for fast SSR.
+  locale     String @default("fr")
+  /// Appearance preferences, mirrored into the `ui-prefs` cookie.
+  themeMode  String @default("system")
+  accent     String @default("blue")
+  fontFamily String @default("geist")
+  fontSize   String @default("md")
+  radius     String @default("md")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+/// A named bundle of permissions. `scope` decides where it can be assigned:
+/// ORG roles go on User.orgRoleId, SCHOOL roles go on Membership.roleId.
+model Role {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  /// "ORG" | "SCHOOL" — see lib/enums.ts
+  scope       String  @default("SCHOOL")
+  /// System roles cannot be renamed or deleted, only their permissions tuned.
+  isSystem    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  permissions RolePermission[]
+  memberships Membership[]
+  orgUsers    User[]           @relation("UserOrgRole")
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+/// Fixed catalogue of permission codes, seeded from lib/permissions.ts.
+model Permission {
+  id          String  @id @default(cuid())
+  /// e.g. "school.create"
+  code        String  @unique
+  /// Grouping used to lay out the permission matrix, e.g. "school".
+  group       String
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Grants a user a school-scoped role. One role per user per school.
+model Membership {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  roleId   String
+  role     Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, schoolId])
+  @@index([schoolId])
+  @@index([roleId])
+  @@map("memberships")
+}
