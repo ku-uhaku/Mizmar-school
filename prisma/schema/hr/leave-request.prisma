@@ -1,0 +1,56 @@
+/// Une demande de congé: time off asked for, and what was decided.
+///
+/// Kept apart from StaffAttendance because the two are different acts at
+/// different moments. This is an agreement made in advance about a range of
+/// days; the register is a fact recorded on one day. Approving a request does
+/// not mark the register — the days are marked LEAVE as they arrive, so a person
+/// who came in anyway on the Thursday of an approved week is recorded as having
+/// come in.
+///
+/// The balance of days owed is deliberately not stored. Congé entitlement in
+/// Morocco accrues by seniority and is negotiated as often as it is computed, so
+/// a stored balance would be a number the school has to correct by hand forever.
+/// `leaveDaysTaken` in modules/hr/queries.ts counts approved days in a year,
+/// which is the figure anybody actually asks for.
+model LeaveRequest {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// "ANNUAL" | "SICK" | "UNPAID" | "MATERNITY" | "PATERNITY" | "EXCEPTIONAL"
+  /// see modules/hr/enums.ts.
+  kind String @default("ANNUAL")
+
+  startsOn DateTime
+  endsOn   DateTime
+
+  /// Working days the leave costs, which is not the span between the two dates.
+  ///
+  /// Typed in rather than computed: which days are worked depends on the
+  /// school's week (many run Saturday mornings), on public holidays that move
+  /// with the lunar calendar, and on whether the request straddles a school
+  /// break. `spanInDays` in enums.ts offers the calendar span as a starting
+  /// figure and the person approving it corrects it.
+  dayCount Int @default(1)
+
+  reason String?
+
+  /// "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" — see modules/hr/enums.ts.
+  status String @default("PENDING")
+
+  /// Who decided, and when. Both null while PENDING. SetNull: a director's
+  /// account being deleted must not erase the fact that leave was granted.
+  decidedById String?
+  decidedBy   User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([staffId])
+  @@index([staffId, startsOn])
+  @@index([status, startsOn])
+  @@index([decidedById])
+  @@map("leave_requests")
+}

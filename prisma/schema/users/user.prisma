@@ -40,6 +40,16 @@ model User {
   /// to let them sign in.
   guardianProfiles Guardian[] @relation("GuardianAccount")
 
+  // ── RH ────────────────────────────────────────────────────────────────────
+  /// The employment record, when this account belongs to somebody on the
+  /// payroll. Usually set, but never assumed: most of the payroll never signs
+  /// in, and some accounts are not employees. See the note on Staff.userId.
+  staffRecord Staff? @relation("StaffAccount")
+  /// Registers marked and leave decided. Restrict and SetNull respectively —
+  /// see the notes on those columns.
+  attendanceRecorded StaffAttendance[] @relation("AttendanceRecordedBy")
+  leaveDecisions     LeaveRequest[]    @relation("LeaveDecidedBy")
+
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// Who held the drawer and who posted what. All Restrict on the other side:
   /// the ledger must always be able to name the person behind a movement.

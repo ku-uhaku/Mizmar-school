@@ -8,9 +8,9 @@ export const familiesModule = defineModule({
     {
       href: "/families",
       icon: "families",
-      section: "main",
+      section: "vieScolaire",
       labelKey: "families",
-      order: 32,
+      order: 20,
       // School-scoped: a dossier belongs to one school, and the working context
       // is what confines a director to their own.
       schoolPermission: FAMILY_PERMISSIONS.FAMILY_VIEW,

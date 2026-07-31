@@ -1,0 +1,736 @@
+import "server-only";
+
+import type { AuthContext } from "@/lib/dal";
+import { db } from "@/lib/db";
+import {
+  EMPLOYED_STATUSES,
+  PAYABLE_SALARY_STATUSES,
+  dailyRate,
+  departmentOf,
+  grossSalary,
+  staffName,
+  startOfDay,
+} from "@/modules/hr/enums";
+
+/**
+ * Reads for the RH module.
+ *
+ * Everything is scoped to `context.currentSchool`, and nothing is scoped to the
+ * year: an employee is employed across school years, exactly like a vehicle. The
+ * periods that *are* year-shaped — a month's payroll, a day's register — are
+ * asked for by their own parameters rather than taken from the working context,
+ * because a bursar preparing September in October is the ordinary case.
+ *
+ * `listStaffOptions` is this module's lending library: the fleet and the caisse
+ * both pick an employee from it rather than repeating a name.
+ */
+
+function schoolScope(context: AuthContext) {
+  return { schoolId: context.currentSchool?.id ?? "__none__" };
+}
+
+// ── The people ───────────────────────────────────────────────────────────────
+
+export type StaffRow = {
+  id: string;
+  code: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  jobRole: string;
+  department: string;
+  jobTitle: string | null;
+  status: string;
+  phone: string | null;
+  email: string | null;
+  hiredOn: string | null;
+  leftOn: string | null;
+  /** The account they sign in with, when they have one. */
+  userId: string | null;
+  userEmail: string | null;
+  /** Monthly base from the live contract, or null when none is in force. */
+  contractKind: string | null;
+  baseSalaryCentimes: number | null;
+};
+
+/** The live contract, or null. Extracted so list and detail cannot disagree. */
+const ACTIVE_CONTRACT = {
+  where: { status: "ACTIVE" },
+  select: { id: true, kind: true, baseSalaryCentimes: true },
+  take: 1,
+} as const;
+
+export async function listStaff(context: AuthContext): Promise<StaffRow[]> {
+  const staff = await db.staff.findMany({
+    where: schoolScope(context),
+    orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
+    include: {
+      user: { select: { id: true, email: true } },
+      contracts: ACTIVE_CONTRACT,
+    },
+  });
+
+  return staff.map((person) => {
+    const contract = person.contracts[0] ?? null;
+    return {
+      id: person.id,
+      code: person.code,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      fullName: staffName(person),
+      jobRole: person.jobRole,
+      department: departmentOf(person.jobRole),
+      jobTitle: person.jobTitle,
+      status: person.status,
+      phone: person.phone,
+      email: person.email,
+      hiredOn: person.hiredOn?.toISOString() ?? null,
+      leftOn: person.leftOn?.toISOString() ?? null,
+      userId: person.user?.id ?? null,
+      userEmail: person.user?.email ?? null,
+      contractKind: contract?.kind ?? null,
+      baseSalaryCentimes: contract?.baseSalaryCentimes ?? null,
+    };
+  });
+}
+
+export type ContractRow = {
+  id: string;
+  kind: string;
+  startsOn: string;
+  endsOn: string | null;
+  trialEndsOn: string | null;
+  baseSalaryCentimes: number;
+  weeklyHours: number | null;
+  status: string;
+  notes: string | null;
+};
+
+export type SalaryRow = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffCode: string;
+  periodYear: number;
+  periodMonth: number;
+  baseCentimes: number;
+  allowanceCentimes: number;
+  overtimeCentimes: number;
+  bonusCentimes: number;
+  absenceCentimes: number;
+  advanceCentimes: number;
+  socialCentimes: number;
+  taxCentimes: number;
+  otherDeductionCentimes: number;
+  deductionLabel: string | null;
+  grossCentimes: number;
+  netCentimes: number;
+  status: string;
+  paidOn: string | null;
+  /** Set once the décaissement exists — what makes the "paid" badge truthful. */
+  cashOperationId: string | null;
+  notes: string | null;
+};
+
+export type AttendanceRow = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffCode: string;
+  date: string;
+  status: string;
+  isJustified: boolean;
+  minutesLate: number;
+  notes: string | null;
+  recordedByName: string;
+};
+
+export type LeaveRow = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffCode: string;
+  kind: string;
+  startsOn: string;
+  endsOn: string;
+  dayCount: number;
+  reason: string | null;
+  status: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+};
+
+/** Shapes a payslip row once, so the payroll list and the staff file agree. */
+type SalaryRecord = {
+  id: string;
+  staffId: string;
+  periodYear: number;
+  periodMonth: number;
+  baseCentimes: number;
+  allowanceCentimes: number;
+  overtimeCentimes: number;
+  bonusCentimes: number;
+  absenceCentimes: number;
+  advanceCentimes: number;
+  socialCentimes: number;
+  taxCentimes: number;
+  otherDeductionCentimes: number;
+  deductionLabel: string | null;
+  netCentimes: number;
+  status: string;
+  paidOn: Date | null;
+  cashOperationId: string | null;
+  notes: string | null;
+};
+
+function toSalaryRow(
+  salary: SalaryRecord,
+  person: { code: string; firstName: string; lastName: string },
+): SalaryRow {
+  return {
+    id: salary.id,
+    staffId: salary.staffId,
+    staffName: staffName(person),
+    staffCode: person.code,
+    periodYear: salary.periodYear,
+    periodMonth: salary.periodMonth,
+    baseCentimes: salary.baseCentimes,
+    allowanceCentimes: salary.allowanceCentimes,
+    overtimeCentimes: salary.overtimeCentimes,
+    bonusCentimes: salary.bonusCentimes,
+    absenceCentimes: salary.absenceCentimes,
+    advanceCentimes: salary.advanceCentimes,
+    socialCentimes: salary.socialCentimes,
+    taxCentimes: salary.taxCentimes,
+    otherDeductionCentimes: salary.otherDeductionCentimes,
+    deductionLabel: salary.deductionLabel,
+    grossCentimes: grossSalary(salary),
+    netCentimes: salary.netCentimes,
+    status: salary.status,
+    paidOn: salary.paidOn?.toISOString() ?? null,
+    cashOperationId: salary.cashOperationId,
+    notes: salary.notes,
+  };
+}
+
+export type StaffDetail = StaffRow & {
+  firstNameAr: string | null;
+  lastNameAr: string | null;
+  gender: string | null;
+  birthDate: string | null;
+  birthPlace: string | null;
+  nationalId: string | null;
+  cnssNumber: string | null;
+  bankRib: string | null;
+  address: string | null;
+  photoUrl: string | null;
+  notes: string | null;
+  contracts: ContractRow[];
+  salaries: SalaryRow[];
+  leave: LeaveRow[];
+  /** The last thirty marks, newest first — enough to see a pattern. */
+  attendance: AttendanceRow[];
+  /** Approved leave days taken in the current calendar year. */
+  leaveDaysThisYear: number;
+  /** Unjustified absences on record, all time — see `isChargeableAbsence`. */
+  unjustifiedAbsences: number;
+};
+
+/**
+ * One employee's whole file.
+ *
+ * Scoped by the school, so a staff id alone can never reach another school's
+ * payroll — which is the whole reason this is one function rather than a page
+ * assembling its own reads.
+ */
+export async function findStaff(
+  context: AuthContext,
+  staffId: string,
+): Promise<StaffDetail | null> {
+  const person = await db.staff.findFirst({
+    where: { id: staffId, ...schoolScope(context) },
+    include: {
+      user: { select: { id: true, email: true } },
+      contracts: { orderBy: [{ startsOn: "desc" }] },
+      salaries: {
+        orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
+        take: 24,
+      },
+      leaveRequests: { orderBy: [{ startsOn: "desc" }], take: 20 },
+      attendance: {
+        orderBy: [{ date: "desc" }],
+        take: 30,
+        include: {
+          recordedBy: {
+            select: {
+              email: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!person) return null;
+
+  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+
+  const [leaveDays, unjustified] = await Promise.all([
+    db.leaveRequest.aggregate({
+      where: {
+        staffId: person.id,
+        status: "APPROVED",
+        startsOn: { gte: yearStart },
+      },
+      _sum: { dayCount: true },
+    }),
+    db.staffAttendance.count({
+      where: {
+        staffId: person.id,
+        isJustified: false,
+        status: { in: ["ABSENT", "SICK"] },
+      },
+    }),
+  ]);
+
+  const live = person.contracts.find((contract) => contract.status === "ACTIVE");
+  const identity = {
+    code: person.code,
+    firstName: person.firstName,
+    lastName: person.lastName,
+  };
+
+  return {
+    id: person.id,
+    code: person.code,
+    firstName: person.firstName,
+    lastName: person.lastName,
+    fullName: staffName(person),
+    firstNameAr: person.firstNameAr,
+    lastNameAr: person.lastNameAr,
+    gender: person.gender,
+    birthDate: person.birthDate?.toISOString() ?? null,
+    birthPlace: person.birthPlace,
+    nationalId: person.nationalId,
+    cnssNumber: person.cnssNumber,
+    bankRib: person.bankRib,
+    jobRole: person.jobRole,
+    department: departmentOf(person.jobRole),
+    jobTitle: person.jobTitle,
+    status: person.status,
+    phone: person.phone,
+    email: person.email,
+    address: person.address,
+    photoUrl: person.photoUrl,
+    hiredOn: person.hiredOn?.toISOString() ?? null,
+    leftOn: person.leftOn?.toISOString() ?? null,
+    userId: person.user?.id ?? null,
+    userEmail: person.user?.email ?? null,
+    contractKind: live?.kind ?? null,
+    baseSalaryCentimes: live?.baseSalaryCentimes ?? null,
+    notes: person.notes,
+    contracts: person.contracts.map((contract) => ({
+      id: contract.id,
+      kind: contract.kind,
+      startsOn: contract.startsOn.toISOString(),
+      endsOn: contract.endsOn?.toISOString() ?? null,
+      trialEndsOn: contract.trialEndsOn?.toISOString() ?? null,
+      baseSalaryCentimes: contract.baseSalaryCentimes,
+      weeklyHours: contract.weeklyHours,
+      status: contract.status,
+      notes: contract.notes,
+    })),
+    salaries: person.salaries.map((salary) => toSalaryRow(salary, identity)),
+    leave: person.leaveRequests.map((request) => ({
+      id: request.id,
+      staffId: request.staffId,
+      staffName: staffName(person),
+      staffCode: person.code,
+      kind: request.kind,
+      startsOn: request.startsOn.toISOString(),
+      endsOn: request.endsOn.toISOString(),
+      dayCount: request.dayCount,
+      reason: request.reason,
+      status: request.status,
+      decidedAt: request.decidedAt?.toISOString() ?? null,
+      decisionNote: request.decisionNote,
+    })),
+    attendance: person.attendance.map((mark) => ({
+      id: mark.id,
+      staffId: mark.staffId,
+      staffName: staffName(person),
+      staffCode: person.code,
+      date: mark.date.toISOString(),
+      status: mark.status,
+      isJustified: mark.isJustified,
+      minutesLate: mark.minutesLate,
+      notes: mark.notes,
+      recordedByName: mark.recordedBy.profile
+        ? `${mark.recordedBy.profile.firstName} ${mark.recordedBy.profile.lastName}`
+        : mark.recordedBy.email,
+    })),
+    leaveDaysThisYear: leaveDays._sum.dayCount ?? 0,
+    unjustifiedAbsences: unjustified,
+  };
+}
+
+// ── The register ─────────────────────────────────────────────────────────────
+
+export type RegisterEntry = {
+  staffId: string;
+  staffName: string;
+  staffCode: string;
+  jobRole: string;
+  /** Null when nobody has marked this person today — see the note on HOLIDAY. */
+  attendanceId: string | null;
+  status: string | null;
+  isJustified: boolean;
+  minutesLate: number;
+  notes: string | null;
+};
+
+/**
+ * One day's register: everybody still employed, with their mark if it exists.
+ *
+ * Built as a left join rather than a list of marks, because the question the
+ * screen answers is "who has not been marked yet". A list of what was recorded
+ * cannot answer that, and it is the only thing anybody looks at a register for
+ * before ten in the morning.
+ */
+export async function listRegister(
+  context: AuthContext,
+  day: Date,
+): Promise<RegisterEntry[]> {
+  const date = startOfDay(day);
+
+  const staff = await db.staff.findMany({
+    where: { ...schoolScope(context), status: { in: [...EMPLOYED_STATUSES] } },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      firstName: true,
+      lastName: true,
+      jobRole: true,
+      attendance: {
+        where: { date },
+        select: {
+          id: true,
+          status: true,
+          isJustified: true,
+          minutesLate: true,
+          notes: true,
+        },
+        take: 1,
+      },
+    },
+  });
+
+  return staff.map((person) => {
+    const mark = person.attendance[0] ?? null;
+    return {
+      staffId: person.id,
+      staffName: staffName(person),
+      staffCode: person.code,
+      jobRole: person.jobRole,
+      attendanceId: mark?.id ?? null,
+      status: mark?.status ?? null,
+      isJustified: mark?.isJustified ?? false,
+      minutesLate: mark?.minutesLate ?? 0,
+      notes: mark?.notes ?? null,
+    };
+  });
+}
+
+// ── The payroll ──────────────────────────────────────────────────────────────
+
+export type PayrollLine = SalaryRow & {
+  jobRole: string;
+  /** The live contract's base, so the screen can flag a bulletin that lags it. */
+  contractBaseCentimes: number | null;
+  /** Unjustified absences in the month, beside the retenue box. */
+  unjustifiedDays: number;
+  /** What one day of the contract base is worth — a suggestion, never applied. */
+  dailyRateCentimes: number;
+};
+
+/**
+ * One month's payroll: a line per employed person, whether or not a bulletin
+ * exists yet.
+ *
+ * Same shape as the register above and for the same reason — the bursar's
+ * question in the last week of the month is "who has not been done", and a list
+ * of the payslips that exist cannot answer it.
+ */
+export async function listPayroll(
+  context: AuthContext,
+  periodYear: number,
+  periodMonth: number,
+): Promise<PayrollLine[]> {
+  const monthStart = new Date(periodYear, periodMonth - 1, 1);
+  const monthEnd = new Date(periodYear, periodMonth, 1);
+
+  const staff = await db.staff.findMany({
+    where: { ...schoolScope(context), status: { in: [...EMPLOYED_STATUSES] } },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: {
+      contracts: ACTIVE_CONTRACT,
+      salaries: { where: { periodYear, periodMonth }, take: 1 },
+      attendance: {
+        where: {
+          date: { gte: monthStart, lt: monthEnd },
+          isJustified: false,
+          status: { in: ["ABSENT", "SICK"] },
+        },
+        select: { id: true },
+      },
+    },
+  });
+
+  return staff.map((person) => {
+    const contract = person.contracts[0] ?? null;
+    const salary = person.salaries[0] ?? null;
+    const identity = {
+      code: person.code,
+      firstName: person.firstName,
+      lastName: person.lastName,
+    };
+
+    // No bulletin yet: an empty one, pre-filled from the contract, so the screen
+    // renders one uniform table instead of two.
+    const row = salary
+      ? toSalaryRow(salary, identity)
+      : {
+          id: "",
+          staffId: person.id,
+          staffName: staffName(person),
+          staffCode: person.code,
+          periodYear,
+          periodMonth,
+          baseCentimes: contract?.baseSalaryCentimes ?? 0,
+          allowanceCentimes: 0,
+          overtimeCentimes: 0,
+          bonusCentimes: 0,
+          absenceCentimes: 0,
+          advanceCentimes: 0,
+          socialCentimes: 0,
+          taxCentimes: 0,
+          otherDeductionCentimes: 0,
+          deductionLabel: null,
+          grossCentimes: contract?.baseSalaryCentimes ?? 0,
+          netCentimes: contract?.baseSalaryCentimes ?? 0,
+          status: "DRAFT",
+          paidOn: null,
+          cashOperationId: null,
+          notes: null,
+        };
+
+    return {
+      ...row,
+      jobRole: person.jobRole,
+      contractBaseCentimes: contract?.baseSalaryCentimes ?? null,
+      unjustifiedDays: person.attendance.length,
+      dailyRateCentimes: dailyRate(contract?.baseSalaryCentimes ?? 0),
+    };
+  });
+}
+
+// ── Leave ────────────────────────────────────────────────────────────────────
+
+export async function listLeave(context: AuthContext): Promise<LeaveRow[]> {
+  const requests = await db.leaveRequest.findMany({
+    where: { staff: schoolScope(context) },
+    orderBy: [{ status: "asc" }, { startsOn: "desc" }],
+    take: 100,
+    include: {
+      staff: { select: { code: true, firstName: true, lastName: true } },
+    },
+  });
+
+  return requests.map((request) => ({
+    id: request.id,
+    staffId: request.staffId,
+    staffName: staffName(request.staff),
+    staffCode: request.staff.code,
+    kind: request.kind,
+    startsOn: request.startsOn.toISOString(),
+    endsOn: request.endsOn.toISOString(),
+    dayCount: request.dayCount,
+    reason: request.reason,
+    status: request.status,
+    decidedAt: request.decidedAt?.toISOString() ?? null,
+    decisionNote: request.decisionNote,
+  }));
+}
+
+// ── What the other modules borrow ────────────────────────────────────────────
+
+export type StaffOption = {
+  id: string;
+  label: string;
+  jobRole: string;
+  phone: string | null;
+};
+
+/**
+ * Everybody still employed, for a picker.
+ *
+ * This is the whole of "put a select there instead of typing a name": the fleet
+ * chooses a driver from it and the caisse chooses a beneficiary from it, so a
+ * bus and a payslip refer to the same person rather than to two spellings of
+ * their name. Cross-module callers come through here rather than reading
+ * `db.staff` themselves, which is what keeps the school scoping in one place.
+ *
+ * `jobRole` rides along so a caller can put its own people first without a
+ * second round trip — see `listDriverOptions`.
+ */
+export async function listStaffOptions(
+  context: AuthContext,
+): Promise<StaffOption[]> {
+  const staff = await db.staff.findMany({
+    where: { ...schoolScope(context), status: { in: [...EMPLOYED_STATUSES] } },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      firstName: true,
+      lastName: true,
+      jobRole: true,
+      phone: true,
+    },
+  });
+
+  return staff.map((person) => ({
+    id: person.id,
+    label: `${staffName(person)} · ${person.code}`,
+    jobRole: person.jobRole,
+    phone: person.phone,
+  }));
+}
+
+/**
+ * The same list with the drivers at the top.
+ *
+ * Not *filtered* to drivers: a school whose caretaker takes the minibus on
+ * Wednesdays would otherwise find their own employee missing from the picker and
+ * go back to typing the name in, which is the thing this replaced.
+ */
+export async function listDriverOptions(
+  context: AuthContext,
+): Promise<StaffOption[]> {
+  const options = await listStaffOptions(context);
+  return [
+    ...options.filter((person) => person.jobRole === "DRIVER"),
+    ...options.filter((person) => person.jobRole !== "DRIVER"),
+  ];
+}
+
+/**
+ * Accounts an employment record may be linked to: this school's members who are
+ * not already somebody else's.
+ *
+ * Scoped through `Membership` rather than the organisation, so a director
+ * cannot attach another school's account to their own payroll.
+ */
+export async function listLinkableUsers(
+  context: AuthContext,
+  currentUserId: string | null,
+): Promise<{ id: string; label: string }[]> {
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return [];
+
+  const users = await db.user.findMany({
+    where: {
+      organizationId: context.user.organizationId,
+      memberships: { some: { schoolId } },
+      OR: [
+        { staffRecord: { is: null } },
+        ...(currentUserId ? [{ id: currentUserId }] : []),
+      ],
+    },
+    orderBy: [{ email: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    label: user.profile
+      ? `${user.profile.firstName} ${user.profile.lastName} · ${user.email}`
+      : user.email,
+  }));
+}
+
+// ── The overview ─────────────────────────────────────────────────────────────
+
+export type HrSummary = {
+  headcount: number;
+  activeCount: number;
+  onLeaveCount: number;
+  /** Employed people with no live contract — the gap a school gets fined for. */
+  withoutContract: number;
+  /** Monthly wage bill from the live contracts, in centimes. */
+  monthlyPayrollCentimes: number;
+  /** Bulletins raised for the month in question and not yet paid. */
+  unpaidThisMonth: number;
+  unpaidCentimes: number;
+  /** Marks missing from today's register. */
+  unmarkedToday: number;
+  pendingLeave: number;
+};
+
+export async function hrSummary(
+  context: AuthContext,
+  periodYear: number,
+  periodMonth: number,
+): Promise<HrSummary> {
+  const scope = schoolScope(context);
+  const today = startOfDay(new Date());
+
+  const [staff, salaries, markedToday, pendingLeave] = await Promise.all([
+    db.staff.findMany({
+      where: scope,
+      select: {
+        status: true,
+        contracts: ACTIVE_CONTRACT,
+      },
+    }),
+    db.salaryPayment.findMany({
+      where: { staff: scope, periodYear, periodMonth },
+      select: { status: true, netCentimes: true },
+    }),
+    db.staffAttendance.count({ where: { staff: scope, date: today } }),
+    db.leaveRequest.count({ where: { staff: scope, status: "PENDING" } }),
+  ]);
+
+  const employed = staff.filter((person) =>
+    (EMPLOYED_STATUSES as readonly string[]).includes(person.status),
+  );
+
+  const unpaid = salaries.filter((salary) =>
+    (PAYABLE_SALARY_STATUSES as readonly string[]).includes(salary.status),
+  );
+
+  return {
+    headcount: employed.length,
+    activeCount: staff.filter((person) => person.status === "ACTIVE").length,
+    onLeaveCount: staff.filter((person) => person.status === "ON_LEAVE").length,
+    withoutContract: employed.filter((person) => person.contracts.length === 0)
+      .length,
+    monthlyPayrollCentimes: employed.reduce(
+      (total, person) => total + (person.contracts[0]?.baseSalaryCentimes ?? 0),
+      0,
+    ),
+    unpaidThisMonth: unpaid.length,
+    unpaidCentimes: unpaid.reduce(
+      (total, salary) => total + salary.netCentimes,
+      0,
+    ),
+    unmarkedToday: Math.max(0, employed.length - markedToday),
+    pendingLeave,
+  };
+}

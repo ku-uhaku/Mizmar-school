@@ -8,9 +8,9 @@ export const schoolsModule = defineModule({
     {
       href: "/schools",
       icon: "schools",
-      section: "main",
+      section: "administration",
       labelKey: "schools",
-      order: 10,
+      order: 12,
       schoolPermission: SCHOOL_PERMISSIONS.SCHOOL_VIEW,
     },
   ],

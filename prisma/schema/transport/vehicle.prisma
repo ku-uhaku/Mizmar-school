@@ -34,12 +34,21 @@ model Vehicle {
   insuranceExpiresOn  DateTime?
   inspectionExpiresOn DateTime?
 
-  /// The driver, as free text.
+  /// The driver, when they are on the school's own payroll.
   ///
-  /// There is no HR module, and a school's drivers are as often a contractor's
-  /// employees as its own — so this is a name and a phone number, the two things
-  /// somebody needs when a bus has not arrived. See the same decision on
-  /// CashOperation.beneficiaryName.
+  /// SetNull: an employee leaving must leave the bus standing so somebody can
+  /// put another driver on it, not delete the vehicle and its routes.
+  driverId String?
+  driver   Staff?  @relation("VehicleDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  /// The driver as free text, for the ones who are not employees.
+  ///
+  /// Kept alongside the relation rather than replaced by it, because a school's
+  /// buses are as often a contractor's as its own — and the two things somebody
+  /// needs when a bus has not arrived are a name and a phone number, whoever
+  /// signs the driver's payslip. `driverLabel` in modules/transport/enums.ts is
+  /// what decides which of the two to show, so no screen has to. Same decision
+  /// as CashOperation.beneficiaryName.
   driverName  String?
   driverPhone String?
 
@@ -52,6 +61,7 @@ model Vehicle {
 
   @@unique([schoolId, registration])
   @@index([schoolId])
+  @@index([driverId])
   @@index([schoolId, status])
   @@map("vehicles")
 }

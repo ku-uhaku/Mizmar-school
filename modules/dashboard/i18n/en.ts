@@ -8,7 +8,21 @@
 const en = {
   dashboard: {
     title: "Dashboard",
-    subtitle: "Overview of your organisation.",
+    welcome: "Welcome back, {name}.",
+
+    // ── The four working sections ───────────────────────────────────────────
+    sections: "Your sections",
+    vieScolaireHint: "The families, the children, and the year they are sitting.",
+    financeHint: "What comes in, what goes out, and what the tills hold.",
+    logistiqueHint: "The fleet, the lines it runs, and who rides on them.",
+    rhHint: "Everybody the school pays, and what follows from employing them.",
+    students: "Students",
+    enrolledCount: "{count} enrolled",
+    toPlaceCount: "{count} to place",
+    linesCount: "{count} lines",
+    leaveRequestCount: "{count} leave requests",
+
+    // ── Administration ──────────────────────────────────────────────────────
     schools: "Schools",
     activeSchools: "active",
     users: "Users",
@@ -20,48 +34,11 @@ const en = {
     yourPermissions: "Your permissions here",
     permissionCount: "{count} permissions in this school",
     superAdminNote: "You are a super administrator — every permission is granted.",
-    quickActions: "Quick actions",
     recentSchools: "Schools",
     noSchools: "No schools yet.",
-    welcome: "Welcome back, {name}.",
-    overview: "Overview",
-    preview: "Demo",
-    previewNote: "Demo data. These figures will read from the academic tables once those exist.",
-    students: "Students",
-    teachers: "Teachers",
-    attendance: "Attendance",
-    feesCollected: "Fees collected",
-    vsLastMonth: "vs last month",
-    enrolmentTrend: "Enrolment trend",
-    enrolmentTrendHint: "Headcount at each month end.",
-    studentsByLevel: "Students by level",
-    studentsByLevelHint: "Spread across the whole cycle.",
-    studentsBySchool: "Split by school",
-    studentsBySchoolHint: "Share of total headcount.",
-    capacity: "Capacity used",
-    capacityCaption: "{enrolled} enrolled of {capacity} places.",
+
+    /** The caption on every chart's accessible data table. */
     viewData: "View the data",
-    month: "Month",
-    level: "Level",
-    recentActivity: "Recent activity",
-    upcoming: "Upcoming",
-    inDays: "in {count} days",
-    minutesAgo: "{count} min ago",
-    hoursAgo: "{count} h ago",
-    daysAgo: "{count} d ago",
-    activity: {
-      enrolment: "enrolled a new student",
-      payment: "recorded a payment",
-      grades: "entered grades",
-      absence: "cleared an absence",
-      staff: "updated a staff record",
-    },
-    deadlines: {
-      councils: "Class councils",
-      reportCards: "Report cards go out",
-      feesDue: "Term fees due",
-      termEnd: "End of term",
-    },
   },
 } as const;
 

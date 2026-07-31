@@ -67,6 +67,7 @@ export async function saveVehicleAction(
       status: field(formData, "status"),
       insuranceExpiresOn: field(formData, "insuranceExpiresOn"),
       inspectionExpiresOn: field(formData, "inspectionExpiresOn"),
+      driverId: optionalId(formData, "driverId"),
       driverName: field(formData, "driverName"),
       driverPhone: field(formData, "driverPhone"),
       notes: field(formData, "notes"),
@@ -96,7 +97,17 @@ export async function saveVehicleAction(
     });
     if (clash) return failure(t.transport.registrationTaken);
 
-    const data = { ...parsed.data, schoolId };
+    // The driver must be one of this school's employees — a staff id from the
+    // request must never reach another school's payroll.
+    const driver = parsed.data.driverId
+      ? await db.staff.findFirst({
+          where: { id: parsed.data.driverId, schoolId },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.driverId && !driver) return failure(t.errors.notFound);
+
+    const data = { ...parsed.data, driverId: driver?.id ?? null, schoolId };
 
     if (id) {
       await db.vehicle.update({ where: { id }, data });

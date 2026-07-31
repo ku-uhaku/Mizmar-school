@@ -41,7 +41,6 @@ const fr = {
 };
 
 export const nav = {
-  schoolLife: "Vie scolaire",
 };
 
 export const permissions = {

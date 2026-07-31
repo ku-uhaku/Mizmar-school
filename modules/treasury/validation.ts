@@ -147,6 +147,8 @@ export function disbursementSchema(t: Dictionary) {
   return z
     .object({
       expenseCategoryId: optionalText(40),
+      /** The employee paid, when there is one. The name is required regardless. */
+      beneficiaryStaffId: optionalText(40),
       beneficiaryName: requiredText(v, { max: 160 }),
       label: requiredText(v, { max: 200 }),
       method: enumField(TENDER_METHODS, v),

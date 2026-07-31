@@ -4,6 +4,7 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import {
   SEAT_HOLDING_STATUSES,
+  driverLabel,
   priceForDirection,
   seatsOnRoute,
   seatsRemaining,
@@ -36,8 +37,12 @@ export type VehicleRow = {
   status: string;
   insuranceExpiresOn: string | null;
   inspectionExpiresOn: string | null;
+  /** The employee driving it, when there is one. */
+  driverId: string | null;
   driverName: string | null;
   driverPhone: string | null;
+  /** Who to show as the driver: the employee's name, else the typed one. */
+  driverLabel: string | null;
   notes: string | null;
   /** Lines this bus is running in the year in context. */
   routeCount: number;
@@ -50,6 +55,7 @@ export async function listVehicles(
     where: schoolScope(context),
     orderBy: [{ status: "asc" }, { registration: "asc" }],
     include: {
+      driver: { select: { id: true, firstName: true, lastName: true, phone: true } },
       _count: { select: { routes: { where: { schoolYearId: yearId(context) } } } },
     },
   });
@@ -64,11 +70,34 @@ export async function listVehicles(
     status: vehicle.status,
     insuranceExpiresOn: vehicle.insuranceExpiresOn?.toISOString() ?? null,
     inspectionExpiresOn: vehicle.inspectionExpiresOn?.toISOString() ?? null,
+    driverId: vehicle.driver?.id ?? null,
     driverName: vehicle.driverName,
-    driverPhone: vehicle.driverPhone,
+    // The employee's own phone beats the one typed on the bus, for the same
+    // reason their name does.
+    driverPhone: vehicle.driver?.phone ?? vehicle.driverPhone,
+    driverLabel: driverLabel(
+      vehicle.driver
+        ? `${vehicle.driver.firstName} ${vehicle.driver.lastName}`
+        : null,
+      vehicle.driverName,
+    ),
     notes: vehicle.notes,
     routeCount: vehicle._count.routes,
   }));
+}
+
+/** The driver of the bus on a line, by the rule in `driverLabel`. */
+function routeDriverName(
+  vehicle: {
+    driverName: string | null;
+    driver: { firstName: string; lastName: string } | null;
+  } | null,
+): string | null {
+  if (!vehicle) return null;
+  return driverLabel(
+    vehicle.driver ? `${vehicle.driver.firstName} ${vehicle.driver.lastName}` : null,
+    vehicle.driverName,
+  );
 }
 
 export type ZoneRow = {
@@ -134,7 +163,13 @@ export async function listRoutes(context: AuthContext): Promise<RouteRow[]> {
     orderBy: [{ code: "asc" }],
     include: {
       vehicle: {
-        select: { id: true, registration: true, seatCount: true, driverName: true },
+        select: {
+          id: true,
+          registration: true,
+          seatCount: true,
+          driverName: true,
+          driver: { select: { firstName: true, lastName: true } },
+        },
       },
       _count: {
         select: {
@@ -158,7 +193,7 @@ export async function listRoutes(context: AuthContext): Promise<RouteRow[]> {
       isActive: route.isActive,
       vehicleId: route.vehicle?.id ?? null,
       vehicleRegistration: route.vehicle?.registration ?? null,
-      driverName: route.vehicle?.driverName ?? null,
+      driverName: routeDriverName(route.vehicle),
       seats,
       taken,
       remaining: seatsRemaining(seats, taken),
@@ -214,7 +249,13 @@ export async function findRoute(
     where: { id: routeId, schoolYearId: yearId(context) },
     include: {
       vehicle: {
-        select: { id: true, registration: true, seatCount: true, driverName: true },
+        select: {
+          id: true,
+          registration: true,
+          seatCount: true,
+          driverName: true,
+          driver: { select: { firstName: true, lastName: true } },
+        },
       },
       stops: {
         orderBy: [{ position: "asc" }, { name: "asc" }],
@@ -269,7 +310,7 @@ export async function findRoute(
     capacity: route.capacity,
     vehicleId: route.vehicle?.id ?? null,
     vehicleRegistration: route.vehicle?.registration ?? null,
-    driverName: route.vehicle?.driverName ?? null,
+    driverName: routeDriverName(route.vehicle),
     seats,
     taken,
     remaining: seatsRemaining(seats, taken),

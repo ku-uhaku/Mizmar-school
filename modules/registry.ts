@@ -15,6 +15,8 @@ import { dashboardModule } from "@/modules/dashboard/module";
 import { enrolmentModule } from "@/modules/enrolment/module";
 import { ENROLMENT_PERMISSIONS } from "@/modules/enrolment/permissions";
 import { facilitiesModule } from "@/modules/facilities/module";
+import { hrModule } from "@/modules/hr/module";
+import { HR_PERMISSIONS } from "@/modules/hr/permissions";
 import { familiesModule } from "@/modules/families/module";
 import { FAMILY_PERMISSIONS } from "@/modules/families/permissions";
 import { organizationModule } from "@/modules/organization/module";
@@ -71,6 +73,7 @@ export const MODULES: readonly AppModule[] = [
   usersModule,
   accessModule,
   configurationModule,
+  hrModule,
   profileModule,
   appearanceModule,
 
@@ -126,6 +129,7 @@ export const PERMISSIONS = {
   ...USER_PERMISSIONS,
   ...ROLE_PERMISSIONS,
   ...CONFIGURATION_PERMISSIONS,
+  ...HR_PERMISSIONS,
   ...SCHOOL_LIFE_PERMISSIONS,
   ...FAMILY_PERMISSIONS,
   ...STUDENT_PERMISSIONS,

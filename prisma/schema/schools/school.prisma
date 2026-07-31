@@ -54,6 +54,12 @@ model School {
   /// TransportRoute. See prisma/schema/transport/.
   vehicles Vehicle[]
 
+  // ── RH ────────────────────────────────────────────────────────────────────
+  /// Everybody on the payroll. Year-independent, like the fleet: an employee is
+  /// employed across school years, and what they were paid in a given month is
+  /// a SalaryPayment. See prisma/schema/hr/.
+  staff Staff[]
+
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// The tills the school collects at, what it spends under, and every movement
   /// of money either way. See prisma/schema/treasury/.

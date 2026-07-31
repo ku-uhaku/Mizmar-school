@@ -101,11 +101,21 @@ export const ROUTE_SEEDS: RouteSeed[] = [
 
 export async function seedTransport(
   db: SeedDb,
-  input: { schoolId: string; schoolYearId: string },
+  input: {
+    schoolId: string;
+    schoolYearId: string;
+    /**
+     * The school's own drivers, by name, from `seedHr`. Empty is fine — the bus
+     * keeps the typed name, which is the contractor case the column is for.
+     */
+    driverIdByName?: Record<string, string>;
+  },
 ): Promise<void> {
   const vehicleIds: string[] = [];
 
   for (const vehicle of VEHICLE_SEEDS) {
+    const driverId = input.driverIdByName?.[vehicle.driverName] ?? null;
+
     const row = await db.vehicle.upsert({
       where: {
         schoolId_registration: {
@@ -118,6 +128,7 @@ export async function seedTransport(
         model: vehicle.model,
         modelYear: vehicle.modelYear,
         seatCount: vehicle.seatCount,
+        driverId,
         driverName: vehicle.driverName,
         driverPhone: vehicle.driverPhone,
       },
@@ -129,6 +140,7 @@ export async function seedTransport(
         modelYear: vehicle.modelYear,
         seatCount: vehicle.seatCount,
         status: "ACTIVE",
+        driverId,
         driverName: vehicle.driverName,
         driverPhone: vehicle.driverPhone,
       },

@@ -24,6 +24,10 @@ const ar = {
     insurance: "انتهاء التأمين",
     inspection: "انتهاء الفحص التقني",
     complianceHint: "الحافلة التي انتهت وثائقها لا يجوز قانونًا أن تنقل التلاميذ.",
+    driverStaff: "سائق من الموظفين",
+    driverStaffHint:
+      "يختار أحد موظفي المدرسة، حتى تشير الحافلة والأجور إلى الشخص نفسه.",
+    driverExternal: "ليس موظفًا",
     driverName: "السائق",
     driverPhone: "هاتف السائق",
     driverHint: "من يُتصل به عندما تتأخر الحافلة.",
@@ -130,6 +134,20 @@ const ar = {
     seatsFree: "المقاعد الشاغرة",
     ridersTotal: "المشتركون",
     linesRunning: "الخطوط العاملة",
+
+    // ── لوحة قيادة القسم ────────────────────────────────────────────────────
+    routesHint: "الخطوط المرسومة للسنة ومحطاتها ومن يصعد من أين.",
+    fleetHint: "الحافلات والوثائق التي تسمح لها بالسير والسائق المكلف بكل واحدة.",
+    paperworkCount: "{count} للتجديد",
+    paperworkHint: "التأمين أو الفحص التقني منتهٍ أو ينتهي خلال الشهر.",
+    allPapersValid: "جميع الحافلات العاملة وثائقها سارية.",
+    stopsAcrossLines: "{count} محطة",
+    ofSeatsOffered: "من أصل {count} مقعدًا",
+    seatsFreeHint: "على مجموع الخطوط",
+    busesInService: "{count} حافلة في الخدمة",
+    occupancy: "نسبة امتلاء الخطوط",
+    occupancyHint: "عدد المشتركين مقابل المقاعد التي يوفرها كل خط.",
+    seatsTaken: "{taken} مقعدًا من {seats}",
   },
   transportOptions: {
     vehicleStatuses: {
@@ -151,7 +169,9 @@ const ar = {
 };
 
 export const nav = {
-  transport: "النقل",
+  transportRoutes: "الخطوط",
+  transportFleet: "الأسطول",
+  transportZones: "المناطق",
 };
 
 export const permissions = {

@@ -15,9 +15,11 @@ import {
 import { findFamily, listFamilyChoices } from "@/modules/families/queries";
 import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
-import { StudentWorkflow } from "@/modules/students/components/student-workflow";
 import { findStudent, loadStudentWorkflow } from "@/modules/students/queries";
-import { studentPaymentStanding } from "@/modules/treasury/queries";
+import {
+  familyPaymentStanding,
+  studentPaymentStanding,
+} from "@/modules/treasury/queries";
 import { STUDENT_WORKFLOW_STEPS } from "@/modules/students/enums";
 import {
   loadClassTimetable,
@@ -63,18 +65,24 @@ export default async function StudentPage({
   ]);
 
   // The rest depends on what the first round found: no dossier means no
-  // guardians to load, no class means no week to draw.
-  const [family, feeGrid, timetable, timetableChoices, standing] = await Promise.all([
-    student.familyId ? findFamily(context, student.familyId) : null,
-    enrolment ? loadFeeGrid(context, enrolment.id) : null,
-    enrolment?.schoolClassId
-      ? loadClassTimetable(context, enrolment.schoolClassId)
-      : null,
-    enrolment?.schoolClassId
-      ? loadTimetableChoices(context, enrolment.schoolClassId)
-      : null,
-    canSeeMoney ? studentPaymentStanding(context, student.id) : null,
-  ]);
+  // guardians to load, no class means no week to draw, and the fratrie's
+  // standing is only worth summing when there is a dossier and a reader
+  // allowed to see money.
+  const [family, feeGrid, timetable, timetableChoices, standing, familyStanding] =
+    await Promise.all([
+      student.familyId ? findFamily(context, student.familyId) : null,
+      enrolment ? loadFeeGrid(context, enrolment.id) : null,
+      enrolment?.schoolClassId
+        ? loadClassTimetable(context, enrolment.schoolClassId)
+        : null,
+      enrolment?.schoolClassId
+        ? loadTimetableChoices(context, enrolment.schoolClassId)
+        : null,
+      canSeeMoney ? studentPaymentStanding(context, student.id) : null,
+      canSeeMoney && student.familyId
+        ? familyPaymentStanding(context, student.id, student.familyId)
+        : null,
+    ]);
 
   return (
     <>
@@ -92,17 +100,6 @@ export default async function StudentPage({
           <Badge variant="outline">{student.className}</Badge>
         ) : null}
       </PageHeader>
-
-      <div className="mb-4">
-        <StudentWorkflow
-          state={workflow}
-          steps={
-            canSeeMoney
-              ? STUDENT_WORKFLOW_STEPS
-              : STUDENT_WORKFLOW_STEPS.filter((step) => step !== "PAYMENT")
-          }
-        />
-      </div>
 
       <StudentProfile
         student={student}
@@ -127,6 +124,15 @@ export default async function StudentPage({
         timetable={timetable}
         timetableChoices={timetableChoices}
         standing={standing}
+        familyStanding={familyStanding}
+        workflow={workflow}
+        // Whether a family is behind on its payments is money: a teacher who
+        // may view a pupil has no business reading it off their parcours.
+        workflowSteps={
+          canSeeMoney
+            ? STUDENT_WORKFLOW_STEPS
+            : STUDENT_WORKFLOW_STEPS.filter((step) => step !== "PAYMENT")
+        }
         permissions={{
           canUpdateStudent: context.can(PERMISSIONS.STUDENT_UPDATE),
           canManageFamily: context.can(PERMISSIONS.FAMILY_UPDATE),

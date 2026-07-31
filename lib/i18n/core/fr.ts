@@ -69,8 +69,13 @@ const core = {
 
 /** Sidebar section titles. Modules contribute the entries inside them. */
 export const nav = {
+  /** Every section's landing entry. The group title says which section. */
+  overview: "Tableau de bord",
   main: "Principal",
+  vieScolaire: "Vie scolaire",
   finance: "Caisse",
+  logistique: "Logistique",
+  rh: "Ressources humaines",
   administration: "Administration",
   account: "Compte",
 };

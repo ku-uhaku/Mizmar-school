@@ -45,7 +45,6 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  schoolLife: "School life",
 } as const;
 
 /** Permission matrix labels for this module's own codes. */

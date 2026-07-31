@@ -76,10 +76,12 @@ const fr = {
     tabFamily: "Famille",
     tabEnrolment: "Inscription",
     tabFees: "Frais",
+    tabPayment: "Paiement",
     tabTimetable: "Emploi du temps",
     workflow: "Parcours",
     workflowHint: "Où en est ce dossier.",
     nextStep: "Suivant : {step}",
+    stepsDone: "{done} sur {total}",
     workflowComplete: "Ce dossier est complet.",
     steps: {
       FILE: "Dossier ouvert",

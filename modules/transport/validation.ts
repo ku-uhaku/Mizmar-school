@@ -44,6 +44,8 @@ export function vehicleSchema(t: Dictionary) {
     status: enumField(VEHICLE_STATUSES, v),
     insuranceExpiresOn: optionalDate(v),
     inspectionExpiresOn: optionalDate(v),
+    /** The employee driving it, when they are on the school's payroll. */
+    driverId: optionalText(40),
     driverName: optionalText(120),
     driverPhone: optionalText(40),
     notes: optionalText(1000),

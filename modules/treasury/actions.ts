@@ -322,6 +322,7 @@ export async function recordDisbursementAction(
 
     const parsed = disbursementSchema(t).safeParse({
       expenseCategoryId: optionalId(formData, "expenseCategoryId"),
+      beneficiaryStaffId: optionalId(formData, "beneficiaryStaffId"),
       beneficiaryName: field(formData, "beneficiaryName"),
       label: field(formData, "label"),
       method: field(formData, "method"),
@@ -342,6 +343,18 @@ export async function recordDisbursementAction(
           select: { id: true },
         })
       : null;
+
+    // The beneficiary must be one of this school's employees — a staff id from
+    // the request must never reach another school's payroll.
+    const beneficiary = parsed.data.beneficiaryStaffId
+      ? await db.staff.findFirst({
+          where: { id: parsed.data.beneficiaryStaffId, schoolId },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.beneficiaryStaffId && !beneficiary) {
+      return failure(t.errors.notFound);
+    }
 
     const session = await openSessionFor(schoolId);
     if (parsed.data.method === "CASH" && !session) {
@@ -381,6 +394,7 @@ export async function recordDisbursementAction(
       createdById: context.user.id,
       cashSessionId: parsed.data.method === "CASH" ? (session?.id ?? null) : null,
       expenseCategoryId: category?.id ?? null,
+      beneficiaryStaffId: beneficiary?.id ?? null,
       beneficiaryName: parsed.data.beneficiaryName,
       label: parsed.data.label,
       method: parsed.data.method,

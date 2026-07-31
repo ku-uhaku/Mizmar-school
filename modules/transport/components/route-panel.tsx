@@ -67,7 +67,7 @@ import type {
   SubscribableStudent,
   ZoneRow,
 } from "@/modules/transport/queries";
-import { Field } from "@/modules/transport/components/transport-manager";
+import { Field } from "@/modules/transport/components/field";
 
 /**
  * One line: the stops it serves, in order, and everyone riding it.

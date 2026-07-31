@@ -17,6 +17,7 @@ import {
 } from "@/modules/billing/seed";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments } from "@/modules/enrolment/seed";
+import { seedHr } from "@/modules/hr/seed";
 import { seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport } from "@/modules/transport/seed";
 import {
@@ -221,6 +222,13 @@ async function main() {
     // where it is collected is a fact of the school.
     await seedTreasury(db, school.id);
 
+    // The payroll, also year-independent. Before the fleet below, because a bus
+    // names one of these people as its driver rather than repeating a string.
+    const driverIdByName = await seedHr(db, {
+      schoolId: school.id,
+      teachers: teachersBySchool[school.id] ?? [],
+    });
+
     const labSubjectCodes = plan.academics.subjects
       .filter((subject) => subject.requiresLab)
       .map((subject) => subject.code);
@@ -246,7 +254,11 @@ async function main() {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
       const slots = await seedTimeSlots(db, year.id);
-      await seedTransport(db, { schoolId: school.id, schoolYearId: year.id });
+      await seedTransport(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        driverIdByName,
+      });
       await seedFeeRatesAndDiscounts(db, {
         schoolYearId: year.id,
         rates: plan.rates,

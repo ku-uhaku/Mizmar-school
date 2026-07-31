@@ -574,6 +574,102 @@ export async function studentPaymentStanding(
   };
 }
 
+export type SiblingStanding = {
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  className: string | null;
+  standing: PaymentStanding;
+};
+
+export type FamilyStanding = {
+  familyId: string;
+  familyName: string;
+  familyCode: string;
+  /** The other children of the dossier — never the pupil being looked at. */
+  siblings: SiblingStanding[];
+  /** The household's totals, this pupil included. */
+  chargedCentimes: number;
+  paidCentimes: number;
+  outstandingCentimes: number;
+  overdueCentimes: number;
+};
+
+/**
+ * The rest of the household's standing, for the pupil's payment tab.
+ *
+ * Loaded beside `studentPaymentStanding` rather than folded into it, because
+ * the two answer different questions and the tab shows the fratrie only when
+ * asked. Keeping them apart means a secretary who never ticks the box never
+ * pays for the extra reads.
+ *
+ * Returns null when the child has no dossier familial — there is no household
+ * to total — and the siblings list excludes the pupil themselves, whose figures
+ * the tab already has. The totals do include them: "what does this family owe"
+ * is the question a parent at the desk actually asks.
+ */
+export async function familyPaymentStanding(
+  context: AuthContext,
+  studentId: string,
+  familyId: string,
+): Promise<FamilyStanding | null> {
+  const schoolId = context.currentSchool?.id;
+  const schoolYearId = context.currentSchoolYear?.id;
+  if (!schoolId || !schoolYearId) return null;
+
+  const family = await db.family.findFirst({
+    // Scoped by the school in context, never by the id from the request.
+    where: { id: familyId, schoolId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      children: {
+        where: { isActive: true },
+        orderBy: [{ firstName: "asc" }],
+        select: {
+          id: true,
+          code: true,
+          firstName: true,
+          lastName: true,
+          enrollments: {
+            where: { schoolYearId },
+            select: { schoolClass: { select: { code: true } } },
+          },
+        },
+      },
+    },
+  });
+
+  if (!family) return null;
+
+  // One standing per child, through the same function the pupil's own card
+  // uses — so a sibling's figure can never disagree with their own file.
+  const standings = await Promise.all(
+    family.children.map(async (child) => ({
+      studentId: child.id,
+      studentName: `${child.firstName} ${child.lastName}`,
+      studentCode: child.code,
+      className: child.enrollments[0]?.schoolClass?.code ?? null,
+      standing: await studentPaymentStanding(context, child.id),
+    })),
+  );
+
+  const total = (pick: (standing: PaymentStanding) => number) =>
+    sumCentimes(standings.map((entry) => pick(entry.standing)));
+
+  return {
+    familyId: family.id,
+    familyCode: family.code,
+    familyName: family.name,
+    siblings: standings.filter((entry) => entry.studentId !== studentId),
+    chargedCentimes: total((standing) => standing.chargedCentimes),
+    paidCentimes: total((standing) => standing.paidCentimes),
+    outstandingCentimes: total((standing) => standing.outstandingCentimes),
+    overdueCentimes: total((standing) => standing.overdueCentimes),
+  };
+}
+
 export type FamilyOption = {
   id: string;
   code: string;

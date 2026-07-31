@@ -12,6 +12,10 @@ import configuration, {
   permissions as configurationPermissions,
 } from "@/modules/configuration/i18n/fr";
 import context from "@/modules/context/i18n/fr";
+import hr, {
+  nav as hrNav,
+  permissions as hrPermissions,
+} from "@/modules/hr/i18n/fr";
 import dashboard, { nav as dashboardNav } from "@/modules/dashboard/i18n/fr";
 import organization, {
   nav as organizationNav,
@@ -78,6 +82,7 @@ const fr: Dictionary = {
   ...users,
   ...access,
   ...configuration,
+  ...hr,
   ...profile,
   ...appearance,
 
@@ -104,6 +109,7 @@ const fr: Dictionary = {
     ...usersNav,
     ...accessNav,
     ...configurationNav,
+    ...hrNav,
     ...profileNav,
     ...appearanceNav,
     ...schoolLifeNav,
@@ -122,6 +128,7 @@ const fr: Dictionary = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
@@ -138,6 +145,7 @@ const fr: Dictionary = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,

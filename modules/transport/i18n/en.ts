@@ -28,6 +28,10 @@ const en = {
     inspection: "Roadworthiness expires",
     complianceHint:
       "A bus whose papers have lapsed may not legally carry children.",
+    driverStaff: "Driver on the payroll",
+    driverStaffHint:
+      "Picks one of the school's own employees, so the bus and the payroll name the same person.",
+    driverExternal: "Not an employee",
     driverName: "Driver",
     driverPhone: "Driver's phone",
     driverHint: "Whoever is called when a bus has not arrived.",
@@ -135,6 +139,21 @@ const en = {
     seatsFree: "Seats free",
     ridersTotal: "Riders",
     linesRunning: "Lines running",
+
+    // ── Section dashboard ───────────────────────────────────────────────────
+    routesHint: "The lines drawn for the year, their stops, and who boards where.",
+    fleetHint: "The buses, the papers that keep them legal, and the driver on each.",
+    paperworkCount: "{count} to renew",
+    paperworkHint:
+      "Insurance or roadworthiness lapsed, or expiring within the month.",
+    allPapersValid: "Every bus in service has valid papers.",
+    stopsAcrossLines: "{count} stops",
+    ofSeatsOffered: "of {count} seats offered",
+    seatsFreeHint: "Across every line running",
+    busesInService: "{count} buses in service",
+    occupancy: "How full the lines run",
+    occupancyHint: "Riders against the seats each line offers.",
+    seatsTaken: "{taken} of {seats} seats",
   },
   transportOptions: {
     vehicleStatuses: {
@@ -157,7 +176,9 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  transport: "Transport",
+  transportRoutes: "Routes",
+  transportFleet: "Fleet",
+  transportZones: "Zones",
 } as const;
 
 /** Permission matrix labels for this module's own codes. */

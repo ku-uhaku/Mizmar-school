@@ -19,9 +19,9 @@ export const timetableModule = defineModule({
     {
       href: "/timetable",
       icon: "timetable",
-      section: "main",
+      section: "vieScolaire",
       labelKey: "timetable",
-      order: 36,
+      order: 50,
       schoolPermission: TIMETABLE_PERMISSIONS.TIMETABLE_VIEW,
     },
   ],

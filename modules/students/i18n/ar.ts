@@ -69,10 +69,12 @@ const ar = {
     tabFamily: "الأسرة",
     tabEnrolment: "التسجيل",
     tabFees: "الرسوم",
+    tabPayment: "الأداء",
     tabTimetable: "استعمال الزمن",
     workflow: "المسار",
     workflowHint: "إلى أين وصل هذا الملف.",
     nextStep: "التالي: {step}",
+    stepsDone: "{done} من {total}",
     workflowComplete: "هذا الملف مكتمل.",
     steps: {
       FILE: "فتح الملف",

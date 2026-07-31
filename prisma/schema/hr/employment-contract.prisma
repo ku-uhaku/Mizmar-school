@@ -1,0 +1,66 @@
+/// A contrat de travail: what one employee is engaged on, over one period.
+///
+/// Split from Staff for the reason Enrollment is split from Student. A renewal,
+/// a promotion or a raise is a *new* agreement, and last year's payslips have to
+/// stay readable against the terms they were computed under. Editing one salary
+/// figure on the employee's row would silently restate every bulletin already
+/// issued, which is exactly what an inspection asks you not to have done.
+///
+/// The salary here is the **contractual** monthly base. What was actually paid
+/// in a given month is SalaryPayment, which copies this figure at generation
+/// time — see the note there.
+model EmploymentContract {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// "CDI" | "CDD" | "ANAPEC" | "INTERIM" | "VACATAIRE" | "STAGE"
+  /// see modules/hr/enums.ts.
+  kind String @default("CDI")
+
+  startsOn DateTime
+  /// Null for a CDI — an open-ended contract has no end date, and inventing one
+  /// would make every permanent employee look like they were about to leave.
+  endsOn DateTime?
+
+  /// Fin de la période d'essai. Kept because it is the one date that changes
+  /// what notice is owed, and nobody remembers it.
+  trialEndsOn DateTime?
+
+  /// Salaire de base mensuel brut, in centimes of dirham.
+  ///
+  /// Monthly rather than annual: Moroccan contracts, the SMIG and the CNSS
+  /// ceiling are all stated monthly, and an annual figure would make every
+  /// screen divide by twelve and round differently.
+  baseSalaryCentimes Int
+
+  /// Contractual hours a week. Used to tell a full-time contract from a
+  /// vacataire's on the payroll screen, not to compute pay — an hourly employee
+  /// is paid through `overtimeCentimes` on the month's bulletin.
+  weeklyHours Int?
+
+  /// "DRAFT" | "ACTIVE" | "ENDED" — see modules/hr/enums.ts.
+  status String @default("ACTIVE")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Bulletins issued under these terms. They keep their own copy of the base
+  /// salary — see the note on SalaryPayment.
+  salaries SalaryPayment[]
+
+  /// The staff id while this contract is ACTIVE, null otherwise — which is what
+  /// makes "one live contract per employee" a constraint the database enforces
+  /// rather than a rule the service hopes it kept.
+  ///
+  /// SQLite treats NULLs as distinct in a unique index, so every ended contract
+  /// is exempt and only one live one is admitted. Written exclusively through
+  /// `activeContractKey` in modules/hr/enums.ts — see lib/db-keys.ts.
+  activeKey String? @unique
+
+  @@index([staffId])
+  @@index([staffId, startsOn])
+  @@map("employment_contracts")
+}

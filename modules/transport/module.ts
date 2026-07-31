@@ -18,10 +18,36 @@ export const transportModule = defineModule({
     {
       href: "/transport",
       icon: "transport",
-      section: "main",
-      labelKey: "transport",
-      order: 60,
+      section: "logistique",
+      labelKey: "overview",
+      order: 10,
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
+    },
+    {
+      href: "/transport/routes",
+      icon: "routes",
+      section: "logistique",
+      labelKey: "transportRoutes",
+      order: 20,
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
+    },
+    {
+      href: "/transport/fleet",
+      icon: "fleet",
+      section: "logistique",
+      labelKey: "transportFleet",
+      order: 30,
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
+    },
+    {
+      href: "/transport/zones",
+      icon: "zones",
+      section: "logistique",
+      labelKey: "transportZones",
+      // Pricing, not operations: a zone's rate is what a family is charged, so
+      // reading the line list is not enough to open it.
+      order: 40,
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_MANAGE,
     },
   ],
   permissions: [

@@ -1,0 +1,105 @@
+/// A bulletin de paie: what one employee was paid for one month.
+///
+/// ── Why the figures are copied, not read through the contract ───────────────
+/// `baseCentimes` is written from the live contract when the month is
+/// generated, exactly as EnrollmentFee copies its amount from the price list. A
+/// raise signed in March must not restate January's bulletin — and a bulletin
+/// that changes after it was handed over is not a bulletin, it is a draft
+/// somebody printed.
+///
+/// ── Why every part is its own column ────────────────────────────────────────
+/// A payslip is an itemised document: an employee is entitled to see what the
+/// prime was, what the absence cost and what went to the CNSS. Storing a single
+/// net figure would make the school unable to answer the one question anybody
+/// ever asks about a payslip. `grossSalary` and `netSalary` in
+/// modules/hr/enums.ts are the only things that add them up, so the screen
+/// previewing a bulletin and the service posting it cannot disagree.
+///
+/// ── Why the caisse is not summed from here ──────────────────────────────────
+/// Paying somebody writes a DECAISSEMENT in the ledger and points
+/// `cashOperationId` at it. This table says what is *owed* to an employee, the
+/// ledger says what actually *left* — the same division as EnrollmentFee and
+/// Payment on the family side. Nothing here is ever summed to work out what the
+/// school spent.
+model SalaryPayment {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// The month this bulletin is for. Stored as two integers rather than a date
+  /// because that is what it is — "septembre 2025", not the 1st of September —
+  /// and a date would invite two screens to pick different days of the month.
+  periodYear  Int
+  periodMonth Int
+
+  /// The contract the figures were taken from. SetNull: a contract deleted in
+  /// error must not take the payslips issued under it with it.
+  contractId String?
+  contract   EmploymentContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  // ── Gains ──────────────────────────────────────────────────────────────────
+  /// Salaire de base, copied from the contract. See the note above.
+  baseCentimes Int @default(0)
+  /// Primes et indemnités — transport, panier, ancienneté, responsabilité.
+  allowanceCentimes Int @default(0)
+  /// Heures supplémentaires. Also where a vacataire's whole pay lands, since
+  /// their contract carries no monthly base.
+  overtimeCentimes Int @default(0)
+  /// Bonuses that are not a monthly entitlement: 13ème mois, prime de rendement.
+  bonusCentimes Int @default(0)
+
+  // ── Retenues ───────────────────────────────────────────────────────────────
+  /// Retenue pour absence, in centimes.
+  ///
+  /// Not derived from StaffAttendance automatically: whether an unjustified
+  /// morning costs a day's pay is a decision the school makes case by case, and
+  /// a rule invented here would dock somebody's wages by accident. The payroll
+  /// screen shows the month's unjustified absences beside this box so the figure
+  /// is typed with the facts in view.
+  absenceCentimes Int @default(0)
+  /// Avances sur salaire already handed over, recovered this month.
+  advanceCentimes Int @default(0)
+  /// Cotisations salariales — CNSS, AMO, retraite complémentaire.
+  socialCentimes Int @default(0)
+  /// Impôt sur le revenu retenu à la source.
+  taxCentimes Int @default(0)
+  /// Anything else withheld, named in `deductionLabel`.
+  otherDeductionCentimes Int @default(0)
+  deductionLabel         String?
+
+  /// Net à payer, in centimes.
+  ///
+  /// Stored rather than computed on read, for the same reason
+  /// CashSession freezes its expected total: this is the number on a document
+  /// that was handed to somebody. It is always written through `netSalary` in
+  /// modules/hr/enums.ts, never typed in.
+  netCentimes Int @default(0)
+
+  /// "DRAFT" | "APPROVED" | "PAID" | "CANCELLED" — see modules/hr/enums.ts.
+  status String @default("DRAFT")
+
+  /// When the money actually left, which is not always the end of the month.
+  paidOn DateTime?
+
+  /// The ledger entry that paid it. Set by `payStaffSalary`, never by a form.
+  ///
+  /// Unique: one décaissement settles one bulletin, so a double-click cannot
+  /// pay somebody twice for September and leave two operations pointing at the
+  /// same row. SetNull: cancelling a movement in the caisse leaves the bulletin
+  /// standing and unpaid, which is the true state of affairs.
+  cashOperationId String?        @unique
+  cashOperation   CashOperation? @relation("OperationSalary", fields: [cashOperationId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One bulletin per employee per month. Running the payroll twice for
+  /// September must update September, never raise a second one.
+  @@unique([staffId, periodYear, periodMonth])
+  @@index([staffId])
+  @@index([staffId, periodYear, periodMonth])
+  @@index([periodYear, periodMonth, status])
+  @@map("salary_payments")
+}

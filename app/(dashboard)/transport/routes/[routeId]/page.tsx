@@ -44,8 +44,8 @@ export default async function RoutePage({
       <PageHeader
         title={`${route.code} · ${route.name}`}
         description={route.notes ?? undefined}
-        backHref="/transport"
-        backLabel={t.transport.title}
+        backHref="/transport/routes"
+        backLabel={t.transport.routes}
       >
         {route.isActive ? null : <Badge variant="outline">{t.common.inactive}</Badge>}
       </PageHeader>

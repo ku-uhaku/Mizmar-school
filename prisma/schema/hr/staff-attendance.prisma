@@ -1,0 +1,59 @@
+/// Le pointage: whether one employee was there on one day.
+///
+/// One row per employee per day, not per half-day and not per period. A school
+/// of this size marks a register in the morning and knows by lunchtime who is
+/// missing; splitting the day would double the rows and the typing to record a
+/// distinction nobody acts on. Somebody who left at eleven is PRESENT with a
+/// note, and somebody paid by the hour is paid through their bulletin's
+/// `overtimeCentimes`, not counted from here.
+///
+/// ── What this does *not* do ─────────────────────────────────────────────────
+/// It never touches pay. Docking a salary for an absence is a decision, and the
+/// payroll screen shows the month's unjustified days beside the box the bursar
+/// types the retenue into — see the note on SalaryPayment.absenceCentimes. An
+/// automatic rule here would quietly cost somebody a day's wages because a
+/// register was marked wrong on a Tuesday.
+model StaffAttendance {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// The day, at midnight. Normalised by `startOfDay` in modules/hr/enums.ts so
+  /// the unique index below actually bites — two rows recorded at 08:12 and
+  /// 14:30 would otherwise both be accepted for the same Tuesday.
+  date DateTime
+
+  /// "PRESENT" | "ABSENT" | "LATE" | "LEAVE" | "SICK" | "MISSION" | "HOLIDAY"
+  /// see modules/hr/enums.ts.
+  status String @default("PRESENT")
+
+  /// Whether a justificatif was produced — a certificat médical, a convocation.
+  ///
+  /// Separate from `status` because the two answer different questions: LATE
+  /// says what happened, this says whether it counts against the employee. Only
+  /// unjustified days are totalled for the bursar.
+  isJustified Boolean @default(false)
+
+  /// Minutes late, for LATE. Kept because "twice, by four minutes" and "twice,
+  /// by an hour" are the same row otherwise.
+  minutesLate Int @default(0)
+
+  notes String?
+
+  /// Who marked the register. Restrict: a disputed absence must always be able
+  /// to name the person who recorded it.
+  recordedById String
+  recordedBy   User   @relation("AttendanceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One mark per employee per day. Re-marking a day corrects it rather than
+  /// stacking a second opinion on top.
+  @@unique([staffId, date])
+  @@index([staffId])
+  @@index([staffId, date])
+  @@index([date, status])
+  @@index([recordedById])
+  @@map("staff_attendance")
+}

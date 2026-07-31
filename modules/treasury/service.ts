@@ -446,6 +446,12 @@ export type DisbursementInput = {
   createdById: string;
   cashSessionId: string | null;
   expenseCategoryId: string | null;
+  /**
+   * The employee paid, when the beneficiary is on the payroll. Null for a
+   * landlord or a haulier — see the note on the column. `beneficiaryName` is
+   * required either way, so the ledger reads the same for both.
+   */
+  beneficiaryStaffId?: string | null;
   beneficiaryName: string;
   label: string;
   method: TenderMethod;
@@ -495,6 +501,7 @@ export async function recordDisbursement(
         occurredAt: input.occurredAt,
         status: "POSTED",
         expenseCategoryId: input.expenseCategoryId,
+        beneficiaryStaffId: input.beneficiaryStaffId ?? null,
         beneficiaryName: input.beneficiaryName,
         chequeId: cheque?.id ?? null,
         createdById: input.createdById,

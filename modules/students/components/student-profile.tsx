@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import * as React from "react";
 import { CalendarXIcon } from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type { GuardianRow } from "@/modules/families/queries";
 import { EnrolmentPanel } from "@/modules/enrolment/components/enrolment-panel";
 import type { OfferingChoice } from "@/modules/enrolment/components/enrolment-panel";
@@ -19,20 +21,34 @@ import type {
 } from "@/modules/enrolment/queries";
 import { StudentForm } from "@/modules/students/components/student-form";
 import { StudentFamilyPanel } from "@/modules/students/components/student-family-panel";
+import { StudentWorkflow } from "@/modules/students/components/student-workflow";
+import type { StudentWorkflowStep } from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
 import { StudentPaymentPanel } from "@/modules/treasury/components/student-payment-panel";
-import type { PaymentStanding } from "@/modules/treasury/queries";
+import type {
+  FamilyStanding,
+  PaymentStanding,
+} from "@/modules/treasury/queries";
+import {
+  PAYMENT_STATE_STYLES,
+  standingStateOf,
+} from "@/modules/treasury/payment-state";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableChoices } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableGrid as TimetableGridData } from "@/modules/timetable/queries";
 
 /**
- * A pupil's whole file, in five tabs.
+ * A pupil's whole file, in six tabs.
  *
  * Each tab is rendered by the module that owns what is in it — enrolment owns
- * the inscription and the fees, timetable owns the week, families owns the
- * guardians. The profile only decides the order, which is the order the parcours
- * actually runs in.
+ * the inscription and the fees, treasury owns what has been paid against them,
+ * timetable owns the week, families owns the guardians. The profile only decides
+ * the order, which is the order the parcours actually runs in.
+ *
+ * Money is two tabs, not one. *Frais* is what the year costs — a grid somebody
+ * sets up once at enrolment and rarely reopens. *Paiement* is where the family
+ * stands against it, which is the question asked at the desk every day. They
+ * were one tab and the daily question was buried under the annual one.
  *
  * The timetable is read-only here: a pupil's week is their class's week, and
  * editing it from one child's screen would silently move a lesson for thirty
@@ -51,6 +67,9 @@ export function StudentProfile({
   timetable,
   timetableChoices,
   standing,
+  familyStanding,
+  workflow,
+  workflowSteps,
   permissions,
 }: {
   student: StudentDetail;
@@ -79,6 +98,11 @@ export function StudentProfile({
   timetableChoices: TimetableChoices | null;
   /** Null when the viewer may not see money — see the page. */
   standing: PaymentStanding | null;
+  /** The rest of the household, for the fratrie switch on the payment tab. */
+  familyStanding: FamilyStanding | null;
+  workflow: Record<StudentWorkflowStep, boolean>;
+  /** Narrowed by the page when the reader may not see money. */
+  workflowSteps: readonly StudentWorkflowStep[];
   permissions: {
     canUpdateStudent: boolean;
     canManageFamily: boolean;
@@ -90,9 +114,19 @@ export function StudentProfile({
   };
 }) {
   const t = useT();
+  const [tab, setTab] = React.useState("information");
 
   return (
-    <Tabs defaultValue="information">
+    <>
+      <div className="mb-4">
+        <StudentWorkflow
+          state={workflow}
+          steps={workflowSteps}
+          onStepSelect={(step) => setTab(TAB_FOR_STEP[step])}
+        />
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
       <TabsList variant="line" className="mb-4">
         <TabsTrigger value="information">{t.student.tabInformation}</TabsTrigger>
         <TabsTrigger value="family">
@@ -112,6 +146,22 @@ export function StudentProfile({
             </Badge>
           ) : null}
         </TabsTrigger>
+        {/* Absent, not disabled, when the reader may not see money: a greyed-out
+            tab still tells a teacher the family is behind on something. */}
+        {standing ? (
+          <TabsTrigger value="payment">
+            {t.student.tabPayment}
+            {standing.totalLines > 0 ? (
+              <span
+                aria-hidden
+                className={cn(
+                  "ms-1.5 size-2 rounded-full",
+                  PAYMENT_STATE_STYLES[standingStateOf(standing)].bar,
+                )}
+              />
+            ) : null}
+          </TabsTrigger>
+        ) : null}
         <TabsTrigger value="timetable">{t.student.tabTimetable}</TabsTrigger>
       </TabsList>
 
@@ -145,23 +195,12 @@ export function StudentProfile({
 
       <TabsContent value="fees">
         {enrolment && feeGrid ? (
-          <div className="space-y-4">
-            {/* What is owed sits above what is charged: the first question at
-                the desk is "où en sont-ils ?", not "combien coûte l'année ?". */}
-            {standing ? (
-              <StudentPaymentPanel
-                standing={standing}
-                familyId={student.familyId}
-                canCollect={permissions.canCollect}
-              />
-            ) : null}
-            <FeeGrid
-              grid={feeGrid}
-              enrollmentId={enrolment.id}
-              discounts={discounts}
-              canManage={permissions.canManageFees}
-            />
-          </div>
+          <FeeGrid
+            grid={feeGrid}
+            enrollmentId={enrolment.id}
+            discounts={discounts}
+            canManage={permissions.canManageFees}
+          />
         ) : (
           <Card>
             <CardContent className="p-0">
@@ -173,6 +212,17 @@ export function StudentProfile({
           </Card>
         )}
       </TabsContent>
+
+      {standing ? (
+        <TabsContent value="payment">
+          <StudentPaymentPanel
+            standing={standing}
+            family={familyStanding}
+            familyId={student.familyId}
+            canCollect={permissions.canCollect}
+          />
+        </TabsContent>
+      ) : null}
 
       <TabsContent value="timetable">
         {timetable && timetableChoices && enrolment?.schoolClassId ? (
@@ -202,6 +252,23 @@ export function StudentProfile({
           </Card>
         )}
       </TabsContent>
-    </Tabs>
+      </Tabs>
+    </>
   );
 }
+
+/**
+ * Which tab resolves each step of the parcours.
+ *
+ * CLASS points at the enrolment tab rather than at one of its own: a pupil is
+ * seated by editing their inscription, so that is where somebody sent to "fix
+ * the class" has to end up.
+ */
+const TAB_FOR_STEP: Record<StudentWorkflowStep, string> = {
+  FILE: "information",
+  FAMILY: "family",
+  ENROLMENT: "enrolment",
+  CLASS: "enrolment",
+  FEES: "fees",
+  PAYMENT: "payment",
+};

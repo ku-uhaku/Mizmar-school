@@ -8,9 +8,9 @@ export const schoolYearsModule = defineModule({
     {
       href: "/school-years",
       icon: "schoolYears",
-      section: "main",
+      section: "administration",
       labelKey: "schoolYears",
-      order: 20,
+      order: 14,
       schoolPermission: SCHOOL_YEAR_PERMISSIONS.SCHOOL_YEAR_VIEW,
     },
   ],

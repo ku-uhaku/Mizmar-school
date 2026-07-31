@@ -74,10 +74,12 @@ const en = {
     tabFamily: "Family",
     tabEnrolment: "Enrolment",
     tabFees: "Fees",
+    tabPayment: "Payment",
     tabTimetable: "Timetable",
     workflow: "Progress",
     workflowHint: "Where this file has got to.",
     nextStep: "Next: {step}",
+    stepsDone: "{done} of {total}",
     workflowComplete: "This file is complete.",
     steps: {
       FILE: "File opened",

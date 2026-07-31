@@ -41,7 +41,6 @@ const ar = {
 };
 
 export const nav = {
-  schoolLife: "الحياة المدرسية",
 };
 
 export const permissions = {

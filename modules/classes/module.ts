@@ -19,9 +19,9 @@ export const classesModule = defineModule({
     {
       href: "/classes",
       icon: "classes",
-      section: "main",
+      section: "vieScolaire",
       labelKey: "classes",
-      order: 34,
+      order: 40,
       schoolPermission: CLASS_PERMISSIONS.CLASS_VIEW,
     },
   ],

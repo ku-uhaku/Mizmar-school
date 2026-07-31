@@ -50,6 +50,22 @@ export const SEAT_HOLDING_STATUSES: readonly SubscriptionStatus[] = [
 ];
 
 /**
+ * Who to name as the driver of a bus.
+ *
+ * A vehicle carries both an employee link and a free-text name — see the note on
+ * `Vehicle.driverId`. The employee wins when there is one, because that name is
+ * maintained in one place and the text is a note somebody typed once. Decided
+ * here rather than in each screen so the fleet list, the line card and the route
+ * page cannot show three different answers for the same bus.
+ */
+export function driverLabel(
+  staffName: string | null,
+  driverName: string | null,
+): string | null {
+  return staffName ?? driverName;
+}
+
+/**
  * How soon a paper is treated as expiring, in days.
  *
  * Thirty days is roughly the notice a school needs to book a visite technique

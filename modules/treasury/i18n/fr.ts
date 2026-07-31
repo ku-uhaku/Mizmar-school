@@ -38,6 +38,10 @@ const fr = {
     sessionClosedVariance: "Caisse fermée avec un écart de {amount} MAD.",
     noRegisters: "Aucune caisse n'a encore été créée pour cette école.",
     inDrawer: "En caisse",
+    openRegisterCount: "{count} caisses ouvertes",
+    todayHint: "Depuis minuit",
+    heldCount: "{count} en portefeuille",
+    bouncedCount: "{count} impayés",
     openRegisters: "Caisses ouvertes",
 
     // ── Operations ──────────────────────────────────────────────────────────
@@ -112,6 +116,10 @@ const fr = {
     // ── Décaissement ────────────────────────────────────────────────────────
     decaissement: "Décaissement",
     decaissementSubtitle: "Sortez de l'argent et indiquez à quoi il a servi.",
+    beneficiaryStaff: "Employé payé",
+    beneficiaryStaffHint:
+      "Pour un salaire, une avance ou une note de frais remboursée à un employé. Le choisir remplit le nom ci-dessous.",
+    beneficiaryExternal: "Pas un employé",
     beneficiaryName: "Bénéficiaire",
     beneficiaryHint: "Un membre du personnel, un fournisseur, un bailleur.",
     expenseCategory: "Rubrique",
@@ -160,6 +168,11 @@ const fr = {
     dueSoon: "Échéance proche",
     overdue: "En retard",
     overdueLabel: "Échu, non remis",
+    showSiblings: "Afficher la fratrie ({count})",
+    siblings: "Fratrie",
+    familyTotal: "Réglé par la famille",
+    familyOwes: "Reste dû par la famille",
+    collectForFamily: "Encaisser pour la famille",
     standing: "Situation de paiement",
     upToDate: "À jour",
     overdueBy: "{amount} en retard",
@@ -171,6 +184,13 @@ const fr = {
     lastPaid: "dernier règlement",
   },
   treasuryOptions: {
+    /** L'état d'une échéance — ou d'un échéancier entier. Voir payment-state.ts. */
+    paymentStates: {
+      SETTLED: "Soldé",
+      PARTIAL: "Partiellement réglé",
+      UPCOMING: "Pas encore échu",
+      OVERDUE: "En retard",
+    },
     kinds: {
       ENCAISSEMENT: "Encaissement",
       DECAISSEMENT: "Décaissement",
@@ -210,7 +230,6 @@ const fr = {
 };
 
 export const nav = {
-  treasury: "Caisse",
   encaissement: "Encaissement",
   decaissement: "Décaissement",
   transfert: "Transfert",

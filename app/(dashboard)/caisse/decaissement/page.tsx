@@ -5,6 +5,7 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { listStaffOptions } from "@/modules/hr/queries";
 import { DisbursementForm } from "@/modules/treasury/components/disbursement-form";
 import {
   findOpenSession,
@@ -21,9 +22,14 @@ export default async function DecaissementPage() {
     return <ForbiddenState />;
   }
 
-  const [categories, openSession] = await Promise.all([
+  const [categories, openSession, staffOptions] = await Promise.all([
     listExpenseCategories(context),
     findOpenSession(context),
+    // Only offered to readers who may see the staff list; the name field stands
+    // on its own for everybody else.
+    context.can(PERMISSIONS.HR_VIEW)
+      ? listStaffOptions(context)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -35,6 +41,7 @@ export default async function DecaissementPage() {
 
       <DisbursementForm
         categories={categories}
+        staffOptions={staffOptions}
         hasOpenSession={openSession !== null}
       />
     </>

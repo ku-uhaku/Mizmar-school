@@ -51,6 +51,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASS_ASSIGN_TEACHER,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
+      // Sees who staffs the schools they oversee, and marks nothing. Not
+      // HR_PAYROLL: what a colleague earns is the head's business and the
+      // bursar's, and that separation is the whole point of the code.
+      PERMISSIONS.HR_VIEW,
     ],
   },
   {
@@ -104,6 +108,13 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TREASURY_TRANSFER,
       PERMISSIONS.TREASURY_CHEQUES,
       PERMISSIONS.TREASURY_CANCEL,
+      // The RH of their own school, salaries included — a head is who signs a
+      // contract and answers for the payroll.
+      PERMISSIONS.HR_VIEW,
+      PERMISSIONS.HR_MANAGE,
+      PERMISSIONS.HR_ATTENDANCE,
+      PERMISSIONS.HR_PAYROLL,
+      PERMISSIONS.HR_DELETE,
       // The logistics, end to end.
       PERMISSIONS.TRANSPORT_VIEW,
       PERMISSIONS.TRANSPORT_MANAGE,
@@ -143,6 +154,11 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TREASURY_SESSION,
       PERMISSIONS.TREASURY_COLLECT,
       PERMISSIONS.TREASURY_CHEQUES,
+      // Marks the register every morning, which is desk work. Emphatically not
+      // HR_PAYROLL: in most schools exactly two people may see what a colleague
+      // earns, and the secretary is not one of them.
+      PERMISSIONS.HR_VIEW,
+      PERMISSIONS.HR_ATTENDANCE,
       // Puts children on a bus, which is desk work — but does not redraw the
       // lines or retire a vehicle, which is not.
       PERMISSIONS.TRANSPORT_VIEW,

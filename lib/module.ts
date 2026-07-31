@@ -32,6 +32,7 @@ export type NavIcon =
   | "profile"
   | "appearance"
   | "configuration"
+  | "hr"
   | "schoolLife"
   | "students"
   | "families"
@@ -42,12 +43,30 @@ export type NavIcon =
   | "decaissement"
   | "transfert"
   | "cheques"
-  | "transport";
+  | "transport"
+  | "routes"
+  | "fleet"
+  | "zones"
+  | "staff"
+  | "attendance"
+  | "payroll"
+  | "leave";
 
-/** Where a nav entry sits in the sidebar. Rendered in this order. */
+/**
+ * Where a nav entry sits in the sidebar. Rendered in this order.
+ *
+ * The four domain sections in the middle — vie scolaire, caisse, logistique,
+ * RH — each open on a dashboard of their own and then list the screens inside
+ * them. Section ids are deliberately *not* reusable as module label keys: the
+ * `nav` namespace is merged across modules and `titleKey` is the section id, so
+ * a section named `hr` would collide with the RH module's own entry label.
+ */
 export const NAV_SECTIONS = [
   "main",
+  "vieScolaire",
   "finance",
+  "logistique",
+  "rh",
   "administration",
   "account",
 ] as const;

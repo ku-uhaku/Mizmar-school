@@ -80,9 +80,26 @@ model CashOperation {
   expenseCategoryId String?
   expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
 
-  /// Who was paid. Free text: the school pays landlords, hauliers and casual
-  /// staff who have no row anywhere in this database.
+  /// Who was paid, when they are on the payroll — a salary, an avance, a
+  /// reimbursed expense.
+  ///
+  /// SetNull: an employee record deleted in error must not take the ledger's
+  /// history of what was paid out with it. `beneficiaryName` is written
+  /// alongside it in every case, so a cleared link degrades to the name that
+  /// was on the movement rather than to nothing.
+  beneficiaryStaffId String?
+  beneficiaryStaff   Staff?  @relation("OperationBeneficiaryStaff", fields: [beneficiaryStaffId], references: [id], onDelete: SetNull)
+
+  /// Who was paid, as text. Always set, including when the line above is:
+  /// the school also pays landlords, hauliers and casual staff who have no row
+  /// anywhere in this database, and the ledger has to read the same for all of
+  /// them.
   beneficiaryName String?
+
+  /// The bulletin this décaissement settled, when it was a salary. Written by
+  /// `payStaffSalary` in modules/hr/service.ts — see the note there on why the
+  /// payroll is never summed from the ledger, nor the ledger from the payroll.
+  salaryPayment SalaryPayment? @relation("OperationSalary")
 
   /// TRANSFERT only. The two legs of a till-to-till handover share this id, so
   /// the pair can be shown as one movement and neither can be read as money
@@ -110,6 +127,7 @@ model CashOperation {
   updatedAt DateTime @updatedAt
 
   @@index([schoolId])
+  @@index([beneficiaryStaffId])
   @@index([cashSessionId])
   @@index([expenseCategoryId])
   @@index([counterpartRegisterId])

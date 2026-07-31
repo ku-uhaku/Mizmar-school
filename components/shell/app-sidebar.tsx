@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import * as React from "react";
 import { GraduationCapIcon } from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
@@ -33,6 +34,29 @@ export function AppSidebar({
 }) {
   const t = useT();
   const pathname = usePathname();
+
+  /**
+   * The single entry the current URL belongs to, decided by longest match.
+   *
+   * Sections now open on a dashboard and list their screens beneath it, so a
+   * plain `startsWith` would light `/transport` and `/transport/routes` at the
+   * same time. Picking the longest matching href instead keeps exactly one row
+   * highlighted, and needs no special-casing for `/`.
+   */
+  const activeHref = React.useMemo(() => {
+    let best: string | null = null;
+    for (const group of sections) {
+      for (const item of group.items) {
+        const matches =
+          pathname === item.href ||
+          (item.href !== "/" && pathname.startsWith(`${item.href}/`));
+        if (matches && (best === null || item.href.length > best.length)) {
+          best = item.href;
+        }
+      }
+    }
+    return best;
+  }, [sections, pathname]);
 
   return (
     <Sidebar collapsible="icon">
@@ -66,19 +90,21 @@ export function AppSidebar({
               <SidebarMenu>
                 {group.items.map((item) => {
                   const Icon = NAV_ICONS[item.icon];
-                  // "/" must match exactly, or it would light up everywhere.
-                  const isActive =
-                    item.href === "/"
-                      ? pathname === "/"
-                      : pathname === item.href ||
-                        pathname.startsWith(`${item.href}/`);
+                  const isActive = item.href === activeHref;
 
                   return (
                     <SidebarMenuItem key={item.href}>
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        tooltip={t.nav[item.labelKey]}
+                        // Four sections open on an entry labelled "Overview",
+                        // and collapsed to icons the label is all there is —
+                        // so the tooltip names the section instead.
+                        tooltip={
+                          item.labelKey === "overview"
+                            ? t.nav[group.titleKey]
+                            : t.nav[item.labelKey]
+                        }
                       >
                         <Link href={item.href}>
                           <Icon />

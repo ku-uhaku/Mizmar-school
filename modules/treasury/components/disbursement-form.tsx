@@ -23,18 +23,29 @@ import { recordDisbursementAction } from "@/modules/treasury/actions";
 import { TENDER_METHODS, type TenderMethod } from "@/modules/treasury/enums";
 import type { ExpenseCategoryOption } from "@/modules/treasury/queries";
 
+const NO_STAFF = "__none__";
+
 /**
  * Décaissement: money out.
  *
- * The beneficiary is free text on purpose — a school pays landlords, hauliers
+ * The beneficiary is *both* a picker and free text, and deliberately so. Paying
+ * a salary or an advance should name the employee's row, so the ledger and the
+ * payroll refer to the same person; but a school also pays landlords, hauliers
  * and casual staff who have no row anywhere in this database, and forcing them
- * through a table would mean inventing one for every one-off payment.
+ * through a table would mean inventing one for every one-off payment. Picking an
+ * employee fills the name, so the ledger reads the same either way.
  */
 export function DisbursementForm({
   categories,
+  staffOptions,
   hasOpenSession,
 }: {
   categories: ExpenseCategoryOption[];
+  /**
+   * The school's employees, lent by the RH module. Empty when the reader may
+   * not see the staff list, which is why the name field stands on its own.
+   */
+  staffOptions: { id: string; label: string }[];
   hasOpenSession: boolean;
 }) {
   const t = useT();
@@ -43,20 +54,64 @@ export function DisbursementForm({
     IDLE,
   );
   const [method, setMethod] = React.useState<TenderMethod>("CASH");
+  const [staffId, setStaffId] = React.useState(NO_STAFF);
+  const [beneficiaryName, setBeneficiaryName] = React.useState("");
   const formRef = React.useRef<HTMLFormElement>(null);
 
   useActionFeedback(state, {
     onSuccess: () => {
       formRef.current?.reset();
       setMethod("CASH");
+      setStaffId(NO_STAFF);
+      setBeneficiaryName("");
     },
   });
 
   const errors = state.fieldErrors ?? {};
 
+  /**
+   * Picking an employee writes their name into the text field rather than
+   * hiding it. The ledger's `beneficiaryName` is always set — see the note on
+   * the column — and showing what will be written beats writing it invisibly.
+   */
+  function chooseStaff(value: string) {
+    setStaffId(value);
+    const chosen = staffOptions.find((option) => option.id === value);
+    // The label carries the matricule after a "·"; the ledger wants the name.
+    if (chosen) setBeneficiaryName(chosen.label.split(" · ")[0]);
+  }
+
   return (
     <form ref={formRef} action={formAction} className="grid max-w-3xl gap-5">
       <FormSection title={t.treasury.decaissement} description={t.treasury.decaissementSubtitle}>
+        {staffOptions.length > 0 ? (
+          <FormField
+            name="beneficiaryStaffId"
+            label={t.treasury.beneficiaryStaff}
+            hint={t.treasury.beneficiaryStaffHint}
+          >
+            <Select
+              name="beneficiaryStaffId"
+              value={staffId}
+              onValueChange={chooseStaff}
+            >
+              <SelectTrigger id="beneficiaryStaffId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_STAFF}>
+                  {t.treasury.beneficiaryExternal}
+                </SelectItem>
+                {staffOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        ) : null}
+
         <FormGrid cols={2}>
           <FormField
             name="beneficiaryName"
@@ -71,6 +126,8 @@ export function DisbursementForm({
                 errors.beneficiaryName,
                 t.treasury.beneficiaryHint,
               )}
+              value={beneficiaryName}
+              onChange={(event) => setBeneficiaryName(event.target.value)}
               required
             />
           </FormField>

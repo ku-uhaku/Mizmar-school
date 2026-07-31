@@ -35,6 +35,10 @@ const ar = {
     sessionClosedVariance: "تم إغلاق الصندوق بفارق {amount} درهم.",
     noRegisters: "لم يتم إنشاء أي صندوق لهذه المدرسة بعد.",
     inDrawer: "في الصندوق",
+    openRegisterCount: "{count} صناديق مفتوحة",
+    todayHint: "منذ منتصف الليل",
+    heldCount: "{count} في الحافظة",
+    bouncedCount: "{count} بدون رصيد",
     openRegisters: "صناديق مفتوحة",
 
     // ── Operations ──────────────────────────────────────────────────────────
@@ -106,6 +110,10 @@ const ar = {
     // ── Décaissement ────────────────────────────────────────────────────────
     decaissement: "الصرف",
     decaissementSubtitle: "اصرف مبلغًا وبيّن الغرض منه.",
+    beneficiaryStaff: "الموظف المؤدى له",
+    beneficiaryStaffHint:
+      "لأجر أو تسبيق أو مصاريف تُرد لأحد الموظفين. اختياره يملأ الاسم أدناه.",
+    beneficiaryExternal: "ليس موظفًا",
     beneficiaryName: "المستفيد",
     beneficiaryHint: "موظف، أو مورّد، أو مالك المحل.",
     expenseCategory: "بند المصاريف",
@@ -153,6 +161,11 @@ const ar = {
     dueSoon: "استحقاق قريب",
     overdue: "متأخر",
     overdueLabel: "حلّ أجله ولم يودع",
+    showSiblings: "إظهار الإخوة ({count})",
+    siblings: "الإخوة",
+    familyTotal: "ما أدّته الأسرة",
+    familyOwes: "الباقي على الأسرة",
+    collectForFamily: "التحصيل لفائدة الأسرة",
     standing: "وضعية الأداء",
     upToDate: "في وضعية سليمة",
     overdueBy: "{amount} متأخرة",
@@ -164,6 +177,13 @@ const ar = {
     lastPaid: "آخر أداء"
   },
   treasuryOptions: {
+    /** حالة قسط واحد أو جدول كامل. انظر payment-state.ts. */
+    paymentStates: {
+      SETTLED: "مُسدَّد",
+      PARTIAL: "مُسدَّد جزئيًا",
+      UPCOMING: "لم يحل أجله",
+      OVERDUE: "متأخر",
+    },
     kinds: {
       ENCAISSEMENT: "قبض",
       DECAISSEMENT: "صرف",
@@ -203,7 +223,6 @@ const ar = {
 };
 
 export const nav = {
-  treasury: "الصندوق",
   encaissement: "القبض",
   decaissement: "الصرف",
   transfert: "التحويل",

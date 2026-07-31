@@ -28,6 +28,7 @@
   --color-series-3: var(--series-3);
   --color-grid: var(--grid);
   --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -366,6 +367,12 @@ html.dark[data-accent="teal"] {
   /* Reserved for "up and that is good" deltas — never used as a series colour.
      Darker than the series green because it is worn by text, not by a mark. */
   --success: #006300;
+  /* "Started but not finished": a part-paid instalment, papers expiring, a
+     register half marked. Deliberately not --destructive — a family that has
+     paid 800 of 1 200 is not in the same state as one that has paid nothing
+     and is late. Darkened to clear 4.5:1 on the card surface, as it is worn by
+     text and by small badges. */
+  --warning: #8a5200;
 }
 
 .dark {
@@ -374,6 +381,7 @@ html.dark[data-accent="teal"] {
   --series-3: #199e70;
   --grid: oklch(1 0 0 / 10%);
   --success: #0ca30c;
+  --warning: #e0a12a;
 }
 
 /* --- RTL -----------------------------------------------------------------

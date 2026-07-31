@@ -8,7 +8,7 @@ export const studentsModule = defineModule({
     {
       href: "/students",
       icon: "students",
-      section: "main",
+      section: "vieScolaire",
       labelKey: "students",
       order: 30,
       schoolPermission: STUDENT_PERMISSIONS.STUDENT_VIEW,

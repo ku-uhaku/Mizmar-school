@@ -10,6 +10,10 @@ import configuration, {
   permissions as configurationPermissions,
 } from "@/modules/configuration/i18n/en";
 import context from "@/modules/context/i18n/en";
+import hr, {
+  nav as hrNav,
+  permissions as hrPermissions,
+} from "@/modules/hr/i18n/en";
 import dashboard, { nav as dashboardNav } from "@/modules/dashboard/i18n/en";
 import organization, {
   nav as organizationNav,
@@ -90,6 +94,7 @@ const en = {
   ...users,
   ...access,
   ...configuration,
+  ...hr,
   ...profile,
   ...appearance,
 
@@ -117,6 +122,7 @@ const en = {
     ...usersNav,
     ...accessNav,
     ...configurationNav,
+    ...hrNav,
     ...profileNav,
     ...appearanceNav,
     ...schoolLifeNav,
@@ -135,6 +141,7 @@ const en = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
@@ -151,6 +158,7 @@ const en = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,

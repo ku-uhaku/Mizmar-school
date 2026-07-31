@@ -38,6 +38,10 @@ const en = {
     sessionClosedVariance: "Till closed with a variance of {amount} MAD.",
     noRegisters: "No till has been set up for this school yet.",
     inDrawer: "In the drawer",
+    openRegisterCount: "{count} tills open",
+    todayHint: "Since midnight",
+    heldCount: "{count} held",
+    bouncedCount: "{count} bounced",
     openRegisters: "Tills open",
 
     // ── Operations ──────────────────────────────────────────────────────────
@@ -113,6 +117,10 @@ const en = {
     // ── Décaissement ────────────────────────────────────────────────────────
     decaissement: "Disbursement",
     decaissementSubtitle: "Pay money out and say what it was for.",
+    beneficiaryStaff: "Employee paid",
+    beneficiaryStaffHint:
+      "For a salary, an advance or an expense reimbursed to somebody on the payroll. Picking one fills the name below.",
+    beneficiaryExternal: "Not an employee",
     beneficiaryName: "Paid to",
     beneficiaryHint: "A member of staff, a supplier, a landlord.",
     expenseCategory: "Category",
@@ -160,6 +168,11 @@ const en = {
     dueSoon: "Due soon",
     overdue: "Overdue",
     overdueLabel: "Past due, not banked",
+    showSiblings: "Show siblings ({count})",
+    siblings: "Siblings",
+    familyTotal: "Paid by the family",
+    familyOwes: "The family still owes",
+    collectForFamily: "Collect for the family",
     standing: "Payment standing",
     upToDate: "Up to date",
     overdueBy: "{amount} overdue",
@@ -171,6 +184,13 @@ const en = {
     lastPaid: "last paid",
   },
   treasuryOptions: {
+    /** How one charge — or a whole schedule — stands. See payment-state.ts. */
+    paymentStates: {
+      SETTLED: "Settled",
+      PARTIAL: "Part paid",
+      UPCOMING: "Not due yet",
+      OVERDUE: "Late",
+    },
     kinds: {
       ENCAISSEMENT: "Collection",
       DECAISSEMENT: "Disbursement",
@@ -211,7 +231,6 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  treasury: "Cash desk",
   encaissement: "Collection",
   decaissement: "Disbursement",
   transfert: "Transfer",

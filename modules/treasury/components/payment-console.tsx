@@ -40,6 +40,10 @@ import {
   dirhamsToCentimes,
   type TenderMethod,
 } from "@/modules/treasury/enums";
+import {
+  PAYMENT_STATE_STYLES,
+  paymentStateOf,
+} from "@/modules/treasury/payment-state";
 import type {
   FamilyOption,
   PayableFamily,
@@ -432,6 +436,7 @@ function Row({
       <span
         className={cn(
           "font-semibold tabular-nums",
+          tone === "ok" && "text-success",
           tone === "warn" && "text-destructive",
         )}
       >
@@ -465,16 +470,39 @@ function MonthCard({
   );
   const settled = outstanding === 0;
 
+  // The month wears its worst line: one late charge in January is what makes
+  // January the card to open, whatever the other three are doing.
+  const monthState = settled
+    ? "SETTLED"
+    : lines.some(
+          (line) =>
+            paymentStateOf({
+              amountCentimes: line.amountCentimes,
+              paidCentimes: line.paidCentimes,
+              dueDate: line.dueDate,
+            }) === "OVERDUE",
+        )
+      ? "OVERDUE"
+      : lines.some((line) => line.paidCentimes > 0)
+        ? "PARTIAL"
+        : "UPCOMING";
+
   return (
     <div
       className={cn(
         "rounded-lg border p-3",
-        settled && "bg-muted/40 opacity-70",
+        PAYMENT_STATE_STYLES[monthState].surface,
+        settled && "opacity-70",
       )}
     >
       <div className="mb-2 flex items-baseline justify-between gap-2">
         <p className="text-sm font-medium capitalize">{title}</p>
-        <span className="text-muted-foreground text-xs tabular-nums">
+        <span
+          className={cn(
+            "text-xs tabular-nums",
+            PAYMENT_STATE_STYLES[monthState].text,
+          )}
+        >
           {money(outstanding)}
         </span>
       </div>
@@ -483,6 +511,13 @@ function MonthCard({
         {lines.map((line) => {
           const checked = line.id in selection;
           const done = line.outstandingCentimes === 0;
+          // Colour says which charges are actually late, so a cashier ticking
+          // through a long schedule settles those first without reading dates.
+          const state = paymentStateOf({
+            amountCentimes: line.amountCentimes,
+            paidCentimes: line.paidCentimes,
+            dueDate: line.dueDate,
+          });
 
           return (
             <div key={line.id} className="grid gap-1">
@@ -499,12 +534,20 @@ function MonthCard({
                   className="grid flex-1 cursor-pointer gap-0.5 text-xs font-normal"
                 >
                   <span className="font-medium">{line.feeTypeName}</span>
-                  <span className="text-muted-foreground tabular-nums">
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      PAYMENT_STATE_STYLES[state].text,
+                    )}
+                  >
                     {done
                       ? t.treasury.alreadyPaid
                       : `${money(line.outstandingCentimes)} MAD`}
                     {line.paidCentimes > 0 && !done
                       ? ` · ${t.treasury.alreadyPaid} ${money(line.paidCentimes)}`
+                      : ""}
+                    {state === "OVERDUE"
+                      ? ` · ${t.treasuryOptions.paymentStates.OVERDUE}`
                       : ""}
                   </span>
                 </Label>

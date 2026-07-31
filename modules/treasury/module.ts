@@ -23,7 +23,7 @@ export const treasuryModule = defineModule({
       href: "/caisse",
       icon: "cashRegister",
       section: "finance",
-      labelKey: "treasury",
+      labelKey: "overview",
       order: 10,
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
     },

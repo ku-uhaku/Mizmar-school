@@ -15,9 +15,9 @@ export const schoolLifeModule = defineModule({
     {
       href: "/school-life",
       icon: "schoolLife",
-      section: "main",
-      labelKey: "schoolLife",
-      order: 15,
+      section: "vieScolaire",
+      labelKey: "overview",
+      order: 10,
       schoolPermission: SCHOOL_LIFE_PERMISSIONS.SCHOOL_LIFE_VIEW,
     },
   ],

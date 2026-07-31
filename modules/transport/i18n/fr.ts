@@ -29,6 +29,10 @@ const fr = {
     inspection: "Visite technique expire le",
     complianceHint:
       "Un bus dont les papiers ont expiré ne peut légalement transporter d'élèves.",
+    driverStaff: "Chauffeur salarié",
+    driverStaffHint:
+      "Choisit un employé de l'école, pour que le bus et la paie désignent la même personne.",
+    driverExternal: "Pas un employé",
     driverName: "Chauffeur",
     driverPhone: "Téléphone du chauffeur",
     driverHint: "La personne qu'on appelle quand le bus n'est pas arrivé.",
@@ -140,6 +144,21 @@ const fr = {
     seatsFree: "Places libres",
     ridersTotal: "Abonnés",
     linesRunning: "Lignes en service",
+
+    // ── Tableau de bord de la section ───────────────────────────────────────
+    routesHint: "Les lignes tracées pour l'année, leurs arrêts et qui monte où.",
+    fleetHint: "Les bus, les papiers qui les autorisent à rouler et leur chauffeur.",
+    paperworkCount: "{count} à renouveler",
+    paperworkHint:
+      "Assurance ou visite technique périmée, ou expirant dans le mois.",
+    allPapersValid: "Tous les bus en service sont à jour.",
+    stopsAcrossLines: "{count} arrêts",
+    ofSeatsOffered: "sur {count} places offertes",
+    seatsFreeHint: "Toutes lignes confondues",
+    busesInService: "{count} bus en service",
+    occupancy: "Remplissage des lignes",
+    occupancyHint: "Abonnés par rapport aux places offertes.",
+    seatsTaken: "{taken} places sur {seats}",
   },
   transportOptions: {
     vehicleStatuses: {
@@ -161,7 +180,9 @@ const fr = {
 };
 
 export const nav = {
-  transport: "Transport",
+  transportRoutes: "Lignes",
+  transportFleet: "Flotte",
+  transportZones: "Zones",
 };
 
 export const permissions = {
