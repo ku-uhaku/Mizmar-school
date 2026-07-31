@@ -67,6 +67,14 @@ model Enrollment {
 
   fees EnrollmentFee[]
 
+  /// Marks earned this year. Keyed on the enrolment rather than the pupil so a
+  /// repeated year keeps its own marks — see AssessmentGrade.
+  assessmentGrades AssessmentGrade[]
+
+  /// Presence lesson by lesson, and what their teachers have noted about them.
+  attendance StudentAttendance[]
+  remarks    StudentRemark[]
+
   /// The bus, when this pupil takes it — a year-shaped fact like the rest of
   /// this row. See prisma/schema/transport/transport-subscription.prisma.
   transportSubscriptions TransportSubscription[]

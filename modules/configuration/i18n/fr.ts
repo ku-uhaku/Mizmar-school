@@ -32,6 +32,7 @@ const fr = {
       tracks: "Filières",
       subjects: "Matières",
       programme: "Programme",
+      assessmentTypes: "Types de contrôle",
       rooms: "Salles",
       terms: "Semestres",
       timeSlots: "Créneaux horaires",
@@ -58,6 +59,10 @@ const fr = {
       subject: "Matière",
       parentSubject: "Matière parente",
       gradeYear: "Année du cycle",
+      defaultCoefficient: "Poids par défaut",
+      defaultMaxScore: "Noté sur",
+      countsTowardAverage: "Compte dans la moyenne",
+      allowTeacherCreate: "Les enseignants peuvent en donner",
       colorHex: "Couleur",
       isLanguage: "Matière de langue",
       requiresLab: "Nécessite un laboratoire",
@@ -100,6 +105,14 @@ const fr = {
     },
 
     hints: {
+      allowTeacherCreate:
+        "À activer pour ce qu\u2019un enseignant donne lui-même — les devoirs. Les contrôles restent désactivés : seul le responsable pédagogique les programme.",
+      defaultCoefficient:
+        "Poids de départ d\u2019un nouveau contrôle de ce type, dans la note de la matière pour le semestre.",
+      defaultMaxScore:
+        "Les notes sont sur 20 au Maroc, mais un oral ou un TP est souvent sur 10.",
+      countsTowardAverage:
+        "À désactiver pour un travail noté et montré à la famille mais qui ne doit jamais peser sur la moyenne.",
       position: "Le plus petit s'affiche en premier.",
       massarCode: "Le code correspondant dans MASSAR. Laissez vide tant qu'il n'est pas rattaché.",
       levelCode: "Code court du Ministère, ex. 1AP, 3AC, TC, 2BAC.",

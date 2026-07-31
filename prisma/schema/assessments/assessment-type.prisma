@@ -1,0 +1,61 @@
+/// A kind of evaluation the school runs: contrôle continu, devoir surveillé,
+/// devoir maison, examen normalisé, oral, TP.
+///
+/// A table rather than an enum because the mix is a school's own decision and it
+/// changes: a private school may run three contrôles and one devoir per semester
+/// where the one next door runs two of each, and the weights differ with them.
+/// Hard-coding the list would mean a migration every time a head of studies
+/// changed their mind.
+///
+/// What a type carries is the *defaults* a new assessment starts from, not a
+/// rule. Once an Assessment exists it owns its own `maxScore` and `coefficient`,
+/// so re-weighting the type later cannot silently rescore marks already entered.
+model AssessmentType {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "CC", "DS", "DM", "EXAM", "ORAL", "TP".
+  code   String
+  name   String
+  nameAr String?
+
+  /// Weight of one assessment of this kind *within the subject's mark for the
+  /// term* — not the subject's coefficient in the general average, which lives
+  /// on LevelSubject. A devoir surveillé at 2 counts double a contrôle at 1.
+  defaultCoefficient Int @default(1)
+
+  /// Marks are out of 20 in Morocco, but an oral or a TP is often out of 10 and
+  /// rescaled, so the denominator is per type.
+  defaultMaxScore Int @default(20)
+
+  /// False for formative work that is marked and shown to the family but must
+  /// never move the average — remediation exercises, mock papers.
+  countsTowardAverage Boolean @default(true)
+
+  /// Whether a teacher may set one of these themselves, from their own
+  /// workspace.
+  ///
+  /// This is what separates a contrôle from a devoir in practice. A contrôle is
+  /// planned across the whole class by the head of studies and generated in a
+  /// round; a devoir is set by the teacher for their own class, when they
+  /// choose. Both are Assessment rows — the difference is who may create one,
+  /// and that is a policy each school sets rather than something hard-coded.
+  allowTeacherCreate Boolean @default(false)
+
+  /// Tailwind-independent hex colour, so a mark sheet can be recognised by kind
+  /// at a glance the way the timetable is by subject.
+  colorHex String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assessments Assessment[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("assessment_types")
+}

@@ -36,6 +36,7 @@ const en = {
       tracks: "Tracks",
       subjects: "Subjects",
       programme: "Programme",
+      assessmentTypes: "Assessment kinds",
       rooms: "Rooms",
       terms: "Terms",
       timeSlots: "Time slots",
@@ -62,6 +63,10 @@ const en = {
       subject: "Subject",
       parentSubject: "Parent subject",
       gradeYear: "Year in cycle",
+      defaultCoefficient: "Default weight",
+      defaultMaxScore: "Marked out of",
+      countsTowardAverage: "Counts toward the average",
+      allowTeacherCreate: "Teachers may set this",
       colorHex: "Colour",
       isLanguage: "Language subject",
       requiresLab: "Needs a lab",
@@ -104,6 +109,14 @@ const en = {
     },
 
     hints: {
+      allowTeacherCreate:
+        "Turn on for the kinds a teacher sets themselves — devoirs. Contrôles stay off, so only the head of studies plans those.",
+      defaultCoefficient:
+        "Starting weight for a new paper of this kind, within the subject\u2019s mark for the term.",
+      defaultMaxScore:
+        "Marks are out of 20 in Morocco, but an oral or a TP is often out of 10.",
+      countsTowardAverage:
+        "Turn off for work that is marked and shown to the family but must never move the average.",
       position: "Lower sorts first.",
       massarCode: "The code this maps to in MASSAR. Leave blank until mapped.",
       levelCode: "Ministry short code, e.g. 1AP, 3AC, TC, 2BAC.",

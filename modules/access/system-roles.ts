@@ -49,6 +49,16 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ENROLMENT_VIEW,
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ASSIGN_TEACHER,
+      // Sets the calendar of contrôles and releases the marks — this is the
+      // pedagogical side they are answerable for. Not ASSESSMENT_GRADE: marking
+      // a paper is the teacher's job, not theirs.
+      PERMISSIONS.ASSESSMENT_VIEW,
+      PERMISSIONS.ASSESSMENT_MANAGE,
+      PERMISSIONS.ASSESSMENT_PUBLISH,
+      // Reads the registers and the carnets of the schools they oversee, and
+      // writes in neither — they are not in the room.
+      PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
+      PERMISSIONS.CLASSROOM_REMARK_VIEW,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
       // Sees who staffs the schools they oversee, and marks nothing. Not
@@ -98,6 +108,22 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ROSTER,
       PERMISSIONS.CLASS_ASSIGN_TEACHER,
+      // The whole of the marking cycle in their own school, including entering
+      // a mark themselves when a post is vacant.
+      PERMISSIONS.ASSESSMENT_VIEW,
+      PERMISSIONS.ASSESSMENT_MANAGE,
+      PERMISSIONS.ASSESSMENT_GRADE,
+      PERMISSIONS.ASSESSMENT_PUBLISH,
+      PERMISSIONS.ASSESSMENT_DELETE,
+      // Including the two decisions a teacher does not get: accepting a
+      // justification, and releasing a remark to the family.
+      PERMISSIONS.CLASSROOM_WORKSPACE,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_MARK,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY,
+      PERMISSIONS.CLASSROOM_REMARK_VIEW,
+      PERMISSIONS.CLASSROOM_REMARK_WRITE,
+      PERMISSIONS.CLASSROOM_REMARK_PUBLISH,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
       // The whole caisse: a head runs the tills, pays out and answers for both.
@@ -145,6 +171,15 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ENROLMENT_UPDATE,
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ROSTER,
+      // Reads the calendar of contrôles to answer a parent on the phone, and
+      // enters no mark: a mark is the teacher's, and the desk is not where it
+      // gets decided.
+      PERMISSIONS.ASSESSMENT_VIEW,
+      // The office end of the register: chasing absences and filing the
+      // justifications families bring in. Marking itself stays with whoever was
+      // in the room.
+      PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY,
       PERMISSIONS.TIMETABLE_VIEW,
       // Takes money at the desk and holds the drawer for the shift — but may
       // not pay any out, move it, or cancel a receipt once written. That
@@ -176,7 +211,23 @@ export const SYSTEM_ROLES: {
       // or dossiers familiaux.
       PERMISSIONS.STUDENT_VIEW,
       PERMISSIONS.CLASS_VIEW,
+      // Marks the papers set for their classes. Deliberately not
+      // ASSESSMENT_MANAGE or ASSESSMENT_PUBLISH: a teacher marks the round the
+      // head of studies planned, and does not decide when the marks are
+      // released.
+      PERMISSIONS.ASSESSMENT_VIEW,
+      PERMISSIONS.ASSESSMENT_GRADE,
       PERMISSIONS.TIMETABLE_VIEW,
+      // The espace enseignant: their own classes, their own registers, their
+      // own carnet. Not ATTENDANCE_JUSTIFY — a teacher records that a child was
+      // not there, and the office decides whether the note excuses it. Not
+      // REMARK_PUBLISH either: a concern goes to the family once the school has
+      // decided what to say, not the moment it is written.
+      PERMISSIONS.CLASSROOM_WORKSPACE,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_MARK,
+      PERMISSIONS.CLASSROOM_REMARK_VIEW,
+      PERMISSIONS.CLASSROOM_REMARK_WRITE,
     ],
   },
 ];

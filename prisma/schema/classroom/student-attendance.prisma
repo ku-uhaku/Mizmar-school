@@ -1,0 +1,74 @@
+/// Whether a pupil was in the room, and whether they were on time.
+///
+/// ── Why it is per lesson, not per day ────────────────────────────────────────
+/// A Moroccan secondary pupil is marked at the start of each hour, by whoever is
+/// teaching it — that is the register the vie scolaire actually chases, and a
+/// single daily flag cannot say a child missed only maths. So a row is one
+/// pupil in one *session*.
+///
+/// `timeSlotId` null means the whole day, which is how a primary teacher who has
+/// the class all morning, or the vie scolaire recording a full-day absence,
+/// marks it. `scopeKey` mirrors that so the unique index fires either way.
+///
+/// Keyed on the **enrolment**, like marks are: presence belongs to a child in a
+/// year and a class, and that is also what guarantees a row cannot exist for a
+/// pupil who is not on the roster.
+model StudentAttendance {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Midnight of the day being marked — the time of day is carried by the slot,
+  /// never by this column, so two marks for one day always compare equal.
+  date DateTime
+
+  /// The period of the bell schedule. Null = the whole day.
+  timeSlotId String?
+  timeSlot   TimeSlot? @relation(fields: [timeSlotId], references: [id], onDelete: SetNull)
+
+  /// What was being taught. Null for a whole-day mark, which belongs to no
+  /// subject. Carried so a family can be told *which* lesson was missed.
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  /// "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" — see modules/classroom/enums.ts
+  status String @default("PRESENT")
+
+  /// Minutes late, for LATE only. A retard is not a half-absence: schools count
+  /// them separately and act on the accumulation, so the figure is kept rather
+  /// than folded into the status.
+  minutesLate Int?
+
+  /// Why, when somebody has said. Also what turns an ABSENT into an EXCUSED
+  /// once a justification reaches the office.
+  reason String?
+
+  /// Whether a justification is on file. Kept apart from the status because
+  /// "absent, justified later" is the ordinary case and the office needs to see
+  /// which absences are still unaccounted for.
+  isJustified Boolean @default(false)
+
+  /// Who marked it. Restrict would be wrong here — a register outlives the
+  /// account of the teacher who took it.
+  recordedById String?
+  recordedBy   User?   @relation("AttendanceRecordedByTeacher", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Mirrors the nullable `timeSlotId` so the unique index below actually fires.
+  /// Without it a pupil could be marked twice for the same lesson and the
+  /// absence count would double. See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `attendanceScopeKey(timeSlotId)` from
+  /// modules/classroom/enums.ts.
+  scopeKey String
+
+  @@unique([enrollmentId, date, scopeKey])
+  @@index([enrollmentId])
+  @@index([timeSlotId])
+  @@index([subjectId])
+  @@index([recordedById])
+  @@index([date])
+  @@map("student_attendance")
+}

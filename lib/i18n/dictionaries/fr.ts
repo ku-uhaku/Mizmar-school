@@ -38,6 +38,14 @@ import classes, {
   nav as classesNav,
   permissions as classesPermissions,
 } from "@/modules/classes/i18n/fr";
+import assessments, {
+  nav as assessmentsNav,
+  permissions as assessmentsPermissions,
+} from "@/modules/assessments/i18n/fr";
+import classroom, {
+  nav as classroomNav,
+  permissions as classroomPermissions,
+} from "@/modules/classroom/i18n/fr";
 import enrolment, {
   permissions as enrolmentPermissions,
 } from "@/modules/enrolment/i18n/fr";
@@ -92,6 +100,8 @@ const fr: Dictionary = {
   ...students,
   ...enrolment,
   ...classes,
+  ...assessments,
+  ...classroom,
   ...timetable,
 
   // Caisse.
@@ -116,6 +126,8 @@ const fr: Dictionary = {
     ...familiesNav,
     ...studentsNav,
     ...classesNav,
+    ...assessmentsNav,
+    ...classroomNav,
     ...timetableNav,
     ...treasuryNav,
     ...transportNav,
@@ -134,6 +146,8 @@ const fr: Dictionary = {
       ...studentsPermissions.groups,
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
+      ...assessmentsPermissions.groups,
+      ...classroomPermissions.groups,
       ...timetablePermissions.groups,
       ...treasuryPermissions.groups,
       ...transportPermissions.groups,
@@ -151,6 +165,8 @@ const fr: Dictionary = {
       ...studentsPermissions.codes,
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
+      ...assessmentsPermissions.codes,
+      ...classroomPermissions.codes,
       ...timetablePermissions.codes,
       ...treasuryPermissions.codes,
       ...transportPermissions.codes,

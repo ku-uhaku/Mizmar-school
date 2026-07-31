@@ -79,6 +79,7 @@ export const nav = {
   finance: "الصندوق",
   logistique: "اللوجستيك",
   rh: "الموارد البشرية",
+  enseignant: "فضاء الأستاذ",
   administration: "الإدارة",
   account: "الحساب",
 };

@@ -40,6 +40,9 @@ model School {
   /// Denormalised back-reference; a class always belongs to one of this school's
   /// years. See the invariant note on SchoolClass.schoolId.
   classes         SchoolClass[]
+  /// The kinds of evaluation this school runs, and every paper set under them.
+  assessmentTypes AssessmentType[]
+  assessments     Assessment[]
   /// What the school can charge. How much, per year, is FeeRate.
   feeTypes        FeeType[]
 

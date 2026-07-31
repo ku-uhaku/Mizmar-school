@@ -1,0 +1,51 @@
+/// An observation about a pupil, written by whoever teaches them.
+///
+/// This is the *carnet de liaison* the class council reads and the professeur
+/// principal quotes at a parents' evening: "does not bring their book", "much
+/// improved this term", "disrupted the lesson on the 12th". It is not a mark and
+/// it is not an absence — it is the sentence a teacher would otherwise keep in
+/// their own notebook, where nobody else can find it.
+///
+/// `isVisibleToFamily` is false by default and deliberately so. A teacher must
+/// be able to record a concern for their colleagues without it going to the
+/// parents before the school has decided what to say — releasing it is a second,
+/// conscious act.
+model StudentRemark {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// The subject it was observed in, when it was. Null for a general remark
+  /// from the professeur principal.
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  /// "BEHAVIOUR" | "WORK" | "PROGRESS" | "ATTENDANCE" | "OTHER"
+  /// see modules/classroom/enums.ts
+  kind String @default("OTHER")
+
+  /// "POSITIVE" | "NEUTRAL" | "CONCERN" — the tone, kept separate from the kind
+  /// so "behaviour" can be praise as easily as a complaint. A carnet that only
+  /// ever records problems is one nobody reads to the child's credit.
+  tone String @default("NEUTRAL")
+
+  body String
+
+  /// When it happened, which is not always when it was written up.
+  occurredOn DateTime
+
+  /// Whether the family may see it. See the note above.
+  isVisibleToFamily Boolean @default(false)
+
+  authorId String?
+  author   User?   @relation("RemarkAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enrollmentId])
+  @@index([subjectId])
+  @@index([authorId])
+  @@index([occurredOn])
+  @@map("student_remarks")
+}

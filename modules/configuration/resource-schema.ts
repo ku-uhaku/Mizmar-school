@@ -94,6 +94,13 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ code: "asc" }],
   },
 
+  "assessment-types": {
+    table: () => db.assessmentType as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ position: "asc" }, { code: "asc" }],
+  },
+
   programme: {
     table: () => db.levelSubject as unknown as Delegate,
     where: (context) => ({ level: bySchool(context) }),

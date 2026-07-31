@@ -37,6 +37,7 @@ export type NavIcon =
   | "students"
   | "families"
   | "classes"
+  | "assessments"
   | "timetable"
   | "cashRegister"
   | "encaissement"
@@ -50,7 +51,10 @@ export type NavIcon =
   | "staff"
   | "attendance"
   | "payroll"
-  | "leave";
+  | "leave"
+  | "teacher"
+  | "homework"
+  | "remarks";
 
 /**
  * Where a nav entry sits in the sidebar. Rendered in this order.
@@ -67,6 +71,7 @@ export const NAV_SECTIONS = [
   "finance",
   "logistique",
   "rh",
+  "enseignant",
   "administration",
   "account",
 ] as const;

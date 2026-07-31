@@ -29,6 +29,8 @@ model Term {
   updatedAt DateTime @updatedAt
 
   timetableEntries TimetableEntry[]
+  /// The papers sat during this term.
+  assessments      Assessment[]
 
   @@unique([schoolYearId, number])
   @@index([schoolYearId])

@@ -49,6 +49,9 @@ model TimeSlot {
   updatedAt DateTime @updatedAt
 
   timetableEntries TimetableEntry[]
+  /// Registers taken during this period. SetNull: rewriting the bell schedule
+  /// must not delete last term's absences.
+  attendance       StudentAttendance[]
 
   @@unique([schoolYearId, scheduleKind, dayOfWeek, startTime])
   @@index([schoolYearId])

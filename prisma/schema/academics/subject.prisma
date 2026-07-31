@@ -61,6 +61,10 @@ model Subject {
   classGroups      ClassGroup[]
   assignments      TeachingAssignment[]
   timetableEntries TimetableEntry[]
+  /// Restrict on the other side: a subject with marks against it is history.
+  assessments      Assessment[]
+  attendance       StudentAttendance[]
+  remarks          StudentRemark[]
 
   @@unique([schoolId, code])
   /// No two subjects may map to the same MASSAR code. Many may be unmapped.

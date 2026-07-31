@@ -32,6 +32,7 @@ const ar = {
       tracks: "الشعب",
       subjects: "المواد",
       programme: "المقرر",
+      assessmentTypes: "أنواع الفروض",
       rooms: "القاعات",
       terms: "الدورات",
       timeSlots: "الحصص الزمنية",
@@ -58,6 +59,10 @@ const ar = {
       subject: "المادة",
       parentSubject: "المادة الأم",
       gradeYear: "السنة داخل السلك",
+      defaultCoefficient: "الوزن الافتراضي",
+      defaultMaxScore: "النقطة القصوى",
+      countsTowardAverage: "يُحتسب في المعدل",
+      allowTeacherCreate: "يمكن للأساتذة إعطاؤه",
       colorHex: "اللون",
       isLanguage: "مادة لغوية",
       requiresLab: "تتطلب مختبرا",
@@ -100,6 +105,14 @@ const ar = {
     },
 
     hints: {
+      allowTeacherCreate:
+        "فعّله لما يعطيه الأستاذ بنفسه — الواجبات. أما الفروض فتبقى معطّلة، إذ يبرمجها المسؤول البيداغوجي وحده.",
+      defaultCoefficient:
+        "الوزن الأولي لفرض جديد من هذا النوع، داخل نقطة المادة في الدورة.",
+      defaultMaxScore:
+        "النقط في المغرب من 20، لكن الشفوي أو الأشغال التطبيقية غالبًا من 10.",
+      countsTowardAverage:
+        "عطّله بالنسبة لعمل يُنقّط ويُعرض على الأسرة لكنه يجب ألا يؤثر في المعدل.",
       position: "الأصغر يظهر أولا.",
       massarCode: "الرمز المقابل في منظومة مسار. اتركه فارغا إلى حين الربط.",
       levelCode: "الرمز المختصر للوزارة، مثل 1AP و3AC وTC و2BAC.",

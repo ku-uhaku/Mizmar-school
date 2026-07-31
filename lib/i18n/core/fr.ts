@@ -79,6 +79,7 @@ export const nav = {
   finance: "Caisse",
   logistique: "Logistique",
   rh: "Ressources humaines",
+  enseignant: "Espace enseignant",
   administration: "Administration",
   account: "Compte",
 };

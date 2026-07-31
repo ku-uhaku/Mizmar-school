@@ -1,12 +1,16 @@
 import type { AppModule } from "@/lib/module";
 
 import { academicsModule } from "@/modules/academics/module";
+import { assessmentsModule } from "@/modules/assessments/module";
+import { ASSESSMENT_PERMISSIONS } from "@/modules/assessments/permissions";
 import { accessModule } from "@/modules/access/module";
 import { ROLE_PERMISSIONS } from "@/modules/access/permissions";
 import { appearanceModule } from "@/modules/appearance/module";
 import { authModule } from "@/modules/auth/module";
 import { billingModule } from "@/modules/billing/module";
 import { classesModule } from "@/modules/classes/module";
+import { classroomModule } from "@/modules/classroom/module";
+import { CLASSROOM_PERMISSIONS } from "@/modules/classroom/permissions";
 import { CLASS_PERMISSIONS } from "@/modules/classes/permissions";
 import { configurationModule } from "@/modules/configuration/module";
 import { CONFIGURATION_PERMISSIONS } from "@/modules/configuration/permissions";
@@ -88,6 +92,8 @@ export const MODULES: readonly AppModule[] = [
   studentsModule,
   enrolmentModule,
   classesModule,
+  assessmentsModule,
+  classroomModule,
   timetableModule,
 
   // ── Caisse ────────────────────────────────────────────────────────────────
@@ -135,6 +141,8 @@ export const PERMISSIONS = {
   ...STUDENT_PERMISSIONS,
   ...ENROLMENT_PERMISSIONS,
   ...CLASS_PERMISSIONS,
+  ...ASSESSMENT_PERMISSIONS,
+  ...CLASSROOM_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
   ...TRANSPORT_PERMISSIONS,

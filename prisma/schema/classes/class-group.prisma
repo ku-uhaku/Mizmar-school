@@ -29,6 +29,7 @@ model ClassGroup {
   updatedAt DateTime @updatedAt
 
   assignments      TeachingAssignment[]
+  assessments      Assessment[]
   timetableEntries TimetableEntry[]
   enrollments      Enrollment[]
 

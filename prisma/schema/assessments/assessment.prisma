@@ -1,0 +1,107 @@
+/// One contrôle: a single piece of marked work, for one class in one subject
+/// during one term.
+///
+/// ── Why it hangs off the class and not the timetable ─────────────────────────
+/// A contrôle is set for a cohort, sat on a date, and marked once. The timetable
+/// says when that cohort is in the room; it is not what the mark belongs to. So
+/// this points at the class (or one of its groups, for a split subject) exactly
+/// as TeachingAssignment does, and for the same reason: it is the thing a
+/// teacher is answerable for.
+///
+/// ── `sequence` and why it is unique ──────────────────────────────────────────
+/// A term normally holds several contrôles of the same kind — "Contrôle n°1",
+/// "Contrôle n°2". `sequence` is which one, and the unique index below is what
+/// makes generating them idempotent: running the generator twice for Contrôle 1
+/// of semester 1 cannot produce two rows per subject.
+///
+/// `maxScore` and `coefficient` are copied from the AssessmentType at creation
+/// rather than read through it, so re-weighting the type next year cannot
+/// silently rescore marks already entered against it.
+model Assessment {
+  id String @id @default(cuid())
+
+  /// Denormalised from `schoolClass.schoolId`, as on SchoolClass itself.
+  /// Assessments are listed and scoped by school on every screen, and reaching
+  /// the school through three joins each time is not worth it.
+  ///
+  /// INVARIANT (service layer): must equal the class's school. Set it from the
+  /// class, never from the request.
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Null = the whole class sits it. Set = this group only, which is how a
+  /// language or lab subject taught in halves gets its own paper per group.
+  classGroupId String?
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  assessmentTypeId String
+  assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Restrict)
+
+  /// Which one of its kind this is within the term. 1-based.
+  sequence Int @default(1)
+
+  /// Free title, e.g. "Contrôle n°1 — Les fonctions". Defaulted from the type
+  /// and the sequence when generated, and editable afterwards.
+  title String
+
+  /// When it is sat. Null while it is only planned — a head of studies generates
+  /// the whole term's contrôles in September and dates them later.
+  scheduledOn DateTime?
+
+  /// The denominator for every mark on this paper. Copied from the type.
+  maxScore Int @default(20)
+
+  /// Weight within the subject's mark for the term. Copied from the type.
+  coefficient Int @default(1)
+
+  /// "DRAFT" | "PUBLISHED" | "GRADED" | "CANCELLED" — see
+  /// modules/assessments/enums.ts. Marks may only be entered from PUBLISHED
+  /// onward, and a CANCELLED paper counts nowhere.
+  status String @default("DRAFT")
+
+  /// The teacher answerable for the marks, resolved from the primary
+  /// TeachingAssignment when generated. Nullable because a class's programme
+  /// routinely exists before every subject has a teacher.
+  teacherId String?
+  teacher   User?   @relation("TeacherAssessments", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  /// Who created it — a head of studies generating a batch, or the teacher.
+  createdById String?
+  createdBy   User?   @relation("AssessmentAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  /// Mirrors the nullable `classGroupId` so the unique index below actually
+  /// fires. Without it two "whole class" rows for the same subject and sequence
+  /// would both be accepted and the generator would stop being idempotent.
+  /// See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `assessmentScopeKey(classGroupId)` from
+  /// modules/assessments/enums.ts.
+  scopeKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  grades AssessmentGrade[]
+
+  @@unique([schoolClassId, subjectId, termId, assessmentTypeId, sequence, scopeKey])
+  @@index([schoolId])
+  @@index([schoolClassId])
+  @@index([classGroupId])
+  @@index([subjectId])
+  @@index([termId])
+  @@index([assessmentTypeId])
+  @@index([teacherId])
+  @@index([createdById])
+  @@map("assessments")
+}

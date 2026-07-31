@@ -1,0 +1,53 @@
+/// One pupil's mark on one contrôle.
+///
+/// Keyed on the **enrolment**, not the pupil. A mark belongs to a child *in a
+/// year and a class* — that is what makes it comparable with the rest of the
+/// roster and what keeps last year's marks attached to last year's class after
+/// a repeat. `Enrollment` is already how the class roster is defined, so this
+/// also means a row cannot exist for a pupil who is not in the class.
+///
+/// `score` is nullable and separate from `isAbsent` on purpose: "not marked
+/// yet" and "sat it and scored zero" and "was not there" are three different
+/// facts, and collapsing them loses the one the family asks about.
+model AssessmentGrade {
+  id           String     @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Out of the assessment's own `maxScore`. Null = not marked yet.
+  ///
+  /// Float because Moroccan marks routinely carry a quarter or a half point
+  /// (13.25, 8.5). The service layer rounds to two decimals and rejects
+  /// anything outside 0..maxScore.
+  score Float?
+
+  /// Absent from the paper. An absence does not average as a zero — it is
+  /// excluded from the mean unless the school decides otherwise, which is why
+  /// it is a flag rather than `score = 0`.
+  isAbsent Boolean @default(false)
+
+  /// Absence with a justification on file. Kept apart from `isAbsent` because
+  /// an unjustified absence is what a rattrapage decision turns on.
+  isExcused Boolean @default(false)
+
+  /// Appréciation shown to the family alongside the mark.
+  comment String?
+
+  /// Who entered it and when — a mark that changes after a report card has gone
+  /// out is exactly the thing somebody will later ask about.
+  gradedById String?
+  gradedBy   User?     @relation("GradeAuthor", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, enrollmentId])
+  @@index([assessmentId])
+  @@index([enrollmentId])
+  @@index([gradedById])
+  @@map("assessment_grades")
+}

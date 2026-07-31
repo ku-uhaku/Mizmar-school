@@ -20,6 +20,7 @@ import { seedEnrolments } from "@/modules/enrolment/seed";
 import { seedHr } from "@/modules/hr/seed";
 import { seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport } from "@/modules/transport/seed";
+import { seedAssessmentTypes } from "@/modules/assessments/seed";
 import {
   FAMILY_SEEDS,
   seedFamilies,
@@ -221,6 +222,12 @@ async function main() {
     // catalogue above it — how much is collected is a fact of each year, but
     // where it is collected is a fact of the school.
     await seedTreasury(db, school.id);
+
+    // The kinds of contrôle the school runs. Year-independent, like the fee
+    // catalogue and the tills: what a devoir surveillé weighs is a policy of
+    // the school, not of any one year. Only the types — the papers themselves
+    // are generated through the screen. See modules/assessments/seed.ts.
+    await seedAssessmentTypes(db, school.id);
 
     // The payroll, also year-independent. Before the fleet below, because a bus
     // names one of these people as its driver rather than repeating a string.

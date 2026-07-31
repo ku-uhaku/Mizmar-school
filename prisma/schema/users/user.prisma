@@ -34,6 +34,15 @@ model User {
   mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
   teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
   timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
+  /// Contrôles this user is answerable for, set, and has marked. SetNull on all
+  /// three — a paper outlives the account that created it.
+  assessmentsTeaching Assessment[]         @relation("TeacherAssessments")
+  assessmentsAuthored Assessment[]         @relation("AssessmentAuthor")
+  gradesEntered       AssessmentGrade[]    @relation("GradeAuthor")
+  /// Registers taken and observations written in the classroom. SetNull on
+  /// both: a register outlives the account that took it.
+  pupilAttendance     StudentAttendance[]  @relation("AttendanceRecordedByTeacher")
+  pupilRemarks        StudentRemark[]      @relation("RemarkAuthor")
 
   /// Portal accounts opened for parents. Almost always empty — a guardian is a
   /// row in the dossier familial, and only becomes a User if a school chooses
