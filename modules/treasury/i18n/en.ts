@@ -1,0 +1,237 @@
+/**
+ * Treasury translations (en).
+ *
+ * Merged into the app dictionary by `lib/i18n/dictionaries/en.ts`. The English
+ * file defines the shape; `fr` and `ar` are checked against it, so a key added
+ * here is a compile error until every language supplies it.
+ */
+const en = {
+  treasury: {
+    title: "Cash desk",
+    subtitle: "The tills, what they took, and what went out of them.",
+
+    // ── Sessions ────────────────────────────────────────────────────────────
+    registers: "Tills",
+    register: "Till",
+    session: "Session",
+    sessions: "Recent sessions",
+    openSession: "Open the till",
+    closeSession: "Close the till",
+    openingFloat: "Opening float",
+    openingFloatHint: "The cash already in the drawer before trading starts.",
+    counted: "Counted",
+    countedHint: "What you actually counted in the drawer.",
+    expected: "Expected",
+    variance: "Variance",
+    varianceShort: "Short",
+    varianceOver: "Over",
+    openedBy: "Opened by",
+    closedBy: "Closed by",
+    openedAt: "Opened",
+    closedAt: "Closed",
+    statusOpen: "Open",
+    statusClosed: "Closed",
+    noOpenSession: "No till is open. Open one before taking cash.",
+    alreadyOpen: "That till is already open.",
+    sessionOpened: "Till opened.",
+    sessionClosedBalanced: "Till closed — the drawer balanced.",
+    sessionClosedVariance: "Till closed with a variance of {amount} MAD.",
+    noRegisters: "No till has been set up for this school yet.",
+    inDrawer: "In the drawer",
+    openRegisters: "Tills open",
+
+    // ── Operations ──────────────────────────────────────────────────────────
+    operations: "Operations",
+    operationsSubtitle: "Every movement of money, newest first.",
+    noOperations: "Nothing has moved yet.",
+    kind: "Type",
+    method: "Method",
+    amount: "Amount",
+    cashImpact: "Cash",
+    label: "Description",
+    reference: "Reference",
+    occurredAt: "Date",
+    beneficiary: "Paid to",
+    category: "Category",
+    recordedBy: "Recorded by",
+    reversalOf: "Reversal",
+    collectedToday: "Collected today",
+    disbursedToday: "Paid out today",
+
+    // ── Encaissement ────────────────────────────────────────────────────────
+    encaissement: "Collection",
+    encaissementSubtitle:
+      "Take a payment and choose exactly which charges it settles.",
+    family: "Family",
+    selectFamily: "Choose a family",
+    selectFamilyHint:
+      "The receipt is made out to the household, so one payment can settle several children at once.",
+    noFamilySelected: "Choose a family to see what is owed.",
+    nothingOwed: "This family owes nothing for the year in context.",
+    owes: "Outstanding",
+    owesTotal: "Total outstanding",
+    selected: "Selected",
+    selectAll: "Select everything owed",
+    clearSelection: "Clear",
+    payFull: "Pay in full",
+    monthColumn: "Month",
+    charge: "Charge",
+    alreadyPaid: "Paid",
+    remaining: "Remaining",
+    partAmount: "Part payment",
+    tenders: "How it was paid",
+    tendersHint:
+      "Add a line per form of money — cash and a cheque together is one receipt.",
+    addTender: "Add another form of payment",
+    removeTender: "Remove",
+    tendersMustMatch:
+      "What was handed over must match what is being settled.",
+    amountRequired: "Enter an amount.",
+    nothingSelected: "Select at least one charge to settle.",
+    chequeNumberRequired: "A cheque needs its number.",
+    chequeNumber: "Cheque number",
+    chequeDueOn: "Due on",
+    drawerName: "Signed by",
+    bankName: "Bank",
+    paidAt: "Paid on",
+    recordPayment: "Record the payment",
+    paymentRecorded: "Receipt {code} recorded.",
+    lineAlreadySettled:
+      "One of those charges has just been settled by someone else. Reload and try again.",
+    receipts: "Receipts",
+    receipt: "Receipt",
+    noReceipts: "No payment has been taken yet.",
+    cancelPayment: "Cancel the receipt",
+    cancelPaymentTitle: "Cancel this receipt?",
+    cancelPaymentBody:
+      "“{code}” will stop counting and what it settled goes back on the family's account. The receipt itself is kept.",
+    paymentCancelled: "Receipt cancelled.",
+    alreadyCancelled: "That receipt is already cancelled.",
+    cancelReason: "Reason",
+    notes: "Notes",
+
+    // ── Décaissement ────────────────────────────────────────────────────────
+    decaissement: "Disbursement",
+    decaissementSubtitle: "Pay money out and say what it was for.",
+    beneficiaryName: "Paid to",
+    beneficiaryHint: "A member of staff, a supplier, a landlord.",
+    expenseCategory: "Category",
+    labelHint: "What this payment was for, in a few words.",
+    recordDisbursement: "Record the payment",
+    disbursementRecorded: "Payment recorded.",
+    insufficientCash: "The drawer only holds {amount} MAD.",
+    noCategories: "No expense category has been set up yet.",
+
+    // ── Transfert ───────────────────────────────────────────────────────────
+    transfert: "Transfer",
+    transfertSubtitle: "Move cash between tills, or take it to the bank.",
+    from: "From",
+    to: "To",
+    target: "Destination",
+    targetRegister: "Another till",
+    targetBank: "The bank",
+    bankAccount: "Bank account",
+    bankAccountHint: "Which account the money was paid into.",
+    sameRegister: "Choose a different till.",
+    recordTransfer: "Record the transfer",
+    transferRecorded: "Transfer recorded.",
+    transferPendingReceipt:
+      "Transfer recorded. The money will show in the other till once it is opened.",
+
+    // ── Chèques ─────────────────────────────────────────────────────────────
+    cheques: "Cheques",
+    chequesSubtitle: "What is held, what is banked, and what came back.",
+    noCheques: "No cheque is being tracked.",
+    chequeDirection: "Direction",
+    number: "Number",
+    dueOn: "Due",
+    depositedOn: "Banked",
+    settledOn: "Settled",
+    bounceReason: "Reason returned",
+    markDeposited: "Mark as banked",
+    markCashed: "Mark as cleared",
+    markBounced: "Mark as bounced",
+    markReturned: "Hand back",
+    chequeUpdated: "Cheque updated.",
+    bouncedWarning:
+      "Bouncing this cheque cancels the receipt it paid, and the charges go back on the family.",
+    chequesPending: "Cheques held",
+    chequesBounced: "Bounced",
+    dueSoon: "Due soon",
+    overdue: "Overdue",
+    overdueLabel: "Past due, not banked",
+    standing: "Payment standing",
+    upToDate: "Up to date",
+    overdueBy: "{amount} overdue",
+    charged: "Charged",
+    collectNow: "Take a payment",
+    noScheduleYet: "No fee schedule has been raised for this pupil yet.",
+    paidOfCharged: "{paid} paid of {charged}",
+    linesSettled: "{settled} of {total} instalments settled",
+    lastPaid: "last paid",
+  },
+  treasuryOptions: {
+    kinds: {
+      ENCAISSEMENT: "Collection",
+      DECAISSEMENT: "Disbursement",
+      TRANSFERT: "Transfer",
+    },
+    methods: {
+      CASH: "Cash",
+      CHEQUE: "Cheque",
+      BANK_TRANSFER: "Bank transfer",
+      MIXED: "Mixed",
+    },
+    sessionStatuses: {
+      OPEN: "Open",
+      CLOSED: "Closed",
+    },
+    operationStatuses: {
+      POSTED: "Posted",
+      CANCELLED: "Cancelled",
+    },
+    chequeDirections: {
+      INCOMING: "Received",
+      OUTGOING: "Issued",
+    },
+    chequeStatuses: {
+      PENDING: "Held",
+      DEPOSITED: "Banked",
+      CASHED: "Cleared",
+      BOUNCED: "Bounced",
+      RETURNED: "Handed back",
+      CANCELLED: "Cancelled",
+    },
+    transferTargets: {
+      REGISTER: "Another till",
+      BANK: "The bank",
+    },
+  },
+} as const;
+
+/** Sidebar labels this module contributes to the `nav` namespace. */
+export const nav = {
+  treasury: "Cash desk",
+  encaissement: "Collection",
+  decaissement: "Disbursement",
+  transfert: "Transfer",
+  cheques: "Cheques",
+} as const;
+
+/** Permission matrix labels for this module's own codes. */
+export const permissions = {
+  groups: {
+    treasury: "Cash desk",
+  },
+  codes: {
+    "treasury.view": "View the cash desk",
+    "treasury.session": "Open and close tills",
+    "treasury.collect": "Take payments",
+    "treasury.disburse": "Pay money out",
+    "treasury.transfer": "Transfer cash",
+    "treasury.cheques": "Follow up cheques",
+    "treasury.cancel": "Cancel receipts",
+  },
+} as const;
+
+export default en;

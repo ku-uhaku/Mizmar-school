@@ -1,0 +1,69 @@
+/// A cheque, tracked from the day it is taken to the day it clears — the
+/// "Suivi Chèques" screen.
+///
+/// A cheque is not money yet, and that is the entire reason this table exists.
+/// A school takes one in October dated for December, banks it in December, and
+/// finds out in January that it bounced. Three dates and a status, kept apart
+/// from the payment it settled, are what let the bursar answer "what is sitting
+/// in the drawer undeposited?" and "what came back unpaid?" — neither of which a
+/// payment row can answer on its own.
+///
+/// Both directions live here. A cheque the school writes to a supplier has the
+/// same lifecycle as one it receives, read from the other side.
+model Cheque {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// "INCOMING" | "OUTGOING" — see modules/treasury/enums.ts.
+  direction String @default("INCOMING")
+
+  /// The number printed on the cheque.
+  number String
+
+  bankName String?
+
+  /// Whose cheque it is: the parent who signed it, or the school when outgoing.
+  drawerName String?
+
+  amountCentimes Int
+
+  /// When it was written.
+  issuedOn DateTime?
+
+  /// Date d'échéance — the date before which it must not be presented. The
+  /// column the follow-up screen sorts on, because a post-dated cheque banked
+  /// early is a bounced cheque.
+  dueOn DateTime?
+
+  /// "PENDING" | "DEPOSITED" | "CASHED" | "BOUNCED" | "RETURNED" | "CANCELLED"
+  /// see modules/treasury/enums.ts.
+  status String @default("PENDING")
+
+  /// Remise en banque.
+  depositedOn DateTime?
+  /// The day it actually cleared, or the day it came back.
+  settledOn   DateTime?
+
+  /// Why it bounced, in the bank's words. Read out to the family, so it is kept
+  /// verbatim rather than mapped onto a code.
+  bounceReason String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The tender that brought it in, when it settled fees.
+  tender     PaymentTender?
+  operations CashOperation[]
+
+  /// Not unique: two banks issue cheques with the same number, and a school
+  /// that has banked with three of them over ten years will see collisions. The
+  /// index is here because the follow-up screen searches on it.
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@index([schoolId, number])
+  @@index([dueOn])
+  @@map("cheques")
+}

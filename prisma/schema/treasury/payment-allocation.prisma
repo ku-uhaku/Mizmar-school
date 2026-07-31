@@ -1,0 +1,42 @@
+/// How much of a receipt settled one line of one pupil's échéancier.
+///
+/// This is the join EnrollmentFee was built to receive — its own doc comment
+/// says so: "It is what a payment will attach to […] a receipt settles these
+/// rows." Everything the collection screens report follows from summing this
+/// table against that one:
+///
+///   what a line still owes  =  its amount  −  the posted allocations against it
+///
+/// Allocating explicitly, rather than letting a lump sum trickle down the oldest
+/// debts automatically, is deliberate. A parent at the desk says "je paie
+/// octobre et novembre pour Yasmine, et l'assurance des deux" — and the receipt
+/// has to say exactly that, because in three months' time somebody will ask.
+/// That a single receipt can hold lines belonging to different children is what
+/// makes paying for a fratrie one transaction.
+model PaymentAllocation {
+  id        String  @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a schedule line that has been paid against cannot be deleted out
+  /// from under the receipt that settled it. Correcting one means cancelling
+  /// the receipt first, which is the point.
+  enrollmentFeeId String
+  enrollmentFee   EnrollmentFee @relation(fields: [enrollmentFeeId], references: [id], onDelete: Restrict)
+
+  /// Part-payment is ordinary, so this is not simply the line's amount.
+  ///
+  /// INVARIANT (service layer): positive, and never more than the line still
+  /// owes across every other posted receipt. Over-allocation would show a
+  /// family in credit on one line while still in arrears overall.
+  amountCentimes Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One line appears at most once per receipt — two allocations to the same
+  /// line on one receipt is a double-click, not an intention.
+  @@unique([paymentId, enrollmentFeeId])
+  @@index([enrollmentFeeId])
+  @@map("payment_allocations")
+}

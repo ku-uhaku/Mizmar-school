@@ -51,6 +51,10 @@ import timetable, {
   nav as timetableNav,
   permissions as timetablePermissions,
 } from "@/modules/timetable/i18n/en";
+import treasury, {
+  nav as treasuryNav,
+  permissions as treasuryPermissions,
+} from "@/modules/treasury/i18n/en";
 
 /**
  * The canonical dictionary, assembled from the core strings plus every module's
@@ -93,6 +97,9 @@ const en = {
   ...classes,
   ...timetable,
 
+  // Caisse.
+  ...treasury,
+
   // Merged namespaces — contributed to by many modules.
   nav: {
     ...coreNav,
@@ -110,6 +117,7 @@ const en = {
     ...studentsNav,
     ...classesNav,
     ...timetableNav,
+    ...treasuryNav,
   },
   permissions: {
     groups: {
@@ -125,6 +133,7 @@ const en = {
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...timetablePermissions.groups,
+      ...treasuryPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -139,6 +148,7 @@ const en = {
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...timetablePermissions.codes,
+      ...treasuryPermissions.codes,
     },
   },
 } as const;

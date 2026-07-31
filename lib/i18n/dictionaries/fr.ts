@@ -53,6 +53,10 @@ import timetable, {
   nav as timetableNav,
   permissions as timetablePermissions,
 } from "@/modules/timetable/i18n/fr";
+import treasury, {
+  nav as treasuryNav,
+  permissions as treasuryPermissions,
+} from "@/modules/treasury/i18n/fr";
 
 /**
  * French. Assembled exactly like `en.ts` — see that file for the registration
@@ -81,6 +85,9 @@ const fr: Dictionary = {
   ...classes,
   ...timetable,
 
+  // Caisse.
+  ...treasury,
+
   nav: {
     ...coreNav,
     ...dashboardNav,
@@ -97,6 +104,7 @@ const fr: Dictionary = {
     ...studentsNav,
     ...classesNav,
     ...timetableNav,
+    ...treasuryNav,
   },
   permissions: {
     groups: {
@@ -112,6 +120,7 @@ const fr: Dictionary = {
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...timetablePermissions.groups,
+      ...treasuryPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -126,6 +135,7 @@ const fr: Dictionary = {
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...timetablePermissions.codes,
+      ...treasuryPermissions.codes,
     },
   },
 };

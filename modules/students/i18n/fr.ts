@@ -12,12 +12,22 @@ const fr = {
     identity: "Identité",
     identityHint:
       "Qui est l'enfant. Sa place est définie par l'inscription.",
+    essentials: "L'essentiel",
+    essentialsHint: "De quoi ouvrir le dossier — le reste peut attendre.",
+    moreDetails: "Ajouter plus de détails",
+    moreDetailsHint:
+      "Tout est facultatif. Vous pourrez les compléter plus tard depuis le dossier de l'élève.",
+    createHint: "Le reste du dossier pourra être complété après sa création.",
+    references: "Identifiants",
+    referencesHint:
+      "Comment cet élève est identifié sur le papier et dans MASSAR.",
     code: "Matricule",
     codeHint: "Laisser vide pour attribuer le suivant, ex. E-2025-0431.",
     massarCode: "Code MASSAR",
     massarCodeHint: "Le code de l'élève dans le système du ministère.",
     firstName: "Prénom",
     lastName: "Nom",
+    names: "Noms et lieu de naissance",
     firstNameAr: "Prénom (arabe)",
     lastNameAr: "Nom (arabe)",
     gender: "Sexe",
@@ -39,6 +49,8 @@ const fr = {
     notes: "Remarques",
     family: "Famille",
     familyHint: "Le dossier familial auquel cet enfant est rattaché.",
+    familyLater:
+      "Pas encore de dossier familial ? Créez l'élève et rattachez-le plus tard.",
     noFamily: "Pas encore rattaché à une famille.",
     attachHint:
       "Rattachez l'enfant à un dossier familial pour enregistrer ses tuteurs.",
@@ -75,6 +87,7 @@ const fr = {
       ENROLMENT: "Inscrit",
       CLASS: "Classe affectée",
       FEES: "Échéancier généré",
+      PAYMENT: "À jour",
     },
   },
   studentOptions: {

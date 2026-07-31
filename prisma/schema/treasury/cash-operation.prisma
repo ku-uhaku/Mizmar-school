@@ -1,0 +1,122 @@
+/// One line of the school's money ledger — the "Opérations" screen, and the
+/// only table a balance is ever computed from.
+///
+/// Every movement is here regardless of how it was made: a parent paying at the
+/// desk, a salary paid out, a handover between two tills, a cheque banked. Kinds
+/// that behave differently are told apart by `kind` rather than split into three
+/// tables, because the one question everybody asks — "what moved today?" — is
+/// then one query instead of a union of three.
+///
+/// ── Two amounts, and why ─────────────────────────────────────────────────────
+/// `amountCentimes` is what the operation was worth. `cashImpactCentimes` is
+/// how much physical cash moved in the drawer, signed. They differ whenever the
+/// money did not arrive as notes: a 2 000 payment settled with 500 in cash and a
+/// 1 500 cheque is worth 2 000 but moves 500. Only the second is summed to check
+/// a drawer at closing time, and conflating them is what makes a till count
+/// disagree with the receipts by exactly the value of the cheques in it.
+model CashOperation {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// The session the movement was posted into. Null when nothing touched a
+  /// drawer — a virement received straight into the bank account, or a cheque
+  /// deposited from the safe — which is exactly why it is nullable rather than
+  /// forcing a fictitious session onto non-cash money.
+  ///
+  /// Restrict: a session with operations in it is history, not a draft.
+  cashSessionId String?
+  cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+
+  /// "ENCAISSEMENT" | "DECAISSEMENT" | "TRANSFERT" — see modules/treasury/enums.ts.
+  kind String
+
+  /// "CASH" | "CHEQUE" | "BANK_TRANSFER" | "MIXED" — see modules/treasury/enums.ts.
+  /// MIXED is the espèces + chèque case, and its detail lives in the payment's
+  /// tenders rather than here.
+  method String
+
+  /// What the operation was worth, in centimes of dirham. Always positive: the
+  /// direction is `kind`, never a minus sign, so a SUM of this column cannot
+  /// quietly mean two different things.
+  amountCentimes Int
+
+  /// How much cash actually moved, signed — positive into the drawer, negative
+  /// out of it. See the note above; this is the column a session's expected
+  /// balance is built from.
+  cashImpactCentimes Int @default(0)
+
+  /// Free-text description shown in the ledger.
+  label String
+
+  /// The paper trail: a receipt number, a cheque number, a virement reference.
+  reference String?
+
+  /// When the money moved, which is not always when it was typed in.
+  occurredAt DateTime @default(now())
+
+  /// "POSTED" | "CANCELLED" — see modules/treasury/enums.ts.
+  /// A cancelled operation stays in the ledger and stops counting; it is never
+  /// deleted, and the entry that cancelled it points back through `reverses`.
+  status String @default("POSTED")
+
+  /// The operation this one reverses, when it is a correcting entry.
+  ///
+  /// Cancelling never edits or deletes the original: it writes a mirror-image
+  /// operation and marks the original CANCELLED. That is what keeps a closed
+  /// session's total truthful after a mistake is found — the correction lands in
+  /// the period it was made in, the way an accountant expects.
+  reversesOperationId String?         @unique
+  reversesOperation   CashOperation?  @relation("OperationReversal", fields: [reversesOperationId], references: [id], onDelete: SetNull)
+  reversedBy          CashOperation?  @relation("OperationReversal")
+
+  /// Set when this encaissement is a family paying fees. The allocation to
+  /// individual schedule lines lives on the payment.
+  paymentId String?  @unique
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  /// Décaissement only. SetNull: retiring a category must not erase the history
+  /// of what was spent under it.
+  expenseCategoryId String?
+  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
+
+  /// Who was paid. Free text: the school pays landlords, hauliers and casual
+  /// staff who have no row anywhere in this database.
+  beneficiaryName String?
+
+  /// TRANSFERT only. The two legs of a till-to-till handover share this id, so
+  /// the pair can be shown as one movement and neither can be read as money
+  /// appearing from nowhere.
+  transferGroupId String?
+
+  /// TRANSFERT only. The till at the other end. Null when the other end is the
+  /// bank, which `bankAccountLabel` then names.
+  counterpartRegisterId String?
+  counterpartRegister   CashRegister? @relation("OperationCounterpartRegister", fields: [counterpartRegisterId], references: [id], onDelete: SetNull)
+
+  /// Where the money went when it left for the bank rather than another till.
+  bankAccountLabel String?
+
+  /// The cheque this operation concerns, for the ones that are not payments —
+  /// a cheque written to a supplier, or a deposit clearing.
+  chequeId String?
+  cheque   Cheque? @relation(fields: [chequeId], references: [id], onDelete: SetNull)
+
+  /// Restrict: the ledger must always be able to say who posted a movement.
+  createdById String
+  createdBy   User   @relation("OperationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([cashSessionId])
+  @@index([expenseCategoryId])
+  @@index([counterpartRegisterId])
+  @@index([chequeId])
+  @@index([createdById])
+  @@index([transferGroupId])
+  @@index([schoolId, occurredAt])
+  @@index([schoolId, kind, status])
+  @@map("cash_operations")
+}

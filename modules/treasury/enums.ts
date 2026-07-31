@@ -1,0 +1,228 @@
+/**
+ * Allowed values for this module's "enum-like" String columns — the source of
+ * truth for `prisma/schema/treasury/*.prisma` — plus the money arithmetic the
+ * caisse is balanced with.
+ *
+ * Pure data and pure functions: this file crosses to the client, where the
+ * encaissement screen previews a receipt's total with the very same functions
+ * the server posts it with. A form that added up its lines differently from the
+ * action that saves them would hand a parent a receipt for the wrong amount.
+ *
+ * Every amount here is an integer number of **centimes of dirham**, exactly as
+ * in `modules/billing/enums.ts`. Nothing is a float: these numbers are summed,
+ * split across children and reconciled against a drawer at the end of the day.
+ */
+
+import { nullableKey } from "@/lib/db-keys";
+
+/**
+ * Which way the money went.
+ *
+ *   ENCAISSEMENT  money in — a family paying fees, or any other receipt
+ *   DECAISSEMENT  money out — a salary, a supplier, an expense
+ *   TRANSFERT     money moved without being earned or spent: between two tills,
+ *                 or from a till to the bank
+ *
+ * A transfer is deliberately not two half-operations of the other two kinds. It
+ * changes no total the school reports on, and counting it as income at one end
+ * and expenditure at the other would overstate both.
+ */
+export const OPERATION_KINDS = [
+  "ENCAISSEMENT",
+  "DECAISSEMENT",
+  "TRANSFERT",
+] as const;
+export type OperationKind = (typeof OPERATION_KINDS)[number];
+
+/**
+ * How money changed hands.
+ *
+ *   CASH           espèces
+ *   CHEQUE         chèque — not money until it clears, see the Cheque table
+ *   BANK_TRANSFER  virement bancaire
+ *   MIXED          several of the above on one receipt, itemised in its tenders
+ *
+ * MIXED is a summary for the ledger, never a tender in its own right — see
+ * `TENDER_METHODS`.
+ */
+export const PAYMENT_METHODS = [
+  "CASH",
+  "CHEQUE",
+  "BANK_TRANSFER",
+  "MIXED",
+] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/**
+ * The methods a single tender may use. MIXED is excluded by construction: a
+ * receipt is mixed by *having several tenders*, so a tender that called itself
+ * mixed would be a row that failed to say what it actually was.
+ */
+export const TENDER_METHODS = ["CASH", "CHEQUE", "BANK_TRANSFER"] as const;
+export type TenderMethod = (typeof TENDER_METHODS)[number];
+
+/** Whether a till is open for business. */
+export const SESSION_STATUSES = ["OPEN", "CLOSED"] as const;
+export type SessionStatus = (typeof SESSION_STATUSES)[number];
+
+/**
+ * Whether a movement still counts.
+ *
+ * CANCELLED rows stay in the ledger and are excluded from every total. Nothing
+ * is ever deleted: the correcting entry points back at what it reversed, so the
+ * history reads as what happened rather than as what somebody wishes had.
+ */
+export const OPERATION_STATUSES = ["POSTED", "CANCELLED"] as const;
+export type OperationStatus = (typeof OPERATION_STATUSES)[number];
+
+/** Same two states, for a receipt. */
+export const PAYMENT_STATUSES = ["POSTED", "CANCELLED"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/** A cheque the school holds, or one it has written. */
+export const CHEQUE_DIRECTIONS = ["INCOMING", "OUTGOING"] as const;
+export type ChequeDirection = (typeof CHEQUE_DIRECTIONS)[number];
+
+/**
+ * The life of a cheque.
+ *
+ *   PENDING    held, not yet banked — the pile in the safe
+ *   DEPOSITED  remis en banque, waiting to clear
+ *   CASHED     cleared; this is the moment it became money
+ *   BOUNCED    came back unpaid — the fees it settled are owed again
+ *   RETURNED   handed back to the family, usually against cash instead
+ *   CANCELLED  entered in error
+ *
+ * Only CASHED and DEPOSITED are anything a bank would recognise; the rest exist
+ * because the bursar has to answer for the drawer between those moments.
+ */
+export const CHEQUE_STATUSES = [
+  "PENDING",
+  "DEPOSITED",
+  "CASHED",
+  "BOUNCED",
+  "RETURNED",
+  "CANCELLED",
+] as const;
+export type ChequeStatus = (typeof CHEQUE_STATUSES)[number];
+
+/** Cheques still expected to turn into money — what "en attente" counts. */
+export const OPEN_CHEQUE_STATUSES: readonly ChequeStatus[] = [
+  "PENDING",
+  "DEPOSITED",
+];
+
+/** Cheques that will not: the ones the follow-up screen flags in red. */
+export const FAILED_CHEQUE_STATUSES: readonly ChequeStatus[] = [
+  "BOUNCED",
+  "RETURNED",
+];
+
+/**
+ * Where a transfer's money is going. Not a column — the destination is either a
+ * till (`counterpartRegisterId`) or the bank (`bankAccountLabel`) — but the form
+ * needs a name for the choice.
+ */
+export const TRANSFER_TARGETS = ["REGISTER", "BANK"] as const;
+export type TransferTarget = (typeof TRANSFER_TARGETS)[number];
+
+// ── Money ────────────────────────────────────────────────────────────────────
+
+export function centimesToDirhams(centimes: number): number {
+  return centimes / 100;
+}
+
+export function dirhamsToCentimes(dirhams: number): number {
+  return Math.round(dirhams * 100);
+}
+
+/**
+ * How much cash an operation moves in the drawer, signed — positive in,
+ * negative out.
+ *
+ * The one place this rule is written down, because it is the rule the whole
+ * caisse balances on. Anything that is not cash moves nothing: a cheque sits in
+ * the safe and a virement never comes near the desk, so neither may shift the
+ * figure the cashier will be asked to count.
+ */
+export function cashImpactOf(
+  kind: OperationKind,
+  method: PaymentMethod,
+  cashPortionCentimes: number,
+): number {
+  if (method !== "CASH" && method !== "MIXED") return 0;
+  return kind === "ENCAISSEMENT" ? cashPortionCentimes : -cashPortionCentimes;
+}
+
+/**
+ * The method to record for a receipt, given the forms of money it was paid in.
+ *
+ * One tender keeps its own name so the ordinary case reads plainly in the
+ * ledger; two or more become MIXED, and the detail stays in the tenders.
+ */
+export function summariseMethod(
+  methods: readonly TenderMethod[],
+): PaymentMethod {
+  const distinct = Array.from(new Set(methods));
+  if (distinct.length === 1) return distinct[0];
+  return "MIXED";
+}
+
+/** Adds up a set of amounts. Named so the intent reads at the call site. */
+export function sumCentimes(amounts: readonly number[]): number {
+  return amounts.reduce((total, amount) => total + amount, 0);
+}
+
+/**
+ * What a schedule line still owes: what it costs, less what has been paid
+ * against it. Never negative — an over-allocation is a bug the service layer
+ * refuses, and flooring here keeps one from poisoning a whole family's total.
+ */
+export function outstandingOf(
+  amountCentimes: number,
+  paidCentimes: number,
+): number {
+  return Math.max(0, amountCentimes - paidCentimes);
+}
+
+/**
+ * What a drawer should hold: the float it opened with, plus every posted cash
+ * movement since.
+ *
+ * Cancelled operations are the caller's business to exclude — this takes the
+ * impacts it is given, so the same function serves the live figure on screen
+ * and the frozen one written at closing time.
+ */
+export function expectedDrawerTotal(
+  openingFloatCentimes: number,
+  cashImpacts: readonly number[],
+): number {
+  return openingFloatCentimes + sumCentimes(cashImpacts);
+}
+
+/**
+ * Builds `CashSession.openKey`, which is what stops one till being open twice.
+ *
+ * The register's id while the session is open, null once it closes — so SQLite's
+ * "NULLs are distinct" behaviour exempts every closed session from the unique
+ * index while admitting only one open one. See lib/db-keys.ts for the general
+ * pattern and why a partial index is not an option here.
+ */
+export function openSessionKey(
+  cashRegisterId: string,
+  status: SessionStatus,
+): string | null {
+  return status === "OPEN" ? nullableKey(cashRegisterId) : null;
+}
+
+/**
+ * Formats a document number: `R-2025-0187` for receipts, `OP-2025-0043` for
+ * operations. Sequence is allocated per school and per year by the service.
+ */
+export function documentCode(
+  prefix: string,
+  year: number,
+  sequence: number,
+): string {
+  return `${prefix}-${year}-${String(sequence).padStart(4, "0")}`;
+}

@@ -17,6 +17,7 @@ import {
 } from "@/modules/billing/seed";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments } from "@/modules/enrolment/seed";
+import { seedTreasury } from "@/modules/treasury/seed";
 import {
   FAMILY_SEEDS,
   seedFamilies,
@@ -213,6 +214,11 @@ async function main() {
       await seedAcademics(db, school.id, plan.academics);
     const roomIdByCode = await seedRooms(db, school.id, plan.rooms);
     const feeTypeIdByCode = await seedFeeTypes(db, school.id, plan.feeTypes);
+
+    // The tills and expense rubriques. Year-independent, like the fee
+    // catalogue above it — how much is collected is a fact of each year, but
+    // where it is collected is a fact of the school.
+    await seedTreasury(db, school.id);
 
     const labSubjectCodes = plan.academics.subjects
       .filter((subject) => subject.requiresLab)

@@ -1,4 +1,7 @@
 import {
+  ArrowLeftRightIcon,
+  BanknoteArrowDownIcon,
+  BanknoteArrowUpIcon,
   BuildingIcon,
   CalendarClockIcon,
   CalendarRangeIcon,
@@ -8,11 +11,13 @@ import {
   LayersIcon,
   LayoutDashboardIcon,
   PaletteIcon,
+  ReceiptTextIcon,
   SchoolIcon,
   SettingsIcon,
   ShieldCheckIcon,
   UserIcon,
   UsersIcon,
+  WalletIcon,
 } from "lucide-react";
 
 import type { NavIcon } from "@/lib/module";
@@ -41,4 +46,9 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   families: HomeIcon,
   classes: LayersIcon,
   timetable: CalendarClockIcon,
+  cashRegister: WalletIcon,
+  encaissement: BanknoteArrowDownIcon,
+  decaissement: BanknoteArrowUpIcon,
+  transfert: ArrowLeftRightIcon,
+  cheques: ReceiptTextIcon,
 };

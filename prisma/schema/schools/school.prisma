@@ -49,6 +49,15 @@ model School {
   families Family[]
   students Student[]
 
+  // ── Caisse ────────────────────────────────────────────────────────────────
+  /// The tills the school collects at, what it spends under, and every movement
+  /// of money either way. See prisma/schema/treasury/.
+  cashRegisters     CashRegister[]
+  expenseCategories ExpenseCategory[]
+  cashOperations    CashOperation[]
+  payments          Payment[]
+  cheques           Cheque[]
+
   @@unique([organizationId, code])
   @@index([organizationId])
   @@map("schools")

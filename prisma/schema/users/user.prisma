@@ -40,6 +40,14 @@ model User {
   /// to let them sign in.
   guardianProfiles Guardian[] @relation("GuardianAccount")
 
+  // ── Caisse ────────────────────────────────────────────────────────────────
+  /// Who held the drawer and who posted what. All Restrict on the other side:
+  /// the ledger must always be able to name the person behind a movement.
+  sessionsOpened    CashSession[]   @relation("SessionOpenedBy")
+  sessionsClosed    CashSession[]   @relation("SessionClosedBy")
+  operationsCreated CashOperation[] @relation("OperationCreatedBy")
+  paymentsCreated   Payment[]       @relation("PaymentCreatedBy")
+
   @@index([organizationId])
   @@map("users")
 }

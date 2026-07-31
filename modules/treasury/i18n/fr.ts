@@ -1,0 +1,235 @@
+/**
+ * Treasury translations (fr). Same shape as `en.ts`, which is canonical — a key
+ * added there is a compile error here until it is supplied.
+ *
+ * The vocabulary is that of a Moroccan private school's caisse: encaissement,
+ * décaissement, fond de caisse, remise en banque, chèque impayé.
+ */
+const fr = {
+  treasury: {
+    title: "Caisse",
+    subtitle: "Les caisses, ce qu'elles ont encaissé et ce qui en est sorti.",
+
+    // ── Sessions ────────────────────────────────────────────────────────────
+    registers: "Caisses",
+    register: "Caisse",
+    session: "Session",
+    sessions: "Sessions récentes",
+    openSession: "Ouvrir la caisse",
+    closeSession: "Fermer la caisse",
+    openingFloat: "Fond de caisse",
+    openingFloatHint: "Le liquide déjà présent dans le tiroir à l'ouverture.",
+    counted: "Montant compté",
+    countedHint: "Ce que vous avez réellement compté dans le tiroir.",
+    expected: "Montant théorique",
+    variance: "Écart",
+    varianceShort: "Manquant",
+    varianceOver: "Excédent",
+    openedBy: "Ouverte par",
+    closedBy: "Fermée par",
+    openedAt: "Ouverture",
+    closedAt: "Fermeture",
+    statusOpen: "Ouverte",
+    statusClosed: "Fermée",
+    noOpenSession: "Aucune caisse ouverte. Ouvrez-en une avant d'encaisser.",
+    alreadyOpen: "Cette caisse est déjà ouverte.",
+    sessionOpened: "Caisse ouverte.",
+    sessionClosedBalanced: "Caisse fermée — le tiroir est juste.",
+    sessionClosedVariance: "Caisse fermée avec un écart de {amount} MAD.",
+    noRegisters: "Aucune caisse n'a encore été créée pour cette école.",
+    inDrawer: "En caisse",
+    openRegisters: "Caisses ouvertes",
+
+    // ── Operations ──────────────────────────────────────────────────────────
+    operations: "Opérations",
+    operationsSubtitle: "Tous les mouvements, du plus récent au plus ancien.",
+    noOperations: "Aucun mouvement pour l'instant.",
+    kind: "Type",
+    method: "Mode",
+    amount: "Montant",
+    cashImpact: "Espèces",
+    label: "Libellé",
+    reference: "Référence",
+    occurredAt: "Date",
+    beneficiary: "Bénéficiaire",
+    category: "Rubrique",
+    recordedBy: "Saisie par",
+    reversalOf: "Annulation",
+    collectedToday: "Encaissé aujourd'hui",
+    disbursedToday: "Décaissé aujourd'hui",
+
+    // ── Encaissement ────────────────────────────────────────────────────────
+    encaissement: "Encaissement",
+    encaissementSubtitle:
+      "Encaissez un règlement en choisissant exactement les échéances qu'il solde.",
+    family: "Famille",
+    selectFamily: "Choisir une famille",
+    selectFamilyHint:
+      "Le reçu est établi au nom du foyer : un seul règlement peut solder plusieurs enfants.",
+    noFamilySelected: "Choisissez une famille pour voir ce qui reste dû.",
+    nothingOwed: "Cette famille ne doit rien pour l'année en cours.",
+    owes: "Reste dû",
+    owesTotal: "Total restant dû",
+    selected: "Sélectionné",
+    selectAll: "Tout sélectionner",
+    clearSelection: "Vider",
+    payFull: "Solder",
+    monthColumn: "Mois",
+    charge: "Frais",
+    alreadyPaid: "Réglé",
+    remaining: "Restant",
+    partAmount: "Règlement partiel",
+    tenders: "Mode de règlement",
+    tendersHint:
+      "Une ligne par mode de règlement — espèces et chèque font un seul reçu.",
+    addTender: "Ajouter un mode de règlement",
+    removeTender: "Retirer",
+    tendersMustMatch: "Le montant remis doit correspondre au montant soldé.",
+    amountRequired: "Saisissez un montant.",
+    nothingSelected: "Sélectionnez au moins une échéance à solder.",
+    chequeNumberRequired: "Le numéro du chèque est obligatoire.",
+    chequeNumber: "N° de chèque",
+    chequeDueOn: "Échéance",
+    drawerName: "Tireur",
+    bankName: "Banque",
+    paidAt: "Réglé le",
+    recordPayment: "Enregistrer l'encaissement",
+    paymentRecorded: "Reçu {code} enregistré.",
+    lineAlreadySettled:
+      "Une des échéances vient d'être soldée par quelqu'un d'autre. Rechargez la page.",
+    receipts: "Reçus",
+    receipt: "Reçu",
+    noReceipts: "Aucun encaissement pour l'instant.",
+    cancelPayment: "Annuler le reçu",
+    cancelPaymentTitle: "Annuler ce reçu ?",
+    cancelPaymentBody:
+      "« {code} » cessera de compter et les échéances soldées redeviendront dues. Le reçu lui-même est conservé.",
+    paymentCancelled: "Reçu annulé.",
+    alreadyCancelled: "Ce reçu est déjà annulé.",
+    cancelReason: "Motif",
+    notes: "Remarques",
+
+    // ── Décaissement ────────────────────────────────────────────────────────
+    decaissement: "Décaissement",
+    decaissementSubtitle: "Sortez de l'argent et indiquez à quoi il a servi.",
+    beneficiaryName: "Bénéficiaire",
+    beneficiaryHint: "Un membre du personnel, un fournisseur, un bailleur.",
+    expenseCategory: "Rubrique",
+    labelHint: "L'objet de la dépense, en quelques mots.",
+    recordDisbursement: "Enregistrer le décaissement",
+    disbursementRecorded: "Décaissement enregistré.",
+    insufficientCash: "La caisse ne contient que {amount} MAD.",
+    noCategories: "Aucune rubrique de dépense n'a encore été créée.",
+
+    // ── Transfert ───────────────────────────────────────────────────────────
+    transfert: "Transfert",
+    transfertSubtitle:
+      "Déplacez des espèces d'une caisse à l'autre, ou vers la banque.",
+    from: "Depuis",
+    to: "Vers",
+    target: "Destination",
+    targetRegister: "Une autre caisse",
+    targetBank: "La banque",
+    bankAccount: "Compte bancaire",
+    bankAccountHint: "Le compte sur lequel les espèces ont été versées.",
+    sameRegister: "Choisissez une autre caisse.",
+    recordTransfer: "Enregistrer le transfert",
+    transferRecorded: "Transfert enregistré.",
+    transferPendingReceipt:
+      "Transfert enregistré. Le montant apparaîtra dans l'autre caisse à son ouverture.",
+
+    // ── Chèques ─────────────────────────────────────────────────────────────
+    cheques: "Suivi chèques",
+    chequesSubtitle: "Ce qui est en portefeuille, remis en banque, ou impayé.",
+    noCheques: "Aucun chèque suivi.",
+    chequeDirection: "Sens",
+    number: "Numéro",
+    dueOn: "Échéance",
+    depositedOn: "Remis le",
+    settledOn: "Sort le",
+    bounceReason: "Motif de rejet",
+    markDeposited: "Marquer remis en banque",
+    markCashed: "Marquer encaissé",
+    markBounced: "Marquer impayé",
+    markReturned: "Restituer",
+    chequeUpdated: "Chèque mis à jour.",
+    bouncedWarning:
+      "Déclarer ce chèque impayé annule le reçu qu'il a réglé : les échéances redeviennent dues.",
+    chequesPending: "Chèques en portefeuille",
+    chequesBounced: "Impayés",
+    dueSoon: "Échéance proche",
+    overdue: "En retard",
+    overdueLabel: "Échu, non remis",
+    standing: "Situation de paiement",
+    upToDate: "À jour",
+    overdueBy: "{amount} en retard",
+    charged: "Facturé",
+    collectNow: "Encaisser",
+    noScheduleYet: "Aucun échéancier n'a encore été généré pour cet élève.",
+    paidOfCharged: "{paid} réglés sur {charged}",
+    linesSettled: "{settled} échéances soldées sur {total}",
+    lastPaid: "dernier règlement",
+  },
+  treasuryOptions: {
+    kinds: {
+      ENCAISSEMENT: "Encaissement",
+      DECAISSEMENT: "Décaissement",
+      TRANSFERT: "Transfert",
+    },
+    methods: {
+      CASH: "Espèces",
+      CHEQUE: "Chèque",
+      BANK_TRANSFER: "Virement bancaire",
+      MIXED: "Mixte",
+    },
+    sessionStatuses: {
+      OPEN: "Ouverte",
+      CLOSED: "Fermée",
+    },
+    operationStatuses: {
+      POSTED: "Validée",
+      CANCELLED: "Annulée",
+    },
+    chequeDirections: {
+      INCOMING: "Reçu",
+      OUTGOING: "Émis",
+    },
+    chequeStatuses: {
+      PENDING: "En portefeuille",
+      DEPOSITED: "Remis en banque",
+      CASHED: "Encaissé",
+      BOUNCED: "Impayé",
+      RETURNED: "Restitué",
+      CANCELLED: "Annulé",
+    },
+    transferTargets: {
+      REGISTER: "Une autre caisse",
+      BANK: "La banque",
+    },
+  },
+};
+
+export const nav = {
+  treasury: "Caisse",
+  encaissement: "Encaissement",
+  decaissement: "Décaissement",
+  transfert: "Transfert",
+  cheques: "Suivi chèques",
+};
+
+export const permissions = {
+  groups: {
+    treasury: "Caisse",
+  },
+  codes: {
+    "treasury.view": "Consulter la caisse",
+    "treasury.session": "Ouvrir et fermer les caisses",
+    "treasury.collect": "Encaisser",
+    "treasury.disburse": "Décaisser",
+    "treasury.transfer": "Transférer des espèces",
+    "treasury.cheques": "Suivre les chèques",
+    "treasury.cancel": "Annuler des reçus",
+  },
+};
+
+export default fr;

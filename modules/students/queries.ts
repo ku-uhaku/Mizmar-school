@@ -7,6 +7,7 @@ import {
   workflowStateOf,
   type StudentWorkflowStep,
 } from "@/modules/students/enums";
+import { studentPaymentStanding } from "@/modules/treasury/queries";
 
 /**
  * Reads for the students module.
@@ -208,11 +209,17 @@ export async function loadStudentWorkflow(
 
   const enrolment = student?.enrollments[0] ?? null;
 
+  // Collection is the treasury's to answer — read through its own query rather
+  // than summing its tables here, so the parcours and the caisse can never
+  // disagree about whether a family is behind.
+  const standing = await studentPaymentStanding(context, studentId);
+
   return workflowStateOf({
     hasFamily: Boolean(student?.familyId),
     hasEnrolment: enrolment !== null,
     hasClass: Boolean(enrolment?.schoolClassId),
     hasFees: (enrolment?._count.fees ?? 0) > 0,
+    isUpToDate: standing.isUpToDate,
   });
 }
 

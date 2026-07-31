@@ -108,12 +108,11 @@ export function StudentForm({
     "medicalNotes",
     "notes",
   ];
+  // A validation error the user cannot see is a dead end, so an error on a
+  // folded-away field forces the panel open rather than waiting to be asked.
   const hasHiddenError = detailFields.some((name) => name in errors);
-  const [showDetails, setShowDetails] = React.useState(isEdit);
-
-  React.useEffect(() => {
-    if (hasHiddenError) setShowDetails(true);
-  }, [hasHiddenError]);
+  const [expanded, setExpanded] = React.useState(isEdit);
+  const showDetails = expanded || hasHiddenError;
 
   const details = (
     <>
@@ -446,7 +445,7 @@ export function StudentForm({
         {isEdit ? (
           details
         ) : (
-          <Collapsible open={showDetails} onOpenChange={setShowDetails}>
+          <Collapsible open={showDetails} onOpenChange={setExpanded}>
             <CollapsibleTrigger asChild>
               <Button
                 type="button"

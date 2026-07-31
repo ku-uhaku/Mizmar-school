@@ -96,6 +96,14 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASS_ASSIGN_TEACHER,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
+      // The whole caisse: a head runs the tills, pays out and answers for both.
+      PERMISSIONS.TREASURY_VIEW,
+      PERMISSIONS.TREASURY_SESSION,
+      PERMISSIONS.TREASURY_COLLECT,
+      PERMISSIONS.TREASURY_DISBURSE,
+      PERMISSIONS.TREASURY_TRANSFER,
+      PERMISSIONS.TREASURY_CHEQUES,
+      PERMISSIONS.TREASURY_CANCEL,
     ],
   },
   {
@@ -122,6 +130,14 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ROSTER,
       PERMISSIONS.TIMETABLE_VIEW,
+      // Takes money at the desk and holds the drawer for the shift — but may
+      // not pay any out, move it, or cancel a receipt once written. That
+      // separation is the whole of a small school's internal control, and it is
+      // why those codes exist apart from TREASURY_COLLECT.
+      PERMISSIONS.TREASURY_VIEW,
+      PERMISSIONS.TREASURY_SESSION,
+      PERMISSIONS.TREASURY_COLLECT,
+      PERMISSIONS.TREASURY_CHEQUES,
     ],
   },
   {

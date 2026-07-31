@@ -30,6 +30,10 @@ model SchoolYear {
   /// The pupils inscribed for this year.
   enrollments Enrollment[]
 
+  /// Money collected against this year. Restrict on the other side: a year with
+  /// receipts against it is closed history.
+  payments Payment[]
+
   @@unique([schoolId, name])
   @@index([schoolId])
   @@map("school_years")

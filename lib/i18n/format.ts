@@ -60,6 +60,32 @@ export function formatNumber(value: number, locale: Locale): string {
   return new Intl.NumberFormat(intlLocale(locale)).format(value);
 }
 
+/**
+ * "September 2025" — the label for a column or card standing for a whole month.
+ *
+ * Takes the month 1-based, as the schedule's `dueMonth` stores it, rather than
+ * a Date: the callers have a year and a month and would otherwise each invent
+ * their own off-by-one when constructing one.
+ */
+export function formatMonth(
+  year: number,
+  month: number,
+  locale: Locale,
+): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+/** An amount of money, from centimes, without the currency symbol. */
+export function formatAmount(centimes: number, locale: Locale): string {
+  return new Intl.NumberFormat(intlLocale(locale), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(centimes / 100);
+}
+
 /** `<input type="date">` needs a plain YYYY-MM-DD value, never a localised one. */
 export function toDateInputValue(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;

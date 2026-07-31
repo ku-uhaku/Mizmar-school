@@ -1,0 +1,65 @@
+/// One opening of a till, from the moment it is unlocked to the moment it is
+/// counted and closed. Every cash movement belongs to exactly one of these.
+///
+/// A session is the unit a cashier is answerable for. That is why the counted
+/// amount is stored beside the expected one rather than being reconciled away:
+/// a drawer that is forty dirhams short at six o'clock is a fact about that
+/// shift, and overwriting it with the expected figure would destroy the only
+/// evidence there was ever a discrepancy.
+model CashSession {
+  id             String       @id @default(cuid())
+  cashRegisterId String
+  cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+
+  /// Restrict on both: a cashier with sessions in the ledger cannot be deleted
+  /// out from under them, because "who held the drawer" is the whole point.
+  openedById String
+  openedBy   User   @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  openedAt   DateTime @default(now())
+
+  /// The fond de caisse the drawer starts with, counted in.
+  openingFloatCentimes Int @default(0)
+
+  closedById String?
+  closedBy   User?     @relation("SessionClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
+  closedAt   DateTime?
+
+  /// What the cashier actually counted at closing. Null while open.
+  countedCentimes Int?
+
+  /// What the ledger says should have been there: the float plus every posted
+  /// cash movement. Frozen at closing rather than recomputed on read — a
+  /// cancellation booked the next day must not retroactively change what the
+  /// drawer was expected to hold when it was counted.
+  expectedCentimes Int?
+
+  /// counted − expected. Negative is a shortfall. Stored so it can be reported
+  /// on without every reader repeating the subtraction.
+  varianceCentimes Int?
+
+  /// "OPEN" | "CLOSED" — see modules/treasury/enums.ts.
+  status String @default("OPEN")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  operations CashOperation[]
+  payments   Payment[]
+
+  /// A till may have only one session open at a time — taking money into a
+  /// drawer that is open twice makes the count meaningless.
+  ///
+  /// INVARIANT (service layer): always `openSessionKey(cashRegisterId, status)`
+  /// from modules/treasury/enums.ts — the register's id while OPEN, null once
+  /// CLOSED. SQLite treats NULLs as distinct in a unique index, so every closed
+  /// session is exempt while at most one open one is allowed. See lib/db-keys.ts
+  /// for why the constraint cannot simply name `status`.
+  openKey String? @unique
+
+  @@index([cashRegisterId])
+  @@index([status])
+  @@index([openedAt])
+  @@map("cash_sessions")
+}

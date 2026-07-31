@@ -17,6 +17,8 @@ import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
 import { StudentWorkflow } from "@/modules/students/components/student-workflow";
 import { findStudent, loadStudentWorkflow } from "@/modules/students/queries";
+import { studentPaymentStanding } from "@/modules/treasury/queries";
+import { STUDENT_WORKFLOW_STEPS } from "@/modules/students/enums";
 import {
   loadClassTimetable,
   loadTimetableChoices,
@@ -49,6 +51,10 @@ export default async function StudentPage({
   const student = await findStudent(context, studentId);
   if (!student) notFound();
 
+  // Money is gated separately from the pupil's file: a teacher may read a
+  // child's record without learning whether their family is behind on fees.
+  const canSeeMoney = context.can(PERMISSIONS.TREASURY_VIEW);
+
   const [workflow, enrolment, choices, families] = await Promise.all([
     loadStudentWorkflow(context, student.id),
     findEnrolment(context, student.id),
@@ -58,7 +64,7 @@ export default async function StudentPage({
 
   // The rest depends on what the first round found: no dossier means no
   // guardians to load, no class means no week to draw.
-  const [family, feeGrid, timetable, timetableChoices] = await Promise.all([
+  const [family, feeGrid, timetable, timetableChoices, standing] = await Promise.all([
     student.familyId ? findFamily(context, student.familyId) : null,
     enrolment ? loadFeeGrid(context, enrolment.id) : null,
     enrolment?.schoolClassId
@@ -67,6 +73,7 @@ export default async function StudentPage({
     enrolment?.schoolClassId
       ? loadTimetableChoices(context, enrolment.schoolClassId)
       : null,
+    canSeeMoney ? studentPaymentStanding(context, student.id) : null,
   ]);
 
   return (
@@ -87,7 +94,14 @@ export default async function StudentPage({
       </PageHeader>
 
       <div className="mb-4">
-        <StudentWorkflow state={workflow} />
+        <StudentWorkflow
+          state={workflow}
+          steps={
+            canSeeMoney
+              ? STUDENT_WORKFLOW_STEPS
+              : STUDENT_WORKFLOW_STEPS.filter((step) => step !== "PAYMENT")
+          }
+        />
       </div>
 
       <StudentProfile
@@ -112,6 +126,7 @@ export default async function StudentPage({
         discounts={choices.discounts}
         timetable={timetable}
         timetableChoices={timetableChoices}
+        standing={standing}
         permissions={{
           canUpdateStudent: context.can(PERMISSIONS.STUDENT_UPDATE),
           canManageFamily: context.can(PERMISSIONS.FAMILY_UPDATE),
@@ -119,6 +134,7 @@ export default async function StudentPage({
           canUpdateEnrolment: context.can(PERMISSIONS.ENROLMENT_UPDATE),
           canDeleteEnrolment: context.can(PERMISSIONS.ENROLMENT_DELETE),
           canManageFees: context.can(PERMISSIONS.ENROLMENT_FEES),
+          canCollect: context.can(PERMISSIONS.TREASURY_COLLECT),
         }}
       />
     </>

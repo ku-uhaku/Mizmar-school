@@ -13,7 +13,7 @@ import {
 } from "@/modules/students/enums";
 
 /**
- * The parcours: file → family → enrolment → class → fees.
+ * The parcours: file → family → enrolment → class → fees → up to date.
  *
  * Its job is to answer "what is missing on this child?" at a glance, which is
  * the question a secretary actually has in front of them. Every step is read
@@ -22,14 +22,20 @@ import {
  *
  * Steps after the first gap are drawn as pending rather than as errors — a file
  * opened this morning is not wrong for having no fees yet.
+ *
+ * `steps` is narrowed by the caller rather than always being the full list:
+ * whether a family is behind on its payments is money, and a teacher who may
+ * view a pupil has no business reading it off their parcours.
  */
 export function StudentWorkflow({
   state,
+  steps = STUDENT_WORKFLOW_STEPS,
 }: {
   state: Record<StudentWorkflowStep, boolean>;
+  steps?: readonly StudentWorkflowStep[];
 }) {
   const t = useT();
-  const next = nextWorkflowStep(state);
+  const next = nextWorkflowStep(state, steps);
 
   return (
     <div className="bg-card rounded-xl p-4 ring-1 ring-foreground/10">
@@ -47,7 +53,7 @@ export function StudentWorkflow({
       </div>
 
       <ol className="flex flex-wrap items-center gap-x-1 gap-y-3">
-        {STUDENT_WORKFLOW_STEPS.map((step, index) => {
+        {steps.map((step, index) => {
           const done = state[step];
           const isNext = step === next;
 
@@ -76,7 +82,7 @@ export function StudentWorkflow({
               </div>
 
               {/* Connector, omitted after the last step. */}
-              {index < STUDENT_WORKFLOW_STEPS.length - 1 ? (
+              {index < steps.length - 1 ? (
                 <span
                   aria-hidden
                   className={cn(

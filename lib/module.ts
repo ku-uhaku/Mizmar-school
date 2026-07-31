@@ -36,10 +36,20 @@ export type NavIcon =
   | "students"
   | "families"
   | "classes"
-  | "timetable";
+  | "timetable"
+  | "cashRegister"
+  | "encaissement"
+  | "decaissement"
+  | "transfert"
+  | "cheques";
 
 /** Where a nav entry sits in the sidebar. Rendered in this order. */
-export const NAV_SECTIONS = ["main", "administration", "account"] as const;
+export const NAV_SECTIONS = [
+  "main",
+  "finance",
+  "administration",
+  "account",
+] as const;
 export type NavSection = (typeof NAV_SECTIONS)[number];
 
 export type NavEntry = {

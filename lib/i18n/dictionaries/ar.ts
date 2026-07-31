@@ -53,6 +53,10 @@ import timetable, {
   nav as timetableNav,
   permissions as timetablePermissions,
 } from "@/modules/timetable/i18n/ar";
+import treasury, {
+  nav as treasuryNav,
+  permissions as treasuryPermissions,
+} from "@/modules/treasury/i18n/ar";
 
 /**
  * Arabic. Assembled exactly like `en.ts` — see that file for the registration
@@ -84,6 +88,9 @@ const ar: Dictionary = {
   ...classes,
   ...timetable,
 
+  // Caisse.
+  ...treasury,
+
   nav: {
     ...coreNav,
     ...dashboardNav,
@@ -100,6 +107,7 @@ const ar: Dictionary = {
     ...studentsNav,
     ...classesNav,
     ...timetableNav,
+    ...treasuryNav,
   },
   permissions: {
     groups: {
@@ -115,6 +123,7 @@ const ar: Dictionary = {
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...timetablePermissions.groups,
+      ...treasuryPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -129,6 +138,7 @@ const ar: Dictionary = {
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...timetablePermissions.codes,
+      ...treasuryPermissions.codes,
     },
   },
 };

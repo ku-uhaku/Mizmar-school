@@ -20,6 +20,8 @@ import type {
 import { StudentForm } from "@/modules/students/components/student-form";
 import { StudentFamilyPanel } from "@/modules/students/components/student-family-panel";
 import type { StudentDetail } from "@/modules/students/queries";
+import { StudentPaymentPanel } from "@/modules/treasury/components/student-payment-panel";
+import type { PaymentStanding } from "@/modules/treasury/queries";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableChoices } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableGrid as TimetableGridData } from "@/modules/timetable/queries";
@@ -48,6 +50,7 @@ export function StudentProfile({
   discounts,
   timetable,
   timetableChoices,
+  standing,
   permissions,
 }: {
   student: StudentDetail;
@@ -74,6 +77,8 @@ export function StudentProfile({
   }[];
   timetable: TimetableGridData | null;
   timetableChoices: TimetableChoices | null;
+  /** Null when the viewer may not see money — see the page. */
+  standing: PaymentStanding | null;
   permissions: {
     canUpdateStudent: boolean;
     canManageFamily: boolean;
@@ -81,6 +86,7 @@ export function StudentProfile({
     canUpdateEnrolment: boolean;
     canDeleteEnrolment: boolean;
     canManageFees: boolean;
+    canCollect: boolean;
   };
 }) {
   const t = useT();
@@ -139,12 +145,23 @@ export function StudentProfile({
 
       <TabsContent value="fees">
         {enrolment && feeGrid ? (
-          <FeeGrid
-            grid={feeGrid}
-            enrollmentId={enrolment.id}
-            discounts={discounts}
-            canManage={permissions.canManageFees}
-          />
+          <div className="space-y-4">
+            {/* What is owed sits above what is charged: the first question at
+                the desk is "où en sont-ils ?", not "combien coûte l'année ?". */}
+            {standing ? (
+              <StudentPaymentPanel
+                standing={standing}
+                familyId={student.familyId}
+                canCollect={permissions.canCollect}
+              />
+            ) : null}
+            <FeeGrid
+              grid={feeGrid}
+              enrollmentId={enrolment.id}
+              discounts={discounts}
+              canManage={permissions.canManageFees}
+            />
+          </div>
         ) : (
           <Card>
             <CardContent className="p-0">

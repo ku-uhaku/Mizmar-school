@@ -86,6 +86,12 @@ model EnrollmentFee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// What has been paid against this line. Reason 3 in the note above, now
+  /// built — see prisma/schema/treasury/payment-allocation.prisma. Restrict on
+  /// the other side: a line that has been paid against cannot be deleted out
+  /// from under its receipt.
+  allocations PaymentAllocation[]
+
   /// One line per charge per instalment. This is what makes generating the
   /// schedule idempotent: re-running it upserts instead of doubling the year.
   @@unique([enrollmentId, feeTypeId, periodIndex])

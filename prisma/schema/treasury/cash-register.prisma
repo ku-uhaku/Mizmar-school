@@ -1,0 +1,36 @@
+/// A till: the physical point at which the school takes and pays out money.
+///
+/// A school runs one in the ordinary case and several when it collects at more
+/// than one desk — the front office and the bursar's office keep separate
+/// drawers, count them separately, and hand over between them (see the TRANSFERT
+/// operations in cash-operation.prisma).
+///
+/// The register itself holds no balance. A balance is only ever the opening
+/// float of a session plus the cash movements posted into it, which is what
+/// makes a count at closing time checkable rather than asserted.
+model CashRegister {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "PRINCIPALE", "SECONDAIRE".
+  code   String
+  name   String
+  nameAr String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions CashSession[]
+  /// Transfers whose other end is this till — see `counterpartRegisterId`.
+  counterpartOf CashOperation[] @relation("OperationCounterpartRegister")
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("cash_registers")
+}

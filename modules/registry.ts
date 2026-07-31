@@ -30,6 +30,8 @@ import { studentsModule } from "@/modules/students/module";
 import { STUDENT_PERMISSIONS } from "@/modules/students/permissions";
 import { timetableModule } from "@/modules/timetable/module";
 import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
+import { treasuryModule } from "@/modules/treasury/module";
+import { TREASURY_PERMISSIONS } from "@/modules/treasury/permissions";
 import { usersModule } from "@/modules/users/module";
 import { USER_PERMISSIONS } from "@/modules/users/permissions";
 
@@ -83,6 +85,12 @@ export const MODULES: readonly AppModule[] = [
   classesModule,
   timetableModule,
 
+  // ── Caisse ────────────────────────────────────────────────────────────────
+  // The money side of the year: the tills, the receipts that settle the fee
+  // schedules `enrolment` raises, and everything paid out. Billing declares what
+  // is owed; this decides what has actually been paid.
+  treasuryModule,
+
   // Academic configuration. Tables and enums only — edited through the generic
   // configuration screens, so they contribute no nav entry and no permissions.
   academicsModule,
@@ -116,4 +124,5 @@ export const PERMISSIONS = {
   ...ENROLMENT_PERMISSIONS,
   ...CLASS_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
+  ...TREASURY_PERMISSIONS,
 } as const;

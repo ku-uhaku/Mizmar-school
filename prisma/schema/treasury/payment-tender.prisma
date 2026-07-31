@@ -1,0 +1,41 @@
+/// One form of money making up a receipt: the cash part, the cheque part, the
+/// virement part.
+///
+/// This table is what "espèces + chèque" is. A method column on the payment
+/// itself could only ever name one of them, so a family handing over 500 in
+/// notes and a 1 500 cheque would have to be recorded as two receipts — two
+/// numbers for one transaction, and a cheque to follow up that is attached to
+/// only half of what was paid. One row per form of money, summing to the
+/// receipt's total, keeps the transaction whole.
+///
+/// It is also what decides how much of a payment touches the drawer: only the
+/// CASH tenders do, which is why a till count and the day's takings are
+/// different numbers and both are right.
+model PaymentTender {
+  id        String  @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  /// "CASH" | "CHEQUE" | "BANK_TRANSFER" — see modules/treasury/enums.ts.
+  /// Never MIXED: mixing is what having several of these rows *is*.
+  method String
+
+  amountCentimes Int
+
+  /// The virement reference or the transfer slip number. A cheque's details
+  /// live on the cheque itself, not here.
+  reference String?
+
+  bankName String?
+
+  /// Set when `method` is CHEQUE. SetNull so a cheque record can be detached
+  /// without destroying the receipt it paid.
+  chequeId String? @unique
+  cheque   Cheque? @relation(fields: [chequeId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+  @@map("payment_tenders")
+}

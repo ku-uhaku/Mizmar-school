@@ -1,0 +1,78 @@
+/// A receipt: one family handing over money on one day, settling whichever
+/// schedule lines they chose to settle.
+///
+/// ── Why the receipt is made out to the family, not the pupil ─────────────────
+/// A parent with three children at the school pays once and expects one piece
+/// of paper. Modelling the receipt against the pupil would force that into three
+/// transactions, three receipt numbers and three trips to the desk — so the
+/// payment belongs to the family, and which children it settles is a property of
+/// its allocations (see payment-allocation.prisma). Paying for one child is the
+/// same shape with one child in it.
+///
+/// The receipt carries no method of its own: what it was paid *with* lives in
+/// its tenders, one per form of money, which is what makes "500 en espèces et le
+/// reste par chèque" a single receipt instead of two.
+///
+/// A posted payment is never edited or deleted. Cancelling writes a reversing
+/// operation and flips the status — see cash-operation.prisma.
+model Payment {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// The year the money is collected against. Kept even though the schedule
+  /// lines imply it: the takings report is per year, and it must not have to
+  /// walk two joins to find out which one a receipt belongs to.
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
+
+  /// Who paid. SetNull rather than Cascade: deleting a family file must never
+  /// silently destroy the record of money it handed over.
+  familyId String?
+  family   Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+
+  /// Receipt number, e.g. "R-2025-0187". Allocated per school.
+  code String
+
+  paidAt DateTime @default(now())
+
+  /// The whole receipt, in centimes.
+  ///
+  /// INVARIANT (service layer): equals the sum of its tenders, and equals the
+  /// sum of its allocations. A receipt whose parts disagree with its total is a
+  /// dispute with a parent that nobody can settle.
+  totalCentimes Int
+
+  /// "POSTED" | "CANCELLED" — see modules/treasury/enums.ts.
+  status String @default("POSTED")
+
+  cancelledAt   DateTime?
+  cancelReason  String?
+
+  /// The till session the money was taken in. Null when no drawer was involved
+  /// — a virement that landed in the bank account.
+  cashSessionId String?
+  cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+
+  /// Restrict: a receipt must always be able to say who wrote it.
+  createdById String
+  createdBy   User   @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenders     PaymentTender[]
+  allocations PaymentAllocation[]
+  operation   CashOperation?
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([schoolYearId])
+  @@index([familyId])
+  @@index([cashSessionId])
+  @@index([schoolId, paidAt])
+  @@index([schoolId, status])
+  @@map("payments")
+}

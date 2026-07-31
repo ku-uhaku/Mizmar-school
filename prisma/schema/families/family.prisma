@@ -51,6 +51,10 @@ model Family {
   guardians Guardian[]
   children  Student[]
 
+  /// Receipts made out to this household. One of them may settle several
+  /// children at once — see prisma/schema/treasury/payment.prisma.
+  payments Payment[]
+
   @@unique([schoolId, code])
   @@index([schoolId])
   @@index([schoolId, name])

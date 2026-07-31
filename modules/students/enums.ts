@@ -85,6 +85,7 @@ export const STUDENT_WORKFLOW_STEPS = [
   "ENROLMENT",
   "CLASS",
   "FEES",
+  "PAYMENT",
 ] as const;
 export type StudentWorkflowStep = (typeof STUDENT_WORKFLOW_STEPS)[number];
 
@@ -98,6 +99,17 @@ export function workflowStateOf(input: {
   hasEnrolment: boolean;
   hasClass: boolean;
   hasFees: boolean;
+  /**
+   * Nothing already due has gone unpaid — see `PaymentStanding.overdueCentimes`
+   * in modules/treasury/queries.ts.
+   *
+   * Deliberately *not* "the year is paid in full". Scolarité is collected in
+   * nine or ten instalments, so a family that has never missed one still owes
+   * most of the year until June; marking that step incomplete would leave the
+   * parcours red for every pupil in the school, all year, and a warning that is
+   * always on is a warning nobody reads.
+   */
+  isUpToDate: boolean;
 }): Record<StudentWorkflowStep, boolean> {
   return {
     // The file exists — the pupil is being looked at, so this is always done.
@@ -106,12 +118,21 @@ export function workflowStateOf(input: {
     ENROLMENT: input.hasEnrolment,
     CLASS: input.hasClass,
     FEES: input.hasFees,
+    // Nothing to collect yet is not the same as being behind: an échéancier
+    // that does not exist cannot be in arrears.
+    PAYMENT: input.hasFees && input.isUpToDate,
   };
 }
 
-/** The first step not yet done, or null when the parcours is complete. */
+/**
+ * The first step not yet done, or null when the parcours is complete.
+ *
+ * `steps` narrows the list to the ones the viewer may see, so a reader without
+ * access to the caisse is never told the next thing to do is chase a payment.
+ */
 export function nextWorkflowStep(
   state: Record<StudentWorkflowStep, boolean>,
+  steps: readonly StudentWorkflowStep[] = STUDENT_WORKFLOW_STEPS,
 ): StudentWorkflowStep | null {
-  return STUDENT_WORKFLOW_STEPS.find((step) => !state[step]) ?? null;
+  return steps.find((step) => !state[step]) ?? null;
 }

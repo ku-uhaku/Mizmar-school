@@ -70,6 +70,7 @@ const core = {
 /** Sidebar section titles. Modules contribute the entries inside them. */
 export const nav = {
   main: "Main",
+  finance: "Cash desk",
   administration: "Administration",
   account: "Account",
 } as const;
