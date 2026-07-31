@@ -8,6 +8,7 @@ import {
 } from "@/modules/profile/actions";
 import { BirthDateField } from "@/components/form/birth-date-field";
 import { FormField, controlProps } from "@/components/form/form-field";
+import { ImageField } from "@/components/form/image-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -127,19 +128,14 @@ export function ProfileDetailsForm({ profile }: { profile: ProfileValues }) {
             />
           </div>
 
-          <FormField
+          <ImageField
             name="avatarUrl"
             label={t.profile.avatarUrl}
+            kind="avatar"
+            defaultValue={profile.avatarUrl ?? ""}
             error={errors.avatarUrl}
-          >
-            <Input
-              {...controlProps("avatarUrl", errors.avatarUrl)}
-              type="url"
-              defaultValue={profile.avatarUrl ?? ""}
-              dir="ltr"
-              placeholder="https://…"
-            />
-          </FormField>
+            fallback={`${profile.firstName[0] ?? ""}${profile.lastName[0] ?? ""}`.toUpperCase()}
+          />
 
           <FormField name="bio" label={t.profile.bio} error={errors.bio}>
             <Textarea

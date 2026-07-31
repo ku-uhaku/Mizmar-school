@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { interpolate } from "@/lib/i18n/format";
+import { isDisplayableImage } from "@/lib/images";
 
 export type SchoolRow = {
   id: string;
@@ -41,6 +42,7 @@ export type SchoolRow = {
   email: string | null;
   phone: string | null;
   website: string | null;
+  logoUrl: string | null;
   addressLine: string | null;
   city: string | null;
   region: string | null;
@@ -98,9 +100,19 @@ export function SchoolsManager({
 
           return (
             <div className="flex min-w-0 items-center gap-3">
-              <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
-                <SchoolIcon className="size-4" />
-              </div>
+              {/* The crest when there is one, the generic mark otherwise. */}
+              {isDisplayableImage(school.logoUrl) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={school.logoUrl as string}
+                  alt=""
+                  className="bg-background size-9 shrink-0 rounded-lg border object-contain"
+                />
+              ) : (
+                <div className="bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg">
+                  <SchoolIcon className="size-4" />
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   {canEdit ? (

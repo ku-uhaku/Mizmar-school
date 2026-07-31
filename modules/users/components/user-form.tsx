@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { createUserAction, updateUserAction } from "@/modules/users/actions";
-import { AvatarUrlField } from "@/components/form/avatar-url-field";
+import { ImageField } from "@/components/form/image-field";
 import { BirthDateField } from "@/components/form/birth-date-field";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { FormActions, FormGrid, FormLayout, FormSection } from "@/components/form/form-page";
@@ -216,7 +216,10 @@ export function UserForm({
               error={errors.birthDate}
             />
 
-            <AvatarUrlField
+            <ImageField
+              name="avatarUrl"
+              label={t.profile.avatarUrl}
+              kind="avatar"
               defaultValue={user?.avatarUrl ?? ""}
               error={errors.avatarUrl}
               fallback={initials}

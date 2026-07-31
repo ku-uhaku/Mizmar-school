@@ -27,6 +27,7 @@ const fr = {
     postalCode: "Code postal",
     country: "Pays",
     logoUrl: "URL du logo",
+    logoHint: "Affiché dans la barre latérale et sur vos documents.",
     updated: "Organisation mise à jour.",
     stats: "En bref",
   },

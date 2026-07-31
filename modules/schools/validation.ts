@@ -7,6 +7,7 @@ import {
   optionalEmail,
   optionalPositiveInt,
   optionalText,
+  optionalImage,
   optionalUrl,
   requiredText,
 } from "@/lib/validation";
@@ -26,6 +27,7 @@ export function schoolSchema(t: Dictionary) {
     email: optionalEmail(v),
     phone: optionalText(32),
     website: optionalUrl(v),
+    logoUrl: optionalImage(v),
     addressLine: optionalText(200),
     city: optionalText(80),
     region: optionalText(80),

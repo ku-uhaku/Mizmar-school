@@ -17,9 +17,16 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { isDisplayableImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
 
-export type SchoolOption = { id: string; name: string; code: string; city: string | null };
+export type SchoolOption = {
+  id: string;
+  name: string;
+  code: string;
+  city: string | null;
+  logoUrl: string | null;
+};
 export type YearOption = { id: string; name: string; status: string; isDefault: boolean };
 
 /**
@@ -89,6 +96,16 @@ export function ContextSwitcher({
                       }
                     }}
                   >
+                    {/* The crest makes a list of similarly-named schools
+                        scannable at a glance, which is the whole job here. */}
+                    {isDisplayableImage(school.logoUrl) ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={school.logoUrl as string}
+                        alt=""
+                        className="bg-background size-6 shrink-0 rounded border object-contain"
+                      />
+                    ) : null}
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate">{school.name}</span>
                       <span className="text-muted-foreground truncate text-xs">

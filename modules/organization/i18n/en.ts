@@ -27,6 +27,7 @@ const en = {
     postalCode: "Postal code",
     country: "Country",
     logoUrl: "Logo URL",
+    logoHint: "Shown in the sidebar and on your paperwork.",
     updated: "Organisation updated.",
     stats: "At a glance",
   },

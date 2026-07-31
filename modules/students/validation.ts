@@ -6,8 +6,8 @@ import {
   dateField,
   enumField,
   optionalText,
-  optionalUrl,
   requiredText,
+  optionalImage,
 } from "@/lib/validation";
 import { GENDERS } from "@/modules/students/enums";
 
@@ -39,7 +39,7 @@ export function studentSchema(t: Dictionary) {
       birthPlaceAr: optionalText(120),
       nationality: countryField(v),
       nationalId: optionalText(32),
-      photoUrl: optionalUrl(v),
+      photoUrl: optionalImage(v),
       familyId: optionalText(40),
       entryDate: optionalText(40),
       medicalNotes: optionalText(2000),

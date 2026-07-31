@@ -7,6 +7,7 @@ import { GraduationCapIcon } from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
 import { NAV_ICONS } from "@/components/shell/nav-icon";
+import { isDisplayableImage } from "@/lib/images";
 import type { NavGroup } from "@/lib/nav";
 import {
   Sidebar,
@@ -28,12 +29,19 @@ import {
 export function AppSidebar({
   sections,
   organizationName,
+  logoUrl,
+  subtitle,
 }: {
   sections: NavGroup[];
   organizationName: string;
+  /** The school's crest, else the organisation's. Null falls back to the mark. */
+  logoUrl?: string | null;
+  /** The school in context, so the header says where you are working. */
+  subtitle?: string | null;
 }) {
   const t = useT();
   const pathname = usePathname();
+  const [logoBroken, setLogoBroken] = React.useState(false);
 
   /**
    * The single entry the current URL belongs to, decided by longest match.
@@ -65,15 +73,32 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/">
-                <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                  <GraduationCapIcon className="size-4" />
-                </div>
+                {/*
+                  `object-contain` on a fixed square, not `cover`: a school crest
+                  is rarely square and cropping one is how you cut the name off
+                  its own badge. The mark behind it is the fallback for an
+                  organisation that has not uploaded anything — and for a link
+                  that turns out to be dead.
+                */}
+                {isDisplayableImage(logoUrl) && !logoBroken ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl as string}
+                    alt=""
+                    className="bg-background size-8 shrink-0 rounded-lg object-contain"
+                    onError={() => setLogoBroken(true)}
+                  />
+                ) : (
+                  <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                    <GraduationCapIcon className="size-4" />
+                  </div>
+                )}
                 <div className="grid flex-1 text-start leading-tight">
                   <span className="truncate font-semibold">
                     {organizationName}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {t.nav.administration}
+                    {subtitle ?? t.nav.administration}
                   </span>
                 </div>
               </Link>

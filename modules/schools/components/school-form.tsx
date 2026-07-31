@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { createSchoolAction, updateSchoolAction } from "@/modules/schools/actions";
 import { FormField, controlProps } from "@/components/form/form-field";
+import { ImageField } from "@/components/form/image-field";
 import { FormActions, FormGrid, FormLayout, FormSection } from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -199,6 +200,16 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
               />
             </FormField>
           </FormGrid>
+
+          <ImageField
+            name="logoUrl"
+            label={t.school.logoUrl}
+            hint={t.school.logoHint}
+            kind="logo"
+            defaultValue={school?.logoUrl ?? ""}
+            error={errors.logoUrl}
+            fallback={(school?.code ?? school?.name ?? "?").slice(0, 2).toUpperCase()}
+          />
         </FormSection>
 
         <FormSection title={t.organization.address}>

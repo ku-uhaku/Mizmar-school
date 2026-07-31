@@ -38,6 +38,11 @@ export default async function DashboardLayout({
       <AppSidebar
         sections={sections}
         organizationName={context.organization.name}
+        // The school's crest when one is selected, the organisation's
+        // otherwise — the shell should look like wherever you are actually
+        // working, and a group with one brand simply never sets the school one.
+        logoUrl={context.currentSchool?.logoUrl ?? context.organization.logoUrl}
+        subtitle={context.currentSchool?.name ?? null}
       />
 
       <SidebarInset className="min-w-0">
@@ -51,6 +56,7 @@ export default async function DashboardLayout({
               name: school.name,
               code: school.code,
               city: school.city,
+              logoUrl: school.logoUrl,
             }))}
             years={context.schoolYears.map((year) => ({
               id: year.id,

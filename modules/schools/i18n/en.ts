@@ -21,6 +21,8 @@ const en = {
     email: "Email",
     phone: "Phone",
     website: "Website",
+    logoUrl: "Crest",
+    logoHint: "Shown in the sidebar while this school is selected.",
     addressLine: "Street address",
     city: "City",
     region: "Region",

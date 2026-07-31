@@ -2,6 +2,11 @@ import * as z from "zod";
 
 import { interpolate } from "@/lib/i18n/format";
 import type { Dictionary } from "@/lib/i18n/types";
+import {
+  checkImageValue,
+  formatImageSize,
+  MAX_IMAGE_BYTES,
+} from "@/lib/images";
 
 /**
  * Zod schemas are built per-request from the active dictionary so validation
@@ -44,6 +49,38 @@ export function optionalUrl(v: V) {
     .union([z.literal(""), z.url({ error: v.url })])
     .transform((value) => (value === "" ? null : value))
     .nullable();
+}
+
+/**
+ * An image column: an `https:` link, or a `data:` URI the picker produced.
+ *
+ * Not `optionalUrl`, which rejects a data URI outright — and which would let a
+ * `javascript:` URL through into an `src`. The rules live in lib/images.ts so
+ * the browser and the server measure the same thing.
+ */
+export function optionalImage(v: V) {
+  return z
+    .string()
+    .trim()
+    .transform((value) => (value === "" ? null : value))
+    .nullable()
+    .superRefine((value, ctx) => {
+      if (value === null) return;
+      const problem = checkImageValue(value);
+      if (problem === null) return;
+
+      ctx.addIssue({
+        code: "custom",
+        error:
+          problem === "too-large"
+            ? interpolate(v.imageTooLarge, {
+                max: formatImageSize(MAX_IMAGE_BYTES),
+              })
+            : problem === "not-an-image"
+              ? v.notAnImage
+              : v.url,
+      });
+    });
 }
 
 /** `<input type="number">` sends "" when cleared and a string otherwise. */

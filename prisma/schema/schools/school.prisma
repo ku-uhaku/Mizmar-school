@@ -14,6 +14,15 @@ model School {
   phone   String?
   website String?
 
+  /// The school's own crest, shown in the shell whenever this school is the
+  /// working context and printed on its paperwork.
+  ///
+  /// Either an `https:` URL or a `data:` URI — see lib/images.ts. A data URI
+  /// keeps the whole application in one SQLite file, which is what makes a
+  /// backup a single copy; the size cap in the validator is what stops that
+  /// convenience turning into a 10 MB row.
+  logoUrl String?
+
   addressLine String?
   city        String?
   region      String?

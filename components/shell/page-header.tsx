@@ -8,6 +8,7 @@ export function PageHeader({
   description,
   backHref,
   backLabel,
+  avatar,
   children,
 }: {
   title: string;
@@ -15,6 +16,13 @@ export function PageHeader({
   /** Renders a back link above the title — used by the full-page forms. */
   backHref?: string;
   backLabel?: string;
+  /**
+   * A portrait or crest beside the title, on the screens that are *about* one
+   * person or place. Left out everywhere else: a face on a list header would be
+   * decoration, and here it is identification — the secretary on the phone
+   * wants to be sure they have the right child open.
+   */
+  avatar?: React.ReactNode;
   /** Primary actions, rendered at the inline end. */
   children?: React.ReactNode;
 }) {
@@ -35,7 +43,8 @@ export function PageHeader({
       ) : null}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
+        {avatar ? <div className="shrink-0">{avatar}</div> : null}
+        <div className="min-w-0 flex-1 space-y-1">
           <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
             {title}
           </h1>

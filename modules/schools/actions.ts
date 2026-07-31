@@ -21,6 +21,7 @@ function readSchoolForm(formData: FormData) {
     email: field(formData, "email"),
     phone: field(formData, "phone"),
     website: field(formData, "website"),
+    logoUrl: field(formData, "logoUrl"),
     addressLine: field(formData, "addressLine"),
     city: field(formData, "city"),
     region: field(formData, "region"),

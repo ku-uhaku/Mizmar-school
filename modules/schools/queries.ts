@@ -23,6 +23,7 @@ export type SchoolRow = {
   email: string | null;
   phone: string | null;
   website: string | null;
+  logoUrl: string | null;
   addressLine: string | null;
   city: string | null;
   region: string | null;
@@ -53,6 +54,7 @@ function toRow(school: SchoolWithCounts): SchoolRow {
     email: school.email,
     phone: school.phone,
     website: school.website,
+    logoUrl: school.logoUrl,
     addressLine: school.addressLine,
     city: school.city,
     region: school.region,

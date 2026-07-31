@@ -4,6 +4,7 @@ import { useActionState } from "react";
 
 import { updateOrganizationAction } from "@/modules/organization/actions";
 import { FormField, controlProps } from "@/components/form/form-field";
+import { ImageField } from "@/components/form/image-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -140,19 +141,15 @@ export function OrganizationForm({
               </Select>
             </FormField>
 
-            <FormField
+            <ImageField
               name="logoUrl"
               label={t.organization.logoUrl}
+              hint={t.organization.logoHint}
+              kind="logo"
+              defaultValue={organization.logoUrl ?? ""}
               error={errors.logoUrl}
-            >
-              <Input
-                {...controlProps("logoUrl", errors.logoUrl)}
-                type="url"
-                defaultValue={organization.logoUrl ?? ""}
-                dir="ltr"
-                placeholder="https://…"
-              />
-            </FormField>
+              fallback={organization.name.slice(0, 2).toUpperCase()}
+            />
           </CardContent>
         </Card>
 

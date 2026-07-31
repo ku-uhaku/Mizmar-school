@@ -4,9 +4,9 @@ import type { Dictionary } from "@/lib/i18n/types";
 import {
   birthDateField,
   optionalText,
-  optionalUrl,
   password,
   requiredText,
+  optionalImage,
 } from "@/lib/validation";
 
 /** Built per-request from the dictionary so messages are localised. */
@@ -18,7 +18,7 @@ export function profileSchema(t: Dictionary) {
     phone: optionalText(32),
     jobTitle: optionalText(80),
     bio: optionalText(500),
-    avatarUrl: optionalUrl(v),
+    avatarUrl: optionalImage(v),
     birthDate: birthDateField(v),
   });
 }

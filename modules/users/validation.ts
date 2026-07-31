@@ -4,9 +4,9 @@ import type { Dictionary } from "@/lib/i18n/types";
 import {
   birthDateField,
   optionalText,
-  optionalUrl,
   password,
   requiredText,
+  optionalImage,
 } from "@/lib/validation";
 
 /** Membership rows arrive as `schoolId:roleId` pairs from the user form. */
@@ -35,7 +35,7 @@ export function userSchema(
     phone: optionalText(32),
     jobTitle: optionalText(80),
     birthDate: birthDateField(v),
-    avatarUrl: optionalUrl(v),
+    avatarUrl: optionalImage(v),
     orgRoleId: z
       .string()
       .transform((value) => (value === "" || value === "none" ? null : value))

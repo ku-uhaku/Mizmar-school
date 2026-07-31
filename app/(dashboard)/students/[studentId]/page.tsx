@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
@@ -91,6 +92,16 @@ export default async function StudentPage({
         description={student.code}
         backHref="/students"
         backLabel={t.student.title}
+        avatar={
+          <Avatar className="size-12 border">
+            {student.photoUrl ? (
+              <AvatarImage src={student.photoUrl} alt="" />
+            ) : null}
+            <AvatarFallback>
+              {`${student.firstName[0] ?? ""}${student.lastName[0] ?? ""}`.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        }
       >
         <StudentStatusBadge status={student.status} />
         {student.levelName ? (

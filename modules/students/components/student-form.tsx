@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChevronDownIcon, InfoIcon } from "lucide-react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
+import { ImageField } from "@/components/form/image-field";
 import {
   FormActions,
   FormGrid,
@@ -254,19 +255,14 @@ export function StudentForm({
           </FormField>
         </FormGrid>
 
-        <FormField
+        <ImageField
           name="photoUrl"
           label={t.student.photoUrl}
+          kind="avatar"
+          defaultValue={student?.photoUrl ?? ""}
           error={errors.photoUrl}
-        >
-          <Input
-            {...controlProps("photoUrl", errors.photoUrl)}
-            type="url"
-            defaultValue={student?.photoUrl ?? ""}
-            dir="ltr"
-            placeholder="https://…"
-          />
-        </FormField>
+          fallback={`${student?.firstName?.[0] ?? ""}${student?.lastName?.[0] ?? ""}`.toUpperCase()}
+        />
       </FormSection>
 
       <FormSection title={t.student.medical}>

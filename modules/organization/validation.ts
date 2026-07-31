@@ -9,6 +9,7 @@ import {
   optionalText,
   optionalUrl,
   requiredText,
+  optionalImage,
 } from "@/lib/validation";
 
 /**
@@ -30,7 +31,7 @@ export function organizationSchema(t: Dictionary) {
     region: optionalText(80),
     postalCode: optionalText(16),
     country: countryField(v),
-    logoUrl: optionalUrl(v),
+    logoUrl: optionalImage(v),
     defaultLocale: enumField(LOCALES, v),
   });
 }

@@ -21,6 +21,8 @@ const fr = {
     email: "E-mail",
     phone: "Téléphone",
     website: "Site web",
+    logoUrl: "Logo",
+    logoHint: "Affiché dans la barre latérale quand cette école est sélectionnée.",
     addressLine: "Adresse",
     city: "Ville",
     region: "Région",
