@@ -4,13 +4,19 @@ import * as React from "react";
 import {
   flexRender,
   getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnFiltersState,
+  type FilterFn,
+  type Row,
   type RowData,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import {
   ArrowDownIcon,
@@ -19,11 +25,21 @@ import {
   ChevronsUpDownIcon,
   ArrowUpIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
   XIcon,
 } from "lucide-react";
 
+import { DataTableFacet, type FacetDef } from "@/components/data-table/data-table-facet";
 import { useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -34,6 +50,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+
+/**
+ * Keeps rows whose value for the column is one of the ticked facet values.
+ *
+ * Generic over the row type so it can be the table's `defaultColumn` filter
+ * without pinning `TData` to `unknown`.
+ */
+function facetedFilter<TData>(
+  row: Row<TData>,
+  columnId: string,
+  filterValue: unknown,
+): boolean {
+  if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
+  return filterValue.includes(String(row.getValue(columnId)));
+}
+
+/**
+ * What to call a column in the visibility menu. Headers are usually plain
+ * translated strings; a column that renders its header falls back to its id,
+ * which is at least stable.
+ */
+function columnLabel(id: string, header: unknown): string {
+  return typeof header === "string" ? header : id;
+}
 
 declare module "@tanstack/react-table" {
   // Lets a column carry responsive classes, applied to both header and cells.
@@ -55,6 +95,7 @@ export function DataTable<TData>({
   searchPlaceholder,
   emptyState,
   toolbar,
+  facets,
   pageSize = 10,
 }: {
   columns: ColumnDef<TData, unknown>[];
@@ -63,28 +104,58 @@ export function DataTable<TData>({
   emptyState?: React.ReactNode;
   /** Primary actions, rendered at the inline end of the toolbar. */
   toolbar?: React.ReactNode;
+  /**
+   * Columns offered as multi-select filters. A screen with facets answers
+   * "which of these are unplaced?" without anybody having to know what to type
+   * into the search box.
+   */
+  facets?: FacetDef[];
   pageSize?: number;
 }) {
   const t = useT();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnFilters, columnVisibility },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    // Feeds the counts beside each facet value.
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    // Facets filter a column to a *set* of values, which no built-in filterFn
+    // does — `arrIncludesSome` expects the cell to be the array, not the
+    // filter. Set as the default so a facet works on any column without the
+    // caller having to remember to wire it up.
+    defaultColumn: { filterFn: facetedFilter as FilterFn<TData> },
+    // Pinned rather than left on "auto", which would otherwise resolve the
+    // global search to the column filter above and break free-text search.
+    globalFilterFn: "includesString",
     initialState: { pagination: { pageSize } },
   });
 
   const rows = table.getRowModel().rows;
   const total = data.length;
   const filtered = table.getFilteredRowModel().rows.length;
+  const isFiltered = columnFilters.length > 0 || globalFilter !== "";
+
+  /** Columns a reader may sensibly hide — an actions column is not one. */
+  const hideableColumns = table
+    .getAllColumns()
+    .filter((column) => column.getCanHide() && column.id !== "actions");
 
   // An empty dataset is a different story from "your filter matched nothing".
   if (total === 0 && emptyState) {
@@ -120,11 +191,66 @@ export function DataTable<TData>({
           ) : null}
         </div>
 
+        {facets?.map((facet) => {
+          const column = table.getColumn(facet.columnId);
+          if (!column) return null;
+          return (
+            <DataTableFacet
+              key={facet.columnId}
+              column={column}
+              label={facet.label}
+              options={facet.options}
+            />
+          );
+        })}
+
+        {isFiltered ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              table.resetColumnFilters();
+              setGlobalFilter("");
+            }}
+          >
+            {t.common.reset}
+            <XIcon />
+          </Button>
+        ) : null}
+
         <span className="text-muted-foreground hidden text-sm tabular-nums sm:inline">
-          {globalFilter ? `${filtered} / ${total}` : total}
+          {isFiltered ? `${filtered} / ${total}` : total}
         </span>
 
-        {toolbar ? <div className="ms-auto flex gap-2">{toolbar}</div> : null}
+        <div className="ms-auto flex gap-2">
+          {hideableColumns.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <SlidersHorizontalIcon />
+                  <span className="hidden sm:inline">{t.common.columns}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel>{t.common.columns}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {hideableColumns.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) => column.toggleVisibility(value)}
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <span className="truncate">
+                      {columnLabel(column.id, column.columnDef.header)}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+          {toolbar}
+        </div>
       </div>
 
       <div className="overflow-x-auto">

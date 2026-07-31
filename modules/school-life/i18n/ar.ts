@@ -27,6 +27,11 @@ const ar = {
     pipeline: "ما يجب إنجازه",
     pipelineHint: "الملفات التي لم يكتمل مسارها.",
     allDone: "لا شيء معلّق.",
+    familiesHint: "الملفات، ومن يُتصل به، وأطفال كل أسرة.",
+    studentsHint: "جميع الأطفال المسجلين، مستواهم وقسمهم.",
+    classesHint: "أقسام السنة، ونسبة امتلاء كل واحد.",
+    timetableHint: "الأسبوع الذي يتبعه كل قسم، حصة بحصة.",
+    unplacedCount: "{count} في انتظار الإسناد",
     openStudents: "فتح لائحة التلاميذ",
     openClasses: "فتح لائحة الأقسام",
 

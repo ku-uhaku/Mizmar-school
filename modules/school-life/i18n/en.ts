@@ -30,6 +30,11 @@ const en = {
     pipeline: "What needs doing",
     pipelineHint: "Files that have not finished their parcours.",
     allDone: "Nothing outstanding.",
+    familiesHint: "The dossiers, who to call, and the children in each.",
+    studentsHint: "Every child on the roll, their level and their class.",
+    classesHint: "The cohorts of the year, and how full each one is running.",
+    timetableHint: "The week each class follows, lesson by lesson.",
+    unplacedCount: "{count} to place",
     openStudents: "Open the student list",
     openClasses: "Open the class list",
 

@@ -27,6 +27,11 @@ const fr = {
     pipeline: "À traiter",
     pipelineHint: "Les dossiers dont le parcours n'est pas terminé.",
     allDone: "Rien en attente.",
+    familiesHint: "Les dossiers, qui appeler, et les enfants de chacun.",
+    studentsHint: "Tous les enfants inscrits, leur niveau et leur classe.",
+    classesHint: "Les classes de l'année, et leur remplissage.",
+    timetableHint: "La semaine que suit chaque classe, heure par heure.",
+    unplacedCount: "{count} à affecter",
     openStudents: "Ouvrir la liste des élèves",
     openClasses: "Ouvrir la liste des classes",
 

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -29,7 +30,11 @@ import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { ageFrom } from "@/lib/utils";
 import { deleteStudentAction } from "@/modules/students/actions";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
+import { GENDERS, STUDENT_STATUSES } from "@/modules/students/enums";
 import type { StudentRow } from "@/modules/students/queries";
+
+/** Stands in for "no class yet" in the placement facet — see the note there. */
+const UNPLACED = "__unplaced__";
 
 /**
  * The students list.
@@ -90,32 +95,40 @@ export function StudentsManager({
           );
         },
       },
+      /*
+        Level and class are separate columns rather than one "placement" cell so
+        each can carry its own facet — "show me 3AP" and "show me who is not in
+        a class" are the two questions this screen is opened for, and neither is
+        answerable by typing into a search box.
+      */
       {
-        id: "placement",
-        accessorFn: (row) => `${row.levelName ?? ""} ${row.className ?? ""}`,
-        header: t.student.placement,
-        cell: ({ row }) => {
-          const student = row.original;
-          if (!student.levelName) {
-            return (
-              <span className="text-muted-foreground text-sm">
-                {t.student.notEnrolled}
-              </span>
-            );
-          }
-          return (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="secondary">{student.levelName}</Badge>
-              {student.className ? (
-                <Badge variant="outline">{student.className}</Badge>
-              ) : (
-                <span className="text-muted-foreground text-xs">
-                  {t.student.notPlaced}
-                </span>
-              )}
-            </div>
-          );
-        },
+        id: "level",
+        accessorFn: (row) => row.levelName ?? "",
+        header: t.enrolment.level,
+        cell: ({ row }) =>
+          row.original.levelName ? (
+            <Badge variant="secondary">{row.original.levelName}</Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">
+              {t.student.notEnrolled}
+            </span>
+          ),
+      },
+      {
+        id: "class",
+        // Unplaced pupils get a sentinel rather than "": an empty string is
+        // indistinguishable from a missing value in the facet list, and "who
+        // has no class yet" is exactly what somebody comes here to filter on.
+        accessorFn: (row) => row.className ?? UNPLACED,
+        header: t.schoolClass.title,
+        cell: ({ row }) =>
+          row.original.className ? (
+            <Badge variant="outline">{row.original.className}</Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">
+              {t.student.notPlaced}
+            </span>
+          ),
       },
       {
         id: "age",
@@ -218,6 +231,55 @@ export function StudentsManager({
     [t, locale, permissions.canUpdate, permissions.canDelete],
   );
 
+  /**
+   * Levels and classes come from the rows rather than from a fixed list: the
+   * school opens a different set every year, and offering a facet value with
+   * nothing behind it is worse than not offering it.
+   */
+  const facets = React.useMemo<FacetDef[]>(() => {
+    const levels = [
+      ...new Set(students.map((s) => s.levelName).filter(Boolean)),
+    ].sort() as string[];
+    const classes = [
+      ...new Set(students.map((s) => s.className).filter(Boolean)),
+    ].sort() as string[];
+
+    return [
+      {
+        columnId: "status",
+        label: t.school.status,
+        options: STUDENT_STATUSES.map((status) => ({
+          value: status,
+          label: t.studentOptions.statuses[status],
+        })),
+      },
+      {
+        columnId: "level",
+        label: t.enrolment.level,
+        options: levels.map((level) => ({ value: level, label: level })),
+      },
+      {
+        columnId: "class",
+        label: t.schoolClass.title,
+        options: [
+          ...classes.map((className) => ({
+            value: className,
+            label: className,
+          })),
+          { value: UNPLACED, label: t.student.notPlaced },
+        ],
+      },
+      {
+        columnId: "gender",
+        label: t.student.gender,
+        options: GENDERS.map((gender) => ({
+          value: gender,
+          label: t.studentOptions.genders[gender],
+        })),
+      },
+    ];
+  }, [students, t]);
+
   const newButton = permissions.canCreate ? (
     <Button asChild>
       <Link href="/students/new">
@@ -233,6 +295,7 @@ export function StudentsManager({
         columns={columns}
         data={students}
         searchPlaceholder={t.student.searchPlaceholder}
+        facets={facets}
         pageSize={15}
         emptyState={
           <EmptyState

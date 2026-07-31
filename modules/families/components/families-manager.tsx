@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { deleteFamilyAction } from "@/modules/families/actions";
+import { FAMILY_SITUATIONS } from "@/modules/families/enums";
 import type { FamilyRow } from "@/modules/families/queries";
 
 /** The families list: one row per dossier, with who to call and how many children. */
@@ -182,6 +184,42 @@ export function FamiliesManager({
     [t, locale, permissions.canUpdate, permissions.canDelete],
   );
 
+  const facets = React.useMemo<FacetDef[]>(() => {
+    const cities = [
+      ...new Set(families.map((family) => family.city).filter(Boolean)),
+    ].sort() as string[];
+
+    return [
+      {
+        columnId: "situation",
+        label: t.family.situation,
+        options: FAMILY_SITUATIONS.map((situation) => ({
+          value: situation,
+          label: t.familyOptions.situations[situation],
+        })),
+      },
+      {
+        columnId: "isActive",
+        label: t.school.status,
+        options: [
+          { value: "true", label: t.common.active },
+          { value: "false", label: t.common.inactive },
+        ],
+      },
+      // Only offered once there is something to choose between — a single-value
+      // facet is a button that cannot change what the reader is looking at.
+      ...(cities.length > 1
+        ? [
+            {
+              columnId: "city",
+              label: t.family.city,
+              options: cities.map((city) => ({ value: city, label: city })),
+            },
+          ]
+        : []),
+    ];
+  }, [families, t]);
+
   const newButton = permissions.canCreate ? (
     <Button asChild>
       <Link href="/families/new">
@@ -196,6 +234,7 @@ export function FamiliesManager({
       <DataTable
         columns={columns}
         data={families}
+        facets={facets}
         searchPlaceholder={t.family.searchPlaceholder}
         emptyState={
           <EmptyState

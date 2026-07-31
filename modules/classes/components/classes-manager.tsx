@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { LayersIcon, SettingsIcon } from "lucide-react";
 
 import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +119,22 @@ export function ClassesManager({ classes }: { classes: ClassRow[] }) {
     [t, locale],
   );
 
+  const facets = React.useMemo<FacetDef[]>(() => {
+    const levels = [
+      ...new Set(classes.map((schoolClass) => schoolClass.levelLabel)),
+    ].sort();
+
+    return levels.length > 1
+      ? [
+          {
+            columnId: "levelLabel",
+            label: t.schoolClass.level,
+            options: levels.map((level) => ({ value: level, label: level })),
+          },
+        ]
+      : [];
+  }, [classes, t]);
+
   const configureButton = (
     <Button asChild variant="outline">
       <Link href="/configuration/classes/classes">
@@ -132,6 +149,7 @@ export function ClassesManager({ classes }: { classes: ClassRow[] }) {
       columns={columns}
       data={classes}
       searchPlaceholder={t.schoolClass.searchPlaceholder}
+      facets={facets}
       pageSize={15}
       emptyState={
         <EmptyState

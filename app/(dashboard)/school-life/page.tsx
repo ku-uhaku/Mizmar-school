@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertCircleIcon,
+  CalendarClockIcon,
   ClockIcon,
   GraduationCapIcon,
   HomeIcon,
+  LayersIcon,
   WalletIcon,
 } from "lucide-react";
 
@@ -13,6 +15,10 @@ import { Meter } from "@/components/charts/meter";
 import { StatTile } from "@/components/charts/stat-tile";
 import { EmptyState } from "@/components/shell/empty-state";
 import { PageHeader } from "@/components/shell/page-header";
+import {
+  SectionLinks,
+  type SectionLink,
+} from "@/components/shell/section-links";
 import { ForbiddenState } from "@/components/shell/states";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +63,51 @@ export default async function SchoolLifePage() {
     : t.schoolLife.noYear;
 
   const levelColumns = stats.byLevel.filter((entry) => entry.value > 0);
+
+  // Only the screens this reader may actually open — a card leading to a
+  // forbidden page is worse than no card.
+  const links: SectionLink[] = [];
+  if (context.can(PERMISSIONS.FAMILY_VIEW)) {
+    links.push({
+      href: "/families",
+      label: t.family.title,
+      description: t.schoolLife.familiesHint,
+      icon: <HomeIcon className="size-4" />,
+      badge: String(stats.families),
+    });
+  }
+  if (context.can(PERMISSIONS.STUDENT_VIEW)) {
+    links.push({
+      href: "/students",
+      label: t.student.title,
+      description: t.schoolLife.studentsHint,
+      icon: <GraduationCapIcon className="size-4" />,
+      badge: String(stats.students.total),
+    });
+  }
+  if (context.can(PERMISSIONS.CLASS_VIEW)) {
+    links.push({
+      href: "/classes",
+      label: t.schoolClass.title,
+      description: t.schoolLife.classesHint,
+      icon: <LayersIcon className="size-4" />,
+      badge:
+        stats.enrolment.unplaced > 0
+          ? interpolate(t.schoolLife.unplacedCount, {
+              count: stats.enrolment.unplaced,
+            })
+          : String(stats.classFill.length),
+      badgeTone: stats.enrolment.unplaced > 0 ? "warn" : undefined,
+    });
+  }
+  if (context.can(PERMISSIONS.TIMETABLE_VIEW)) {
+    links.push({
+      href: "/timetable",
+      label: t.timetable.title,
+      description: t.schoolLife.timetableHint,
+      icon: <CalendarClockIcon className="size-4" />,
+    });
+  }
 
   return (
     <>
@@ -106,6 +157,8 @@ export default async function SchoolLifePage() {
           locale={locale}
         />
       </div>
+
+      <SectionLinks links={links} className="mt-4" />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="gap-4 lg:col-span-2">
