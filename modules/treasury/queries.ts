@@ -855,3 +855,114 @@ export async function treasurySummary(
     chequesBouncedCount: bouncedCount,
   };
 }
+
+// ── The printed receipt ──────────────────────────────────────────────────────
+
+export type ReceiptAllocation = {
+  studentName: string;
+  studentCode: string;
+  className: string | null;
+  feeTypeName: string;
+  dueDate: string;
+  amountCentimes: number;
+};
+
+export type ReceiptTender = {
+  method: string;
+  amountCentimes: number;
+  reference: string | null;
+  bankName: string | null;
+  chequeNumber: string | null;
+  chequeDueOn: string | null;
+};
+
+export type Receipt = {
+  id: string;
+  code: string;
+  status: string;
+  paidAt: string;
+  totalCentimes: number;
+  notes: string | null;
+  familyName: string | null;
+  familyCode: string | null;
+  createdByName: string;
+  registerName: string | null;
+  /** What the money settled, one row per schedule line. */
+  allocations: ReceiptAllocation[];
+  tenders: ReceiptTender[];
+};
+
+/**
+ * One receipt, with everything the paper version has to name.
+ *
+ * A receipt is quoted back at the school months later — "you took 3 000 from me
+ * in November" — so it prints *what the money settled*, line by line, not just
+ * a total. Cancelled receipts stay readable on purpose: somebody holding a
+ * printed copy of one needs to be able to look it up and be told it was undone.
+ */
+export async function findReceipt(
+  context: AuthContext,
+  paymentId: string,
+): Promise<Receipt | null> {
+  const payment = await db.payment.findFirst({
+    // Scoped to the school in context, never by the id alone.
+    where: { id: paymentId, ...schoolScope(context) },
+    include: {
+      family: { select: { name: true, code: true } },
+      createdBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      cashSession: { select: { cashRegister: { select: { name: true } } } },
+      tenders: { include: { cheque: true } },
+      allocations: {
+        orderBy: [{ enrollmentFee: { dueDate: "asc" } }],
+        include: {
+          enrollmentFee: {
+            include: {
+              feeType: { select: { name: true } },
+              enrollment: {
+                include: {
+                  schoolClass: { select: { code: true } },
+                  student: {
+                    select: { code: true, firstName: true, lastName: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!payment) return null;
+
+  return {
+    id: payment.id,
+    code: payment.code,
+    status: payment.status,
+    paidAt: payment.paidAt.toISOString(),
+    totalCentimes: payment.totalCentimes,
+    notes: payment.notes,
+    familyName: payment.family?.name ?? null,
+    familyCode: payment.family?.code ?? null,
+    createdByName: displayName(payment.createdBy),
+    registerName: payment.cashSession?.cashRegister.name ?? null,
+    allocations: payment.allocations.map((allocation) => ({
+      studentName: `${allocation.enrollmentFee.enrollment.student.firstName} ${allocation.enrollmentFee.enrollment.student.lastName}`,
+      studentCode: allocation.enrollmentFee.enrollment.student.code,
+      className: allocation.enrollmentFee.enrollment.schoolClass?.code ?? null,
+      feeTypeName: allocation.enrollmentFee.feeType.name,
+      dueDate: allocation.enrollmentFee.dueDate.toISOString(),
+      amountCentimes: allocation.amountCentimes,
+    })),
+    tenders: payment.tenders.map((tender) => ({
+      method: tender.method,
+      amountCentimes: tender.amountCentimes,
+      reference: tender.reference,
+      bankName: tender.bankName,
+      chequeNumber: tender.cheque?.number ?? null,
+      chequeDueOn: tender.cheque?.dueOn?.toISOString() ?? null,
+    })),
+  };
+}

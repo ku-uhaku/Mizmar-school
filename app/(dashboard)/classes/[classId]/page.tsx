@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PrinterIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
@@ -62,6 +63,12 @@ export default async function ClassPage({
                 capacity: schoolClass.capacity,
               })}
         </Badge>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/print/class/${schoolClass.id}`}>
+            <PrinterIcon />
+            {t.print.classList}
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link href={`/timetable?classId=${schoolClass.id}`}>
             {t.schoolClass.openTimetable}

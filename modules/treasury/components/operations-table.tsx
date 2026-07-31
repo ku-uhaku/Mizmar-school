@@ -1,6 +1,8 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import Link from "next/link";
+
+import { PrinterIcon, ReceiptTextIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -282,6 +284,17 @@ export function ReceiptsTable({
                     {formatAmount(payment.totalCentimes, locale)}
                   </TableCell>
                   <TableCell className="text-end">
+                    {/* Offered on cancelled receipts too: somebody holding the
+                        paper copy needs to be able to reprint it and see the
+                        void stamped across it. */}
+                    <Button asChild variant="ghost" size="icon-sm">
+                      <Link
+                        href={`/print/payment/${payment.id}`}
+                        aria-label={t.print.receipt}
+                      >
+                        <PrinterIcon />
+                      </Link>
+                    </Button>
                     {canCancel && !cancelled ? (
                       <Button
                         type="button"

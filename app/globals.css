@@ -390,3 +390,141 @@ html.dark[data-accent="teal"] {
 [dir="rtl"] .rtl-flip {
   transform: scaleX(-1);
 }
+
+/* --- Printable documents -------------------------------------------------
+   The `(print)` route group renders receipts, attestations and lists. They are
+   ordinary HTML so the browser lays out Arabic and French for us — shaping,
+   bidi and all — and "Save as PDF" in the print dialog is the download.
+
+   The measurements below are A4 with a 14mm margin. The header and footer are
+   fixed rather than flowed: a fixed box is repeated on every printed sheet by
+   every engine we care about, which is what puts the letterhead on page three
+   of a class list without a PDF library to paginate for us. The body then
+   carries top and bottom padding equal to their heights so nothing sits under
+   them. */
+
+:root {
+  --print-header-height: 26mm;
+  --print-footer-height: 12mm;
+}
+
+.print-root {
+  background: var(--muted);
+  min-height: 100dvh;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.print-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 210mm;
+  margin: 0 auto 1rem;
+}
+
+/* On screen this is a sheet of paper on a desk; in print it *is* the sheet. */
+.print-page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 14mm;
+  background: #ffffff;
+  color: #111111;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%), 0 8px 24px rgb(0 0 0 / 8%);
+}
+
+/* Documents are printed on white paper whatever theme the user is in. Pinning
+   the colours here rather than inheriting the app's tokens is what stops a
+   receipt coming out of a dark-mode session as white text on white. */
+.print-page,
+.print-page * {
+  color: #111111;
+  border-color: #d4d4d4;
+}
+
+.print-rule {
+  border-bottom: 1px solid #111111;
+  margin-top: 0.5rem;
+}
+
+.print-body {
+  padding-top: 4mm;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10pt;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid #d4d4d4;
+  padding: 4px 6px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.print-table thead th {
+  background: #f4f4f4;
+  font-weight: 600;
+  font-size: 9pt;
+}
+
+/* A long table breaking across pages must not split a row down the middle. */
+.print-table tr {
+  break-inside: avoid;
+}
+
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  /* Nothing of the application chrome survives — only the document. */
+  .print-toolbar,
+  [data-slot="sidebar"],
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  html,
+  body,
+  .print-root {
+    background: #ffffff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-page {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: var(--print-header-height) 0 var(--print-footer-height);
+    box-shadow: none;
+  }
+
+  /* Repeated on every sheet — see the note at the top of this block. */
+  .print-header {
+    position: fixed;
+    top: 0;
+    inset-inline: 0;
+    height: var(--print-header-height);
+  }
+
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    inset-inline: 0;
+    height: var(--print-footer-height);
+  }
+
+  /* Keep the browser's own background fills (table headers, tints). */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

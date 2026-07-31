@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PrinterIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
@@ -103,6 +107,20 @@ export default async function StudentPage({
           </Avatar>
         }
       >
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/print/student/${student.id}/attestation`}>
+            <PrinterIcon />
+            {t.print.attestation}
+          </Link>
+        </Button>
+        {canSeeMoney ? (
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/print/student/${student.id}/echeancier`}>
+              <PrinterIcon />
+              {t.print.schedule}
+            </Link>
+          </Button>
+        ) : null}
         <StudentStatusBadge status={student.status} />
         {student.levelName ? (
           <Badge variant="secondary">{student.levelName}</Badge>

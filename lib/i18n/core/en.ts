@@ -61,6 +61,26 @@ const core = {
     invalidChoice: "Choose one of the available options.",
     codeFormat: "Use letters, numbers and dashes only.",
   },
+  /** Wording shared by every printable document. */
+  print: {
+    download: "Download / Print",
+    generatedBy: "Issued by the school administration system",
+    signatureAndStamp: "Signature and stamp",
+    receipt: "Payment receipt",
+    receiptFor: "Received from",
+    settles: "This receipt settles",
+    tenders: "Paid by",
+    receiptCancelled: "CANCELLED — this receipt has been voided",
+    attestation: "Certificate of enrolment",
+    attestationBody:
+      "The undersigned certifies that the pupil named below is enrolled at this school for the {year} school year, in the class shown.",
+    schedule: "Fee schedule",
+    classList: "Class list",
+    pupilCount: "{count} pupils",
+    total: "Total",
+    dueOn: "Due",
+    issuedOn: "Issued on",
+  },
   errors: {
     unexpected: "Something went wrong. Please try again.",
     forbidden: "You do not have permission to do that.",
