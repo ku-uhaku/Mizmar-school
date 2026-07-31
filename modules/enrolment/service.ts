@@ -1,6 +1,8 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { dueDayOf } from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { netAmount } from "@/modules/enrolment/enums";
 import {
   buildScheduleLines,
@@ -68,6 +70,10 @@ export async function buildFeeSchedule(
     }),
   ]);
 
+  // The school's own billing conventions, read for the year's school rather
+  // than whichever one is selected in the header.
+  const settings = await loadSchoolSettings(schoolYear.schoolId);
+
   return buildScheduleLines({
     levelId: enrolment.levelOffering.levelId,
     usesTransport: enrolment.usesTransport,
@@ -77,6 +83,8 @@ export async function buildFeeSchedule(
     termCount: schoolYear._count.terms,
     feeTypes,
     rates,
+    instalmentsPerYear: settings.defaultInstalmentCount,
+    dueDayOfMonth: dueDayOf(settings),
   });
 }
 

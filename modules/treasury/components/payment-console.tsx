@@ -9,6 +9,7 @@ import { FormActions, FormSection } from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,7 +103,10 @@ function emptyTender(method: TenderMethod = "CASH"): Tender {
 
 /** Groups a child's charges into the month they fall due in. */
 function byMonth(lines: PayableLine[]) {
-  const months = new Map<string, { year: number; month: number; lines: PayableLine[] }>();
+  const months = new Map<
+    string,
+    { year: number; month: number; lines: PayableLine[] }
+  >();
 
   for (const line of lines) {
     const key = `${line.dueYear}-${String(line.dueMonth).padStart(2, "0")}`;
@@ -118,11 +122,15 @@ function byMonth(lines: PayableLine[]) {
     }
   }
 
-  return Array.from(months.entries()).map(([key, value]) => ({ key, ...value }));
+  return Array.from(months.entries()).map(([key, value]) => ({
+    key,
+    ...value,
+  }));
 }
 
 export function PaymentConsole({ families, family, hasOpenSession }: Props) {
   const t = useT();
+  const { currencyCode: currency } = useSettings();
   const locale = useLocale();
   const router = useRouter();
 
@@ -186,7 +194,7 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
 
   function setLineAmount(lineId: string, amount: string) {
     setSelection((current) => ({ ...current, [lineId]: amount }));
-    }
+  }
 
   function selectEverything() {
     const next: Record<string, string> = {};
@@ -228,7 +236,9 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             value={family?.familyId ?? ""}
             // Navigating rather than fetching: the payable schedule is a
             // permission-scoped server read, and the URL then survives a reload.
-            onValueChange={(value) => router.push(`/caisse/encaissement?family=${value}`)}
+            onValueChange={(value) =>
+              router.push(`/caisse/encaissement?family=${value}`)
+            }
           >
             <SelectTrigger id="familyId" className="w-full">
               <SelectValue placeholder={t.treasury.selectFamily} />
@@ -263,11 +273,16 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             <p className="text-muted-foreground text-sm">
               {t.treasury.owesTotal}:{" "}
               <span className="text-foreground font-semibold tabular-nums">
-                {money(family.outstandingCentimes)} MAD
+                {money(family.outstandingCentimes)} {currency}
               </span>
             </p>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={selectEverything}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={selectEverything}
+              >
                 {t.treasury.selectAll}
               </Button>
               <Button
@@ -292,7 +307,8 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
                   ) : null}
                 </CardTitle>
                 <CardDescription>
-                  {t.treasury.owes}: {money(child.outstandingCentimes)} MAD
+                  {t.treasury.owes}: {money(child.outstandingCentimes)}{" "}
+                  {currency}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -311,6 +327,7 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
                         onToggle={toggleLine}
                         onAmountChange={setLineAmount}
                         money={money}
+                        currency={currency}
                         t={t}
                       />
                     ))}
@@ -330,7 +347,10 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             />
           ))}
 
-          <FormSection title={t.treasury.tenders} description={t.treasury.tendersHint}>
+          <FormSection
+            title={t.treasury.tenders}
+            description={t.treasury.tendersHint}
+          >
             <div className="grid gap-4">
               {tenders.map((tender, index) => (
                 <TenderRow
@@ -354,13 +374,20 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setTenders((current) => [...current, emptyTender("CHEQUE")])}
+                onClick={() =>
+                  setTenders((current) => [...current, emptyTender("CHEQUE")])
+                }
               >
                 <PlusIcon className="size-4" />
                 {t.treasury.addTender}
               </Button>
               {selectedTotalCentimes !== tenderTotalCentimes ? (
-                <Button type="button" variant="ghost" size="sm" onClick={matchSelection}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={matchSelection}
+                >
                   {t.treasury.payFull}
                 </Button>
               ) : null}
@@ -386,11 +413,11 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             <CardContent className="grid gap-2 py-4 text-sm">
               <Row
                 label={t.treasury.selected}
-                value={`${money(selectedTotalCentimes)} MAD`}
+                value={`${money(selectedTotalCentimes)} ${currency}`}
               />
               <Row
                 label={t.treasury.tenders}
-                value={`${money(tenderTotalCentimes)} MAD`}
+                value={`${money(tenderTotalCentimes)} ${currency}`}
                 tone={balanced ? "ok" : "warn"}
               />
               {!balanced && selectedTotalCentimes > 0 ? (
@@ -454,6 +481,7 @@ function MonthCard({
   onToggle,
   onAmountChange,
   money,
+  currency,
   t,
 }: {
   title: string;
@@ -462,6 +490,7 @@ function MonthCard({
   onToggle: (line: PayableLine, checked: boolean) => void;
   onAmountChange: (lineId: string, amount: string) => void;
   money: (centimes: number) => string;
+  currency: string;
   t: ReturnType<typeof useT>;
 }) {
   const outstanding = lines.reduce(
@@ -542,7 +571,7 @@ function MonthCard({
                   >
                     {done
                       ? t.treasury.alreadyPaid
-                      : `${money(line.outstandingCentimes)} MAD`}
+                      : `${money(line.outstandingCentimes)} ${currency}`}
                     {line.paidCentimes > 0 && !done
                       ? ` · ${t.treasury.alreadyPaid} ${money(line.paidCentimes)}`
                       : ""}
@@ -557,7 +586,9 @@ function MonthCard({
               {checked ? (
                 <Input
                   value={selection[line.id] ?? ""}
-                  onChange={(event) => onAmountChange(line.id, event.target.value)}
+                  onChange={(event) =>
+                    onAmountChange(line.id, event.target.value)
+                  }
                   type="number"
                   step="0.01"
                   min="0"
@@ -647,7 +678,9 @@ function TenderRow({
           <Input
             id={`tenderAmount-${index}`}
             value={tender.amount}
-            onChange={(event) => onChange(tender.key, { amount: event.target.value })}
+            onChange={(event) =>
+              onChange(tender.key, { amount: event.target.value })
+            }
             type="number"
             step="0.01"
             min="0"
@@ -675,7 +708,9 @@ function TenderRow({
       {tender.method === "CHEQUE" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor={`chequeNumber-${index}`}>{t.treasury.chequeNumber}</Label>
+            <Label htmlFor={`chequeNumber-${index}`}>
+              {t.treasury.chequeNumber}
+            </Label>
             <Input
               id={`chequeNumber-${index}`}
               value={tender.chequeNumber}
@@ -686,7 +721,9 @@ function TenderRow({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`chequeDueOn-${index}`}>{t.treasury.chequeDueOn}</Label>
+            <Label htmlFor={`chequeDueOn-${index}`}>
+              {t.treasury.chequeDueOn}
+            </Label>
             <Input
               id={`chequeDueOn-${index}`}
               value={tender.chequeDueOn}
@@ -702,11 +739,15 @@ function TenderRow({
             <Input
               id={`tenderBank-${index}`}
               value={tender.bankName}
-              onChange={(event) => onChange(tender.key, { bankName: event.target.value })}
+              onChange={(event) =>
+                onChange(tender.key, { bankName: event.target.value })
+              }
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`tenderDrawer-${index}`}>{t.treasury.drawerName}</Label>
+            <Label htmlFor={`tenderDrawer-${index}`}>
+              {t.treasury.drawerName}
+            </Label>
             <Input
               id={`tenderDrawer-${index}`}
               value={tender.drawerName}
@@ -719,7 +760,9 @@ function TenderRow({
       ) : tender.method === "BANK_TRANSFER" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="grid gap-1.5">
-            <Label htmlFor={`tenderReference-${index}`}>{t.treasury.reference}</Label>
+            <Label htmlFor={`tenderReference-${index}`}>
+              {t.treasury.reference}
+            </Label>
             <Input
               id={`tenderReference-${index}`}
               value={tender.reference}
@@ -730,11 +773,15 @@ function TenderRow({
             />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`tenderBankT-${index}`}>{t.treasury.bankName}</Label>
+            <Label htmlFor={`tenderBankT-${index}`}>
+              {t.treasury.bankName}
+            </Label>
             <Input
               id={`tenderBankT-${index}`}
               value={tender.bankName}
-              onChange={(event) => onChange(tender.key, { bankName: event.target.value })}
+              onChange={(event) =>
+                onChange(tender.key, { bankName: event.target.value })
+              }
             />
           </div>
         </div>

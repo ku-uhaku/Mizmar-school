@@ -2,9 +2,12 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import {
-  isSingularRelationship,
-  nextFamilyCode,
-} from "@/modules/families/enums";
+  codePrefixOf,
+  formatEntityCode,
+  sequenceFromCode,
+} from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
+import { isSingularRelationship } from "@/modules/families/enums";
 
 /**
  * Writes and invariants for the families module.
@@ -15,28 +18,42 @@ import {
  */
 
 /**
- * Allocates the next dossier number for a school, `F-<year>-<seq>`.
+ * Allocates the next dossier number for a school, in that school's own format.
  *
  * Derived from the highest existing code for that year rather than a counter
  * table: there is no separate row to fall out of step, and a dossier deleted in
  * error does not shift every later number. Two secretaries opening a file in
  * the same second would collide, and the unique index is what catches it — the
  * caller retries.
+ *
+ * The format comes from the school's settings, so the scan reads the highest
+ * *recognised* sequence: codes written under a previous format are skipped
+ * rather than parsed as zero. That means changing the format mid-year restarts
+ * the numbering at 1 under the new shape, which is what a school asking for a
+ * new shape means — and the unique index still refuses an actual duplicate.
  */
 export async function allocateFamilyCode(
   schoolId: string,
   year = new Date().getFullYear(),
 ): Promise<string> {
-  const prefix = nextFamilyCode(year, 0).slice(0, -4);
+  const { familyCodeFormat } = await loadSchoolSettings(schoolId);
+  const prefix = codePrefixOf(familyCodeFormat, year);
 
-  const latest = await db.family.findFirst({
+  const candidates = await db.family.findMany({
     where: { schoolId, code: { startsWith: prefix } },
     orderBy: { code: "desc" },
     select: { code: true },
+    // The scan is bounded: only codes sharing this year's prefix, and only as
+    // many as could plausibly sort above the true maximum.
+    take: 200,
   });
 
-  const lastSequence = latest ? Number(latest.code.slice(prefix.length)) : 0;
-  return nextFamilyCode(year, (Number.isNaN(lastSequence) ? 0 : lastSequence) + 1);
+  const highest = candidates.reduce((max, row) => {
+    const sequence = sequenceFromCode(familyCodeFormat, year, row.code);
+    return sequence !== null && sequence > max ? sequence : max;
+  }, 0);
+
+  return formatEntityCode(familyCodeFormat, year, highest + 1);
 }
 
 /**

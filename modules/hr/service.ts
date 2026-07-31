@@ -1,10 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { formatEntityCode } from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
   activeContractKey,
   netSalary,
-  nextStaffCode,
   staffName,
   startOfDay,
   type ContractStatus,
@@ -46,8 +47,9 @@ import type { TenderMethod } from "@/modules/treasury/enums";
  */
 export async function allocateStaffCode(schoolId: string): Promise<string> {
   const year = new Date().getFullYear();
+  const { staffCodeFormat } = await loadSchoolSettings(schoolId);
   const used = await db.staff.count({ where: { schoolId } });
-  return nextStaffCode(year, used + 1);
+  return formatEntityCode(staffCodeFormat, year, used + 1);
 }
 
 // ── Contracts ────────────────────────────────────────────────────────────────

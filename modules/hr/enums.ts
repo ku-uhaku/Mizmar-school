@@ -294,8 +294,11 @@ export function netSalary(
  */
 export const WORKING_DAYS_PER_MONTH = 26;
 
-export function dailyRate(monthlySalaryCentimes: number): number {
-  return Math.round(monthlySalaryCentimes / WORKING_DAYS_PER_MONTH);
+export function dailyRate(
+  monthlySalaryCentimes: number,
+  workingDays: number = WORKING_DAYS_PER_MONTH,
+): number {
+  return Math.round(monthlySalaryCentimes / Math.max(1, workingDays));
 }
 
 // ── Dates ────────────────────────────────────────────────────────────────────
@@ -320,13 +323,6 @@ export function spanInDays(startsOn: Date, endsOn: Date): number {
   const end = startOfDay(endsOn).getTime();
   if (end < start) return 0;
   return Math.round((end - start) / 86_400_000) + 1;
-}
-
-/** Matricules look like `P-2025-0007`. Same shape as a pupil's, different letter. */
-export const STAFF_CODE_PREFIX = "P";
-
-export function nextStaffCode(year: number, sequence: number): string {
-  return `${STAFF_CODE_PREFIX}-${year}-${String(sequence).padStart(4, "0")}`;
 }
 
 /** "septembre 2025" as a sortable key — what the payroll screen groups on. */

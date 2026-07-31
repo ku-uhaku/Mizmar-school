@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { SettingsProvider } from "@/components/providers/settings-provider";
 import { ContextSwitcher } from "@/modules/context/components/context-switcher";
 import { GlobalSearch } from "@/modules/school-life/components/global-search";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
@@ -34,59 +35,65 @@ export default async function DashboardLayout({
   const name = displayName(context.user);
 
   return (
-    <SidebarProvider>
-      <AppSidebar
-        sections={sections}
-        organizationName={context.organization.name}
-        // The school's crest when one is selected, the organisation's
-        // otherwise — the shell should look like wherever you are actually
-        // working, and a group with one brand simply never sets the school one.
-        logoUrl={context.currentSchool?.logoUrl ?? context.organization.logoUrl}
-        subtitle={context.currentSchool?.name ?? null}
-      />
+    // The working school's policies, for the screens that need them where there
+    // is no server to ask — see components/providers/settings-provider.tsx.
+    <SettingsProvider settings={context.settings}>
+      <SidebarProvider>
+        <AppSidebar
+          sections={sections}
+          organizationName={context.organization.name}
+          // The school's crest when one is selected, the organisation's
+          // otherwise — the shell should look like wherever you are actually
+          // working, and a group with one brand simply never sets the school one.
+          logoUrl={
+            context.currentSchool?.logoUrl ?? context.organization.logoUrl
+          }
+          subtitle={context.currentSchool?.name ?? null}
+        />
 
-      <SidebarInset className="min-w-0">
-        <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2.5 backdrop-blur">
-          <SidebarTrigger className="-ms-1" />
-          <Separator orientation="vertical" className="me-1 h-5" />
+        <SidebarInset className="min-w-0">
+          <header className="bg-background/95 supports-[backdrop-filter]:bg-background/70 sticky top-0 z-10 flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2.5 backdrop-blur">
+            <SidebarTrigger className="-ms-1" />
+            <Separator orientation="vertical" className="me-1 h-5" />
 
-          <ContextSwitcher
-            schools={context.schools.map((school) => ({
-              id: school.id,
-              name: school.name,
-              code: school.code,
-              city: school.city,
-              logoUrl: school.logoUrl,
-            }))}
-            years={context.schoolYears.map((year) => ({
-              id: year.id,
-              name: year.name,
-              status: year.status,
-              isDefault: year.isDefault,
-            }))}
-            currentSchoolId={context.currentSchool?.id ?? null}
-            currentYearId={context.currentSchoolYear?.id ?? null}
-          />
-
-          <div className="ms-auto flex items-center gap-1">
-            {/* Scoped to the working context and filtered by permission inside
-                the action — see modules/school-life/actions.ts. */}
-            <GlobalSearch />
-            <LocaleSwitcher />
-            <ThemeModeToggle />
-            <UserMenu
-              name={name}
-              email={context.user.email}
-              avatarUrl={context.user.profile?.avatarUrl ?? null}
-              initials={initialsOf(name, context.user.email)}
+            <ContextSwitcher
+              schools={context.schools.map((school) => ({
+                id: school.id,
+                name: school.name,
+                code: school.code,
+                city: school.city,
+                logoUrl: school.logoUrl,
+              }))}
+              years={context.schoolYears.map((year) => ({
+                id: year.id,
+                name: year.name,
+                status: year.status,
+                isDefault: year.isDefault,
+              }))}
+              currentSchoolId={context.currentSchool?.id ?? null}
+              currentYearId={context.currentSchoolYear?.id ?? null}
             />
-          </div>
-        </header>
 
-        <div className="mx-auto w-full min-w-0 max-w-[100rem] flex-1 p-4 md:p-6">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+            <div className="ms-auto flex items-center gap-1">
+              {/* Scoped to the working context and filtered by permission inside
+                the action — see modules/school-life/actions.ts. */}
+              <GlobalSearch />
+              <LocaleSwitcher />
+              <ThemeModeToggle />
+              <UserMenu
+                name={name}
+                email={context.user.email}
+                avatarUrl={context.user.profile?.avatarUrl ?? null}
+                initials={initialsOf(name, context.user.email)}
+              />
+            </div>
+          </header>
+
+          <div className="mx-auto w-full min-w-0 max-w-[100rem] flex-1 p-4 md:p-6">
+            {children}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </SettingsProvider>
   );
 }

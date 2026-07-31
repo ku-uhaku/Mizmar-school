@@ -11,12 +11,13 @@ import {
 } from "lucide-react";
 
 import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useMoney } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
+import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   PAYMENT_STATE_STYLES,
@@ -64,7 +65,7 @@ export function StudentPaymentPanel({
   const locale = useLocale();
   const [showSiblings, setShowSiblings] = React.useState(false);
 
-  const money = (centimes: number) => `${formatAmount(centimes, locale)} MAD`;
+  const money = useMoney();
 
   const state = standingStateOf(standing);
   const hasSiblings = (family?.siblings.length ?? 0) > 0;
@@ -131,7 +132,10 @@ export function StudentPaymentPanel({
         <StandingBar standing={standing} state={state} money={money} />
 
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
-          <Row label={t.treasury.charged} value={money(standing.chargedCentimes)} />
+          <Row
+            label={t.treasury.charged}
+            value={money(standing.chargedCentimes)}
+          />
           <Row
             label={t.treasury.alreadyPaid}
             value={money(standing.paidCentimes)}

@@ -4,7 +4,11 @@ import { BanknoteArrowUpIcon } from "lucide-react";
 import * as React from "react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
-import { FormActions, FormGrid, FormSection } from "@/components/form/form-page";
+import {
+  FormActions,
+  FormGrid,
+  FormSection,
+} from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -83,7 +87,10 @@ export function DisbursementForm({
 
   return (
     <form ref={formRef} action={formAction} className="grid max-w-3xl gap-5">
-      <FormSection title={t.treasury.decaissement} description={t.treasury.decaissementSubtitle}>
+      <FormSection
+        title={t.treasury.decaissement}
+        description={t.treasury.decaissementSubtitle}
+      >
         {staffOptions.length > 0 ? (
           <FormField
             name="beneficiaryStaffId"
@@ -167,7 +174,11 @@ export function DisbursementForm({
         </FormField>
 
         <FormGrid cols={3}>
-          <FormField name="method" label={t.treasury.method} error={errors.method}>
+          <FormField
+            name="method"
+            label={t.treasury.method}
+            error={errors.method}
+          >
             <Select
               name="method"
               value={method}

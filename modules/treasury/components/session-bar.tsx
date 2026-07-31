@@ -6,6 +6,7 @@ import * as React from "react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,6 +54,7 @@ export function SessionBar({
   canManage: boolean;
 }) {
   const t = useT();
+  const { currencyCode: currency } = useSettings();
   const locale = useLocale();
 
   if (registers.length === 0) {
@@ -87,7 +89,7 @@ export function SessionBar({
                 <dl className="grid gap-1 text-sm">
                   <Line
                     label={t.treasury.inDrawer}
-                    value={`${formatAmount(register.openSession.expectedCentimes, locale)} MAD`}
+                    value={`${formatAmount(register.openSession.expectedCentimes, locale)} ${currency}`}
                     strong
                   />
                   <Line
@@ -96,7 +98,10 @@ export function SessionBar({
                   />
                   <Line
                     label={t.treasury.openedAt}
-                    value={formatDateTime(register.openSession.openedAt, locale)}
+                    value={formatDateTime(
+                      register.openSession.openedAt,
+                      locale,
+                    )}
                   />
                 </dl>
 
@@ -156,9 +161,7 @@ function OpenDialog({ registerId }: { registerId: string }) {
         <form action={formAction} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t.treasury.openSession}</DialogTitle>
-            <DialogDescription>
-              {t.treasury.openingFloatHint}
-            </DialogDescription>
+            <DialogDescription>{t.treasury.openingFloatHint}</DialogDescription>
           </DialogHeader>
 
           <input type="hidden" name="cashRegisterId" value={registerId} />
@@ -200,6 +203,7 @@ function CloseDialog({
 }) {
   const t = useT();
   const locale = useLocale();
+  const { currencyCode: currency } = useSettings();
   const [open, setOpen] = React.useState(false);
   const [counted, setCounted] = React.useState("");
   const [state, formAction] = React.useActionState(closeSessionAction, IDLE);
@@ -251,7 +255,7 @@ function CloseDialog({
           <dl className="grid gap-1 rounded-lg border p-3 text-sm">
             <Line
               label={t.treasury.expected}
-              value={`${formatAmount(expectedCentimes, locale)} MAD`}
+              value={`${formatAmount(expectedCentimes, locale)} ${currency}`}
             />
             {variance !== null ? (
               <div className="flex items-center justify-between gap-3">
@@ -263,7 +267,7 @@ function CloseDialog({
                   )}
                 >
                   {variance > 0 ? "+" : ""}
-                  {centimesToDirhams(variance).toFixed(2)} MAD
+                  {centimesToDirhams(variance).toFixed(2)} {currency}
                   {variance !== 0 ? (
                     <span className="ms-2 text-xs font-normal">
                       {variance < 0

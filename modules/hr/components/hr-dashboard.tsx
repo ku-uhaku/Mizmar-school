@@ -17,6 +17,7 @@ import {
   type SectionLink,
 } from "@/components/shell/section-links";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -58,6 +59,7 @@ export function HrDashboard({
   permissions: { canPayroll: boolean; canAttendance: boolean };
 }) {
   const t = useT();
+  const { currencyCode: currency } = useSettings();
   const locale = useLocale();
 
   // Only roles the school actually employs — an empty column reads as a gap
@@ -112,8 +114,7 @@ export function HrDashboard({
     label: t.nav.hrLeave,
     description: t.hr.leaveHint,
     icon: <CalendarOffIcon className="size-4" />,
-    badge:
-      summary.pendingLeave > 0 ? String(summary.pendingLeave) : undefined,
+    badge: summary.pendingLeave > 0 ? String(summary.pendingLeave) : undefined,
   });
 
   return (
@@ -151,7 +152,7 @@ export function HrDashboard({
             // The tile formats counts, and a wage bill is money — the figure is
             // passed already in dirhams so it is not read as a headcount.
             value={Math.round(summary.monthlyPayrollCentimes / 100)}
-            suffix=" MAD"
+            suffix={` ${currency}`}
             detail={interpolate(t.hr.unpaidCount, {
               count: summary.unpaidThisMonth,
             })}
@@ -235,7 +236,7 @@ export function HrDashboard({
       <p className="text-muted-foreground text-xs">
         {formatMonth(period.year, period.month, locale)} ·{" "}
         {permissions.canPayroll
-          ? `${formatAmount(summary.unpaidCentimes, locale)} MAD ${t.hr.unpaidThisMonth}`
+          ? `${formatAmount(summary.unpaidCentimes, locale)} ${currency} ${t.hr.unpaidThisMonth}`
           : t.hr.ledgerNote}
       </p>
     </div>

@@ -19,6 +19,7 @@ import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -69,6 +70,7 @@ export function RegistersManager({
   canManage: boolean;
 }) {
   const { t, locale } = useI18n();
+  const { currencyCode: currency } = useSettings();
   const [editing, setEditing] = React.useState<RegisterRow | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [deleting, setDeleting] = React.useState<RegisterRow | null>(null);
@@ -106,7 +108,9 @@ export function RegistersManager({
               <WalletIcon className="size-4" />
             </span>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{row.original.name}</p>
+              <p className="truncate text-sm font-medium">
+                {row.original.name}
+              </p>
               <p className="text-muted-foreground truncate text-xs" dir="ltr">
                 {row.original.code}
               </p>
@@ -135,8 +139,7 @@ export function RegistersManager({
                 {t.treasury.statusOpen}
               </Badge>
               <p className="text-muted-foreground mt-1 truncate text-xs">
-                {session.openedByName} ·{" "}
-                {formatDate(session.openedAt, locale)}
+                {session.openedByName} · {formatDate(session.openedAt, locale)}
               </p>
             </div>
           );
@@ -151,7 +154,7 @@ export function RegistersManager({
           const session = row.original.openSession;
           return session ? (
             <span className="tabular-nums">
-              {formatAmount(session.expectedCentimes, locale)} MAD
+              {formatAmount(session.expectedCentimes, locale)} {currency}
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>

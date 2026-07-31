@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 
-import { PrinterIcon, ReceiptTextIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { BanIcon, PrinterIcon, ReceiptTextIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { EmptyState } from "@/components/shell/empty-state";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
 import {
@@ -20,24 +23,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { cancelPaymentAction } from "@/modules/treasury/actions";
-import { OPERATION_KINDS } from "@/modules/treasury/enums";
+import { OPERATION_KINDS, PAYMENT_METHODS } from "@/modules/treasury/enums";
 import type { OperationRow, PaymentRow } from "@/modules/treasury/queries";
 
 /** What the receipts table renders. Aliased so the props read plainly. */
@@ -51,139 +40,184 @@ type PaymentSummary = PaymentRow;
  * actually issued, and the correcting entry sitting two rows below is the whole
  * explanation of a total that would otherwise look wrong.
  */
-export function OperationsTable({ operations }: { operations: OperationRow[] }) {
+export function OperationsTable({
+  operations,
+}: {
+  operations: OperationRow[];
+}) {
   const t = useT();
   const locale = useLocale();
-  const [kind, setKind] = React.useState<string>("ALL");
 
-  const rows = React.useMemo(
-    () =>
-      kind === "ALL"
-        ? operations
-        : operations.filter((operation) => operation.kind === kind),
-    [operations, kind],
+  const columns = React.useMemo<ColumnDef<OperationRow, unknown>[]>(
+    () => [
+      {
+        accessorKey: "occurredAt",
+        header: t.treasury.occurredAt,
+        cell: ({ row }) => (
+          <span className="text-sm whitespace-nowrap">
+            {formatDate(row.original.occurredAt, locale)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "kind",
+        header: t.treasury.kind,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.kind === "ENCAISSEMENT"
+                ? "default"
+                : row.original.kind === "DECAISSEMENT"
+                  ? "destructive"
+                  : "secondary"
+            }
+          >
+            {
+              t.treasuryOptions.kinds[
+                row.original.kind as keyof typeof t.treasuryOptions.kinds
+              ]
+            }
+          </Badge>
+        ),
+      },
+      {
+        id: "label",
+        // The beneficiary and the category are searched on but not shown as
+        // their own columns — the ledger is read down the label.
+        accessorFn: (row) =>
+          `${row.label} ${row.beneficiaryName ?? ""} ${row.categoryName ?? ""} ${
+            row.reference ?? ""
+          }`,
+        header: t.treasury.label,
+        cell: ({ row }) => {
+          const operation = row.original;
+          return (
+            <div className="min-w-0">
+              <span
+                className={cn(
+                  operation.status === "CANCELLED" && "line-through",
+                )}
+              >
+                {operation.label}
+              </span>
+              {operation.beneficiaryName ? (
+                <p className="text-muted-foreground truncate text-xs">
+                  {operation.beneficiaryName}
+                  {operation.categoryName ? ` · ${operation.categoryName}` : ""}
+                </p>
+              ) : null}
+              {operation.isReversal ? (
+                <Badge variant="outline" className="mt-1">
+                  {t.treasury.reversalOf}
+                </Badge>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "method",
+        header: t.treasury.method,
+        meta: { className: "hidden @3xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {
+              t.treasuryOptions.methods[
+                row.original.method as keyof typeof t.treasuryOptions.methods
+              ]
+            }
+          </span>
+        ),
+      },
+      {
+        accessorKey: "amountCentimes",
+        header: t.treasury.amount,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.isReversal ? "−" : ""}
+            {formatAmount(row.original.amountCentimes, locale)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "cashImpactCentimes",
+        header: t.treasury.cashImpact,
+        meta: { className: "text-end hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.cashImpactCentimes === 0
+              ? "—"
+              : `${row.original.cashImpactCentimes > 0 ? "+" : ""}${formatAmount(
+                  row.original.cashImpactCentimes,
+                  locale,
+                )}`}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "createdByName",
+        header: t.treasury.recordedBy,
+        meta: { className: "hidden @4xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-xs">
+            {row.original.createdByName}
+          </span>
+        ),
+      },
+    ],
+    [t, locale],
+  );
+
+  /*
+    The kind filter used to be a row of tabs, which could only ever answer one
+    kind at a time. As a facet it is multi-select, so "encaissements and
+    remboursements, nothing else" is one filter rather than two passes — and the
+    method and status facets come free beside it.
+  */
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "kind",
+        label: t.treasury.kind,
+        options: OPERATION_KINDS.map((option) => ({
+          value: option,
+          label: t.treasuryOptions.kinds[option],
+        })),
+      },
+      {
+        columnId: "method",
+        label: t.treasury.method,
+        options: PAYMENT_METHODS.map((method) => ({
+          value: method,
+          label: t.treasuryOptions.methods[method],
+        })),
+      },
+    ],
+    [t],
   );
 
   return (
-    <Card>
-      <CardContent className="grid gap-4 p-0">
-        <div className="border-b p-3">
-          <Tabs value={kind} onValueChange={setKind}>
-            <TabsList>
-              <TabsTrigger value="ALL">{t.common.all}</TabsTrigger>
-              {OPERATION_KINDS.map((option) => (
-                <TabsTrigger key={option} value={option}>
-                  {t.treasuryOptions.kinds[option]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
-
-        {rows.length === 0 ? (
-          <EmptyState
-            icon={<ReceiptTextIcon className="size-5" />}
-            title={t.treasury.noOperations}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t.treasury.occurredAt}</TableHead>
-                  <TableHead>{t.treasury.kind}</TableHead>
-                  <TableHead>{t.treasury.label}</TableHead>
-                  <TableHead>{t.treasury.method}</TableHead>
-                  <TableHead className="text-end">{t.treasury.amount}</TableHead>
-                  <TableHead className="text-end">
-                    {t.treasury.cashImpact}
-                  </TableHead>
-                  <TableHead>{t.treasury.recordedBy}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((operation) => {
-                  // A reversed movement still happened and still counts toward
-                  // the drawer — it is dimmed to explain the correcting entry
-                  // below it, never struck out as if it had not occurred.
-                  const cancelled =
-                    operation.status === "CANCELLED" || operation.isReversed;
-
-                  return (
-                    <TableRow
-                      key={operation.id}
-                      className={cn(cancelled && "text-muted-foreground")}
-                    >
-                      <TableCell className="whitespace-nowrap">
-                        {formatDate(operation.occurredAt, locale)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            operation.kind === "ENCAISSEMENT"
-                              ? "default"
-                              : operation.kind === "DECAISSEMENT"
-                                ? "destructive"
-                                : "secondary"
-                          }
-                        >
-                          {
-                            t.treasuryOptions.kinds[
-                              operation.kind as keyof typeof t.treasuryOptions.kinds
-                            ]
-                          }
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            operation.status === "CANCELLED" && "line-through",
-                          )}
-                        >
-                          {operation.label}
-                        </span>
-                        {operation.beneficiaryName ? (
-                          <span className="text-muted-foreground block text-xs">
-                            {operation.beneficiaryName}
-                            {operation.categoryName
-                              ? ` · ${operation.categoryName}`
-                              : ""}
-                          </span>
-                        ) : null}
-                        {operation.isReversal ? (
-                          <Badge variant="outline" className="mt-1">
-                            {t.treasury.reversalOf}
-                          </Badge>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        {
-                          t.treasuryOptions.methods[
-                            operation.method as keyof typeof t.treasuryOptions.methods
-                          ]
-                        }
-                      </TableCell>
-                      <TableCell className="text-end tabular-nums">
-                        {operation.isReversal ? "−" : ""}
-                        {formatAmount(operation.amountCentimes, locale)}
-                      </TableCell>
-                      <TableCell className="text-end tabular-nums">
-                        {operation.cashImpactCentimes === 0
-                          ? "—"
-                          : `${operation.cashImpactCentimes > 0 ? "+" : ""}${formatAmount(operation.cashImpactCentimes, locale)}`}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-xs">
-                        {operation.createdByName}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <DataTable
+      columns={columns}
+      data={operations}
+      facets={facets}
+      pageSize={20}
+      // A reversed movement still happened and still counts toward the drawer —
+      // it is dimmed to explain the correcting entry below it, never struck out
+      // as if it had not occurred.
+      rowClassName={(operation) =>
+        operation.status === "CANCELLED" || operation.isReversed
+          ? "text-muted-foreground"
+          : undefined
+      }
+      emptyState={
+        <EmptyState
+          icon={<ReceiptTextIcon className="size-5" />}
+          title={t.treasury.noOperations}
+        />
+      }
+    />
   );
 }
 
@@ -220,98 +254,130 @@ export function ReceiptsTable({
     });
   }
 
-  if (payments.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-0">
+  const columns = React.useMemo<ColumnDef<PaymentSummary, unknown>[]>(
+    () => [
+      {
+        accessorKey: "code",
+        header: t.treasury.receipt,
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "font-medium",
+              row.original.status === "CANCELLED" && "line-through",
+            )}
+          >
+            {row.original.code}
+          </span>
+        ),
+      },
+      {
+        id: "family",
+        accessorFn: (row) => row.familyName ?? "",
+        header: t.treasury.family,
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.familyName ?? "—"}</span>
+        ),
+      },
+      {
+        accessorKey: "paidAt",
+        header: t.treasury.paidAt,
+        cell: ({ row }) => (
+          <span className="text-sm whitespace-nowrap">
+            {formatDate(row.original.paidAt, locale)}
+          </span>
+        ),
+      },
+      {
+        id: "method",
+        // A receipt can be settled with more than one method; the joined string
+        // is what the facet matches on, so "CASH + CHEQUE" is its own value.
+        accessorFn: (row) => row.methods.join(" + "),
+        header: t.treasury.method,
+        meta: { className: "hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-xs">
+            {row.original.methods
+              .map(
+                (method) =>
+                  t.treasuryOptions.methods[
+                    method as keyof typeof t.treasuryOptions.methods
+                  ],
+              )
+              .join(" + ")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "totalCentimes",
+        header: t.treasury.amount,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "tabular-nums",
+              row.original.status === "CANCELLED" && "line-through",
+            )}
+          >
+            {formatAmount(row.original.totalCentimes, locale)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const payment = row.original;
+          const cancelled = payment.status === "CANCELLED";
+
+          return (
+            <div className="flex justify-end gap-1">
+              {/* Offered on cancelled receipts too: somebody holding the paper
+                  copy needs to be able to reprint it and see the void stamped
+                  across it. */}
+              <Button asChild variant="ghost" size="icon-sm">
+                <Link
+                  href={`/print/payment/${payment.id}`}
+                  aria-label={t.print.receipt}
+                >
+                  <PrinterIcon />
+                </Link>
+              </Button>
+              {canCancel && !cancelled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t.treasury.cancelPayment}
+                  onClick={() => setPending(payment)}
+                >
+                  <BanIcon />
+                </Button>
+              ) : null}
+            </div>
+          );
+        },
+      },
+    ],
+    [t, locale, canCancel],
+  );
+
+  return (
+    <>
+      <DataTable
+        columns={columns}
+        data={payments}
+        pageSize={20}
+        rowClassName={(payment) =>
+          payment.status === "CANCELLED" ? "text-muted-foreground" : undefined
+        }
+        emptyState={
           <EmptyState
             icon={<ReceiptTextIcon className="size-5" />}
             title={t.treasury.noReceipts}
           />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <CardContent className="overflow-x-auto p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t.treasury.receipt}</TableHead>
-              <TableHead>{t.treasury.family}</TableHead>
-              <TableHead>{t.treasury.paidAt}</TableHead>
-              <TableHead>{t.treasury.method}</TableHead>
-              <TableHead className="text-end">{t.treasury.amount}</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {payments.map((payment) => {
-              const cancelled = payment.status === "CANCELLED";
-
-              return (
-                <TableRow
-                  key={payment.id}
-                  className={cn(cancelled && "text-muted-foreground")}
-                >
-                  <TableCell className="font-medium">
-                    <span className={cn(cancelled && "line-through")}>
-                      {payment.code}
-                    </span>
-                  </TableCell>
-                  <TableCell>{payment.familyName ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {formatDate(payment.paidAt, locale)}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {payment.methods
-                      .map(
-                        (method) =>
-                          t.treasuryOptions.methods[
-                            method as keyof typeof t.treasuryOptions.methods
-                          ],
-                      )
-                      .join(" + ")}
-                  </TableCell>
-                  <TableCell
-                    className={cn(
-                      "text-end tabular-nums",
-                      cancelled && "line-through",
-                    )}
-                  >
-                    {formatAmount(payment.totalCentimes, locale)}
-                  </TableCell>
-                  <TableCell className="text-end">
-                    {/* Offered on cancelled receipts too: somebody holding the
-                        paper copy needs to be able to reprint it and see the
-                        void stamped across it. */}
-                    <Button asChild variant="ghost" size="icon-sm">
-                      <Link
-                        href={`/print/payment/${payment.id}`}
-                        aria-label={t.print.receipt}
-                      >
-                        <PrinterIcon />
-                      </Link>
-                    </Button>
-                    {canCancel && !cancelled ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPending(payment)}
-                      >
-                        {t.treasury.cancelPayment}
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
+        }
+      />
 
       <AlertDialog
         open={pending !== null}
@@ -344,6 +410,6 @@ export function ReceiptsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   );
 }

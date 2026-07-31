@@ -1,8 +1,19 @@
 "use client";
 
-import { PalmtreeIcon, PlusIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  CheckIcon,
+  MoreHorizontalIcon,
+  PalmtreeIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 import * as React from "react";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
@@ -10,7 +21,6 @@ import { EmptyState } from "@/components/shell/empty-state";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +29,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,14 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, interpolate } from "@/lib/i18n/format";
@@ -43,7 +52,7 @@ import {
   deleteLeaveAction,
   saveLeaveAction,
 } from "@/modules/hr/actions";
-import { LEAVE_KINDS, spanInDays } from "@/modules/hr/enums";
+import { LEAVE_KINDS, LEAVE_STATUSES, spanInDays } from "@/modules/hr/enums";
 import type { LeaveRow, StaffOption } from "@/modules/hr/queries";
 import { Field, useToastedTransition } from "@/modules/hr/components/field";
 
@@ -72,139 +81,202 @@ export function LeaveList({
   const [removing, setRemoving] = React.useState<LeaveRow | null>(null);
   const { isPending, run } = useToastedTransition();
 
+  const columns = React.useMemo<ColumnDef<LeaveRow, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => `${row.staffName} ${row.staffCode}`,
+        header: t.hr.employee,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.staffName}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              {row.original.staffCode}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "kind",
+        header: t.hr.leaveKind,
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {
+              t.hrOptions.leaveKinds[
+                row.original.kind as keyof typeof t.hrOptions.leaveKinds
+              ]
+            }
+          </span>
+        ),
+      },
+      {
+        accessorKey: "startsOn",
+        header: t.hr.startsOn,
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {formatDate(row.original.startsOn, locale)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "endsOn",
+        header: t.hr.endsOn,
+        meta: { className: "hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-sm">
+            {formatDate(row.original.endsOn, locale)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "dayCount",
+        header: t.hr.dayCount,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">{row.original.dayCount}</span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: t.hr.leaveStatus,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              row.original.status === "APPROVED"
+                ? "secondary"
+                : row.original.status === "REJECTED"
+                  ? "destructive"
+                  : "outline"
+            }
+          >
+            {
+              t.hrOptions.leaveStatuses[
+                row.original.status as keyof typeof t.hrOptions.leaveStatuses
+              ]
+            }
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const request = row.original;
+          const decidable = canDecide && request.status === "PENDING";
+          if (!decidable && !canRequest && !canDecide) return null;
+
+          return (
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t.common.openMenu}
+                  >
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {/* Granting and refusing are the decision — kept above the
+                      separator, apart from editing what was asked for. */}
+                  {decidable ? (
+                    <>
+                      <DropdownMenuItem
+                        disabled={isPending}
+                        onSelect={() =>
+                          run(() => decideLeaveAction(request.id, "APPROVED"))
+                        }
+                      >
+                        <CheckIcon />
+                        {t.hr.approve}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        disabled={isPending}
+                        onSelect={() =>
+                          run(() => decideLeaveAction(request.id, "REJECTED"))
+                        }
+                      >
+                        <XIcon />
+                        {t.hr.reject}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : null}
+                  {canRequest ? (
+                    <DropdownMenuItem onSelect={() => setEditing(request)}>
+                      <PencilIcon />
+                      {t.common.edit}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {canDecide ? (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setRemoving(request)}
+                    >
+                      <Trash2Icon />
+                      {t.common.delete}
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+      },
+    ],
+    [t, locale, canDecide, canRequest, isPending, run],
+  );
+
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.hr.leaveStatus,
+        options: LEAVE_STATUSES.map((status) => ({
+          value: status,
+          label: t.hrOptions.leaveStatuses[status],
+        })),
+      },
+      {
+        columnId: "kind",
+        label: t.hr.leaveKind,
+        options: LEAVE_KINDS.map((kind) => ({
+          value: kind,
+          label: t.hrOptions.leaveKinds[kind],
+        })),
+      },
+    ],
+    [t],
+  );
+
+  const newButton = canRequest ? (
+    <Button onClick={() => setCreating(true)}>
+      <PlusIcon />
+      {t.hr.newLeave}
+    </Button>
+  ) : undefined;
+
   return (
     <div className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-muted-foreground text-xs">{t.hr.leaveStatusNote}</p>
-        {canRequest ? (
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" />
-            {t.hr.newLeave}
-          </Button>
-        ) : null}
-      </div>
+      <p className="text-muted-foreground text-xs">{t.hr.leaveStatusNote}</p>
 
-      {requests.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              icon={<PalmtreeIcon className="size-5" />}
-              title={t.hr.noLeave}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.hr.employee}</TableHead>
-                    <TableHead>{t.hr.leaveKind}</TableHead>
-                    <TableHead>{t.hr.startsOn}</TableHead>
-                    <TableHead>{t.hr.endsOn}</TableHead>
-                    <TableHead className="text-end">{t.hr.dayCount}</TableHead>
-                    <TableHead>{t.hr.leaveStatus}</TableHead>
-                    <TableHead className="text-end">{t.common.actions}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {requests.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>
-                        <span className="font-medium">{request.staffName}</span>
-                        <span className="text-muted-foreground block text-xs">
-                          {request.staffCode}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {
-                          t.hrOptions.leaveKinds[
-                            request.kind as keyof typeof t.hrOptions.leaveKinds
-                          ]
-                        }
-                      </TableCell>
-                      <TableCell>{formatDate(request.startsOn, locale)}</TableCell>
-                      <TableCell>{formatDate(request.endsOn, locale)}</TableCell>
-                      <TableCell className="text-end tabular-nums">
-                        {request.dayCount}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            request.status === "APPROVED"
-                              ? "secondary"
-                              : request.status === "REJECTED"
-                                ? "destructive"
-                                : "outline"
-                          }
-                        >
-                          {
-                            t.hrOptions.leaveStatuses[
-                              request.status as keyof typeof t.hrOptions.leaveStatuses
-                            ]
-                          }
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-end">
-                        {canDecide && request.status === "PENDING" ? (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={isPending}
-                              onClick={() =>
-                                run(() =>
-                                  decideLeaveAction(request.id, "APPROVED"),
-                                )
-                              }
-                            >
-                              {t.hr.approve}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              disabled={isPending}
-                              onClick={() =>
-                                run(() =>
-                                  decideLeaveAction(request.id, "REJECTED"),
-                                )
-                              }
-                            >
-                              {t.hr.reject}
-                            </Button>
-                          </>
-                        ) : null}
-                        {canRequest ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditing(request)}
-                          >
-                            {t.common.edit}
-                          </Button>
-                        ) : null}
-                        {canDecide ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => setRemoving(request)}
-                          >
-                            {t.common.delete}
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={columns}
+        data={requests}
+        facets={facets}
+        pageSize={15}
+        emptyState={
+          <EmptyState
+            icon={<PalmtreeIcon className="size-5" />}
+            title={t.hr.noLeave}
+            action={newButton}
+          />
+        }
+        toolbar={newButton}
+      />
 
       {creating || editing ? (
         <LeaveDialog

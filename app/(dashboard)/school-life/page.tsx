@@ -152,7 +152,7 @@ export default async function SchoolLifePage() {
           detail={`${t.schoolLife.discounted}: ${formatNumber(
             Math.round(centimesToDirhams(stats.enrolment.discountedCentimes)),
             locale,
-          )} MAD`}
+          )} ${context.settings.currencyCode}`}
           icon={<WalletIcon className="size-4" />}
           locale={locale}
         />
@@ -213,7 +213,8 @@ export default async function SchoolLifePage() {
                         ? Math.min(
                             100,
                             Math.round(
-                              (schoolClass.enrolled / schoolClass.capacity) * 100,
+                              (schoolClass.enrolled / schoolClass.capacity) *
+                                100,
                             ),
                           )
                         : 0

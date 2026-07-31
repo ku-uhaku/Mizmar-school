@@ -1,15 +1,22 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  BanknoteIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  ReceiptTextIcon,
+} from "lucide-react";
 import * as React from "react";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +25,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -26,14 +39,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatAmount, formatMonth, interpolate } from "@/lib/i18n/format";
@@ -41,6 +46,14 @@ import { paySalaryAction, saveSalaryAction } from "@/modules/hr/actions";
 import { SALARY_STATUSES, netSalary } from "@/modules/hr/enums";
 import type { PayrollLine } from "@/modules/hr/queries";
 import { Field } from "@/modules/hr/components/field";
+
+/**
+ * Stands in for "no bulletin prepared yet" in the status facet. A missing
+ * payslip is not a status the table owns — the row exists because the person
+ * is employed — but "who has not been done" is the question this screen is
+ * opened to answer, so it has to be filterable.
+ */
+const NOT_PREPARED = "__none__";
 
 /**
  * La paie: one month, a line per employee, prepared and then paid.
@@ -74,6 +87,145 @@ export function PayrollList({
     window.location.search = `?year=${date.getFullYear()}&month=${date.getMonth() + 1}`;
   }
 
+  const columns = React.useMemo<ColumnDef<PayrollLine, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => `${row.staffName} ${row.staffCode}`,
+        header: t.hr.employee,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.staffName}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              {row.original.staffCode}
+              {row.original.unjustifiedDays > 0
+                ? ` · ${row.original.unjustifiedDays} ${t.hr.unjustifiedAbsences}`
+                : ""}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "grossCentimes",
+        header: t.hr.gross,
+        meta: { className: "text-end hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {formatAmount(row.original.grossCentimes, locale)}
+          </span>
+        ),
+      },
+      {
+        id: "deductions",
+        accessorFn: (row) => row.grossCentimes - row.netCentimes,
+        header: t.hr.deductions,
+        meta: { className: "text-end hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {formatAmount(
+              row.original.grossCentimes - row.original.netCentimes,
+              locale,
+            )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "netCentimes",
+        header: t.hr.net,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span className="font-medium tabular-nums">
+            {formatAmount(row.original.netCentimes, locale)}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        // An empty id means the query found no bulletin for this month — see
+        // the note on NOT_PREPARED.
+        accessorFn: (row) => (row.id === "" ? NOT_PREPARED : row.status),
+        header: t.hr.payslipStatus,
+        cell: ({ row }) =>
+          row.original.id === "" ? (
+            <Badge variant="outline">{t.hr.noPayslip}</Badge>
+          ) : (
+            <Badge
+              variant={row.original.status === "PAID" ? "secondary" : "outline"}
+            >
+              {
+                t.hrOptions.salaryStatuses[
+                  row.original.status as keyof typeof t.hrOptions.salaryStatuses
+                ]
+              }
+            </Badge>
+          ),
+      },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const line = row.original;
+          const prepared = line.id !== "";
+          const payable =
+            canDisburse &&
+            prepared &&
+            line.status !== "PAID" &&
+            line.status !== "CANCELLED";
+
+          return (
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t.common.openMenu}
+                  >
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    disabled={line.status === "PAID"}
+                    onSelect={() => setEditing(line)}
+                  >
+                    <PencilIcon />
+                    {t.common.edit}
+                  </DropdownMenuItem>
+                  {payable ? (
+                    <DropdownMenuItem onSelect={() => setPaying(line)}>
+                      <BanknoteIcon />
+                      {t.hr.pay}
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+      },
+    ],
+    [t, locale, canDisburse],
+  );
+
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.hr.payslipStatus,
+        options: [
+          { value: NOT_PREPARED, label: t.hr.noPayslip },
+          ...SALARY_STATUSES.map((status) => ({
+            value: status,
+            label: t.hrOptions.salaryStatuses[status],
+          })),
+        ],
+      },
+    ],
+    [t],
+  );
+
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -96,103 +248,18 @@ export function PayrollList({
         </p>
       </div>
 
-      {lines.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              icon={<ReceiptTextIcon className="size-5" />}
-              title={t.hr.noStaff}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.hr.employee}</TableHead>
-                    <TableHead className="text-end">{t.hr.gross}</TableHead>
-                    <TableHead className="text-end">{t.hr.deductions}</TableHead>
-                    <TableHead className="text-end">{t.hr.net}</TableHead>
-                    <TableHead>{t.hr.payslipStatus}</TableHead>
-                    <TableHead className="text-end">{t.common.actions}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.map((line) => {
-                    const deducted = line.grossCentimes - line.netCentimes;
-                    const prepared = line.id !== "";
-
-                    return (
-                      <TableRow key={line.staffId}>
-                        <TableCell>
-                          <span className="font-medium">{line.staffName}</span>
-                          <span className="text-muted-foreground block text-xs">
-                            {line.staffCode}
-                            {line.unjustifiedDays > 0
-                              ? ` · ${line.unjustifiedDays} ${t.hr.unjustifiedAbsences}`
-                              : ""}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-end tabular-nums">
-                          {formatAmount(line.grossCentimes, locale)}
-                        </TableCell>
-                        <TableCell className="text-end tabular-nums">
-                          {formatAmount(deducted, locale)}
-                        </TableCell>
-                        <TableCell className="text-end font-medium tabular-nums">
-                          {formatAmount(line.netCentimes, locale)}
-                        </TableCell>
-                        <TableCell>
-                          {prepared ? (
-                            <Badge
-                              variant={
-                                line.status === "PAID" ? "secondary" : "outline"
-                              }
-                            >
-                              {
-                                t.hrOptions.salaryStatuses[
-                                  line.status as keyof typeof t.hrOptions.salaryStatuses
-                                ]
-                              }
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">{t.hr.noPayslip}</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-end">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditing(line)}
-                            disabled={line.status === "PAID"}
-                          >
-                            {t.common.edit}
-                          </Button>
-                          {canDisburse &&
-                          prepared &&
-                          line.status !== "PAID" &&
-                          line.status !== "CANCELLED" ? (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setPaying(line)}
-                            >
-                              {t.hr.pay}
-                            </Button>
-                          ) : null}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={columns}
+        data={lines}
+        facets={facets}
+        pageSize={15}
+        emptyState={
+          <EmptyState
+            icon={<ReceiptTextIcon className="size-5" />}
+            title={t.hr.noStaff}
+          />
+        }
+      />
 
       {editing ? (
         <PayslipDialog line={editing} onClose={() => setEditing(null)} />

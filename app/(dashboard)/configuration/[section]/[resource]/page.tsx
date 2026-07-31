@@ -14,7 +14,8 @@ import {
   SectionTabs,
 } from "@/modules/configuration/components/configuration-nav";
 import { ResourceManager } from "@/modules/configuration/components/resource-manager";
-import { listResource } from "@/modules/configuration/queries";
+import { SettingsForm } from "@/modules/configuration/components/settings-form";
+import { findSingleton, listResource } from "@/modules/configuration/queries";
 import { findResource, findSection } from "@/modules/configuration/resources";
 
 export const metadata: Metadata = { title: "Configuration" };
@@ -129,6 +130,14 @@ async function ResourceBody({
 }) {
   const context = await requireAuth();
   const resource = findResource(resourceId)!;
+
+  // A singleton is one row of policy, not a list — a page of grouped fields
+  // with one save, rather than a table and an edit dialog.
+  if (resource.kind === "singleton") {
+    const row = await findSingleton(context, resource);
+    return <SettingsForm resource={resource} row={row} canManage={canManage} />;
+  }
+
   const { rows, choices } = await listResource(context, resource);
 
   return (

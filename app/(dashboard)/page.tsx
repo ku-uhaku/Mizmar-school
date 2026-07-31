@@ -53,11 +53,13 @@ export default async function DashboardPage() {
   const t = await getDictionary();
   const locale = await getLocale();
 
-  const [{ activeSchools, userCount, activeUserCount, roleCount, yearCount }, headlines] =
-    await Promise.all([
-      loadDashboardStats(context),
-      loadSectionHeadlines(context),
-    ]);
+  const [
+    { activeSchools, userCount, activeUserCount, roleCount, yearCount },
+    headlines,
+  ] = await Promise.all([
+    loadDashboardStats(context),
+    loadSectionHeadlines(context),
+  ]);
 
   /** A warning label, or undefined when there is nothing to warn about. */
   const attention = (count: number, template: string) =>
@@ -110,7 +112,7 @@ export default async function DashboardPage() {
             description={t.dashboard.financeHint}
             icon={<WalletIcon className="size-4" />}
             value={headlines.finance.value}
-            suffix=" MAD"
+            suffix={` ${context.settings.currencyCode}`}
             valueLabel={t.treasury.collectedToday}
             detail={interpolate(t.treasury.openRegisterCount, {
               count: headlines.finance.detail,
@@ -151,10 +153,7 @@ export default async function DashboardPage() {
             detail={interpolate(t.dashboard.leaveRequestCount, {
               count: headlines.rh.detail,
             })}
-            attention={attention(
-              headlines.rh.attention,
-              t.hr.unmarkedCount,
-            )}
+            attention={attention(headlines.rh.attention, t.hr.unmarkedCount)}
           />
         ) : null}
       </div>
@@ -187,7 +186,9 @@ export default async function DashboardPage() {
           detail={context.currentSchool?.name ?? t.context.noSchoolSelected}
           icon={<CalendarRangeIcon className="size-4" />}
           locale={locale}
-          href={context.can(PERMISSIONS.SCHOOL_YEAR_VIEW) ? "/school-years" : null}
+          href={
+            context.can(PERMISSIONS.SCHOOL_YEAR_VIEW) ? "/school-years" : null
+          }
         />
         <StatTile
           label={t.dashboard.roles}
@@ -210,7 +211,9 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="space-y-1">
-              <p className="text-muted-foreground text-xs">{t.context.school}</p>
+              <p className="text-muted-foreground text-xs">
+                {t.context.school}
+              </p>
               <p className="font-medium">
                 {context.currentSchool?.name ?? t.context.noSchoolSelected}
               </p>

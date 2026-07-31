@@ -86,6 +86,23 @@ export function formatAmount(centimes: number, locale: Locale): string {
   }).format(centimes / 100);
 }
 
+/**
+ * The same amount with the school's currency after it — "1 200,00 MAD".
+ *
+ * The code rather than `Intl`'s currency style on purpose: `Intl` renders MAD
+ * as "MAD" in French and "د.م." in Arabic, and a school's paperwork, its
+ * receipts and its bank all say the same three letters whatever language the
+ * screen is in. Amounts stay in the currency's minor unit throughout, so this
+ * only ever changes the label.
+ */
+export function formatMoney(
+  centimes: number,
+  locale: Locale,
+  currencyCode: string,
+): string {
+  return `${formatAmount(centimes, locale)} ${currencyCode}`;
+}
+
 /** `<input type="date">` needs a plain YYYY-MM-DD value, never a localised one. */
 export function toDateInputValue(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;

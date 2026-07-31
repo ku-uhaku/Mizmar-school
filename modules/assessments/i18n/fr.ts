@@ -22,7 +22,8 @@ const fr = {
     term: "Semestre",
     kind: "Type",
     sequence: "Numéro",
-    sequenceHint: "Le combien de son type dans le semestre — 1 pour le premier.",
+    sequenceHint:
+      "Le combien de son type dans le semestre — 1 pour le premier.",
     scheduledOn: "Passé le",
     notScheduled: "Non daté",
     maxScore: "Noté sur",
@@ -50,7 +51,8 @@ const fr = {
     nothingToGenerate: "Toutes les matières ont déjà ce contrôle.",
     noProgramme:
       "Cette classe n'a aucune matière notée à son programme — configurez-le d'abord.",
-    termClosed: "Ce semestre est clôturé ; aucun contrôle ne peut y être ajouté.",
+    termClosed:
+      "Ce semestre est clôturé ; aucun contrôle ne peut y être ajouté.",
 
     // ── Un contrôle ─────────────────────────────────────────────────────────
     editAssessment: "Modifier le contrôle",
@@ -83,6 +85,7 @@ const fr = {
     emptyRoster: "Aucun élève n'est affecté à cette classe.",
     markedOf: "{marked} notes sur {total}",
     pending: "Reste à corriger",
+    passMarkIs: "Passage à {mark}/{max}.",
     passRate: "Taux de réussite",
     lowest: "Note la plus basse",
     highest: "Note la plus haute",

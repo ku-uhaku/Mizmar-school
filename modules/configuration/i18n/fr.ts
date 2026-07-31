@@ -18,7 +18,11 @@ const fr = {
     deleteBody: "Elle sera retirée de la configuration de cette école.",
     outOfContext: "Ce choix n'appartient pas à l'école dans laquelle vous travaillez.",
 
+    codeFormatNeedsSequence:
+      "Incluez {seq} — sans lui, toutes les références de l'année seraient identiques.",
+
     sections: {
+      school: "Établissement",
       academics: "Structure pédagogique",
       facilities: "Locaux",
       year: "Année scolaire",
@@ -26,7 +30,18 @@ const fr = {
       billing: "Frais",
     },
 
+    groups: {
+      grading: "Notation",
+      calendar: "Semaine scolaire",
+      regional: "Langue et monnaie",
+      codes: "Matricules",
+      billing: "Échéanciers",
+      payroll: "Paie",
+      other: "Autres",
+    },
+
     resources: {
+      schoolSettings: "Réglages",
       educationLevels: "Cycles",
       levels: "Niveaux",
       tracks: "Filières",
@@ -45,6 +60,18 @@ const fr = {
     },
 
     fields: {
+      gradingMaxScore: "Notes sur",
+      passMark: "Moyenne de passage",
+      teachingDays: "Jours de classe",
+      currencyCode: "Monnaie",
+      defaultLocale: "Langue par défaut",
+      defaultAccent: "Couleur par défaut",
+      studentCodeFormat: "Matricule élève",
+      familyCodeFormat: "Numéro de dossier",
+      staffCodeFormat: "Matricule personnel",
+      defaultInstalmentCount: "Échéances par an",
+      feeDueDayOfMonth: "Exigible le",
+      payrollWorkingDays: "Jours ouvrables par mois",
       name: "Nom",
       nameAr: "Nom (arabe)",
       code: "Code",
@@ -99,12 +126,30 @@ const fr = {
       amount: "Montant (MAD)",
       instalmentCount: "Échéances",
       discountKind: "Type",
-      percentBps: "Pourcentage (pdb)",
+      percentBps: "Pourcentage",
       discountReason: "Motif",
       isStackable: "Cumulable",
     },
 
     hints: {
+      gradingMaxScore:
+        "Le barème par défaut d'un nouveau devoir. Un devoir peut toujours être noté autrement.",
+      passMark:
+        "En pourcentage du barème : 50 % font 10 sur 20. Détermine les notes affichées en échec.",
+      teachingDays: "Jours affichés sur l'emploi du temps et au pointage.",
+      currencyCode:
+        "Ne change que le libellé — les montants restent enregistrés au centime.",
+      defaultLocale:
+        "Langue de départ des nouveaux utilisateurs de cette école. Ils peuvent en changer.",
+      defaultAccent:
+        "Couleur de départ des nouveaux utilisateurs. Ils peuvent en changer.",
+      codeFormat:
+        "{year} vaut 2025, {yy} vaut 25, {seq:4} vaut 0007. Le reste est repris tel quel.",
+      defaultInstalmentCount:
+        "Utilisé lorsque un tarif du barème n'en fixe pas lui-même.",
+      feeDueDayOfMonth: "Jour du mois où tombe une échéance. Plafonné au 28.",
+      payrollWorkingDays:
+        "Divise le salaire mensuel pour suggérer un taux journalier. Jamais appliqué d'office.",
       allowTeacherCreate:
         "À activer pour ce qu\u2019un enseignant donne lui-même — les devoirs. Les contrôles restent désactivés : seul le responsable pédagogique les programme.",
       defaultCoefficient:
@@ -138,7 +183,7 @@ const fr = {
       amount: "En dirhams. Enregistré au centime près.",
       instalmentCount: "Répartir le montant sur ce nombre de versements.",
       discountKind: "Pourcentage, ou montant fixe en dirhams.",
-      percentBps: "Points de base : 1250 vaut 12,5 %.",
+      percentBps: "En pourcentage : 12,5 correspond à un huitième de remise.",
       discountFeeType: "Laissez vide pour l'autoriser sur tous les frais.",
       isStackable: "Peut être cumulée avec une autre remise.",
     },
@@ -173,6 +218,28 @@ const fr = {
       "4": "Jeudi",
       "5": "Vendredi",
       "6": "Samedi",
+      // Proposé pour l'école qui fait classe le dimanche. Le choix des
+      // créneaux ne liste que les jours effectivement déclarés.
+      "7": "Dimanche",
+    },
+    currencies: {
+      MAD: "Dirham (MAD)",
+      EUR: "Euro (EUR)",
+      USD: "Dollar US (USD)",
+    },
+    locales: {
+      fr: "Français",
+      en: "English",
+      ar: "العربية",
+    },
+    accents: {
+      blue: "Bleu",
+      emerald: "Émeraude",
+      violet: "Violet",
+      amber: "Ambre",
+      rose: "Rose",
+      teal: "Sarcelle",
+      neutral: "Neutre",
     },
     sessions: {
       MORNING: "Matin",

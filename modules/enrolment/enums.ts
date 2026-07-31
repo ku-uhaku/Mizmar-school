@@ -81,10 +81,17 @@ export function defaultInstalmentCount(
   billingCycle: string,
   monthsInYear: number,
   termCount: number,
+  /**
+   * The school's declared instalments per year (SchoolSettings). A monthly
+   * charge follows it rather than the calendar: a Moroccan school year has ten
+   * months in it and is almost always collected in nine, which is why every
+   * seeded scolarité rate used to repeat `instalmentCount: 9` by hand.
+   */
+  schoolInstalments: number = 0,
 ): number {
   switch (billingCycle) {
     case "MONTHLY":
-      return Math.max(1, monthsInYear);
+      return Math.max(1, schoolInstalments || monthsInYear);
     case "TERM":
       return Math.max(1, termCount);
     // ANNUAL and ONE_OFF are quoted and collected once unless the rate splits
@@ -144,9 +151,15 @@ export function instalmentDueDates(
   yearStart: Date,
   yearEnd: Date,
   count: number,
+  /**
+   * Day of the month an instalment falls due (SchoolSettings.feeDueDayOfMonth).
+   * Defaults to the day the year itself starts, which is what this did before
+   * schools could say otherwise.
+   */
+  dueDay?: number,
 ): Date[] {
   const months = monthsOfYear(yearStart, yearEnd);
-  const day = yearStart.getDate();
+  const day = dueDay ?? yearStart.getDate();
 
   return Array.from({ length: Math.max(0, count) }, (_, index) => {
     const slot = months[Math.min(index, months.length - 1)] ?? {

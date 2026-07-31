@@ -97,6 +97,7 @@ export function DataTable<TData>({
   toolbar,
   facets,
   pageSize = 10,
+  rowClassName,
 }: {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -104,6 +105,12 @@ export function DataTable<TData>({
   emptyState?: React.ReactNode;
   /** Primary actions, rendered at the inline end of the toolbar. */
   toolbar?: React.ReactNode;
+  /**
+   * Styling that belongs to the whole row rather than to one cell — the ledger
+   * dims a cancelled movement this way, and dimming it column by column would
+   * put the same rule in seven places.
+   */
+  rowClassName?: (row: TData) => string | undefined;
   /**
    * Columns offered as multi-select filters. A screen with facets answers
    * "which of these are unplaced?" without anybody having to know what to type
@@ -314,7 +321,10 @@ export function DataTable<TData>({
               </TableRow>
             ) : (
               rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={rowClassName?.(row.original)}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}

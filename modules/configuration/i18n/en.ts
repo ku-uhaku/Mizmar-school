@@ -21,8 +21,11 @@ const en = {
     deleteTitle: "Delete this entry?",
     deleteBody: "It will be removed from this school's configuration.",
     outOfContext: "That choice does not belong to the school you are working in.",
+    codeFormatNeedsSequence:
+      "Include {seq} — without it every reference this year would be identical.",
 
     sections: {
+      school: "Establishment",
       academics: "Academic structure",
       facilities: "Facilities",
       year: "School year",
@@ -30,7 +33,18 @@ const en = {
       billing: "Fees",
     },
 
+    groups: {
+      grading: "Marking",
+      calendar: "Teaching week",
+      regional: "Language and currency",
+      codes: "Reference numbers",
+      billing: "Fee schedules",
+      payroll: "Payroll",
+      other: "Other",
+    },
+
     resources: {
+      schoolSettings: "Settings",
       educationLevels: "Cycles",
       levels: "Levels",
       tracks: "Tracks",
@@ -49,6 +63,18 @@ const en = {
     },
 
     fields: {
+      gradingMaxScore: "Marks are out of",
+      passMark: "Pass mark",
+      teachingDays: "Teaching days",
+      currencyCode: "Currency",
+      defaultLocale: "Default language",
+      defaultAccent: "Default colour",
+      studentCodeFormat: "Pupil reference",
+      familyCodeFormat: "Family reference",
+      staffCodeFormat: "Staff reference",
+      defaultInstalmentCount: "Instalments per year",
+      feeDueDayOfMonth: "Due on the",
+      payrollWorkingDays: "Working days per month",
       name: "Name",
       nameAr: "Name (Arabic)",
       code: "Code",
@@ -103,12 +129,28 @@ const en = {
       amount: "Amount (MAD)",
       instalmentCount: "Instalments",
       discountKind: "Kind",
-      percentBps: "Percentage (bps)",
+      percentBps: "Percentage",
       discountReason: "Reason",
       isStackable: "Combinable",
     },
 
     hints: {
+      gradingMaxScore:
+        "The scale a new paper starts on. A single paper may still be set out of something else.",
+      passMark:
+        "As a percentage of the scale: 50% is 10 out of 20. Decides which marks show as a fail.",
+      teachingDays: "Days that appear on the timetable and in the register.",
+      currencyCode:
+        "Changes the label only — amounts are always stored to the centime.",
+      defaultLocale: "What new users of this school start in. They may change it.",
+      defaultAccent: "The colour new users start with. They may change it.",
+      codeFormat:
+        "{year} is 2025, {yy} is 25, {seq:4} is 0007. Anything else is copied as written.",
+      defaultInstalmentCount:
+        "Used when a price on the list does not set its own.",
+      feeDueDayOfMonth: "Day of the month an instalment falls due. Capped at 28.",
+      payrollWorkingDays:
+        "Divides a monthly salary to suggest a daily rate. Only ever a suggestion.",
       allowTeacherCreate:
         "Turn on for the kinds a teacher sets themselves — devoirs. Contrôles stay off, so only the head of studies plans those.",
       defaultCoefficient:
@@ -142,7 +184,7 @@ const en = {
       amount: "In dirhams. Stored to the centime.",
       instalmentCount: "Split the amount over this many payments.",
       discountKind: "Percentage, or a fixed number of dirhams.",
-      percentBps: "Basis points: 1250 is 12.5%.",
+      percentBps: "As a percentage: 12.5 is an eighth off.",
       discountFeeType: "Leave empty to allow it against any fee.",
       isStackable: "Whether it may combine with another discount.",
     },
@@ -177,6 +219,28 @@ const en = {
       "4": "Thursday",
       "5": "Friday",
       "6": "Saturday",
+      // Offered so a school that teaches Sunday can say so. The time-slot
+      // picker only lists the days the school actually declared.
+      "7": "Sunday",
+    },
+    currencies: {
+      MAD: "Dirham (MAD)",
+      EUR: "Euro (EUR)",
+      USD: "US dollar (USD)",
+    },
+    locales: {
+      fr: "Français",
+      en: "English",
+      ar: "العربية",
+    },
+    accents: {
+      blue: "Blue",
+      emerald: "Emerald",
+      violet: "Violet",
+      amber: "Amber",
+      rose: "Rose",
+      teal: "Teal",
+      neutral: "Neutral",
     },
     sessions: {
       MORNING: "Morning",

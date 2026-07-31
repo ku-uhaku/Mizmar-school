@@ -2,9 +2,12 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import {
-  deriveStudentStatus,
-  nextStudentCode,
-} from "@/modules/students/enums";
+  codePrefixOf,
+  formatEntityCode,
+  sequenceFromCode,
+} from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
+import { deriveStudentStatus } from "@/modules/students/enums";
 
 /**
  * Writes and invariants for the students module.
@@ -16,21 +19,27 @@ import {
  * it cannot disagree.
  */
 
-/** See `allocateFamilyCode` — same reasoning, same shape. */
+/** See `allocateFamilyCode` — same reasoning, same shape, same school format. */
 export async function allocateStudentCode(
   schoolId: string,
   year = new Date().getFullYear(),
 ): Promise<string> {
-  const prefix = nextStudentCode(year, 0).slice(0, -4);
+  const { studentCodeFormat } = await loadSchoolSettings(schoolId);
+  const prefix = codePrefixOf(studentCodeFormat, year);
 
-  const latest = await db.student.findFirst({
+  const candidates = await db.student.findMany({
     where: { schoolId, code: { startsWith: prefix } },
     orderBy: { code: "desc" },
     select: { code: true },
+    take: 200,
   });
 
-  const lastSequence = latest ? Number(latest.code.slice(prefix.length)) : 0;
-  return nextStudentCode(year, (Number.isNaN(lastSequence) ? 0 : lastSequence) + 1);
+  const highest = candidates.reduce((max, row) => {
+    const sequence = sequenceFromCode(studentCodeFormat, year, row.code);
+    return sequence !== null && sequence > max ? sequence : max;
+  }, 0);
+
+  return formatEntityCode(studentCodeFormat, year, highest + 1);
 }
 
 /**

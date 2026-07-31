@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PrintDocument } from "@/components/print/print-document";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
+import { formatDate, formatMoney, interpolate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { letterheadFrom } from "@/lib/letterhead";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -36,7 +36,10 @@ export default async function ReceiptPage({
   const receipt = await findReceipt(context, paymentId);
   if (!receipt) notFound();
 
-  const money = (centimes: number) => `${formatAmount(centimes, locale)} MAD`;
+  // The school's currency, so a document never contradicts the screen it was
+  // printed from.
+  const money = (centimes: number) =>
+    formatMoney(centimes, locale, context.settings.currencyCode);
 
   return (
     <PrintDocument
@@ -58,7 +61,10 @@ export default async function ReceiptPage({
 
       <dl className="mb-5 grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">
         <Row label={t.print.receiptFor} value={receipt.familyName ?? "—"} />
-        <Row label={t.print.issuedOn} value={formatDate(receipt.paidAt, locale)} />
+        <Row
+          label={t.print.issuedOn}
+          value={formatDate(receipt.paidAt, locale)}
+        />
         <Row label={t.family.code} value={receipt.familyCode ?? "—"} />
         <Row label={t.treasury.register} value={receipt.registerName ?? "—"} />
       </dl>

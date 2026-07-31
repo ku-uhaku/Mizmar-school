@@ -12,9 +12,10 @@ import {
   SectionLinks,
   type SectionLink,
 } from "@/components/shell/section-links";
-import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useT } from "@/components/providers/i18n-provider";
+import { useMoney } from "@/components/providers/settings-provider";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatAmount, interpolate } from "@/lib/i18n/format";
+import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { TreasurySummary } from "@/modules/treasury/queries";
 
@@ -39,9 +40,8 @@ export function TreasuryDashboard({
   };
 }) {
   const t = useT();
-  const locale = useLocale();
 
-  const money = (centimes: number) => `${formatAmount(centimes, locale)} MAD`;
+  const money = useMoney();
 
   const links: SectionLink[] = [];
 

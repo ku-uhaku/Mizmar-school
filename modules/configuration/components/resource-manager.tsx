@@ -12,6 +12,7 @@ import {
 
 import { DataTable } from "@/components/data-table/data-table";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,7 @@ export function ResourceManager({
   canManage: boolean;
 }) {
   const { t, locale } = useI18n();
+  const { currencyCode: currency } = useSettings();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<ResourceRow | undefined>();
   const [deleting, setDeleting] = React.useState<ResourceRow | null>(null);
@@ -68,7 +70,8 @@ export function ResourceManager({
   /** Reference cells show the target's label, never its cuid. */
   const labelFor = React.useCallback(
     (field: FieldDef, value: string) =>
-      choices[field.name]?.find((choice) => choice.id === value)?.label ?? value,
+      choices[field.name]?.find((choice) => choice.id === value)?.label ??
+      value,
     [choices],
   );
 
@@ -84,6 +87,7 @@ export function ResourceManager({
             field={field}
             value={row.original[field.name]}
             locale={locale}
+            currency={currency}
             optionLabels={
               field.optionsKey
                 ? ((t.configOptions as Record<string, Record<string, string>>)[
@@ -206,6 +210,7 @@ function Cell({
   field,
   value,
   locale,
+  currency,
   optionLabels,
   labelFor,
   emptyLabel,
@@ -215,6 +220,8 @@ function Cell({
   field: FieldDef;
   value: string | number | boolean | null;
   locale: Parameters<typeof formatDate>[1];
+  /** The school's currency, for the money columns. */
+  currency: string;
   optionLabels: Record<string, string>;
   labelFor: (field: FieldDef, value: string) => string;
   emptyLabel: string;
@@ -248,7 +255,7 @@ function Cell({
       // Stored in centimes; shown as dirhams.
       return (
         <span dir="ltr" className="tabular-nums">
-          {formatNumber(Number(value) / 100, locale)} MAD
+          {formatNumber(Number(value) / 100, locale)} {currency}
         </span>
       );
 

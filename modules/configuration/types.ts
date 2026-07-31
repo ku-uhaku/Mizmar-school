@@ -19,8 +19,20 @@ export type FieldType =
   | "number"
   /** Stored as integer centimes, entered and shown in dirhams. */
   | "money"
+  /**
+   * Stored as integer basis points, entered and shown as a percentage — the
+   * same trick as `money`, for the same reason: a rate that decides what a
+   * family owes or whether a child passed must not be a float.
+   */
+  | "percent"
   | "boolean"
   | "select"
+  /**
+   * Several of a fixed set of values, stored as one comma-joined string.
+   * SQLite has no array type and a join table for "which days do you teach"
+   * would be a table of at most seven small integers.
+   */
+  | "multiselect"
   /** A row from another resource, picked from a dropdown. */
   | "reference"
   | "color"
@@ -58,6 +70,12 @@ export type FieldDef = {
   inTable?: boolean;
   /** Span both columns of the dialog grid. */
   wide?: boolean;
+  /**
+   * Singleton resources only: which fieldset this field sits under, as a key
+   * under `configuration.groups`. A settings page with twelve controls in one
+   * flat list is unreadable; a list resource's dialog ignores it.
+   */
+  groupKey?: string;
 };
 
 export type ResourceDef = {
@@ -79,6 +97,15 @@ export type ResourceDef = {
    * the user has selected.
    */
   scope: "SCHOOL" | "YEAR";
+  /**
+   * Whether this resource is a list of rows or a single one.
+   *
+   * A singleton has exactly one row per scope — the school's own settings —
+   * so it gets a form on the page rather than a table with an edit dialog,
+   * and it has no create or delete. Defaults to `"list"`, which is what the
+   * other fourteen resources are.
+   */
+  kind?: "list" | "singleton";
   fields: FieldDef[];
   /** Fields joined with " — " to name a row in reference dropdowns. */
   labelFields: string[];

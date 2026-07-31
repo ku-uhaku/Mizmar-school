@@ -5,6 +5,7 @@ import { MousePointerClickIcon, RefreshCwIcon, WalletIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +68,7 @@ export function FeeGrid({
   canManage: boolean;
 }) {
   const { t, locale } = useI18n();
+  const { currencyCode: currency } = useSettings();
   // The row is carried alongside the cell so the dialog can be told how many
   // later instalments of the *same charge* a reduction could be carried to.
   const [editing, setEditing] = React.useState<{
@@ -295,15 +297,15 @@ export function FeeGrid({
         <dl className="grid gap-2 border-t px-4 py-3 text-sm sm:grid-cols-3">
           <Total
             label={t.enrolment.beforeDiscount}
-            value={`${money(grid.baseGrandTotalCentimes)} MAD`}
+            value={`${money(grid.baseGrandTotalCentimes)} ${currency}`}
           />
           <Total
             label={t.enrolment.totalDiscount}
-            value={`− ${money(grid.discountTotalCentimes)} MAD`}
+            value={`− ${money(grid.discountTotalCentimes)} ${currency}`}
           />
           <Total
             label={t.enrolment.grandTotal}
-            value={`${money(grid.grandTotalCentimes)} MAD`}
+            value={`${money(grid.grandTotalCentimes)} ${currency}`}
             strong
           />
         </dl>

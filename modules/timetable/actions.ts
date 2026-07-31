@@ -10,7 +10,8 @@ import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
 import { fieldErrors } from "@/lib/validation";
-import { isTeachingDay } from "@/modules/timetable/enums";
+import { isTeachingDayIn } from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
   entriesInBlock,
   findClash,
@@ -136,9 +137,12 @@ export async function saveTimetableEntryAction(
     // The days this lesson runs on. The anchor's own day is always included —
     // a form that could place a lesson on no day at all is a form that loses
     // work silently.
+    // Read for this class's school rather than the one selected in the header:
+    // an org administrator may be editing a timetable while working elsewhere.
+    const settings = await loadSchoolSettings(schoolClass.schoolId);
     const requestedDays = listField(formData, "days")
       .map(Number)
-      .filter((day) => Number.isInteger(day) && isTeachingDay(day));
+      .filter((day) => Number.isInteger(day) && isTeachingDayIn(day, settings));
     const days = [...new Set([anchor.dayOfWeek, ...requestedDays])].sort();
 
     // Which slots the block occupies, worked out from the bell schedule rather

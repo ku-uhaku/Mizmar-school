@@ -83,6 +83,7 @@ const en = {
     emptyRoster: "Nobody is seated in this class yet.",
     markedOf: "{marked} of {total} marked",
     pending: "Still to mark",
+    passMarkIs: "Pass at {mark}/{max}.",
     passRate: "Pass rate",
     lowest: "Lowest",
     highest: "Highest",

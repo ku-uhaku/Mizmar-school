@@ -9,6 +9,7 @@ import {
   type AuthContext,
 } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { hashPassword } from "@/lib/auth";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -159,6 +160,21 @@ export async function createUserAction(
     const orgRoleId = await resolveOrgRoleId(context, parsed.data.orgRoleId);
     const memberships = await resolveMemberships(context, parsed.data.memberships);
 
+    /*
+      A new account starts in its own school's language and colour, falling back
+      to the organisation's language and the stock accent. Read for the school
+      the user is actually being put into — not the one selected in the header —
+      because an org administrator creating a director for another school should
+      hand them that school's defaults, not their own.
+
+      Only a starting point: the moment the user opens /appearance, their choice
+      is theirs. See SchoolSettings.defaultLocale and defaultAccent.
+    */
+    const homeSchoolId = memberships[0]?.schoolId ?? null;
+    const homeSettings = homeSchoolId
+      ? await loadSchoolSettings(homeSchoolId)
+      : null;
+
     await db.user.create({
       data: {
         organizationId: context.organization.id,
@@ -167,7 +183,7 @@ export async function createUserAction(
         isActive: parsed.data.isActive,
         isSuperAdmin,
         orgRoleId,
-        currentSchoolId: memberships[0]?.schoolId ?? null,
+        currentSchoolId: homeSchoolId,
         profile: {
           create: {
             firstName: parsed.data.firstName,
@@ -176,7 +192,9 @@ export async function createUserAction(
             jobTitle: parsed.data.jobTitle,
             birthDate: parsed.data.birthDate,
             avatarUrl: parsed.data.avatarUrl,
-            locale: context.organization.defaultLocale,
+            locale:
+              homeSettings?.defaultLocale ?? context.organization.defaultLocale,
+            ...(homeSettings ? { accent: homeSettings.defaultAccent } : {}),
           },
         },
         memberships: { create: memberships },

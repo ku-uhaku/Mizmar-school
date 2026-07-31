@@ -63,6 +63,16 @@ const byYear = (context: AuthContext) => ({
 });
 
 export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
+  // The singleton. `where` is the school itself rather than a scoping clause on
+  // a list, which is what makes the upsert in `saveSettingsAction` safe: it can
+  // only ever touch the row belonging to the school in context.
+  "school-settings": {
+    table: () => db.schoolSettings as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ createdAt: "asc" }],
+  },
+
   "education-levels": {
     table: () => db.educationLevel as unknown as Delegate,
     where: bySchool,

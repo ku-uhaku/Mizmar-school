@@ -18,7 +18,11 @@ const ar = {
     deleteBody: "سيتم حذفه من إعدادات هذه المدرسة.",
     outOfContext: "هذا الاختيار لا ينتمي إلى المدرسة التي تعمل بها.",
 
+    codeFormatNeedsSequence:
+      "أدرج ‏{seq}‏ — بدونه تصير كل مراجع السنة متطابقة.",
+
     sections: {
+      school: "المؤسسة",
       academics: "البنية البيداغوجية",
       facilities: "المرافق",
       year: "السنة الدراسية",
@@ -26,7 +30,18 @@ const ar = {
       billing: "الرسوم",
     },
 
+    groups: {
+      grading: "التنقيط",
+      calendar: "الأسبوع الدراسي",
+      regional: "اللغة والعملة",
+      codes: "الأرقام المرجعية",
+      billing: "جداول الأداء",
+      payroll: "الأجور",
+      other: "أخرى",
+    },
+
     resources: {
+      schoolSettings: "الإعدادات",
       educationLevels: "الأسلاك",
       levels: "المستويات",
       tracks: "الشعب",
@@ -45,6 +60,18 @@ const ar = {
     },
 
     fields: {
+      gradingMaxScore: "النقطة على",
+      passMark: "نقطة النجاح",
+      teachingDays: "أيام الدراسة",
+      currencyCode: "العملة",
+      defaultLocale: "اللغة الافتراضية",
+      defaultAccent: "اللون الافتراضي",
+      studentCodeFormat: "رقم التلميذ",
+      familyCodeFormat: "رقم الملف العائلي",
+      staffCodeFormat: "رقم الموظف",
+      defaultInstalmentCount: "عدد الأقساط في السنة",
+      feeDueDayOfMonth: "تُستحق يوم",
+      payrollWorkingDays: "أيام العمل في الشهر",
       name: "الاسم",
       nameAr: "الاسم بالعربية",
       code: "الرمز",
@@ -99,12 +126,27 @@ const ar = {
       amount: "المبلغ (درهم)",
       instalmentCount: "عدد الأقساط",
       discountKind: "النوع",
-      percentBps: "النسبة (نقطة أساس)",
+      percentBps: "النسبة المئوية",
       discountReason: "السبب",
       isStackable: "قابل للجمع",
     },
 
     hints: {
+      gradingMaxScore:
+        "السلّم الافتراضي لكل فرض جديد. ويبقى بالإمكان تنقيط فرض بعينه على سلّم آخر.",
+      passMark:
+        "نسبة مئوية من السلّم: 50 % تعني 10 من 20. وهي التي تحدد النقط المعروضة كرسوب.",
+      teachingDays: "الأيام التي تظهر في استعمال الزمن وفي ورقة الغياب.",
+      currencyCode: "يغيّر التسمية فقط — تبقى المبالغ محفوظة بالسنتيم.",
+      defaultLocale:
+        "اللغة التي ينطلق بها المستعملون الجدد في هذه المدرسة، ولهم أن يغيّروها.",
+      defaultAccent: "اللون الذي ينطلق به المستعملون الجدد، ولهم أن يغيّروه.",
+      codeFormat:
+        "‏{year}‏ تعني 2025، و‏{yy}‏ تعني 25، و‏{seq:4}‏ تعني 0007. وما عداها يُنقل كما هو.",
+      defaultInstalmentCount: "يُعتمد حين لا تحدد تعريفة الجدول عددها بنفسها.",
+      feeDueDayOfMonth: "اليوم من الشهر الذي يحل فيه القسط. بحد أقصى 28.",
+      payrollWorkingDays:
+        "يقسّم الأجر الشهري لاقتراح أجرة اليوم. ويبقى اقتراحًا لا يُطبَّق تلقائيًا.",
       allowTeacherCreate:
         "فعّله لما يعطيه الأستاذ بنفسه — الواجبات. أما الفروض فتبقى معطّلة، إذ يبرمجها المسؤول البيداغوجي وحده.",
       defaultCoefficient:
@@ -137,7 +179,7 @@ const ar = {
       amount: "بالدرهم. يُسجّل بدقة السنتيم.",
       instalmentCount: "توزيع المبلغ على هذا العدد من الدفعات.",
       discountKind: "نسبة مئوية أو مبلغ ثابت بالدرهم.",
-      percentBps: "نقاط الأساس: 1250 تعني 12,5 %.",
+      percentBps: "بالنسبة المئوية: 12,5 تعني خصم الثُمن.",
       discountFeeType: "اتركه فارغا للسماح به على جميع الرسوم.",
       isStackable: "إمكانية جمعه مع تخفيض آخر.",
     },
@@ -172,6 +214,28 @@ const ar = {
       "4": "الخميس",
       "5": "الجمعة",
       "6": "السبت",
+      // مُتاح للمدرسة التي تدرّس يوم الأحد. أما اختيار الحصص فلا يعرض
+      // إلا الأيام المصرَّح بها فعلًا.
+      "7": "الأحد",
+    },
+    currencies: {
+      MAD: "الدرهم (MAD)",
+      EUR: "الأورو (EUR)",
+      USD: "الدولار الأمريكي (USD)",
+    },
+    locales: {
+      fr: "Français",
+      en: "English",
+      ar: "العربية",
+    },
+    accents: {
+      blue: "أزرق",
+      emerald: "زمردي",
+      violet: "بنفسجي",
+      amber: "كهرماني",
+      rose: "وردي",
+      teal: "أزرق مخضر",
+      neutral: "محايد",
     },
     sessions: {
       MORNING: "صباحا",

@@ -1,13 +1,15 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarCheckIcon } from "lucide-react";
 import * as React from "react";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,20 +21,15 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   markAttendanceAction,
   markDayInBulkAction,
 } from "@/modules/hr/actions";
 import { ATTENDANCE_STATUSES, isChargeableAbsence } from "@/modules/hr/enums";
 import type { RegisterEntry } from "@/modules/hr/queries";
 import { useToastedTransition } from "@/modules/hr/components/field";
+
+/** "Not marked yet" as a facet value — see the note on the status column. */
+const UNMARKED = "__unmarked__";
 
 /**
  * Le pointage: one day, everybody, marked in place.
@@ -57,16 +54,19 @@ export function AttendanceRegister({
 
   const unmarked = entries.filter((entry) => entry.status === null);
 
-  function mark(entry: RegisterEntry, status: string, isJustified?: boolean) {
-    const formData = new FormData();
-    formData.set("staffId", entry.staffId);
-    formData.set("date", date);
-    formData.set("status", status);
-    if (isJustified ?? entry.isJustified) formData.set("isJustified", "on");
-    formData.set("minutesLate", String(entry.minutesLate));
-    if (entry.notes) formData.set("notes", entry.notes);
-    run(() => markAttendanceAction({ status: "idle" }, formData));
-  }
+  const mark = React.useCallback(
+    (entry: RegisterEntry, status: string, isJustified?: boolean) => {
+      const formData = new FormData();
+      formData.set("staffId", entry.staffId);
+      formData.set("date", date);
+      formData.set("status", status);
+      if (isJustified ?? entry.isJustified) formData.set("isJustified", "on");
+      formData.set("minutesLate", String(entry.minutesLate));
+      if (entry.notes) formData.set("notes", entry.notes);
+      run(() => markAttendanceAction({ status: "idle" }, formData));
+    },
+    [date, run],
+  );
 
   function markEveryoneElse() {
     const formData = new FormData();
@@ -75,6 +75,122 @@ export function AttendanceRegister({
     for (const entry of unmarked) formData.append("staffIds", entry.staffId);
     run(() => markDayInBulkAction({ status: "idle" }, formData));
   }
+
+  const columns = React.useMemo<ColumnDef<RegisterEntry, unknown>[]>(
+    () => [
+      {
+        id: "employee",
+        accessorFn: (row) => `${row.staffName} ${row.staffCode}`,
+        header: t.hr.employee,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.staffName}</p>
+            <p className="text-muted-foreground truncate text-xs">
+              {row.original.staffCode} ·{" "}
+              {
+                t.hrOptions.jobRoles[
+                  row.original.jobRole as keyof typeof t.hrOptions.jobRoles
+                ]
+              }
+            </p>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        // A null status is "nobody has said yet", which is the whole point of
+        // the screen — it gets a sentinel so it can be filtered for.
+        accessorFn: (row) => row.status ?? UNMARKED,
+        header: t.hr.attendanceStatus,
+        cell: ({ row }) => {
+          const entry = row.original;
+          const chargeable =
+            entry.status !== null &&
+            isChargeableAbsence(entry.status, entry.isJustified);
+
+          if (canMark) {
+            return (
+              <Select
+                value={entry.status ?? ""}
+                onValueChange={(value) => mark(entry, value)}
+                disabled={isPending}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder={t.hr.unmarked} />
+                </SelectTrigger>
+                <SelectContent>
+                  {ATTENDANCE_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {t.hrOptions.attendanceStatuses[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+
+          return entry.status === null ? (
+            <Badge variant="outline">{t.hr.unmarked}</Badge>
+          ) : (
+            <Badge variant={chargeable ? "destructive" : "secondary"}>
+              {
+                t.hrOptions.attendanceStatuses[
+                  entry.status as keyof typeof t.hrOptions.attendanceStatuses
+                ]
+              }
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "justified",
+        accessorFn: (row) => row.isJustified,
+        header: t.hr.justified,
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.status === null ? (
+            <span className="text-muted-foreground text-xs">—</span>
+          ) : (
+            <Switch
+              checked={row.original.isJustified}
+              disabled={!canMark || isPending}
+              onCheckedChange={(checked) =>
+                mark(row.original, row.original.status ?? "ABSENT", checked)
+              }
+              aria-label={t.hr.justified}
+            />
+          ),
+      },
+      {
+        accessorKey: "minutesLate",
+        header: t.hr.minutesLate,
+        meta: { className: "text-end hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.status === "LATE" ? row.original.minutesLate : "—"}
+          </span>
+        ),
+      },
+    ],
+    [t, canMark, isPending, mark],
+  );
+
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.hr.attendanceStatus,
+        options: [
+          { value: UNMARKED, label: t.hr.unmarked },
+          ...ATTENDANCE_STATUSES.map((status) => ({
+            value: status,
+            label: t.hrOptions.attendanceStatuses[status],
+          })),
+        ],
+      },
+    ],
+    [t],
+  );
 
   return (
     <div className="grid gap-3">
@@ -106,106 +222,23 @@ export function AttendanceRegister({
         ) : null}
       </div>
 
-      {entries.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              icon={<CalendarCheckIcon className="size-5" />}
-              title={t.hr.noStaff}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t.hr.employee}</TableHead>
-                    <TableHead>{t.hr.attendanceStatus}</TableHead>
-                    <TableHead>{t.hr.justified}</TableHead>
-                    <TableHead className="text-end">{t.hr.minutesLate}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry) => {
-                    const chargeable =
-                      entry.status !== null &&
-                      isChargeableAbsence(entry.status, entry.isJustified);
-
-                    return (
-                      <TableRow key={entry.staffId}>
-                        <TableCell>
-                          <span className="font-medium">{entry.staffName}</span>
-                          <span className="text-muted-foreground block text-xs">
-                            {entry.staffCode} ·{" "}
-                            {
-                              t.hrOptions.jobRoles[
-                                entry.jobRole as keyof typeof t.hrOptions.jobRoles
-                              ]
-                            }
-                          </span>
-                        </TableCell>
-
-                        <TableCell>
-                          {canMark ? (
-                            <Select
-                              value={entry.status ?? ""}
-                              onValueChange={(value) => mark(entry, value)}
-                              disabled={isPending}
-                            >
-                              <SelectTrigger className="w-44">
-                                <SelectValue placeholder={t.hr.unmarked} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ATTENDANCE_STATUSES.map((status) => (
-                                  <SelectItem key={status} value={status}>
-                                    {t.hrOptions.attendanceStatuses[status]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : entry.status === null ? (
-                            <Badge variant="outline">{t.hr.unmarked}</Badge>
-                          ) : (
-                            <Badge variant={chargeable ? "destructive" : "secondary"}>
-                              {
-                                t.hrOptions.attendanceStatuses[
-                                  entry.status as keyof typeof t.hrOptions.attendanceStatuses
-                                ]
-                              }
-                            </Badge>
-                          )}
-                        </TableCell>
-
-                        <TableCell>
-                          {entry.status === null ? (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          ) : (
-                            <Switch
-                              checked={entry.isJustified}
-                              disabled={!canMark || isPending}
-                              onCheckedChange={(checked) =>
-                                mark(entry, entry.status ?? "ABSENT", checked)
-                              }
-                              aria-label={t.hr.justified}
-                            />
-                          )}
-                        </TableCell>
-
-                        <TableCell className="text-end tabular-nums">
-                          {entry.status === "LATE" ? entry.minutesLate : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/*
+        A page size well past a school's payroll, because marking a register is
+        a single pass down the list: paginating it would hide the people still
+        to be marked behind a "next" button.
+      */}
+      <DataTable
+        columns={columns}
+        data={entries}
+        facets={facets}
+        pageSize={100}
+        emptyState={
+          <EmptyState
+            icon={<CalendarCheckIcon className="size-5" />}
+            title={t.hr.noStaff}
+          />
+        }
+      />
     </div>
   );
 }

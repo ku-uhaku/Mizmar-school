@@ -63,14 +63,6 @@ export function deriveStudentStatus(
   }
 }
 
-/** Matricules look like `E-2025-0431`. */
-export const STUDENT_CODE_PREFIX = "E";
-
-/** See `nextFamilyCode` — same reasoning, same shape. */
-export function nextStudentCode(year: number, sequence: number): string {
-  return `${STUDENT_CODE_PREFIX}-${year}-${String(sequence).padStart(4, "0")}`;
-}
-
 /**
  * The steps a pupil's file goes through, in order — the "parcours" the profile
  * screen renders as a stepper.

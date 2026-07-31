@@ -36,6 +36,11 @@ model School {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// The policies this school sets for itself — grading scale, teaching week,
+  /// matricule format, instalment count. Optional because every column has a
+  /// default: a school with no row behaves exactly as one with the defaults.
+  settings SchoolSettings?
+
   schoolYears    SchoolYear[]
   memberships    Membership[]
   /// Users who currently have this school selected as their working context.

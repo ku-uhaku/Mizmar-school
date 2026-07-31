@@ -99,8 +99,7 @@ export function EnrolmentPanel({
   const errors = state.fieldErrors ?? {};
   const offering = offerings.find((entry) => entry.id === offeringId) ?? null;
   const classes = offering?.classes ?? [];
-  const groups =
-    classes.find((entry) => entry.id === classId)?.groups ?? [];
+  const groups = classes.find((entry) => entry.id === classId)?.groups ?? [];
 
   const canSubmit = isEdit ? permissions.canUpdate : permissions.canCreate;
 
@@ -149,7 +148,9 @@ export function EnrolmentPanel({
         </div>
         {enrolment ? (
           <div className="flex shrink-0 items-center gap-2">
-            <Badge variant={enrolment.status === "ACTIVE" ? "default" : "outline"}>
+            <Badge
+              variant={enrolment.status === "ACTIVE" ? "default" : "outline"}
+            >
               {
                 t.enrolmentOptions.statuses[
                   enrolment.status as keyof typeof t.enrolmentOptions.statuses

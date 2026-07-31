@@ -481,8 +481,19 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
   )
 }
 
+/**
+ * The active row wears the *accent*, not the neutral hover grey: which screen
+ * you are on is the one piece of state the sidebar carries, and it should be
+ * findable at a glance rather than by comparing two shades of the same grey.
+ * The tint plus the inline-start bar do that without the solid-fill treatment,
+ * which at sidebar scale reads as a selected list item rather than as a place.
+ *
+ * The bar is `before:` and inline-start, so it flips with the direction; it is
+ * hidden when collapsed to icons, where an 8px-wide button has nowhere to put
+ * it.
+ */
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-start text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pe-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button relative flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-start text-sm ring-sidebar-ring outline-hidden transition-[width,height,padding] group-has-data-[sidebar=menu-action]/menu-item:pe-8 group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-open:hover:bg-sidebar-accent data-open:hover:text-sidebar-accent-foreground data-active:bg-sidebar-primary/10 data-active:font-medium data-active:text-sidebar-primary data-active:hover:bg-sidebar-primary/15 data-active:hover:text-sidebar-primary dark:data-active:bg-sidebar-primary/15 dark:data-active:hover:bg-sidebar-primary/20 data-active:before:absolute data-active:before:inset-y-1 data-active:before:start-0 data-active:before:w-[3px] data-active:before:rounded-e-full data-active:before:bg-sidebar-primary group-data-[collapsible=icon]:data-active:before:hidden [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
   {
     variants: {
       variant: {

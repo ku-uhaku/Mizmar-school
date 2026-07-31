@@ -49,17 +49,3 @@ export const FAMILY_SITUATIONS = [
   "OTHER",
 ] as const;
 export type FamilySituation = (typeof FAMILY_SITUATIONS)[number];
-
-/** Dossier numbers look like `F-2025-0142`. */
-export const FAMILY_CODE_PREFIX = "F";
-
-/**
- * Builds the next dossier number for a school and year.
- *
- * Sequence-per-year rather than a global counter: the year in the code is what
- * makes a dossier number readable on paper, and a secretary asked for "the 2025
- * files" means the ones that start with 2025.
- */
-export function nextFamilyCode(year: number, sequence: number): string {
-  return `${FAMILY_CODE_PREFIX}-${year}-${String(sequence).padStart(4, "0")}`;
-}

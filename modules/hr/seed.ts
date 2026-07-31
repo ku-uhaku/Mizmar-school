@@ -1,6 +1,7 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
-import { activeContractKey, nextStaffCode } from "@/modules/hr/enums";
+import { DEFAULT_SETTINGS, formatEntityCode } from "@/lib/school-settings";
+import { activeContractKey } from "@/modules/hr/enums";
 
 /**
  * The payroll: who works here, and on what terms.
@@ -42,13 +43,97 @@ export type StaffSeed = {
  * string. See `seedTransport`.
  */
 export const STAFF_SEEDS: StaffSeed[] = [
-  { code: "P-2025-0001", first: "Hassan", last: "Alaoui", firstAr: "حسن", lastAr: "العلوي", jobRole: "DRIVER", jobTitle: "Chauffeur de bus", phone: "0661234501", salary: 4200, kind: "CDI", hiredYear: 2019 },
-  { code: "P-2025-0002", first: "Brahim", last: "Naji", firstAr: "براهيم", lastAr: "الناجي", jobRole: "DRIVER", jobTitle: "Chauffeur de bus", phone: "0661234502", salary: 4200, kind: "CDI", hiredYear: 2021 },
-  { code: "P-2025-0003", first: "Said", last: "Amrani", firstAr: "سعيد", lastAr: "العمراني", jobRole: "DRIVER", jobTitle: "Chauffeur de bus", phone: "0661234503", salary: 4000, kind: "CDD", hiredYear: 2023 },
-  { code: "P-2025-0004", first: "Khadija", last: "Bouzid", firstAr: "خديجة", lastAr: "بوزيد", jobRole: "NURSE", jobTitle: "Infirmière", phone: "0661234504", salary: 5500, kind: "CDI", hiredYear: 2020 },
-  { code: "P-2025-0005", first: "Mustapha", last: "Idrissi", firstAr: "مصطفى", lastAr: "الإدريسي", jobRole: "SECURITY", jobTitle: "Gardien", phone: "0661234505", salary: 3200, kind: "CDI", hiredYear: 2018 },
-  { code: "P-2025-0006", first: "Rachida", last: "Filali", firstAr: "رشيدة", lastAr: "الفيلالي", jobRole: "MAINTENANCE", jobTitle: "Agent d'entretien", phone: "0661234506", salary: 3000, kind: "CDI", hiredYear: 2022 },
-  { code: "P-2025-0007", first: "Younes", last: "Chraibi", firstAr: "يونس", lastAr: "الشرايبي", jobRole: "SUPERVISOR", jobTitle: "Surveillant général", phone: "0661234507", salary: 6800, kind: "CDI", hiredYear: 2017 },
+  {
+    code: "P-2025-0001",
+    first: "Hassan",
+    last: "Alaoui",
+    firstAr: "حسن",
+    lastAr: "العلوي",
+    jobRole: "DRIVER",
+    jobTitle: "Chauffeur de bus",
+    phone: "0661234501",
+    salary: 4200,
+    kind: "CDI",
+    hiredYear: 2019,
+  },
+  {
+    code: "P-2025-0002",
+    first: "Brahim",
+    last: "Naji",
+    firstAr: "براهيم",
+    lastAr: "الناجي",
+    jobRole: "DRIVER",
+    jobTitle: "Chauffeur de bus",
+    phone: "0661234502",
+    salary: 4200,
+    kind: "CDI",
+    hiredYear: 2021,
+  },
+  {
+    code: "P-2025-0003",
+    first: "Said",
+    last: "Amrani",
+    firstAr: "سعيد",
+    lastAr: "العمراني",
+    jobRole: "DRIVER",
+    jobTitle: "Chauffeur de bus",
+    phone: "0661234503",
+    salary: 4000,
+    kind: "CDD",
+    hiredYear: 2023,
+  },
+  {
+    code: "P-2025-0004",
+    first: "Khadija",
+    last: "Bouzid",
+    firstAr: "خديجة",
+    lastAr: "بوزيد",
+    jobRole: "NURSE",
+    jobTitle: "Infirmière",
+    phone: "0661234504",
+    salary: 5500,
+    kind: "CDI",
+    hiredYear: 2020,
+  },
+  {
+    code: "P-2025-0005",
+    first: "Mustapha",
+    last: "Idrissi",
+    firstAr: "مصطفى",
+    lastAr: "الإدريسي",
+    jobRole: "SECURITY",
+    jobTitle: "Gardien",
+    phone: "0661234505",
+    salary: 3200,
+    kind: "CDI",
+    hiredYear: 2018,
+  },
+  {
+    code: "P-2025-0006",
+    first: "Rachida",
+    last: "Filali",
+    firstAr: "رشيدة",
+    lastAr: "الفيلالي",
+    jobRole: "MAINTENANCE",
+    jobTitle: "Agent d'entretien",
+    phone: "0661234506",
+    salary: 3000,
+    kind: "CDI",
+    hiredYear: 2022,
+  },
+  {
+    code: "P-2025-0007",
+    first: "Younes",
+    last: "Chraibi",
+    firstAr: "يونس",
+    lastAr: "الشرايبي",
+    jobRole: "SUPERVISOR",
+    jobTitle: "Surveillant général",
+    phone: "0661234507",
+    salary: 6800,
+    kind: "CDI",
+    hiredYear: 2017,
+  },
 ];
 
 /** Monthly base by job, for the teaching staff generated from their accounts. */
@@ -186,13 +271,19 @@ export async function seedHr(
   for (const [index, teacher] of input.teachers.entries()) {
     const profile = await db.user.findUnique({
       where: { id: teacher.id },
-      select: { profile: { select: { firstName: true, lastName: true, phone: true } } },
+      select: {
+        profile: { select: { firstName: true, lastName: true, phone: true } },
+      },
     });
     if (!profile?.profile) continue;
 
     await upsertStaff(db, {
       schoolId: input.schoolId,
-      code: nextStaffCode(2025, STAFF_SEEDS.length + index + 1),
+      code: formatEntityCode(
+        DEFAULT_SETTINGS.staffCodeFormat,
+        2025,
+        STAFF_SEEDS.length + index + 1,
+      ),
       firstName: profile.profile.firstName,
       lastName: profile.profile.lastName,
       jobRole: "TEACHER",

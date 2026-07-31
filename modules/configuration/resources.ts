@@ -1,4 +1,7 @@
+import { LOCALES } from "@/lib/i18n/config";
+import { CURRENCY_CODES, WEEKDAYS } from "@/lib/school-settings";
 import { EDUCATION_CYCLES } from "@/modules/academics/enums";
+import { ACCENTS } from "@/modules/appearance/enums";
 import {
   BILLING_CYCLES,
   DISCOUNT_KINDS,
@@ -25,6 +28,10 @@ import type { ResourceDef, SectionDef } from "@/modules/configuration/types";
 
 /** Top-level horizontal tabs, in order. */
 export const SECTIONS: SectionDef[] = [
+  // First, because it is the section that changes what the others mean: the
+  // grading scale, the teaching week and the currency are read by every screen
+  // the remaining sections configure.
+  { id: "school", labelKey: "school" },
   { id: "academics", labelKey: "academics" },
   { id: "facilities", labelKey: "facilities" },
   { id: "year", labelKey: "year" },
@@ -69,6 +76,155 @@ const MASSAR_CODE = {
 
 /** Vertical tabs within each section, in order. */
 export const RESOURCES: ResourceDef[] = [
+  // ── Réglages de l'établissement ───────────────────────────────────────────
+  /*
+    The one singleton. Every field here was a constant in the code until this
+    resource existed, and each one is a convention rather than a fact — which
+    is precisely the test for whether something belongs in this table rather
+    than in an enums.ts. See prisma/schema/schools/school-settings.prisma and
+    lib/school-settings.ts, which holds the defaults these fall back to.
+  */
+  {
+    id: "school-settings",
+    section: "school",
+    labelKey: "schoolSettings",
+    scope: "SCHOOL",
+    kind: "singleton",
+    labelFields: ["id"],
+    fields: [
+      {
+        name: "gradingMaxScore",
+        type: "number",
+        labelKey: "gradingMaxScore",
+        hintKey: "gradingMaxScore",
+        groupKey: "grading",
+        required: true,
+        min: 1,
+        max: 100,
+        defaultValue: 20,
+      },
+      {
+        name: "passMarkBps",
+        type: "percent",
+        labelKey: "passMark",
+        hintKey: "passMark",
+        groupKey: "grading",
+        required: true,
+        min: 0,
+        max: 100,
+        defaultValue: 50,
+      },
+      {
+        name: "teachingDays",
+        type: "multiselect",
+        labelKey: "teachingDays",
+        hintKey: "teachingDays",
+        groupKey: "calendar",
+        options: WEEKDAYS.map(String),
+        optionsKey: "days",
+        required: true,
+        wide: true,
+      },
+      {
+        name: "currencyCode",
+        type: "select",
+        labelKey: "currencyCode",
+        hintKey: "currencyCode",
+        groupKey: "regional",
+        options: CURRENCY_CODES,
+        optionsKey: "currencies",
+        required: true,
+        defaultValue: "MAD",
+      },
+      {
+        name: "defaultLocale",
+        type: "select",
+        labelKey: "defaultLocale",
+        hintKey: "defaultLocale",
+        groupKey: "regional",
+        options: LOCALES,
+        optionsKey: "locales",
+        required: true,
+        defaultValue: "fr",
+      },
+      {
+        name: "defaultAccent",
+        type: "select",
+        labelKey: "defaultAccent",
+        hintKey: "defaultAccent",
+        groupKey: "regional",
+        options: ACCENTS,
+        optionsKey: "accents",
+        required: true,
+        defaultValue: "blue",
+      },
+      {
+        name: "studentCodeFormat",
+        type: "text",
+        labelKey: "studentCodeFormat",
+        hintKey: "codeFormat",
+        groupKey: "codes",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "E-{year}-{seq:4}",
+      },
+      {
+        name: "familyCodeFormat",
+        type: "text",
+        labelKey: "familyCodeFormat",
+        groupKey: "codes",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "F-{year}-{seq:4}",
+      },
+      {
+        name: "staffCodeFormat",
+        type: "text",
+        labelKey: "staffCodeFormat",
+        groupKey: "codes",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "P-{year}-{seq:4}",
+      },
+      {
+        name: "defaultInstalmentCount",
+        type: "number",
+        labelKey: "defaultInstalmentCount",
+        hintKey: "defaultInstalmentCount",
+        groupKey: "billing",
+        required: true,
+        min: 1,
+        max: 12,
+        defaultValue: 9,
+      },
+      {
+        name: "feeDueDayOfMonth",
+        type: "number",
+        labelKey: "feeDueDayOfMonth",
+        hintKey: "feeDueDayOfMonth",
+        groupKey: "billing",
+        required: true,
+        min: 1,
+        max: 28,
+        defaultValue: 5,
+      },
+      {
+        name: "payrollWorkingDays",
+        type: "number",
+        labelKey: "payrollWorkingDays",
+        hintKey: "payrollWorkingDays",
+        groupKey: "payroll",
+        required: true,
+        min: 1,
+        max: 31,
+        defaultValue: 26,
+      },
+    ],
+  },
+
   // ── Structure pédagogique ─────────────────────────────────────────────────
   {
     id: "education-levels",
@@ -707,12 +863,14 @@ export const RESOURCES: ResourceDef[] = [
         inTable: true,
       },
       {
+        // Stored in basis points, entered as a percentage — a bursar setting a
+        // 25% sibling reduction was previously asked to type 2500.
         name: "percentBps",
-        type: "number",
+        type: "percent",
         labelKey: "percentBps",
         hintKey: "percentBps",
         min: 0,
-        max: 10000,
+        max: 100,
         inTable: true,
       },
       { name: "amountCentimes", type: "money", labelKey: "amount", min: 0, inTable: true },

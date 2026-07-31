@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogBody,
@@ -131,7 +132,7 @@ export function ResourceDialog({
   );
 }
 
-function ResourceField({
+export function ResourceField({
   field,
   row,
   choices,
@@ -241,15 +242,19 @@ function FieldControl({
       return (
         <Select
           name={field.name}
-          defaultValue={current !== null && current !== undefined && current !== ""
-            ? String(current)
-            : fallback}
+          defaultValue={
+            current !== null && current !== undefined && current !== ""
+              ? String(current)
+              : fallback
+          }
         >
           <SelectTrigger id={field.name} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {nullable ? <SelectItem value={NONE}>{noneLabel}</SelectItem> : null}
+            {nullable ? (
+              <SelectItem value={NONE}>{noneLabel}</SelectItem>
+            ) : null}
             {(field.options ?? []).map((option) => (
               <SelectItem key={option} value={option}>
                 {optionLabels[option] ?? option}
@@ -270,7 +275,9 @@ function FieldControl({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {nullable ? <SelectItem value={NONE}>{noneLabel}</SelectItem> : null}
+            {nullable ? (
+              <SelectItem value={NONE}>{noneLabel}</SelectItem>
+            ) : null}
             {choices.map((choice) => (
               <SelectItem key={choice.id} value={choice.id}>
                 {choice.label}
@@ -279,6 +286,35 @@ function FieldControl({
           </SelectContent>
         </Select>
       );
+
+    case "multiselect": {
+      // A checkbox per option, all posting under the same name — FormData
+      // collects them with `getAll`, and the value stored is the join.
+      const selected = new Set(
+        String(current ?? "")
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      );
+
+      return (
+        <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-lg border px-4 py-3">
+          {(field.options ?? []).map((option) => (
+            <label
+              key={option}
+              className="flex items-center gap-2 text-sm font-normal"
+            >
+              <Checkbox
+                name={field.name}
+                value={option}
+                defaultChecked={selected.has(option)}
+              />
+              {optionLabels[option] ?? option}
+            </label>
+          ))}
+        </div>
+      );
+    }
 
     case "money":
       // Stored in centimes, entered in dirhams.
@@ -296,6 +332,27 @@ function FieldControl({
         />
       );
 
+    case "percent":
+      // Stored in basis points, entered as a percentage.
+      return (
+        <Input
+          {...props}
+          type="number"
+          step="0.01"
+          min={field.min}
+          max={field.max}
+          defaultValue={
+            typeof current === "number"
+              ? String(current / 100)
+              : field.defaultValue !== undefined
+                ? String(field.defaultValue)
+                : ""
+          }
+          dir="ltr"
+          required={field.required}
+        />
+      );
+
     case "number":
       return (
         <Input
@@ -303,7 +360,9 @@ function FieldControl({
           type="number"
           min={field.min}
           max={field.max}
-          defaultValue={current === null || current === undefined ? "" : String(current)}
+          defaultValue={
+            current === null || current === undefined ? "" : String(current)
+          }
           dir="ltr"
           required={field.required}
         />

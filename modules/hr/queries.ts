@@ -531,7 +531,10 @@ export async function listPayroll(
       jobRole: person.jobRole,
       contractBaseCentimes: contract?.baseSalaryCentimes ?? null,
       unjustifiedDays: person.attendance.length,
-      dailyRateCentimes: dailyRate(contract?.baseSalaryCentimes ?? 0),
+      dailyRateCentimes: dailyRate(
+        contract?.baseSalaryCentimes ?? 0,
+        context.settings.payrollWorkingDays,
+      ),
     };
   });
 }

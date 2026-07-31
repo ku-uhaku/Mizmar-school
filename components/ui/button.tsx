@@ -9,13 +9,21 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        // The shadow is tinted with the accent rather than black: it lifts the
+        // primary action off the page *and* is the one place the theme colour
+        // spills past the button's own edge, which is what makes the accent
+        // read as the product's colour instead of one control's fill.
+        default:
+          "bg-primary text-primary-foreground shadow-sm shadow-primary/25 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/30",
+        // Hover tints the *surface* with the accent but leaves the label
+        // colour alone — these two carry the row actions, and a red "Delete"
+        // must stay red under the cursor.
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-background hover:bg-primary/8 hover:text-foreground aria-expanded:bg-primary/8 aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-primary/15",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-primary/8 aria-expanded:bg-primary/8 dark:hover:bg-primary/15",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",

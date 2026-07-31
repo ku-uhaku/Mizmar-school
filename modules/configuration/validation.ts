@@ -2,6 +2,7 @@ import * as z from "zod";
 
 import type { Dictionary } from "@/lib/i18n/types";
 import { interpolate } from "@/lib/i18n/format";
+import { codeFormatHasSequence } from "@/lib/school-settings";
 import type { FieldDef, ResourceDef } from "@/modules/configuration/types";
 
 /**
@@ -67,12 +68,44 @@ function fieldSchema(field: FieldDef, t: Dictionary): z.ZodTypeAny {
             .transform((value) => (value === "" ? null : (value as Date)))
             .nullable();
 
+    case "multiselect": {
+      const options = (field.options ?? []) as string[];
+      // Arrives already joined by `readResourceForm`; validated as a set so a
+      // crafted POST cannot smuggle a value the checkboxes never offered.
+      const base = z
+        .string()
+        .transform((value) =>
+          value
+            .split(",")
+            .map((part) => part.trim())
+            .filter((part) => part !== ""),
+        )
+        .refine((parts) => parts.every((part) => options.includes(part)), {
+          error: v.invalidChoice,
+        })
+        .refine((parts) => !field.required || parts.length > 0, {
+          error: v.required,
+        })
+        // Back to the stored shape: sorted in the declared order, so two rows
+        // meaning the same week are the same string.
+        .transform((parts) =>
+          options.filter((option) => parts.includes(option)).join(","),
+        );
+      return base;
+    }
+
     case "number":
-    case "money": {
-      // Money arrives in dirhams and is stored in centimes — the conversion
-      // happens here so no caller can forget it.
+    case "money":
+    case "percent": {
+      // Money arrives in dirhams and is stored in centimes; a percentage
+      // arrives as 25 and is stored as 2500 basis points. Both conversions
+      // happen here so no caller can forget one.
       const toStored = (value: number) =>
-        field.type === "money" ? Math.round(value * 100) : value;
+        field.type === "money"
+          ? Math.round(value * 100)
+          : field.type === "percent"
+            ? Math.round(value * 100)
+            : value;
 
       const bounded = (value: number) => {
         if (field.min !== undefined && value < toStored(field.min)) return false;
@@ -125,12 +158,39 @@ function fieldSchema(field: FieldDef, t: Dictionary): z.ZodTypeAny {
   }
 }
 
+/**
+ * Rules a single field cannot express, keyed by resource.
+ *
+ * Deliberately tiny and deliberately here: the field descriptors cover the
+ * fourteen list resources completely, and the moment this map grows a third
+ * entry it is worth asking whether the descriptor is missing something instead.
+ */
+const REFINEMENTS: Record<
+  string,
+  (schema: z.ZodObject, t: Dictionary) => z.ZodTypeAny
+> = {
+  "school-settings": (schema, t) =>
+    // A matricule format with no sequence gives every pupil admitted this year
+    // the same code. The unique index would then reject them one at a time,
+    // mid-enrolment — better to refuse the setting than to break the desk.
+    (["studentCodeFormat", "familyCodeFormat", "staffCodeFormat"] as const).reduce(
+      (current, name) =>
+        current.refine(
+          (values) => codeFormatHasSequence(String(values[name] ?? "")),
+          { path: [name], error: t.configuration.codeFormatNeedsSequence },
+        ),
+      schema as unknown as z.ZodType<Record<string, unknown>>,
+    ),
+};
+
 export function resourceSchemaFor(resource: ResourceDef, t: Dictionary) {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of resource.fields) {
     shape[field.name] = fieldSchema(field, t);
   }
-  return z.object(shape);
+
+  const object = z.object(shape);
+  return REFINEMENTS[resource.id]?.(object, t) ?? object;
 }
 
 /**
@@ -148,6 +208,16 @@ export function readResourceForm(
     if (field.type === "boolean") {
       const raw = formData.get(field.name);
       values[field.name] = raw === "on" || raw === "true" || raw === "1";
+      continue;
+    }
+
+    // A group of checkboxes posts one entry per ticked box under the same
+    // name; joining here keeps the zod schema working on the stored shape.
+    if (field.type === "multiselect") {
+      values[field.name] = formData
+        .getAll(field.name)
+        .filter((entry): entry is string => typeof entry === "string")
+        .join(",");
       continue;
     }
 

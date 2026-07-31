@@ -4,7 +4,10 @@ import Link from "next/link";
 
 import { useT } from "@/components/providers/i18n-provider";
 import { cn } from "@/lib/utils";
-import { SECTIONS, resourcesInSection } from "@/modules/configuration/resources";
+import {
+  SECTIONS,
+  resourcesInSection,
+} from "@/modules/configuration/resources";
 
 /**
  * Section tabs across the top, resource tabs down the side.

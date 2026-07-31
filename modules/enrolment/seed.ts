@@ -1,3 +1,4 @@
+import { dueDayOf, settingsOf } from "@/lib/school-settings";
 import { buildScheduleLines } from "@/modules/enrolment/schedule";
 import { deriveStudentStatus } from "@/modules/students/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
@@ -58,6 +59,15 @@ export async function seedEnrolments(
     },
   });
   if (!year) return;
+
+  // Bound by the same conventions as the app — a seed that priced pupils on its
+  // own numbers would produce demo data the app could never have produced.
+  //
+  // Read through the seed's own client rather than `loadSchoolSettings`: that
+  // helper is `server-only`, and the seed runs under tsx outside Next.
+  const settings = settingsOf(
+    await db.schoolSettings.findUnique({ where: { schoolId } }),
+  );
 
   const [offerings, feeTypes, rates] = await Promise.all([
     db.levelOffering.findMany({
@@ -179,6 +189,8 @@ export async function seedEnrolments(
       termCount: year._count.terms,
       feeTypes,
       rates,
+      instalmentsPerYear: settings.defaultInstalmentCount,
+      dueDayOfMonth: dueDayOf(settings),
     });
 
     const existing = await db.enrollmentFee.findMany({

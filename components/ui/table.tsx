@@ -23,7 +23,13 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("bg-muted/40 [&_tr]:border-b", className)}
+      // Tinted with the accent rather than grey. Tables are most of this app,
+      // so the header band is where the theme colour actually gets seen; the
+      // tint is kept below the row-hover tint so the two stay distinguishable.
+      className={cn(
+        "bg-primary/5 dark:bg-primary/10 [&_tr]:border-b",
+        className
+      )}
       {...props}
     />
   )
@@ -57,7 +63,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors last:border-0 hover:bg-muted/40 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b transition-colors last:border-0 hover:bg-primary/8 dark:hover:bg-primary/15 has-aria-expanded:bg-primary/10 data-[state=selected]:bg-primary/10",
         className
       )}
       {...props}

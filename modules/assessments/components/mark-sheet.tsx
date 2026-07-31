@@ -6,6 +6,7 @@ import { SaveIcon, UserXIcon } from "lucide-react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +24,14 @@ import {
 } from "@/components/ui/table";
 import { IDLE } from "@/lib/action-state";
 import { formatNumber, interpolate } from "@/lib/i18n/format";
+import { passMarkOf } from "@/lib/school-settings";
 import { cn } from "@/lib/utils";
 import { saveMarksAction } from "@/modules/assessments/actions";
 import { isPassing, markStatistics } from "@/modules/assessments/enums";
-import type { MarkRow, MarkSheet as MarkSheetData } from "@/modules/assessments/queries";
+import type {
+  MarkRow,
+  MarkSheet as MarkSheetData,
+} from "@/modules/assessments/queries";
 
 /**
  * Entering a whole class's marks in one pass.
@@ -54,10 +59,17 @@ export function MarkSheet({
   const [state, formAction] = React.useActionState(saveMarksAction, IDLE);
   useActionFeedback(state);
 
+  // The school's pass threshold, so the red under a failing mark appears at the
+  // same score the server will call a fail.
+  const settings = useSettings();
+  const passMark = passMarkOf(settings);
   const { assessment, rows } = sheet;
 
   const [marks, setMarks] = React.useState<
-    Record<string, { score: string; isAbsent: boolean; isExcused: boolean; comment: string }>
+    Record<
+      string,
+      { score: string; isAbsent: boolean; isExcused: boolean; comment: string }
+    >
   >(() =>
     Object.fromEntries(
       rows.map((row) => [
@@ -74,7 +86,12 @@ export function MarkSheet({
 
   function update(
     enrollmentId: string,
-    patch: Partial<{ score: string; isAbsent: boolean; isExcused: boolean; comment: string }>,
+    patch: Partial<{
+      score: string;
+      isAbsent: boolean;
+      isExcused: boolean;
+      comment: string;
+    }>,
   ) {
     setMarks((current) => ({
       ...current,
@@ -113,8 +130,9 @@ export function MarkSheet({
           };
         }),
         assessment.maxScore,
+        settings.passMarkBps,
       ),
-    [marks, rows, assessment.maxScore],
+    [marks, rows, assessment.maxScore, settings.passMarkBps],
   );
 
   if (rows.length === 0) {
@@ -142,6 +160,12 @@ export function MarkSheet({
         />
         <Stat
           label={t.assessment.passRate}
+          // The threshold beside the rate, because "60% passed" means nothing
+          // without knowing what this school calls a pass.
+          hint={interpolate(t.assessment.passMarkIs, {
+            mark: formatNumber(passMark, locale),
+            max: settings.gradingMaxScore,
+          })}
           value={live.passRate === null ? "—" : `${live.passRate}%`}
           tone={
             live.passRate === null
@@ -159,7 +183,9 @@ export function MarkSheet({
         <Stat
           label={t.assessment.absent}
           value={formatNumber(live.absentCount, locale)}
-          hint={live.absentCount > 0 ? t.assessment.absencesExcluded : undefined}
+          hint={
+            live.absentCount > 0 ? t.assessment.absencesExcluded : undefined
+          }
         />
       </div>
 
@@ -216,6 +242,7 @@ export function MarkSheet({
                   row={row}
                   entry={marks[row.enrollmentId]}
                   maxScore={assessment.maxScore}
+                  passBps={settings.passMarkBps}
                   canGrade={canGrade}
                   onChange={update}
                 />
@@ -241,23 +268,36 @@ function MarkRowCells({
   row,
   entry,
   maxScore,
+  passBps,
   canGrade,
   onChange,
 }: {
   row: MarkRow;
-  entry: { score: string; isAbsent: boolean; isExcused: boolean; comment: string };
+  entry: {
+    score: string;
+    isAbsent: boolean;
+    isExcused: boolean;
+    comment: string;
+  };
   maxScore: number;
+  /** The school's pass threshold — see isPassing. */
+  passBps: number;
   canGrade: boolean;
   onChange: (
     enrollmentId: string,
-    patch: Partial<{ score: string; isAbsent: boolean; isExcused: boolean; comment: string }>,
+    patch: Partial<{
+      score: string;
+      isAbsent: boolean;
+      isExcused: boolean;
+      comment: string;
+    }>,
   ) => void;
 }) {
   const { t } = useI18n();
 
   const parsed = Number(entry.score);
   const hasScore = entry.score.trim() !== "" && Number.isFinite(parsed);
-  const failing = hasScore && !isPassing(parsed, maxScore);
+  const failing = hasScore && !isPassing(parsed, maxScore, passBps);
 
   const initials = `${row.firstName[0] ?? ""}${row.lastName[0] ?? ""}`
     .toUpperCase()
@@ -273,7 +313,11 @@ function MarkRowCells({
         wrong child.
       */}
       <input type="hidden" name="enrollmentId" value={row.enrollmentId} />
-      <input type="hidden" name="score" value={entry.isAbsent ? "" : entry.score} />
+      <input
+        type="hidden"
+        name="score"
+        value={entry.isAbsent ? "" : entry.score}
+      />
       <input type="hidden" name="absent" value={entry.isAbsent ? "1" : "0"} />
       <input
         type="hidden"

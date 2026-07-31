@@ -36,9 +36,16 @@ export function acceptsMarks(status: string): boolean {
   return status === "PUBLISHED" || status === "GRADED";
 }
 
-/** Moroccan marks are out of 20, and 10 is the pass. */
+/**
+ * The scale, when nobody has said otherwise.
+ *
+ * A school sets its own in the configuration — see SchoolSettings.gradingMaxScore
+ * and passMarkBps. These stay as the fallback for the places with no school in
+ * hand, and they are the values the settings columns default to, so the two can
+ * never disagree.
+ */
 export const DEFAULT_MAX_SCORE = 20;
-export const PASS_RATIO = 0.5;
+export const DEFAULT_PASS_BPS = 5000;
 
 /** The most papers of one kind a term can hold — guards the sequence field. */
 export const MAX_SEQUENCE = 20;
@@ -74,9 +81,19 @@ export function roundScore(score: number): number {
   return Math.round(score * 100) / 100;
 }
 
-/** Whether a mark is a pass on its own paper. */
-export function isPassing(score: number, maxScore: number): boolean {
-  return maxScore > 0 && score / maxScore >= PASS_RATIO;
+/**
+ * Whether a mark is a pass on its own paper.
+ *
+ * `maxScore` is the paper's, `passBps` the school's. A school marking out of 20
+ * may still set one oral out of 10, and the mark has to be judged against the
+ * paper it was earned on — the school decides the *ratio*, not the scale.
+ */
+export function isPassing(
+  score: number,
+  maxScore: number,
+  passBps: number = DEFAULT_PASS_BPS,
+): boolean {
+  return maxScore > 0 && (score / maxScore) * 10_000 >= passBps;
 }
 
 export type GradeInput = {
@@ -108,6 +125,7 @@ export type MarkStatistics = {
 export function markStatistics(
   grades: readonly GradeInput[],
   maxScore: number,
+  passBps: number = DEFAULT_PASS_BPS,
 ): MarkStatistics {
   const scores = grades
     .filter((grade) => !grade.isAbsent && grade.score !== null)
@@ -132,7 +150,9 @@ export function markStatistics(
   }
 
   const total = scores.reduce((sum, score) => sum + score, 0);
-  const passCount = scores.filter((score) => isPassing(score, maxScore)).length;
+  const passCount = scores.filter((score) =>
+    isPassing(score, maxScore, passBps),
+  ).length;
 
   return {
     markedCount: scores.length,

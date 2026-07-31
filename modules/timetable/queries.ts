@@ -3,7 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { displayName } from "@/lib/dal";
-import { TEACHING_DAYS } from "@/modules/timetable/enums";
+import { teachingDaysOf } from "@/lib/school-settings";
 
 /**
  * Reads for the timetable module.
@@ -164,7 +164,7 @@ export async function loadClassTimetable(
     a.classGroupId === b.classGroupId &&
     a.termId === b.termId;
 
-  const rows = TEACHING_DAYS.map((dayOfWeek) => {
+  const rows = teachingDaysOf(context.settings).map((dayOfWeek) => {
     const cells: Record<string, TimetableCell> = {};
 
     // Built column by column, looking back at the cell just filled: a lesson
@@ -535,7 +535,7 @@ export async function loadTeacherTimetable(
     ]),
   );
 
-  const rows = TEACHING_DAYS.map((dayOfWeek) => {
+  const rows = teachingDaysOf(context.settings).map((dayOfWeek) => {
     const cells: Record<string, TeacherLesson | null> = {};
     for (const column of columns) {
       const slot = slots.find(

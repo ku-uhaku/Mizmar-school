@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
 import { authorizeSchool, requireAuth, type AuthContext } from "@/lib/dal";
+import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, withActionErrors } from "@/lib/server-action";
@@ -147,6 +148,49 @@ export async function updateConfigItemAction(
       data: { ...values, ...(schema.derive?.(values) ?? {}) },
     });
     if (updated.count === 0) return failure(t.errors.notFound);
+
+    refresh();
+    return success(t.configuration.updated);
+  });
+}
+
+/**
+ * Saves a singleton resource — today, the school's own settings.
+ *
+ * An upsert rather than a create-or-update pair, because the row is optional by
+ * design: a school that has never opened this screen has no row, and the very
+ * first save has to make one. It is keyed on `schoolId`, which is taken from
+ * the authorized context and never from the form, so this cannot write another
+ * school's settings however the request is crafted.
+ */
+export async function saveSingletonAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const resolved = await authorizeResource(field(formData, "__resource"));
+    if (!resolved.ok) return resolved.state;
+
+    const { context, resource } = resolved;
+    if (resource.kind !== "singleton") return failure(t.errors.notFound);
+
+    const schoolId = context.currentSchool!.id;
+
+    const parsed = resourceSchemaFor(resource, t).safeParse(
+      readResourceForm(resource, formData),
+    );
+    if (!parsed.success) {
+      return failure(t.errors.invalid, fieldErrors(parsed.error));
+    }
+
+    const values = parsed.data as Record<string, unknown>;
+
+    await db.schoolSettings.upsert({
+      where: { schoolId },
+      create: { schoolId, ...values },
+      update: values,
+    });
 
     refresh();
     return success(t.configuration.updated);

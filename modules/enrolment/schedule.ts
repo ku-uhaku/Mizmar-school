@@ -44,6 +44,13 @@ export type ScheduleInput = {
   termCount: number;
   feeTypes: FeeTypeInput[];
   rates: FeeRateInput[];
+  /**
+   * The school's own billing conventions. Passed in rather than read here, so
+   * this stays the pure function the seed and the service both call — see the
+   * note at the top.
+   */
+  instalmentsPerYear: number;
+  dueDayOfMonth: number;
 };
 
 export type ScheduleLine = {
@@ -116,10 +123,16 @@ export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
         feeType.billingCycle,
         monthsInYear,
         input.termCount,
+        input.instalmentsPerYear,
       );
 
     const amounts = splitIntoInstalments(rate.amountCentimes, count);
-    const dueDates = instalmentDueDates(input.yearStart, input.yearEnd, count);
+    const dueDates = instalmentDueDates(
+      input.yearStart,
+      input.yearEnd,
+      count,
+      input.dueDayOfMonth,
+    );
 
     amounts.forEach((amount, index) => {
       const dueDate = dueDates[index];

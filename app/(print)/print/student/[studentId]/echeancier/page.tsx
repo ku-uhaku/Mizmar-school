@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PrintDocument } from "@/components/print/print-document";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { formatAmount, formatMonth } from "@/lib/i18n/format";
+import { formatMonth, formatMoney } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { letterheadFrom } from "@/lib/letterhead";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -49,7 +49,10 @@ export default async function SchedulePage({
   ]);
   if (!grid) notFound();
 
-  const money = (centimes: number) => formatAmount(centimes, locale);
+  // The school's currency, so a document never contradicts the screen it was
+  // printed from.
+  const money = (centimes: number) =>
+    formatMoney(centimes, locale, context.settings.currencyCode);
 
   return (
     <PrintDocument
@@ -101,7 +104,10 @@ export default async function SchedulePage({
           <tr>
             <td className="font-semibold">{t.print.total}</td>
             {grid.months.map((month) => (
-              <td key={month.key} className="text-end font-semibold tabular-nums">
+              <td
+                key={month.key}
+                className="text-end font-semibold tabular-nums"
+              >
                 {money(grid.monthTotals[month.key] ?? 0)}
               </td>
             ))}
@@ -113,18 +119,24 @@ export default async function SchedulePage({
       </table>
 
       <dl className="mt-5 ms-auto grid w-72 gap-1 text-[11px]">
-        <Row label={t.treasury.charged} value={`${money(standing.chargedCentimes)} MAD`} />
-        <Row label={t.treasury.alreadyPaid} value={`${money(standing.paidCentimes)} MAD`} />
+        <Row
+          label={t.treasury.charged}
+          value={money(standing.chargedCentimes)}
+        />
+        <Row
+          label={t.treasury.alreadyPaid}
+          value={money(standing.paidCentimes)}
+        />
         <Row
           label={t.treasury.owes}
-          value={`${money(standing.outstandingCentimes)} MAD`}
+          value={money(standing.outstandingCentimes)}
           strong
         />
       </dl>
 
       {grid.discountTotalCentimes > 0 ? (
         <p className="mt-3 text-[10px] opacity-70">
-          {t.enrolment.discount}: {money(grid.discountTotalCentimes)} MAD
+          {t.enrolment.discount}: {money(grid.discountTotalCentimes)}
         </p>
       ) : null}
     </PrintDocument>

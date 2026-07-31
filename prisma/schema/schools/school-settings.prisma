@@ -1,0 +1,95 @@
+/// The policies a school sets for itself — the decisions that are neither
+/// identity (which live on School) nor a list of rows (which live in the
+/// configuration tables).
+///
+/// A grading scale out of 20, a pass at 10, a six-day week, a matricule that
+/// starts with "E", nine instalments due on the 5th: every one of those is a
+/// convention, not a fact, and every one of them was a constant in the code
+/// before this table existed. Putting them here is what lets two schools in the
+/// same organisation disagree.
+///
+/// ── Why every column has a default ──────────────────────────────────────────
+/// The defaults are exactly the constants they replaced, and a school with no
+/// row behaves precisely as it did before. `settingsOf` in modules/schools/
+/// settings.ts falls back to the same values, so nothing in the app has to ask
+/// whether the row exists — which is what made this safe to introduce across
+/// fourteen call sites at once.
+///
+/// One row per school, created with the school and deleted with it. Not a
+/// key-value bag: typed columns mean a typo in a setting name is a compile
+/// error rather than a silently ignored write.
+model SchoolSettings {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // ── Notation ──────────────────────────────────────────────────────────────
+  /// What a paper is marked out of by default. Moroccan schools use 20; a
+  /// private school marking out of 10 or 100 changes it here and every new
+  /// assessment, the mark sheet's validation and the pass colouring follow.
+  gradingMaxScore Int @default(20)
+
+  /// The pass mark, in basis points of `gradingMaxScore` — 5000 is a half, so
+  /// 10/20. Basis points rather than a score so the threshold survives a change
+  /// of scale, and rather than a float because this is the number that decides
+  /// whether a child passed. Matches `discountBps` and `percentBps` elsewhere.
+  passMarkBps Int @default(5000)
+
+  // ── Calendrier ────────────────────────────────────────────────────────────
+  /// The days this school teaches, as ISO weekday numbers joined by commas
+  /// ("1,2,3,4,5,6" is Monday to Saturday). SQLite has no array type, and a
+  /// join table for at most seven small integers earns nothing.
+  ///
+  /// Read through `parseTeachingDays`, which drops anything outside 1–7 — a
+  /// hand-edited row must not be able to put an eighth column on a timetable.
+  teachingDays String @default("1,2,3,4,5,6")
+
+  // ── Monnaie et langue ─────────────────────────────────────────────────────
+  /// ISO 4217. Amounts are stored in the currency's minor unit throughout
+  /// (centimes for MAD), so changing this changes the label, never the maths.
+  currencyCode String @default("MAD")
+
+  /// The language new users of this school start in, and what a printed
+  /// document falls back to. A user's own choice always wins — see Profile.
+  defaultLocale String @default("fr")
+
+  /// The accent new users of this school start with, so a school can put its
+  /// own colour in front of everybody without taking the choice away. Allowed
+  /// values live in modules/appearance/enums.ts.
+  defaultAccent String @default("blue")
+
+  // ── Matricules ────────────────────────────────────────────────────────────
+  /// Templates for the generated references, e.g. "E-{year}-{seq:4}".
+  ///
+  /// Placeholders: `{year}` (4-digit), `{yy}` (2-digit), `{seq}` and `{seq:N}`
+  /// (the sequence, zero-padded to N). Everything else is copied through, so a
+  /// school that writes its matricules "2025/0431" simply says so. Rendered by
+  /// `formatEntityCode`; the uniqueness constraint is still on the column, so a
+  /// format that collides is refused at the database rather than silently
+  /// overwriting.
+  studentCodeFormat String @default("E-{year}-{seq:4}")
+  familyCodeFormat  String @default("F-{year}-{seq:4}")
+  staffCodeFormat   String @default("P-{year}-{seq:4}")
+
+  // ── Facturation ───────────────────────────────────────────────────────────
+  /// How many instalments a year's fees are split into when the fee rate does
+  /// not say. Nine is a Moroccan school year, September to May.
+  defaultInstalmentCount Int @default(9)
+
+  /// Day of the month an instalment falls due. Clamped to 1–28 so it exists in
+  /// February — a schedule that skips a month once every four years is worse
+  /// than one that is always on the 28th.
+  feeDueDayOfMonth Int @default(5)
+
+  // ── Paie ──────────────────────────────────────────────────────────────────
+  /// The divisor that turns a monthly salary into a daily rate. A convention
+  /// (26 is the common Moroccan one), which is exactly why it is a setting: the
+  /// figure it produces is shown beside the retenue box as a suggestion and is
+  /// never applied automatically. See modules/hr/enums.ts.
+  payrollWorkingDays Int @default(26)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("school_settings")
+}

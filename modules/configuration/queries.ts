@@ -134,6 +134,26 @@ export async function listResource(
 }
 
 /**
+ * The single row of a singleton resource, as the form's defaults.
+ *
+ * Returns nulls rather than an empty object when the row does not exist yet, so
+ * the form falls back to each field's `defaultValue` — which is the same value
+ * the column defaults to and the same value `DEFAULT_SETTINGS` carries. A
+ * school that has never opened this screen and one that has saved the defaults
+ * are therefore indistinguishable, which is what makes the row optional.
+ */
+export async function findSingleton(
+  context: AuthContext,
+  resource: ResourceDef,
+): Promise<ResourceRow | null> {
+  const schema = resourceSchema(resource.id);
+  if (!schema) return null;
+
+  const record = await schema.table().findFirst({ where: schema.where(context) });
+  return record ? toRow(record, resource.fields) : null;
+}
+
+/**
  * Asserts every reference the form submitted points at a row the current
  * context owns.
  *

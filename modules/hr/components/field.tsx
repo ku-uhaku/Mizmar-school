@@ -45,13 +45,18 @@ export function useToastedTransition() {
   const t = useT();
   const [isPending, startTransition] = React.useTransition();
 
-  function run(action: () => Promise<{ status: string; message?: string }>) {
-    startTransition(async () => {
-      const result = await action();
-      if (result.status === "success") toast.success(result.message ?? "");
-      else toast.error(result.message ?? t.errors.unexpected);
-    });
-  }
+  // Stable across renders so callers can safely list it as a dependency —
+  // the screens that build their table columns in a useMemo need it to be.
+  const run = React.useCallback(
+    (action: () => Promise<{ status: string; message?: string }>) => {
+      startTransition(async () => {
+        const result = await action();
+        if (result.status === "success") toast.success(result.message ?? "");
+        else toast.error(result.message ?? t.errors.unexpected);
+      });
+    },
+    [startTransition, t],
+  );
 
   return { isPending, run };
 }

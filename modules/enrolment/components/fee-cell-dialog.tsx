@@ -7,6 +7,7 @@ import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -63,6 +64,7 @@ export function FeeCellDialog({
   followingCount: number;
 }) {
   const { t, locale } = useI18n();
+  const { currencyCode: currency } = useSettings();
   const [state, formAction] = useActionState(updateFeeLineAction, IDLE);
   useActionFeedback(state, { onSuccess: () => onOpenChange(false) });
 
@@ -210,7 +212,7 @@ export function FeeCellDialog({
                 {t.enrolment.netAmount}
               </span>
               <span className="text-lg font-semibold tabular-nums" dir="ltr">
-                {formatNumber(centimesToDirhams(preview), locale)} MAD
+                {formatNumber(centimesToDirhams(preview), locale)} {currency}
               </span>
             </div>
 

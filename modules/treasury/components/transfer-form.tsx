@@ -4,10 +4,15 @@ import { ArrowLeftRightIcon } from "lucide-react";
 import * as React from "react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
-import { FormActions, FormGrid, FormSection } from "@/components/form/form-page";
+import {
+  FormActions,
+  FormGrid,
+  FormSection,
+} from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +41,7 @@ import type { RegisterRow } from "@/modules/treasury/queries";
  */
 export function TransferForm({ registers }: { registers: RegisterRow[] }) {
   const t = useT();
+  const { currencyCode: currency } = useSettings();
   const locale = useLocale();
   const [state, formAction] = React.useActionState(recordTransferAction, IDLE);
   const formRef = React.useRef<HTMLFormElement>(null);
@@ -94,7 +100,11 @@ export function TransferForm({ registers }: { registers: RegisterRow[] }) {
             </Select>
           </FormField>
 
-          <FormField name="target" label={t.treasury.target} error={errors.target}>
+          <FormField
+            name="target"
+            label={t.treasury.target}
+            error={errors.target}
+          >
             <Select
               name="target"
               value={target}
@@ -160,7 +170,7 @@ export function TransferForm({ registers }: { registers: RegisterRow[] }) {
           <FormField
             name="amount"
             label={t.treasury.amount}
-            hint={`${t.treasury.inDrawer}: ${formatAmount(available, locale)} MAD`}
+            hint={`${t.treasury.inDrawer}: ${formatAmount(available, locale)} ${currency}`}
             error={errors.amount}
             required
           >

@@ -1,9 +1,19 @@
 "use client";
 
-import { BusIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  BusIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
@@ -20,7 +30,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +38,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -37,14 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, interpolate } from "@/lib/i18n/format";
@@ -84,101 +92,168 @@ export function FleetList({
     });
   }
 
+  const columns = React.useMemo<ColumnDef<VehicleRow, unknown>[]>(() => {
+    const list: ColumnDef<VehicleRow, unknown>[] = [
+      {
+        id: "registration",
+        accessorFn: (row) =>
+          `${row.registration} ${row.make ?? ""} ${row.model ?? ""}`,
+        header: t.transport.registration,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium" dir="ltr">
+              {row.original.registration}
+            </p>
+            {row.original.make ? (
+              <p className="text-muted-foreground truncate text-xs">
+                {row.original.make} {row.original.model ?? ""}
+              </p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: t.transport.vehicleStatus,
+        cell: ({ row }) => (
+          <Badge
+            variant={row.original.status === "ACTIVE" ? "secondary" : "outline"}
+          >
+            {
+              t.transportOptions.vehicleStatuses[
+                row.original
+                  .status as keyof typeof t.transportOptions.vehicleStatuses
+              ]
+            }
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "seatCount",
+        header: t.transport.seatCount,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">{row.original.seatCount}</span>
+        ),
+      },
+      {
+        id: "driver",
+        accessorFn: (row) => row.driverLabel ?? "",
+        header: t.transport.driverName,
+        meta: { className: "hidden @2xl/table:table-cell" },
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate text-sm">{row.original.driverLabel ?? "—"}</p>
+            {row.original.driverPhone ? (
+              <p className="text-muted-foreground truncate text-xs" dir="ltr">
+                {row.original.driverPhone}
+              </p>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        // Sorted on the raw date so "what expires next" is one click, while the
+        // cell shows how close it is. Nulls sort last — a bus with no date
+        // recorded is not urgent, it is unknown.
+        accessorKey: "insuranceExpiresOn",
+        header: t.transport.insurance,
+        meta: { className: "hidden @3xl/table:table-cell" },
+        cell: ({ row }) => (
+          <ExpiryValue date={row.original.insuranceExpiresOn} locale={locale} />
+        ),
+      },
+      {
+        accessorKey: "inspectionExpiresOn",
+        header: t.transport.inspection,
+        meta: { className: "hidden @4xl/table:table-cell" },
+        cell: ({ row }) => (
+          <ExpiryValue date={row.original.inspectionExpiresOn} locale={locale} />
+        ),
+      },
+    ];
+
+    if (permissions.canManage) {
+      list.push({
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t.common.openMenu}
+                >
+                  <MoreHorizontalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setEditing(row.original)}>
+                  <PencilIcon />
+                  {t.common.edit}
+                </DropdownMenuItem>
+                {permissions.canDelete ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => setRemoving(row.original)}
+                    >
+                      <Trash2Icon />
+                      {t.common.delete}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
+      });
+    }
+
+    return list;
+  }, [t, locale, permissions.canManage, permissions.canDelete]);
+
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.transport.vehicleStatus,
+        options: VEHICLE_STATUSES.map((status) => ({
+          value: status,
+          label: t.transportOptions.vehicleStatuses[status],
+        })),
+      },
+    ],
+    [t],
+  );
+
+  const newButton = permissions.canManage ? (
+    <Button onClick={() => setCreating(true)}>
+      <PlusIcon />
+      {t.transport.newVehicle}
+    </Button>
+  ) : undefined;
+
   return (
     <div className="grid gap-3">
-      {permissions.canManage ? (
-        <div className="flex justify-end">
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" />
-            {t.transport.newVehicle}
-          </Button>
-        </div>
-      ) : null}
-
-      {vehicles.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              icon={<BusIcon className="size-5" />}
-              title={t.transport.noVehicles}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="overflow-x-auto p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t.transport.registration}</TableHead>
-                  <TableHead>{t.transport.seatCount}</TableHead>
-                  <TableHead>{t.transport.driverName}</TableHead>
-                  <TableHead>{t.transport.insurance}</TableHead>
-                  <TableHead>{t.transport.inspection}</TableHead>
-                  {permissions.canManage ? <TableHead /> : null}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicles.map((vehicle) => (
-                  <TableRow key={vehicle.id}>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium" dir="ltr">
-                          {vehicle.registration}
-                        </span>
-                        <Badge
-                          variant={
-                            vehicle.status === "ACTIVE" ? "secondary" : "outline"
-                          }
-                        >
-                          {
-                            t.transportOptions.vehicleStatuses[
-                              vehicle.status as keyof typeof t.transportOptions.vehicleStatuses
-                            ]
-                          }
-                        </Badge>
-                      </div>
-                      {vehicle.make ? (
-                        <span className="text-muted-foreground block text-xs">
-                          {vehicle.make} {vehicle.model ?? ""}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="tabular-nums">{vehicle.seatCount}</TableCell>
-                    <TableCell>
-                      {vehicle.driverLabel ?? "—"}
-                      {vehicle.driverPhone ? (
-                        <span className="text-muted-foreground block text-xs" dir="ltr">
-                          {vehicle.driverPhone}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <ExpiryCell date={vehicle.insuranceExpiresOn} locale={locale} />
-                    <ExpiryCell date={vehicle.inspectionExpiresOn} locale={locale} />
-                    {permissions.canManage ? (
-                      <TableCell className="text-end">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(vehicle)}>
-                          {t.common.edit}
-                        </Button>
-                        {permissions.canDelete ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => setRemoving(vehicle)}
-                          >
-                            {t.common.delete}
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      <DataTable
+        columns={columns}
+        data={vehicles}
+        facets={facets}
+        pageSize={15}
+        emptyState={
+          <EmptyState
+            icon={<BusIcon className="size-5" />}
+            title={t.transport.noVehicles}
+            action={newButton}
+          />
+        }
+        toolbar={newButton}
+      />
 
       {creating || editing ? (
         <VehicleDialog
@@ -223,7 +298,7 @@ export function FleetList({
 }
 
 /** A compliance date, coloured by how close it is. */
-function ExpiryCell({
+function ExpiryValue({
   date,
   locale,
 }: {
@@ -233,30 +308,30 @@ function ExpiryCell({
   const t = useT();
   const state = expiryState(date);
 
+  if (state === "UNKNOWN") {
+    return (
+      <span className="text-muted-foreground text-xs">
+        {t.transport.noExpiryRecorded}
+      </span>
+    );
+  }
+
   return (
-    <TableCell className="whitespace-nowrap">
-      {state === "UNKNOWN" ? (
-        <span className="text-muted-foreground text-xs">
-          {t.transport.noExpiryRecorded}
-        </span>
-      ) : (
-        <span
-          className={cn(
-            "text-sm",
-            state === "EXPIRED" && "text-destructive font-medium",
-            state === "SOON" && "text-destructive",
-          )}
-        >
-          {formatDate(date, locale)}
-          {state !== "OK" ? (
-            <Badge variant="outline" className="ms-2 text-destructive">
-              <TriangleAlertIcon className="size-3" />
-              {state === "EXPIRED" ? t.transport.expired : t.transport.expiringSoon}
-            </Badge>
-          ) : null}
-        </span>
+    <span
+      className={cn(
+        "text-sm whitespace-nowrap",
+        state === "EXPIRED" && "text-destructive font-medium",
+        state === "SOON" && "text-destructive",
       )}
-    </TableCell>
+    >
+      {formatDate(date, locale)}
+      {state !== "OK" ? (
+        <Badge variant="outline" className="ms-2 text-destructive">
+          <TriangleAlertIcon className="size-3" />
+          {state === "EXPIRED" ? t.transport.expired : t.transport.expiringSoon}
+        </Badge>
+      ) : null}
+    </span>
   );
 }
 

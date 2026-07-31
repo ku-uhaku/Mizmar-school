@@ -1,8 +1,17 @@
 "use client";
 
-import { ReceiptTextIcon } from "lucide-react";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  BanknoteXIcon,
+  LandmarkIcon,
+  MoreHorizontalIcon,
+  ReceiptTextIcon,
+  WalletIcon,
+} from "lucide-react";
 import * as React from "react";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { FacetDef } from "@/components/data-table/data-table-facet";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -10,7 +19,6 @@ import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -19,17 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatAmount, formatDate, toDateInputValue } from "@/lib/i18n/format";
@@ -59,152 +64,215 @@ export function ChequeTable({
 }) {
   const t = useT();
   const locale = useLocale();
-  const [filter, setFilter] = React.useState<string>("ALL");
   const [pending, setPending] = React.useState<{
     cheque: ChequeRow;
     status: ChequeStatus;
   } | null>(null);
 
-  const rows = React.useMemo(
-    () =>
-      filter === "ALL"
-        ? cheques
-        : cheques.filter((cheque) => cheque.status === filter),
-    [cheques, filter],
-  );
-
   const today = new Date().setHours(0, 0, 0, 0);
 
-  return (
-    <Card>
-      <CardContent className="grid gap-0 p-0">
-        <div className="overflow-x-auto border-b p-3">
-          <Tabs value={filter} onValueChange={setFilter}>
-            <TabsList>
-              <TabsTrigger value="ALL">{t.common.all}</TabsTrigger>
-              {CHEQUE_STATUSES.map((status) => (
-                <TabsTrigger key={status} value={status}>
-                  {t.treasuryOptions.chequeStatuses[status]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+  /** Held past its date: the one state that needs chasing. */
+  const isOverdue = React.useCallback(
+    (cheque: ChequeRow) =>
+      cheque.status === "PENDING" &&
+      cheque.dueOn !== null &&
+      new Date(cheque.dueOn).getTime() < today,
+    [today],
+  );
 
-        {rows.length === 0 ? (
+  const columns = React.useMemo<ColumnDef<ChequeRow, unknown>[]>(() => {
+    const list: ColumnDef<ChequeRow, unknown>[] = [
+      {
+        id: "number",
+        accessorFn: (row) =>
+          `${row.number} ${row.paymentCode ?? ""} ${row.familyName ?? ""}`,
+        header: t.treasury.number,
+        cell: ({ row }) => {
+          const cheque = row.original;
+          return (
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium" dir="ltr">
+                  {cheque.number}
+                </span>
+                {isOverdue(cheque) ? (
+                  <Badge variant="outline" className="text-destructive">
+                    {t.treasury.overdueLabel}
+                  </Badge>
+                ) : null}
+              </div>
+              {cheque.paymentCode ? (
+                <p className="text-muted-foreground truncate text-xs">
+                  {cheque.paymentCode}
+                  {cheque.familyName ? ` · ${cheque.familyName}` : ""}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: t.school.status,
+        cell: ({ row }) => (
+          <Badge
+            variant={
+              FAILED_CHEQUE_STATUSES.includes(
+                row.original.status as ChequeStatus,
+              )
+                ? "destructive"
+                : "secondary"
+            }
+          >
+            {
+              t.treasuryOptions.chequeStatuses[
+                row.original.status as ChequeStatus
+              ]
+            }
+          </Badge>
+        ),
+      },
+      {
+        id: "drawerName",
+        accessorFn: (row) => row.drawerName ?? "",
+        header: t.treasury.drawerName,
+        meta: { className: "hidden @3xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.drawerName ?? "—"}</span>
+        ),
+      },
+      {
+        id: "bankName",
+        accessorFn: (row) => row.bankName ?? "",
+        header: t.treasury.bankName,
+        meta: { className: "hidden @4xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.bankName ?? "—"}</span>
+        ),
+      },
+      {
+        // Sorted on by default upstream: what must be banked this week is the
+        // question the screen exists to answer.
+        accessorKey: "dueOn",
+        header: t.treasury.dueOn,
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "text-sm whitespace-nowrap",
+              isOverdue(row.original) && "text-destructive font-medium",
+            )}
+          >
+            {formatDate(row.original.dueOn, locale)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "amountCentimes",
+        header: t.treasury.amount,
+        meta: { className: "text-end" },
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {formatAmount(row.original.amountCentimes, locale)}
+          </span>
+        ),
+      },
+    ];
+
+    if (canManage) {
+      list.push({
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const cheque = row.original;
+          // Only two transitions are ever legal from a given state, and a
+          // cheque that is cashed or bounced has none — no menu for it.
+          if (cheque.status !== "PENDING" && cheque.status !== "DEPOSITED") {
+            return null;
+          }
+
+          return (
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t.common.openMenu}
+                  >
+                    <MoreHorizontalIcon />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {cheque.status === "PENDING" ? (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        setPending({ cheque, status: "DEPOSITED" })
+                      }
+                    >
+                      <LandmarkIcon />
+                      {t.treasury.markDeposited}
+                    </DropdownMenuItem>
+                  ) : (
+                    <>
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setPending({ cheque, status: "CASHED" })
+                        }
+                      >
+                        <WalletIcon />
+                        {t.treasury.markCashed}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() =>
+                          setPending({ cheque, status: "BOUNCED" })
+                        }
+                      >
+                        <BanknoteXIcon />
+                        {t.treasury.markBounced}
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+      });
+    }
+
+    return list;
+  }, [t, locale, canManage, isOverdue]);
+
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.school.status,
+        options: CHEQUE_STATUSES.map((status) => ({
+          value: status,
+          label: t.treasuryOptions.chequeStatuses[status],
+        })),
+      },
+    ],
+    [t],
+  );
+
+  return (
+    <>
+      <DataTable
+        columns={columns}
+        data={cheques}
+        facets={facets}
+        pageSize={20}
+        emptyState={
           <EmptyState
             icon={<ReceiptTextIcon className="size-5" />}
             title={t.treasury.noCheques}
           />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t.treasury.number}</TableHead>
-                  <TableHead>{t.treasury.drawerName}</TableHead>
-                  <TableHead>{t.treasury.bankName}</TableHead>
-                  <TableHead>{t.treasury.dueOn}</TableHead>
-                  <TableHead className="text-end">{t.treasury.amount}</TableHead>
-                  <TableHead>{t.common.actions}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((cheque) => {
-                  const failed = FAILED_CHEQUE_STATUSES.includes(
-                    cheque.status as ChequeStatus,
-                  );
-                  // Held past its date: the one state that needs chasing.
-                  const overdue =
-                    cheque.status === "PENDING" &&
-                    cheque.dueOn !== null &&
-                    new Date(cheque.dueOn).getTime() < today;
-
-                  return (
-                    <TableRow key={cheque.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span dir="ltr">{cheque.number}</span>
-                          <Badge variant={failed ? "destructive" : "secondary"}>
-                            {
-                              t.treasuryOptions.chequeStatuses[
-                                cheque.status as ChequeStatus
-                              ]
-                            }
-                          </Badge>
-                          {overdue ? (
-                            <Badge variant="outline" className="text-destructive">
-                              {t.treasury.overdueLabel}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        {cheque.paymentCode ? (
-                          <span className="text-muted-foreground block text-xs">
-                            {cheque.paymentCode}
-                            {cheque.familyName ? ` · ${cheque.familyName}` : ""}
-                          </span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>{cheque.drawerName ?? "—"}</TableCell>
-                      <TableCell>{cheque.bankName ?? "—"}</TableCell>
-                      <TableCell
-                        className={cn(
-                          "whitespace-nowrap",
-                          overdue && "text-destructive font-medium",
-                        )}
-                      >
-                        {formatDate(cheque.dueOn, locale)}
-                      </TableCell>
-                      <TableCell className="text-end tabular-nums">
-                        {formatAmount(cheque.amountCentimes, locale)}
-                      </TableCell>
-                      <TableCell>
-                        {canManage ? (
-                          <div className="flex flex-wrap gap-1">
-                            {cheque.status === "PENDING" ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setPending({ cheque, status: "DEPOSITED" })
-                                }
-                              >
-                                {t.treasury.markDeposited}
-                              </Button>
-                            ) : null}
-                            {cheque.status === "DEPOSITED" ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    setPending({ cheque, status: "CASHED" })
-                                  }
-                                >
-                                  {t.treasury.markCashed}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() =>
-                                    setPending({ cheque, status: "BOUNCED" })
-                                  }
-                                >
-                                  {t.treasury.markBounced}
-                                </Button>
-                              </>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
+        }
+      />
 
       {pending ? (
         <StatusDialog
@@ -213,7 +281,7 @@ export function ChequeTable({
           onClose={() => setPending(null)}
         />
       ) : null}
-    </Card>
+    </>
   );
 }
 
@@ -273,7 +341,9 @@ function StatusDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               {t.common.cancel}
             </Button>
-            <SubmitButton variant={status === "BOUNCED" ? "destructive" : "default"}>
+            <SubmitButton
+              variant={status === "BOUNCED" ? "destructive" : "default"}
+            >
               {t.common.confirm}
             </SubmitButton>
           </DialogFooter>

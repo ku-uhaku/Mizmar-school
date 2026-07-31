@@ -6,6 +6,11 @@ import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ALL_PERMISSION_CODES, type PermissionCode } from "@/lib/permissions";
+import {
+  DEFAULT_SETTINGS,
+  settingsOf,
+  type SchoolSettingsValues,
+} from "@/lib/school-settings";
 
 /**
  * Data Access Layer.
@@ -55,6 +60,13 @@ export type AuthContext = {
   /** Schools this user may see at all. */
   schools: SessionUser["memberships"][number]["school"][];
   currentSchool: SessionUser["memberships"][number]["school"] | null;
+  /**
+   * The current school's own policies — grading scale, teaching week, matricule
+   * format, instalment count. Never null: a school with no settings row, and a
+   * request with no school in context at all, both get the defaults, which are
+   * the constants these values replaced. See modules/schools/settings.ts.
+   */
+  settings: SchoolSettingsValues;
   currentSchoolYear: SchoolYearRecord | null;
   /** School years of the current school, for the context switcher. */
   schoolYears: SchoolYearRecord[];
@@ -136,7 +148,15 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     schools[0] ??
     null;
 
-  const schoolYears = currentSchool ? await loadSchoolYears(currentSchool.id) : [];
+  // One extra read per request, alongside the years. Both are wanted on nearly
+  // every screen and `getAuthContext` is React-cached, so this is one query per
+  // render pass rather than one per caller.
+  const [schoolYears, settingsRow] = currentSchool
+    ? await Promise.all([
+        loadSchoolYears(currentSchool.id),
+        db.schoolSettings.findUnique({ where: { schoolId: currentSchool.id } }),
+      ])
+    : [[], null];
 
   const currentSchoolYear =
     schoolYears.find((year) => year.id === user.currentSchoolYearId) ??
@@ -157,6 +177,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     organization: user.organization,
     schools,
     currentSchool,
+    settings: currentSchool ? settingsOf(settingsRow) : DEFAULT_SETTINGS,
     currentSchoolYear,
     schoolYears,
     orgPermissions,

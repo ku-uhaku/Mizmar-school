@@ -30,12 +30,17 @@ export type ScheduleKind = (typeof SCHEDULE_KINDS)[number];
  * The Moroccan week runs Monday to Saturday — Saturday is usually morning only,
  * and Sunday is the weekly day off. There is deliberately no 7.
  */
+/**
+ * The week when nobody has said otherwise — Monday to Saturday, as most
+ * Moroccan schools run.
+ *
+ * A school declares its own in the configuration (SchoolSettings.teachingDays),
+ * and every grid is drawn from `teachingDaysOf(context.settings)`. This stays as
+ * the fallback and as the set the picker offers, which is why it still lists six
+ * days rather than seven: a school that teaches Sunday adds it in the settings.
+ */
 export const TEACHING_DAYS = [1, 2, 3, 4, 5, 6] as const;
 export type TeachingDay = (typeof TEACHING_DAYS)[number];
-
-export function isTeachingDay(value: number): value is TeachingDay {
-  return (TEACHING_DAYS as readonly number[]).includes(value);
-}
 
 /**
  * The most consecutive periods one lesson may occupy.
