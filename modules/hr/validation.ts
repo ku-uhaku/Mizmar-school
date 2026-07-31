@@ -205,7 +205,7 @@ export function salaryPayoutSchema(t: Dictionary) {
     }),
     /** Blank for anything that is not cash — the caisse only holds notes. */
     cashSessionId: optionalText(40),
-    expenseCategoryId: optionalText(40),
+    categoryId: optionalText(40),
     reference: optionalText(60),
     chequeNumber: optionalText(40),
     bankName: optionalText(80),

@@ -7,6 +7,9 @@
  */
 const en = {
   student: {
+    tabAttendance: "Attendance",
+    tabMarks: "Marks",
+    tabRemarks: "Remarks",
     title: "Students",
     subtitle: "Every child on the school's books, enrolled or not.",
     newStudent: "New student",

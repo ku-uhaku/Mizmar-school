@@ -77,8 +77,21 @@ model CashOperation {
 
   /// Décaissement only. SetNull: retiring a category must not erase the history
   /// of what was spent under it.
-  expenseCategoryId String?
-  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
+  /// What this movement is for, and why. SetNull throughout: retiring a rubrique
+  /// must never delete a posted operation, and `label` still says what happened.
+  ///
+  /// The pair replaces `expenseCategoryId`, which only ever applied to money
+  /// going out — see prisma/schema/treasury/operation-category.prisma.
+  categoryId String?
+  category   OperationCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  subcategoryId String?
+  subcategory   OperationSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
+
+  /// The motif chosen from the school's list, when it came from the list. Null
+  /// for a one-off typed straight into `label`.
+  motifId String?
+  motif   OperationMotif? @relation(fields: [motifId], references: [id], onDelete: SetNull)
 
   /// Who was paid, when they are on the payroll — a salary, an avance, a
   /// reimbursed expense.
@@ -112,6 +125,11 @@ model CashOperation {
   counterpartRegister   CashRegister? @relation("OperationCounterpartRegister", fields: [counterpartRegisterId], references: [id], onDelete: SetNull)
 
   /// Where the money went when it left for the bank rather than another till.
+  /// The bank a virement went to or came from. `bankAccountLabel` is kept
+  /// beside it for an account the school has not declared — see Bank.
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
   bankAccountLabel String?
 
   /// The cheque this operation concerns, for the ones that are not payments —
@@ -129,7 +147,10 @@ model CashOperation {
   @@index([schoolId])
   @@index([beneficiaryStaffId])
   @@index([cashSessionId])
-  @@index([expenseCategoryId])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([motifId])
+  @@index([bankId])
   @@index([counterpartRegisterId])
   @@index([chequeId])
   @@index([createdById])

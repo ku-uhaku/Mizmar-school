@@ -7,6 +7,18 @@
  */
 const fr = {
   classroom: {
+    attendanceStatus: "Statut",
+    date: "Date",
+    attendanceRate: "Assiduité",
+    ofMarkedDays: "sur {count} relevés",
+    unjustified: "Non justifié",
+    unjustifiedCount: "{count} non justifié(s)",
+    excusedHint: "Absences acceptées par l'établissement.",
+    minutesLateShort: "{count} min",
+    recordedBy: "Relevé par",
+    noAttendanceYet: "Aucun appel effectué.",
+    noAttendanceHint: "Les appels se font dans l'espace enseignant.",
+    noRemarksYet: "Rien d'écrit pour le moment.",
     title: "Espace enseignant",
     subtitle: "Vos classes, vos appels et vos corrections.",
 
@@ -20,7 +32,8 @@ const fr = {
     noLessonsThisWeek: "Rien à votre emploi du temps pour cet horaire.",
     noLessonsThisWeekHint:
       "Les cours apparaissent ici dès que l'emploi du temps de vos classes est établi.",
-    myClassesHint: "Chaque classe et matière qui vous est affectée cette année.",
+    myClassesHint:
+      "Chaque classe et matière qui vous est affectée cette année.",
     noClasses: "Vous n'êtes affecté à aucune classe cette année.",
     noClassesHint:
       "Une classe apparaît ici dès que le responsable pédagogique vous y affecte.",
@@ -71,7 +84,8 @@ const fr = {
     devoirTitle: "Intitulé",
     dueOn: "À rendre le",
     noDevoirs: "Vous n'avez encore donné aucun devoir.",
-    noDevoirsHint: "Donnez-en un et il apparaîtra ici avec sa feuille de notes.",
+    noDevoirsHint:
+      "Donnez-en un et il apparaîtra ici avec sa feuille de notes.",
     kindNotAllowed:
       "Votre école n'autorise pas les enseignants à donner ce type de travail.",
     noTeacherKinds:

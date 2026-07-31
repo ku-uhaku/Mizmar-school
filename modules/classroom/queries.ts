@@ -583,3 +583,132 @@ export async function teacherSummary(
     remarksThisMonth: remarks,
   };
 }
+
+// ── One pupil's file ─────────────────────────────────────────────────────────
+/*
+  The reads above are the espace enseignant's, confined to the signed-in
+  teacher's own assignments. The two below are the office's view of the same
+  data, reached from a pupil's file and scoped by permission instead — see the
+  note at the top of this file about that split.
+*/
+
+export type PupilAttendanceRow = {
+  id: string;
+  date: string;
+  status: string;
+  minutesLate: number | null;
+  isJustified: boolean;
+  reason: string | null;
+  /** Null for a whole-day register rather than one lesson. */
+  subjectName: string | null;
+  recordedByName: string | null;
+};
+
+export type PupilAttendance = {
+  rows: PupilAttendanceRow[];
+  tally: AttendanceTally;
+  /** Absences and lateness nobody has justified — what a school chases. */
+  unjustifiedAbsences: number;
+  unjustifiedLates: number;
+  /** Present or late, over everything marked. Null when nothing is marked. */
+  attendanceRate: number | null;
+};
+
+/**
+ * A pupil's whole year of registers, newest first.
+ *
+ * Keyed on the enrolment, not the pupil: a child who repeats has two years of
+ * marks and the file shows the year in context, exactly as the fee grid does.
+ *
+ * The rate deliberately excludes days nobody marked. A register that was never
+ * taken is not an absence, and counting it as one would make a class whose
+ * teacher forgets look like a class that truants.
+ */
+export async function loadPupilAttendance(
+  context: AuthContext,
+  enrollmentId: string,
+): Promise<PupilAttendance> {
+  const marks = await db.studentAttendance.findMany({
+    where: {
+      enrollmentId,
+      // Re-derived from the working context rather than trusted: the
+      // enrolment id comes from the URL.
+      enrollment: { schoolYear: schoolScope(context) },
+    },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    include: {
+      subject: { select: { name: true } },
+      recordedBy: { select: { email: true, profile: true } },
+    },
+  });
+
+  const rows = marks.map((mark) => ({
+    id: mark.id,
+    date: mark.date.toISOString(),
+    status: mark.status,
+    minutesLate: mark.minutesLate,
+    isJustified: mark.isJustified,
+    reason: mark.reason,
+    subjectName: mark.subject?.name ?? null,
+    recordedByName: mark.recordedBy ? displayName(mark.recordedBy) : null,
+  }));
+
+  const tally = tallyAttendance(marks);
+  const attended = tally.present + tally.late;
+  const marked = attended + tally.absent + tally.excused;
+
+  return {
+    rows,
+    tally,
+    unjustifiedAbsences: marks.filter(
+      (mark) => mark.status === "ABSENT" && !mark.isJustified,
+    ).length,
+    unjustifiedLates: marks.filter(
+      (mark) => mark.status === "LATE" && !mark.isJustified,
+    ).length,
+    attendanceRate: marked === 0 ? null : Math.round((attended / marked) * 100),
+  };
+}
+
+export type PupilRemarkRow = {
+  id: string;
+  kind: string;
+  tone: string;
+  body: string;
+  occurredOn: string;
+  subjectName: string | null;
+  authorName: string | null;
+  isVisibleToFamily: boolean;
+};
+
+/**
+ * What this pupil's teachers have written about them, newest first.
+ *
+ * Unlike `listRemarks`, this is not filtered to one author: on the pupil's own
+ * file the reader is the office, and the point of the carnet is that it is the
+ * whole picture. The permission to open this screen at all is the gate.
+ */
+export async function loadPupilRemarks(
+  context: AuthContext,
+  enrollmentId: string,
+): Promise<PupilRemarkRow[]> {
+  const remarks = await db.studentRemark.findMany({
+    where: { enrollmentId, enrollment: { schoolYear: schoolScope(context) } },
+    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
+    include: {
+      subject: { select: { name: true } },
+      author: { select: { email: true, profile: true } },
+    },
+  });
+
+  return remarks.map((remark) => ({
+    id: remark.id,
+    kind: remark.kind,
+    tone: remark.tone,
+    body: remark.body,
+    occurredOn: remark.occurredOn.toISOString(),
+    subjectName: remark.subject?.name ?? null,
+    authorName: remark.author ? displayName(remark.author) : null,
+    isVisibleToFamily: remark.isVisibleToFamily,
+  }));
+}

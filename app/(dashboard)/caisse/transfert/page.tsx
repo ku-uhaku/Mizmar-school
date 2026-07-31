@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { TransferForm } from "@/modules/treasury/components/transfer-form";
-import { listRegisters } from "@/modules/treasury/queries";
+import { listBanks, listRegisters } from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Transfert" };
 
@@ -18,7 +18,10 @@ export default async function TransfertPage() {
     return <ForbiddenState />;
   }
 
-  const registers = await listRegisters(context);
+  const [registers, banks] = await Promise.all([
+    listRegisters(context),
+    listBanks(context),
+  ]);
 
   return (
     <>
@@ -27,7 +30,7 @@ export default async function TransfertPage() {
         description={t.treasury.transfertSubtitle}
       />
 
-      <TransferForm registers={registers} />
+      <TransferForm registers={registers} banks={banks} />
     </>
   );
 }

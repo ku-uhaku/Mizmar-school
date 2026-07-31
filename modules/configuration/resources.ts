@@ -9,6 +9,7 @@ import {
   FEE_KINDS,
 } from "@/modules/billing/enums";
 import { GROUP_PURPOSES } from "@/modules/classes/enums";
+import { CATEGORY_KINDS } from "@/modules/treasury/enums";
 import { ROOM_KINDS } from "@/modules/facilities/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
 import { DAY_SESSIONS, SCHEDULE_KINDS, TEACHING_DAYS } from "@/modules/timetable/enums";
@@ -37,6 +38,7 @@ export const SECTIONS: SectionDef[] = [
   { id: "year", labelKey: "year" },
   { id: "classes", labelKey: "classes" },
   { id: "billing", labelKey: "billing" },
+  { id: "treasury", labelKey: "treasury" },
 ];
 
 /** Shared trailing fields — every resource that has them wants them last. */
@@ -896,6 +898,145 @@ export const RESOURCES: ResourceDef[] = [
       { name: "isStackable", type: "boolean", labelKey: "isStackable", hintKey: "isStackable" },
       IS_ACTIVE,
       { name: "notes", type: "textarea", labelKey: "notes", maxLength: 500, wide: true },
+    ],
+  },
+
+  // ── Caisse ────────────────────────────────────────────────────────────────
+  /*
+    The chart the caisse posts against, and the banks it deals with. All four
+    used to be free-text boxes on the décaissement form, which is why no report
+    could group by any of them — see prisma/schema/treasury/operation-category.
+  */
+  {
+    id: "banks",
+    section: "treasury",
+    labelKey: "banks",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 16,
+        dir: "ltr",
+        placeholder: "AWB",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 120, inTable: true },
+      NAME_AR,
+      { name: "agency", type: "text", labelKey: "agency", hintKey: "agency", maxLength: 120, inTable: true },
+      {
+        name: "accountNumber",
+        type: "text",
+        labelKey: "accountNumber",
+        hintKey: "accountNumber",
+        maxLength: 40,
+        dir: "ltr",
+      },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  {
+    id: "operation-categories",
+    section: "treasury",
+    labelKey: "operationCategories",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "FOURNITURES",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 120, inTable: true },
+      NAME_AR,
+      {
+        name: "kind",
+        type: "select",
+        labelKey: "categoryKind",
+        hintKey: "categoryKind",
+        options: CATEGORY_KINDS,
+        optionsKey: "categoryKinds",
+        defaultValue: "OUT",
+        required: true,
+        inTable: true,
+      },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  {
+    id: "operation-subcategories",
+    section: "treasury",
+    labelKey: "operationSubcategories",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "categoryId",
+        type: "reference",
+        labelKey: "operationCategory",
+        hintKey: "subcategoryParent",
+        referenceTo: "operation-categories",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "PAPETERIE",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 120, inTable: true },
+      NAME_AR,
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  {
+    id: "operation-motifs",
+    section: "treasury",
+    labelKey: "operationMotifs",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "ACHAT-FOURNITURES",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 160, inTable: true },
+      NAME_AR,
+      {
+        // Optional on purpose: a motif with no rubrique is offered under every
+        // one of them. See OperationMotif.categoryId.
+        name: "categoryId",
+        type: "reference",
+        labelKey: "operationCategory",
+        hintKey: "motifCategory",
+        referenceTo: "operation-categories",
+        nullable: true,
+        inTable: true,
+      },
+      POSITION,
+      IS_ACTIVE,
     ],
   },
 ];

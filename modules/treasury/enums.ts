@@ -35,6 +35,22 @@ export const OPERATION_KINDS = [
 export type OperationKind = (typeof OPERATION_KINDS)[number];
 
 /**
+ * Which side of the ledger a rubrique may be posted on — see
+ * OperationCategory.kind.
+ *
+ * Three values rather than a boolean because "Régularisation" and "Transfert
+ * interne" genuinely belong on both sides, and forcing a school to declare two
+ * rubriques with the same name to say so is how charts of accounts rot.
+ */
+export const CATEGORY_KINDS = ["IN", "OUT", "BOTH"] as const;
+export type CategoryKind = (typeof CATEGORY_KINDS)[number];
+
+/** The rubriques offerable on a given screen. BOTH is always offered. */
+export function categoryAllows(kind: string, side: "IN" | "OUT"): boolean {
+  return kind === side || kind === "BOTH";
+}
+
+/**
  * How money changed hands.
  *
  *   CASH           espèces

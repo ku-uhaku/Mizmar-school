@@ -7,6 +7,18 @@
  */
 const en = {
   classroom: {
+    attendanceStatus: "Status",
+    date: "Date",
+    attendanceRate: "Attendance",
+    ofMarkedDays: "of {count} marked",
+    unjustified: "Unjustified",
+    unjustifiedCount: "{count} unjustified",
+    excusedHint: "Absences the school has accepted.",
+    minutesLateShort: "{count} min",
+    recordedBy: "Marked by",
+    noAttendanceYet: "No register taken yet.",
+    noAttendanceHint: "Registers are taken in the teachers' workspace.",
+    noRemarksYet: "Nothing written yet.",
     title: "Teaching",
     subtitle: "Your classes, your registers and your marking.",
 

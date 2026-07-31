@@ -529,9 +529,9 @@ function PayoutDialog({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.expenseCategory} name="expenseCategoryId">
-              <Select name="expenseCategoryId" defaultValue="__none__">
-                <SelectTrigger id="expenseCategoryId" className="w-full">
+            <Field label={t.hr.expenseCategory} name="categoryId">
+              <Select name="categoryId" defaultValue="__none__">
+                <SelectTrigger id="categoryId" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -7,6 +7,13 @@
  */
 const ar = {
   assessment: {
+    assessment: "الفرض",
+    noMarksYet: "لا توجد نقط بعد.",
+    noMarksHint: "تظهر النقط هنا كلما أدخلها الأساتذة.",
+    overallAverage: "المعدل العام",
+    marksCounted: "{count} نقطة مُدخَلة",
+    coefficientShort: "معامل {value}",
+    notCounted: "خارج المعدل",
     title: "الفروض",
     subtitle: "الأعمال المنقّطة خلال الدورة، والنقط المسجّلة عليها.",
 

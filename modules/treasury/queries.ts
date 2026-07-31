@@ -193,6 +193,7 @@ export type OperationRow = {
   status: string;
   registerName: string | null;
   categoryName: string | null;
+  subcategoryName: string | null;
   beneficiaryName: string | null;
   createdByName: string;
   /** Set when this row is a receipt, so the ledger can link through to it. */
@@ -227,7 +228,8 @@ export async function listOperations(
     take: limit,
     include: {
       cashSession: { select: { cashRegister: { select: { name: true } } } },
-      expenseCategory: { select: { name: true } },
+      category: { select: { name: true } },
+      subcategory: { select: { name: true } },
       createdBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
       payment: { select: { id: true, code: true } },
       reversedBy: { select: { id: true } },
@@ -245,7 +247,8 @@ export async function listOperations(
     occurredAt: operation.occurredAt.toISOString(),
     status: operation.status,
     registerName: operation.cashSession?.cashRegister.name ?? null,
-    categoryName: operation.expenseCategory?.name ?? null,
+    categoryName: operation.category?.name ?? null,
+    subcategoryName: operation.subcategory?.name ?? null,
     beneficiaryName: operation.beneficiaryName,
     createdByName: displayName(operation.createdBy),
     paymentId: operation.payment?.id ?? null,
@@ -285,6 +288,7 @@ export async function listCheques(
     },
     orderBy: [{ dueOn: "asc" }, { createdAt: "desc" }],
     include: {
+      bank: { select: { name: true } },
       tender: {
         select: {
           payment: {
@@ -299,7 +303,10 @@ export async function listCheques(
     id: cheque.id,
     direction: cheque.direction,
     number: cheque.number,
-    bankName: cheque.bankName,
+    // The declared bank wins over the free text — the relation is the one a
+    // report can group by, and the text is only there for a bank we have not
+    // declared. See Cheque.bankId.
+    bankName: cheque.bank?.name ?? cheque.bankName,
     drawerName: cheque.drawerName,
     amountCentimes: cheque.amountCentimes,
     issuedOn: cheque.issuedOn?.toISOString() ?? null,
@@ -313,21 +320,79 @@ export async function listCheques(
   }));
 }
 
-export type ExpenseCategoryOption = {
+export type SubcategoryOption = { id: string; code: string; name: string };
+
+export type CategoryOption = {
   id: string;
   code: string;
   name: string;
+  /** "IN" | "OUT" | "BOTH" — see modules/treasury/enums.ts. */
+  kind: string;
+  subcategories: SubcategoryOption[];
 };
 
-export async function listExpenseCategories(
+export type MotifOption = {
+  id: string;
+  code: string;
+  name: string;
+  /** Null for a motif offered under every rubrique — see OperationMotif. */
+  categoryId: string | null;
+};
+
+export type BankOption = { id: string; code: string; name: string };
+
+/**
+ * The chart the caisse posts against: rubriques with their sub-rubriques
+ * nested, so the form can narrow the second select from the first without a
+ * round trip.
+ *
+ * `side` filters to what the screen may actually offer — a décaissement must
+ * not be postable under an income-only rubrique. Inactive rows are dropped at
+ * both levels: a retired rubrique stays on the operations that already used it
+ * and disappears from the picker, which is what retiring one means.
+ */
+export async function listOperationCategories(
   context: AuthContext,
-): Promise<ExpenseCategoryOption[]> {
-  const categories = await db.expenseCategory.findMany({
+  side?: "IN" | "OUT",
+): Promise<CategoryOption[]> {
+  const categories = await db.operationCategory.findMany({
+    where: {
+      ...schoolScope(context),
+      isActive: true,
+      ...(side ? { kind: { in: [side, "BOTH"] } } : {}),
+    },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      kind: true,
+      subcategories: {
+        where: { isActive: true },
+        orderBy: [{ position: "asc" }, { name: "asc" }],
+        select: { id: true, code: true, name: true },
+      },
+    },
+  });
+  return categories;
+}
+
+export async function listOperationMotifs(
+  context: AuthContext,
+): Promise<MotifOption[]> {
+  return db.operationMotif.findMany({
+    where: { ...schoolScope(context), isActive: true },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: { id: true, code: true, name: true, categoryId: true },
+  });
+}
+
+export async function listBanks(context: AuthContext): Promise<BankOption[]> {
+  return db.bank.findMany({
     where: { ...schoolScope(context), isActive: true },
     orderBy: [{ position: "asc" }, { name: "asc" }],
     select: { id: true, code: true, name: true },
   });
-  return categories;
 }
 
 // ── The encaissement screen ──────────────────────────────────────────────────

@@ -182,6 +182,7 @@ function readTenders(formData: FormData) {
       method: String(method),
       amount: String(formData.getAll("tenderAmount")[index] ?? ""),
       reference: String(formData.getAll("tenderReference")[index] ?? ""),
+      bankId: String(formData.getAll("tenderBankId")[index] ?? ""),
       bankName: String(formData.getAll("tenderBank")[index] ?? ""),
       chequeNumber: String(formData.getAll("tenderChequeNumber")[index] ?? ""),
       chequeDueOn: String(formData.getAll("tenderChequeDueOn")[index] ?? ""),
@@ -245,6 +246,30 @@ export async function recordPaymentAction(
     const session = await openSessionFor(schoolId);
     if (takesCash && !session) return failure(t.treasury.noOpenSession);
 
+    /*
+      Every bank a tender named is re-derived against this school in one query.
+      The picker was filtered, but a direct POST was not — and a bank id from
+      another school on an incoming cheque would file it under a row this
+      school cannot see.
+    */
+    const namedBankIds = [
+      ...new Set(
+        parsed.data.tenders
+          .map((tender) => tender.bankId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const reachableBanks = new Set(
+      namedBankIds.length === 0
+        ? []
+        : (
+            await db.bank.findMany({
+              where: { id: { in: namedBankIds }, schoolId },
+              select: { id: true },
+            })
+          ).map((bank) => bank.id),
+    );
+
     const result = await recordPayment({
       schoolId,
       schoolYearId,
@@ -257,6 +282,10 @@ export async function recordPaymentAction(
         method: tender.method,
         amountCentimes: tender.amountCentimes,
         reference: tender.reference,
+        bankId:
+          tender.bankId && reachableBanks.has(tender.bankId)
+            ? tender.bankId
+            : null,
         bankName: tender.bankName,
         chequeNumber: tender.chequeNumber,
         chequeDueOn: tender.chequeDueOn,
@@ -322,7 +351,10 @@ export async function recordDisbursementAction(
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
 
     const parsed = disbursementSchema(t).safeParse({
-      expenseCategoryId: optionalId(formData, "expenseCategoryId"),
+      categoryId: optionalId(formData, "categoryId"),
+      subcategoryId: optionalId(formData, "subcategoryId"),
+      motifId: optionalId(formData, "motifId"),
+      bankId: optionalId(formData, "bankId"),
       beneficiaryStaffId: optionalId(formData, "beneficiaryStaffId"),
       beneficiaryName: field(formData, "beneficiaryName"),
       label: field(formData, "label"),
@@ -338,9 +370,44 @@ export async function recordDisbursementAction(
       return failure(t.errors.invalid, fieldErrors(parsed.error));
     }
 
-    const category = parsed.data.expenseCategoryId
-      ? await db.expenseCategory.findFirst({
-          where: { id: parsed.data.expenseCategoryId, schoolId },
+    /*
+      Every rubrique the form sent is re-derived against this school, and the
+      sub-rubrique against the rubrique. The selects were already filtered, but a
+      Server Function is reachable by direct POST — without this, a crafted
+      `subcategoryId` would file a décaissement under another school's chart.
+    */
+    const category = parsed.data.categoryId
+      ? await db.operationCategory.findFirst({
+          where: {
+            id: parsed.data.categoryId,
+            schoolId,
+            kind: { in: ["OUT", "BOTH"] },
+          },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.categoryId && !category) return failure(t.errors.notFound);
+
+    // Scoped by the resolved parent, so a sub-rubrique can never be attached to
+    // a rubrique it does not belong to.
+    const subcategory =
+      parsed.data.subcategoryId && category
+        ? await db.operationSubcategory.findFirst({
+            where: { id: parsed.data.subcategoryId, categoryId: category.id },
+            select: { id: true },
+          })
+        : null;
+
+    const motif = parsed.data.motifId
+      ? await db.operationMotif.findFirst({
+          where: { id: parsed.data.motifId, schoolId },
+          select: { id: true, name: true },
+        })
+      : null;
+
+    const bank = parsed.data.bankId
+      ? await db.bank.findFirst({
+          where: { id: parsed.data.bankId, schoolId },
           select: { id: true },
         })
       : null;
@@ -394,7 +461,10 @@ export async function recordDisbursementAction(
       schoolId,
       createdById: context.user.id,
       cashSessionId: parsed.data.method === "CASH" ? (session?.id ?? null) : null,
-      expenseCategoryId: category?.id ?? null,
+      categoryId: category?.id ?? null,
+      subcategoryId: subcategory?.id ?? null,
+      motifId: motif?.id ?? null,
+      bankId: bank?.id ?? null,
       beneficiaryStaffId: beneficiary?.id ?? null,
       beneficiaryName: parsed.data.beneficiaryName,
       label: parsed.data.label,
@@ -427,6 +497,7 @@ export async function recordTransferAction(
       fromRegisterId: field(formData, "fromRegisterId"),
       target: field(formData, "target"),
       toRegisterId: optionalId(formData, "toRegisterId"),
+      bankId: optionalId(formData, "bankId"),
       bankAccountLabel: field(formData, "bankAccountLabel"),
       amount: field(formData, "amount"),
       reference: field(formData, "reference"),
@@ -481,12 +552,22 @@ export async function recordTransferAction(
       );
     }
 
+    // Re-derived, like every other reference the form sends.
+    const transferBank =
+      parsed.data.target === "BANK" && parsed.data.bankId
+        ? await db.bank.findFirst({
+            where: { id: parsed.data.bankId, schoolId },
+            select: { id: true, name: true },
+          })
+        : null;
+
     const result = await recordTransfer({
       schoolId,
       createdById: context.user.id,
       fromSessionId: fromSession.id,
       fromRegisterId: from.id,
       toRegisterId: to?.id ?? null,
+      bankId: parsed.data.target === "BANK" ? (transferBank?.id ?? null) : null,
       bankAccountLabel:
         parsed.data.target === "BANK" ? parsed.data.bankAccountLabel : null,
       amountCentimes: parsed.data.amountCentimes,
@@ -494,7 +575,7 @@ export async function recordTransferAction(
       occurredAt: parsed.data.occurredAt ?? new Date(),
       label:
         parsed.data.target === "BANK"
-          ? (parsed.data.bankAccountLabel ?? from.name)
+          ? (transferBank?.name ?? parsed.data.bankAccountLabel ?? from.name)
           : `${from.name} → ${to?.name ?? ""}`,
     });
 

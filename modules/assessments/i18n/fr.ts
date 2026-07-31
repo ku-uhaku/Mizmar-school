@@ -7,6 +7,13 @@
  */
 const fr = {
   assessment: {
+    assessment: "Épreuve",
+    noMarksYet: "Aucune note pour le moment.",
+    noMarksHint: "Les notes apparaissent ici au fur et à mesure des saisies.",
+    overallAverage: "Moyenne générale",
+    marksCounted: "{count} notes saisies",
+    coefficientShort: "coeff. {value}",
+    notCounted: "hors moyenne",
     title: "Contrôles",
     subtitle: "Le travail noté du semestre, et les notes qui vont avec.",
 

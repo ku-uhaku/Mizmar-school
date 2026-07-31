@@ -1,0 +1,41 @@
+/// A bank the school actually deals with.
+///
+/// Exists because "Attijariwafa", "attijariwafa bank", "AWB" and "Attijari" were
+/// four different banks as far as the ledger was concerned. Every cheque and
+/// every virement named its bank in a free-text box, so no screen could group
+/// by it and no report could total by it.
+///
+/// The free-text columns are deliberately kept beside the relation — see
+/// `Cheque.bankName`. A parent hands over a cheque drawn on a bank the school
+/// has never dealt with, and refusing to record it until somebody opens the
+/// configuration screen would stop the desk.
+model Bank {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short code as the school writes it on a bordereau, e.g. "AWB", "BP".
+  code   String
+  name   String
+  nameAr String?
+
+  /// Branch or agency, when the school banks with a particular one.
+  agency String?
+  /// The school's own account at this bank, for the virements it makes.
+  accountNumber String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cheques Cheque[]
+  tenders PaymentTender[]
+  /// Transfers made to or from this bank — see CashOperation.bankId.
+  operations CashOperation[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("banks")
+}

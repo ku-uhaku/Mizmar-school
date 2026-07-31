@@ -7,6 +7,18 @@
  */
 const ar = {
   classroom: {
+    attendanceStatus: "الحالة",
+    date: "التاريخ",
+    attendanceRate: "المواظبة",
+    ofMarkedDays: "من أصل {count} مسجّلة",
+    unjustified: "غير مبرَّر",
+    unjustifiedCount: "{count} غير مبرَّر",
+    excusedHint: "غيابات قبلتها المؤسسة.",
+    minutesLateShort: "{count} د",
+    recordedBy: "سجّلها",
+    noAttendanceYet: "لم يُجرَ أي تفقّد بعد.",
+    noAttendanceHint: "يُجرى التفقّد في فضاء الأستاذ.",
+    noRemarksYet: "لا شيء مكتوب بعد.",
     title: "فضاء الأستاذ",
     subtitle: "أقسامك، وأوراق الغياب، والتصحيح.",
 

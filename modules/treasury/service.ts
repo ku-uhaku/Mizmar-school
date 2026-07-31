@@ -151,6 +151,8 @@ export type TenderInput = {
   method: TenderMethod;
   amountCentimes: number;
   reference: string | null;
+  /** The declared bank, when it is one of the school's — see Bank. */
+  bankId: string | null;
   bankName: string | null;
   chequeNumber: string | null;
   chequeDueOn: Date | null;
@@ -292,6 +294,7 @@ export async function recordPayment(
                 schoolId: input.schoolId,
                 direction: "INCOMING",
                 number: tender.chequeNumber,
+                bankId: tender.bankId,
                 bankName: tender.bankName,
                 drawerName: tender.drawerName,
                 amountCentimes: tender.amountCentimes,
@@ -309,6 +312,7 @@ export async function recordPayment(
           method: tender.method,
           amountCentimes: tender.amountCentimes,
           reference: tender.reference,
+          bankId: tender.bankId,
           bankName: tender.bankName,
           chequeId: cheque?.id ?? null,
         },
@@ -445,7 +449,10 @@ export type DisbursementInput = {
   schoolId: string;
   createdById: string;
   cashSessionId: string | null;
-  expenseCategoryId: string | null;
+  /** Rubrique, sub-rubrique and motif — see prisma/schema/treasury/. */
+  categoryId: string | null;
+  subcategoryId: string | null;
+  motifId: string | null;
   /**
    * The employee paid, when the beneficiary is on the payroll. Null for a
    * landlord or a haulier — see the note on the column. `beneficiaryName` is
@@ -458,6 +465,8 @@ export type DisbursementInput = {
   amountCentimes: number;
   reference: string | null;
   chequeNumber: string | null;
+  /** The declared bank, when it is one of them. */
+  bankId: string | null;
   bankName: string | null;
   occurredAt: Date;
 };
@@ -474,6 +483,7 @@ export async function recordDisbursement(
               schoolId: input.schoolId,
               direction: "OUTGOING",
               number: input.chequeNumber,
+              bankId: input.bankId,
               bankName: input.bankName,
               drawerName: input.beneficiaryName,
               amountCentimes: input.amountCentimes,
@@ -500,7 +510,10 @@ export async function recordDisbursement(
         reference: input.reference,
         occurredAt: input.occurredAt,
         status: "POSTED",
-        expenseCategoryId: input.expenseCategoryId,
+        categoryId: input.categoryId,
+        subcategoryId: input.subcategoryId,
+        motifId: input.motifId,
+        bankId: input.bankId,
         beneficiaryStaffId: input.beneficiaryStaffId ?? null,
         beneficiaryName: input.beneficiaryName,
         chequeId: cheque?.id ?? null,
@@ -519,6 +532,7 @@ export type TransferInput = {
   fromSessionId: string;
   fromRegisterId: string;
   toRegisterId: string | null;
+  bankId: string | null;
   bankAccountLabel: string | null;
   amountCentimes: number;
   reference: string | null;
@@ -564,6 +578,7 @@ export async function recordTransfer(
         status: "POSTED",
         transferGroupId,
         counterpartRegisterId: input.toRegisterId,
+        bankId: input.bankId,
         bankAccountLabel: input.bankAccountLabel,
         createdById: input.createdById,
       },

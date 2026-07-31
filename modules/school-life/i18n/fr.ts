@@ -4,6 +4,8 @@
  */
 const fr = {
   schoolLife: {
+    assessmentsHint: "Les épreuves de l'année et les notes qui vont avec.",
+    attendanceHint: "Absences et retards, sur la fiche de chaque élève.",
     title: "Vie scolaire",
     subtitle: "{school} — {year}, à ce jour.",
     noYear: "Sélectionnez une année scolaire pour voir les chiffres.",

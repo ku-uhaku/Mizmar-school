@@ -26,6 +26,11 @@ model PaymentTender {
   /// live on the cheque itself, not here.
   reference String?
 
+  /// See Cheque.bankId — the relation when the bank is known, the text when it
+  /// is somebody else's.
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
   bankName String?
 
   /// Set when `method` is CHEQUE. SetNull so a cheque record can be detached
@@ -37,5 +42,6 @@ model PaymentTender {
   updatedAt DateTime @updatedAt
 
   @@index([paymentId])
+  @@index([bankId])
   @@map("payment_tenders")
 }

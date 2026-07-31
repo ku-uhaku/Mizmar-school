@@ -7,6 +7,13 @@
  */
 const en = {
   assessment: {
+    assessment: "Paper",
+    noMarksYet: "No marks yet.",
+    noMarksHint: "Marks appear here as teachers enter them.",
+    overallAverage: "Overall average",
+    marksCounted: "{count} marks entered",
+    coefficientShort: "coeff. {value}",
+    notCounted: "not averaged",
     title: "Assessments",
     subtitle: "The marked work of the term, and the marks on it.",
 

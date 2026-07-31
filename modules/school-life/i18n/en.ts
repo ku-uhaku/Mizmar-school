@@ -7,6 +7,8 @@
  */
 const en = {
   schoolLife: {
+    assessmentsHint: "Papers set this year, and the marks against them.",
+    attendanceHint: "Absences and lateness, on each pupil's file.",
     title: "School life",
     subtitle: "{school} — {year}, as it stands today.",
     noYear: "Select a school year to see this year's figures.",

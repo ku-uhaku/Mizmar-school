@@ -46,6 +46,7 @@ import {
   paymentStateOf,
 } from "@/modules/treasury/payment-state";
 import type {
+  BankOption,
   FamilyOption,
   PayableFamily,
   PayableLine,
@@ -73,8 +74,22 @@ import type {
 type Props = {
   families: FamilyOption[];
   family: PayableFamily | null;
+  /** The school's declared banks, for the cheque and virement tenders. */
+  banks: BankOption[];
   /** Null when no till is open — cash cannot be taken, and the screen says so. */
   hasOpenSession: boolean;
+  /**
+   * Rendered inside a pupil's file rather than as the caisse screen.
+   *
+   * The family is already decided, so the picker is dropped — offering it would
+   * let somebody standing on Yasmine's file collect for a different household.
+   * Everything below it is the same component, deliberately: a second
+   * implementation of "take a payment" is a second place for the allocation
+   * rules to drift.
+   */
+  embedded?: boolean;
+  /** Called after a receipt is written, so the sheet can close itself. */
+  onDone?: () => void;
 };
 
 type Tender = {
@@ -82,6 +97,8 @@ type Tender = {
   method: TenderMethod;
   amount: string;
   reference: string;
+  /** The declared bank, when it is one of the school's. */
+  bankId: string;
   bankName: string;
   chequeNumber: string;
   chequeDueOn: string;
@@ -94,6 +111,7 @@ function emptyTender(method: TenderMethod = "CASH"): Tender {
     method,
     amount: "",
     reference: "",
+    bankId: "",
     bankName: "",
     chequeNumber: "",
     chequeDueOn: "",
@@ -128,7 +146,14 @@ function byMonth(lines: PayableLine[]) {
   }));
 }
 
-export function PaymentConsole({ families, family, hasOpenSession }: Props) {
+export function PaymentConsole({
+  families,
+  family,
+  banks,
+  hasOpenSession,
+  embedded = false,
+  onDone,
+}: Props) {
   const t = useT();
   const { currencyCode: currency } = useSettings();
   const locale = useLocale();
@@ -140,6 +165,7 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
       setSelection({});
       setTenders([emptyTender()]);
       router.refresh();
+      onDone?.();
     },
   });
 
@@ -226,34 +252,38 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
   }
 
   return (
-    <form action={formAction} className="grid gap-5">
-      <FormSection
-        title={t.treasury.family}
-        description={t.treasury.selectFamilyHint}
-      >
-        <FormField name="familyId" label={t.treasury.selectFamily}>
-          <Select
-            value={family?.familyId ?? ""}
-            // Navigating rather than fetching: the payable schedule is a
-            // permission-scoped server read, and the URL then survives a reload.
-            onValueChange={(value) =>
-              router.push(`/caisse/encaissement?family=${value}`)
-            }
-          >
-            <SelectTrigger id="familyId" className="w-full">
-              <SelectValue placeholder={t.treasury.selectFamily} />
-            </SelectTrigger>
-            <SelectContent>
-              {families.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name} · {option.code}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
+    <form action={formAction} className="grid gap-4 sm:gap-5">
+      {embedded ? (
         <input type="hidden" name="familyId" value={family?.familyId ?? ""} />
-      </FormSection>
+      ) : (
+        <FormSection
+          title={t.treasury.family}
+          description={t.treasury.selectFamilyHint}
+        >
+          <FormField name="familyId" label={t.treasury.selectFamily}>
+            <Select
+              value={family?.familyId ?? ""}
+              // Navigating rather than fetching: the payable schedule is a
+              // permission-scoped server read, and the URL then survives a reload.
+              onValueChange={(value) =>
+                router.push(`/caisse/encaissement?family=${value}`)
+              }
+            >
+              <SelectTrigger id="familyId" className="w-full">
+                <SelectValue placeholder={t.treasury.selectFamily} />
+              </SelectTrigger>
+              <SelectContent>
+                {families.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name} · {option.code}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+          <input type="hidden" name="familyId" value={family?.familyId ?? ""} />
+        </FormSection>
+      )}
 
       {!family ? (
         <Card>
@@ -347,7 +377,8 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             />
           ))}
 
-          <FormSection
+          <TenderSection
+            embedded={embedded}
             title={t.treasury.tenders}
             description={t.treasury.tendersHint}
           >
@@ -356,6 +387,7 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
                 <TenderRow
                   key={tender.key}
                   tender={tender}
+                  banks={banks}
                   index={index}
                   canRemove={tenders.length > 1}
                   onChange={updateTender}
@@ -407,41 +439,66 @@ export function PaymentConsole({ families, family, hasOpenSession }: Props) {
             <FormField name="notes" label={t.treasury.notes}>
               <Textarea {...controlProps("notes")} rows={2} />
             </FormField>
-          </FormSection>
+          </TenderSection>
 
-          <Card>
-            <CardContent className="grid gap-2 py-4 text-sm">
-              <Row
-                label={t.treasury.selected}
-                value={`${money(selectedTotalCentimes)} ${currency}`}
-              />
-              <Row
-                label={t.treasury.tenders}
-                value={`${money(tenderTotalCentimes)} ${currency}`}
-                tone={balanced ? "ok" : "warn"}
-              />
-              {!balanced && selectedTotalCentimes > 0 ? (
-                <p className="text-destructive text-xs">
-                  {t.treasury.tendersMustMatch}
-                </p>
-              ) : null}
-              {takesCash && !hasOpenSession ? (
-                <p className="text-destructive text-xs">
-                  {t.treasury.noOpenSession}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <FormActions>
-            <SubmitButton
-              size="lg"
-              disabled={!balanced || (takesCash && !hasOpenSession)}
+          <div
+            className={cn(
+              embedded &&
+                // Sticky rather than merely last: with twenty charges above it,
+                // the figure a secretary is reconciling and the button that
+                // commits it have to stay on screen while they scroll.
+                "bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 z-10 grid gap-3 rounded-lg border p-3 backdrop-blur",
+            )}
+          >
+            <Card
+              className={cn(embedded && "border-0 bg-transparent shadow-none")}
             >
-              <WalletIcon className="size-4" />
-              {t.treasury.recordPayment}
-            </SubmitButton>
-          </FormActions>
+              <CardContent
+                className={cn("grid gap-2 py-4 text-sm", embedded && "p-0")}
+              >
+                <Row
+                  label={t.treasury.selected}
+                  value={`${money(selectedTotalCentimes)} ${currency}`}
+                />
+                <Row
+                  label={t.treasury.tenders}
+                  value={`${money(tenderTotalCentimes)} ${currency}`}
+                  tone={balanced ? "ok" : "warn"}
+                />
+                {!balanced && selectedTotalCentimes > 0 ? (
+                  <p className="text-destructive text-xs">
+                    {t.treasury.tendersMustMatch}
+                  </p>
+                ) : null}
+                {takesCash && !hasOpenSession ? (
+                  <p className="text-destructive text-xs">
+                    {t.treasury.noOpenSession}
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            {embedded ? (
+              <SubmitButton
+                size="lg"
+                className="w-full"
+                disabled={!balanced || (takesCash && !hasOpenSession)}
+              >
+                <WalletIcon className="size-4" />
+                {t.treasury.recordPayment}
+              </SubmitButton>
+            ) : (
+              <FormActions>
+                <SubmitButton
+                  size="lg"
+                  disabled={!balanced || (takesCash && !hasOpenSession)}
+                >
+                  <WalletIcon className="size-4" />
+                  {t.treasury.recordPayment}
+                </SubmitButton>
+              </FormActions>
+            )}
+          </div>
         </>
       )}
     </form>
@@ -608,6 +665,7 @@ function MonthCard({
 
 /** One form of money on the receipt. */
 function TenderRow({
+  banks,
   tender,
   index,
   canRemove,
@@ -616,6 +674,7 @@ function TenderRow({
   t,
 }: {
   tender: Tender;
+  banks: BankOption[];
   index: number;
   canRemove: boolean;
   onChange: (key: string, patch: Partial<Tender>) => void;
@@ -634,6 +693,7 @@ function TenderRow({
       <input type="hidden" name="tenderMethod" value={tender.method} />
       <input type="hidden" name="tenderAmount" value={tender.amount} />
       <input type="hidden" name="tenderReference" value={tender.reference} />
+      <input type="hidden" name="tenderBankId" value={tender.bankId} />
       <input type="hidden" name="tenderBank" value={tender.bankName} />
       <input
         type="hidden"
@@ -734,16 +794,13 @@ function TenderRow({
               dir="ltr"
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor={`tenderBank-${index}`}>{t.treasury.bankName}</Label>
-            <Input
-              id={`tenderBank-${index}`}
-              value={tender.bankName}
-              onChange={(event) =>
-                onChange(tender.key, { bankName: event.target.value })
-              }
-            />
-          </div>
+          <TenderBank
+            id={`tenderBank-${index}`}
+            banks={banks}
+            bankId={tender.bankId}
+            bankName={tender.bankName}
+            onChange={(patch) => onChange(tender.key, patch)}
+          />
           <div className="grid gap-1.5">
             <Label htmlFor={`tenderDrawer-${index}`}>
               {t.treasury.drawerName}
@@ -772,20 +829,120 @@ function TenderRow({
               dir="ltr"
             />
           </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor={`tenderBankT-${index}`}>
-              {t.treasury.bankName}
-            </Label>
-            <Input
-              id={`tenderBankT-${index}`}
-              value={tender.bankName}
-              onChange={(event) =>
-                onChange(tender.key, { bankName: event.target.value })
-              }
-            />
-          </div>
+          <TenderBank
+            id={`tenderBankT-${index}`}
+            banks={banks}
+            bankId={tender.bankId}
+            bankName={tender.bankName}
+            onChange={(patch) => onChange(tender.key, patch)}
+          />
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The bank on a cheque or a virement tender.
+ *
+ * Not `BankPicker`: that one posts its own form fields, and a tender is one row
+ * of a parallel array whose values are emitted as hidden inputs above. Same
+ * behaviour though — the declared banks, and a way out for one that is not.
+ */
+function TenderBank({
+  id,
+  banks,
+  bankId,
+  bankName,
+  onChange,
+}: {
+  id: string;
+  banks: BankOption[];
+  bankId: string;
+  bankName: string;
+  onChange: (patch: Partial<Tender>) => void;
+}) {
+  const t = useT();
+  const isOther = bankId === "" && bankName !== "";
+
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id}>{t.treasury.bank}</Label>
+      <Select
+        value={bankId !== "" ? bankId : isOther ? "__other__" : "__none__"}
+        onValueChange={(value) => {
+          if (value === "__other__") onChange({ bankId: "", bankName: " " });
+          else if (value === "__none__") onChange({ bankId: "", bankName: "" });
+          else {
+            const chosen = banks.find((bank) => bank.id === value);
+            // The name is written too: a receipt reprinted years later should
+            // read the same even if the bank row has since been retired.
+            onChange({ bankId: value, bankName: chosen?.name ?? "" });
+          }
+        }}
+      >
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t.common.none}</SelectItem>
+          {banks.map((bank) => (
+            <SelectItem key={bank.id} value={bank.id}>
+              {bank.name}
+            </SelectItem>
+          ))}
+          <SelectItem value="__other__">{t.treasury.otherBank}</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {isOther ? (
+        <Input
+          value={bankName.trimStart()}
+          onChange={(event) => onChange({ bankName: event.target.value })}
+          placeholder={t.treasury.bankName}
+          autoFocus
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The tenders block: a card on the caisse page, a plain titled section in a
+ * sheet.
+ *
+ * A `FormSection` is a Card, and a Card inside a sheet that already has its own
+ * surface reads as three nested boxes for one thing. The content is identical
+ * either way — only the chrome around it changes.
+ */
+function TenderSection({
+  embedded,
+  title,
+  description,
+  children,
+}: {
+  embedded: boolean;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  if (!embedded) {
+    return (
+      <FormSection title={title} description={description}>
+        {children}
+      </FormSection>
+    );
+  }
+
+  return (
+    <section className="grid gap-4">
+      <div className="border-b pb-2">
+        <h3 className="text-sm font-medium">{title}</h3>
+        {description ? (
+          <p className="text-muted-foreground text-xs">{description}</p>
+        ) : null}
+      </div>
+      {children}
+    </section>
   );
 }

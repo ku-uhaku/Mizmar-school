@@ -183,6 +183,35 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ feeType: { position: "asc" } }],
   },
 
+  banks: {
+    table: () => db.bank as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
+  "operation-categories": {
+    table: () => db.operationCategory as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
+  "operation-subcategories": {
+    table: () => db.operationSubcategory as unknown as Delegate,
+    // No own schoolId: reached through the rubrique it belongs to, exactly as
+    // `tracks` is reached through its level.
+    where: (context) => ({ category: bySchool(context) }),
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
+  "operation-motifs": {
+    table: () => db.operationMotif as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
   discounts: {
     table: () => db.discount as unknown as Delegate,
     where: byYear,

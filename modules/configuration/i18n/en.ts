@@ -20,7 +20,8 @@ const en = {
     empty: "Nothing configured yet.",
     deleteTitle: "Delete this entry?",
     deleteBody: "It will be removed from this school's configuration.",
-    outOfContext: "That choice does not belong to the school you are working in.",
+    outOfContext:
+      "That choice does not belong to the school you are working in.",
     codeFormatNeedsSequence:
       "Include {seq} — without it every reference this year would be identical.",
 
@@ -31,6 +32,7 @@ const en = {
       year: "School year",
       classes: "Classes",
       billing: "Fees",
+      treasury: "Caisse",
     },
 
     groups: {
@@ -44,6 +46,10 @@ const en = {
     },
 
     resources: {
+      banks: "Banks",
+      operationCategories: "Rubrics",
+      operationSubcategories: "Sub-rubrics",
+      operationMotifs: "Reasons",
       schoolSettings: "Settings",
       educationLevels: "Cycles",
       levels: "Levels",
@@ -63,6 +69,10 @@ const en = {
     },
 
     fields: {
+      agency: "Branch",
+      accountNumber: "Account number",
+      categoryKind: "Side",
+      operationCategory: "Rubric",
       gradingMaxScore: "Marks are out of",
       passMark: "Pass mark",
       teachingDays: "Teaching days",
@@ -135,6 +145,13 @@ const en = {
     },
 
     hints: {
+      agency: "The branch the school actually banks with.",
+      accountNumber: "The school's own account, for the transfers it makes.",
+      categoryKind:
+        "Which side of the ledger may post under it. Both is for rubrics like Régularisation.",
+      subcategoryParent:
+        "The rubric this sits under. A sub-rubric is never chosen on its own.",
+      motifCategory: "Leave empty to offer it under every rubric.",
       gradingMaxScore:
         "The scale a new paper starts on. A single paper may still be set out of something else.",
       passMark:
@@ -142,13 +159,15 @@ const en = {
       teachingDays: "Days that appear on the timetable and in the register.",
       currencyCode:
         "Changes the label only — amounts are always stored to the centime.",
-      defaultLocale: "What new users of this school start in. They may change it.",
+      defaultLocale:
+        "What new users of this school start in. They may change it.",
       defaultAccent: "The colour new users start with. They may change it.",
       codeFormat:
         "{year} is 2025, {yy} is 25, {seq:4} is 0007. Anything else is copied as written.",
       defaultInstalmentCount:
         "Used when a price on the list does not set its own.",
-      feeDueDayOfMonth: "Day of the month an instalment falls due. Capped at 28.",
+      feeDueDayOfMonth:
+        "Day of the month an instalment falls due. Capped at 28.",
       payrollWorkingDays:
         "Divides a monthly salary to suggest a daily rate. Only ever a suggestion.",
       allowTeacherCreate:
@@ -191,6 +210,11 @@ const en = {
   },
 
   configOptions: {
+    categoryKinds: {
+      IN: "Money in",
+      OUT: "Money out",
+      BOTH: "Both",
+    },
     cycles: {
       PRESCHOOL: "Preschool",
       PRIMARY: "Primary",

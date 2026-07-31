@@ -445,7 +445,7 @@ export async function paySalaryAction(
       salaryId: field(formData, "salaryId"),
       method: field(formData, "method"),
       cashSessionId: optionalId(formData, "cashSessionId"),
-      expenseCategoryId: optionalId(formData, "expenseCategoryId"),
+      categoryId: optionalId(formData, "categoryId"),
       reference: field(formData, "reference"),
       chequeNumber: field(formData, "chequeNumber"),
       bankName: field(formData, "bankName"),
@@ -477,13 +477,13 @@ export async function paySalaryAction(
       cashSessionId = session.id;
     }
 
-    const category = parsed.data.expenseCategoryId
-      ? await db.expenseCategory.findFirst({
-          where: { id: parsed.data.expenseCategoryId, schoolId },
+    const category = parsed.data.categoryId
+      ? await db.operationCategory.findFirst({
+          where: { id: parsed.data.categoryId, schoolId },
           select: { id: true },
         })
       : null;
-    if (parsed.data.expenseCategoryId && !category) {
+    if (parsed.data.categoryId && !category) {
       return failure(t.errors.notFound);
     }
 
@@ -493,7 +493,7 @@ export async function paySalaryAction(
       createdById: context.user.id,
       method: parsed.data.method,
       cashSessionId,
-      expenseCategoryId: category?.id ?? null,
+      categoryId: category?.id ?? null,
       reference: parsed.data.reference,
       chequeNumber: parsed.data.chequeNumber,
       bankName: parsed.data.bankName,

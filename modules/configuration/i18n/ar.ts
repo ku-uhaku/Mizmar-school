@@ -28,6 +28,7 @@ const ar = {
       year: "السنة الدراسية",
       classes: "الأقسام",
       billing: "الرسوم",
+      treasury: "الصندوق",
     },
 
     groups: {
@@ -41,6 +42,10 @@ const ar = {
     },
 
     resources: {
+      banks: "الأبناك",
+      operationCategories: "الأبواب",
+      operationSubcategories: "الأبواب الفرعية",
+      operationMotifs: "الأسباب",
       schoolSettings: "الإعدادات",
       educationLevels: "الأسلاك",
       levels: "المستويات",
@@ -60,6 +65,10 @@ const ar = {
     },
 
     fields: {
+      agency: "الوكالة",
+      accountNumber: "رقم الحساب",
+      categoryKind: "الاتجاه",
+      operationCategory: "الباب",
       gradingMaxScore: "النقطة على",
       passMark: "نقطة النجاح",
       teachingDays: "أيام الدراسة",
@@ -132,6 +141,12 @@ const ar = {
     },
 
     hints: {
+      agency: "الوكالة التي تحتفظ فيها المدرسة بحسابها فعلًا.",
+      accountNumber: "حساب المدرسة، للتحويلات التي تصدرها.",
+      categoryKind:
+        "الاتجاه الذي يجوز استعماله فيه. «كلاهما» لباب مثل التسوية.",
+      subcategoryParent: "الباب الذي يتبعه. لا يُختار الباب الفرعي وحده أبدًا.",
+      motifCategory: "اتركه فارغًا ليُقترح تحت كل الأبواب.",
       gradingMaxScore:
         "السلّم الافتراضي لكل فرض جديد. ويبقى بالإمكان تنقيط فرض بعينه على سلّم آخر.",
       passMark:
@@ -160,9 +175,11 @@ const ar = {
       levelCode: "الرمز المختصر للوزارة، مثل 1AP و3AC وTC و2BAC.",
       gradeYear: "الرتبة داخل السلك: 1AP تساوي 1 و6AP تساوي 6.",
       trackLevel: "الشعب تخص السلك التأهيلي فقط.",
-      parentSubject: "حدّدها لجعل هذه المادة مكوّنا، مثل القراءة ضمن اللغة العربية.",
+      parentSubject:
+        "حدّدها لجعل هذه المادة مكوّنا، مثل القراءة ضمن اللغة العربية.",
       programmeTrack: "اتركه فارغا ليطبق على جميع شعب المستوى.",
-      coefficient: "الوزن في معدل المستوى — أو داخل المادة الأم بالنسبة للمكوّن.",
+      coefficient:
+        "الوزن في معدل المستوى — أو داخل المادة الأم بالنسبة للمكوّن.",
       weeklyMinutes: "الغلاف الزمني. ساعتان ونصف تساوي 150.",
       termNumber: "1 أو 2 في سنة من دورتين.",
       dayOfWeek: "الأسبوع من الاثنين إلى السبت.",
@@ -186,6 +203,11 @@ const ar = {
   },
 
   configOptions: {
+    categoryKinds: {
+      IN: "مداخيل",
+      OUT: "مصاريف",
+      BOTH: "كلاهما",
+    },
     cycles: {
       PRESCHOOL: "التعليم الأولي",
       PRIMARY: "التعليم الابتدائي",

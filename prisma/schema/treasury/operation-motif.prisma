@@ -1,0 +1,40 @@
+/// Why the money moved, in the school's own words — the motif written on the
+/// ledger line.
+///
+/// Distinct from the rubrique above, and the distinction is the point:
+/// `OperationCategory` is what an accountant groups by, `OperationMotif` is what
+/// a bursar types. "Fournitures / Papeterie" is the rubrique; "Achat de ramettes
+/// A4" is the motif. The label box was free text, so the same purchase was
+/// written six ways and nobody could search for it.
+///
+/// `categoryId` is optional and it is what makes the picker usable: a motif that
+/// names a category is offered when that category is chosen, and a motif with
+/// none — "Divers", "Régularisation" — is always offered. Requiring one would
+/// force a category to be picked first, which is not the order a bursar works in.
+model OperationMotif {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// SetNull rather than Cascade: retiring a rubrique must not silently delete
+  /// the reasons filed under it, which are still on posted operations.
+  categoryId String?
+  category   OperationCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  code   String
+  name   String
+  nameAr String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  operations CashOperation[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@index([categoryId])
+  @@map("operation_motifs")
+}

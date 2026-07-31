@@ -81,8 +81,12 @@ model School {
   /// The tills the school collects at, what it spends under, and every movement
   /// of money either way. See prisma/schema/treasury/.
   cashRegisters     CashRegister[]
-  expenseCategories ExpenseCategory[]
   cashOperations    CashOperation[]
+  /// The chart the caisse posts against, and the banks it deals with. See
+  /// prisma/schema/treasury/operation-category.prisma.
+  banks               Bank[]
+  operationCategories OperationCategory[]
+  operationMotifs     OperationMotif[]
   payments          Payment[]
   cheques           Cheque[]
 

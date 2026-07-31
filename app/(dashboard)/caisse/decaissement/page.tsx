@@ -9,7 +9,9 @@ import { listStaffOptions } from "@/modules/hr/queries";
 import { DisbursementForm } from "@/modules/treasury/components/disbursement-form";
 import {
   findOpenSession,
-  listExpenseCategories,
+  listBanks,
+  listOperationCategories,
+  listOperationMotifs,
 } from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Décaissement" };
@@ -22,15 +24,19 @@ export default async function DecaissementPage() {
     return <ForbiddenState />;
   }
 
-  const [categories, openSession, staffOptions] = await Promise.all([
-    listExpenseCategories(context),
-    findOpenSession(context),
-    // Only offered to readers who may see the staff list; the name field stands
-    // on its own for everybody else.
-    context.can(PERMISSIONS.HR_VIEW)
-      ? listStaffOptions(context)
-      : Promise.resolve([]),
-  ]);
+  const [categories, motifs, banks, openSession, staffOptions] =
+    await Promise.all([
+      // Only the rubriques money may actually go out under — see categoryAllows.
+      listOperationCategories(context, "OUT"),
+      listOperationMotifs(context),
+      listBanks(context),
+      findOpenSession(context),
+      // Only offered to readers who may see the staff list; the name field stands
+      // on its own for everybody else.
+      context.can(PERMISSIONS.HR_VIEW)
+        ? listStaffOptions(context)
+        : Promise.resolve([]),
+    ]);
 
   return (
     <>
@@ -41,6 +47,8 @@ export default async function DecaissementPage() {
 
       <DisbursementForm
         categories={categories}
+        motifs={motifs}
+        banks={banks}
         staffOptions={staffOptions}
         hasOpenSession={openSession !== null}
       />

@@ -315,7 +315,7 @@ export type PayoutInput = {
   createdById: string;
   method: TenderMethod;
   cashSessionId: string | null;
-  expenseCategoryId: string | null;
+  categoryId: string | null;
   reference: string | null;
   chequeNumber: string | null;
   bankName: string | null;
@@ -381,7 +381,12 @@ export async function payStaffSalary(
     schoolId: input.schoolId,
     createdById: input.createdById,
     cashSessionId: input.cashSessionId,
-    expenseCategoryId: input.expenseCategoryId,
+    // A salary is posted under a rubrique, never a motif: the label already
+    // names the month and the employee, which is what a bulletin's line says.
+    categoryId: input.categoryId,
+    subcategoryId: null,
+    motifId: null,
+    bankId: null,
     beneficiaryStaffId: salary.staff.id,
     beneficiaryName,
     label,

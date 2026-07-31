@@ -16,7 +16,8 @@ const fr = {
     empty: "Rien de configuré pour le moment.",
     deleteTitle: "Supprimer cette entrée ?",
     deleteBody: "Elle sera retirée de la configuration de cette école.",
-    outOfContext: "Ce choix n'appartient pas à l'école dans laquelle vous travaillez.",
+    outOfContext:
+      "Ce choix n'appartient pas à l'école dans laquelle vous travaillez.",
 
     codeFormatNeedsSequence:
       "Incluez {seq} — sans lui, toutes les références de l'année seraient identiques.",
@@ -28,6 +29,7 @@ const fr = {
       year: "Année scolaire",
       classes: "Classes",
       billing: "Frais",
+      treasury: "Caisse",
     },
 
     groups: {
@@ -41,6 +43,10 @@ const fr = {
     },
 
     resources: {
+      banks: "Banques",
+      operationCategories: "Rubriques",
+      operationSubcategories: "Sous-rubriques",
+      operationMotifs: "Motifs",
       schoolSettings: "Réglages",
       educationLevels: "Cycles",
       levels: "Niveaux",
@@ -60,6 +66,10 @@ const fr = {
     },
 
     fields: {
+      agency: "Agence",
+      accountNumber: "Numéro de compte",
+      categoryKind: "Sens",
+      operationCategory: "Rubrique",
       gradingMaxScore: "Notes sur",
       passMark: "Moyenne de passage",
       teachingDays: "Jours de classe",
@@ -132,6 +142,13 @@ const fr = {
     },
 
     hints: {
+      agency: "L'agence où l'école tient effectivement son compte.",
+      accountNumber: "Le compte de l'école, pour les virements qu'elle émet.",
+      categoryKind:
+        "Le sens dans lequel elle peut être utilisée. Les deux, pour une rubrique comme Régularisation.",
+      subcategoryParent:
+        "La rubrique dont elle dépend. Une sous-rubrique ne se choisit jamais seule.",
+      motifCategory: "Laissez vide pour le proposer sous toutes les rubriques.",
       gradingMaxScore:
         "Le barème par défaut d'un nouveau devoir. Un devoir peut toujours être noté autrement.",
       passMark:
@@ -159,27 +176,35 @@ const fr = {
       countsTowardAverage:
         "À désactiver pour un travail noté et montré à la famille mais qui ne doit jamais peser sur la moyenne.",
       position: "Le plus petit s'affiche en premier.",
-      massarCode: "Le code correspondant dans MASSAR. Laissez vide tant qu'il n'est pas rattaché.",
+      massarCode:
+        "Le code correspondant dans MASSAR. Laissez vide tant qu'il n'est pas rattaché.",
       levelCode: "Code court du Ministère, ex. 1AP, 3AC, TC, 2BAC.",
       gradeYear: "Rang dans le cycle : 1AP vaut 1, 6AP vaut 6.",
       trackLevel: "Les filières ne concernent que le cycle qualifiant.",
-      parentSubject: "À renseigner pour en faire une composante, ex. la lecture sous l'arabe.",
-      programmeTrack: "Laissez vide pour l'appliquer à toutes les filières du niveau.",
+      parentSubject:
+        "À renseigner pour en faire une composante, ex. la lecture sous l'arabe.",
+      programmeTrack:
+        "Laissez vide pour l'appliquer à toutes les filières du niveau.",
       coefficient:
         "Poids dans la moyenne du niveau — ou, pour une composante, à l'intérieur de sa matière parente.",
       weeklyMinutes: "Volume horaire. 2h30 correspond à 150.",
       termNumber: "1 ou 2 pour une année à deux semestres.",
       dayOfWeek: "La semaine va du lundi au samedi.",
-      scheduleKind: "Conservez une grille de Ramadan à côté de la grille standard.",
+      scheduleKind:
+        "Conservez une grille de Ramadan à côté de la grille standard.",
       isBreak: "Occupe la grille sans accueillir de cours.",
       offeringTrack: "Laissez vide pour le primaire et le collégial.",
-      plannedCapacity: "Places à ouvrir sur l'ensemble des classes de ce niveau.",
+      plannedCapacity:
+        "Places à ouvrir sur l'ensemble des classes de ce niveau.",
       mainTeacher: "Responsable de la classe : bulletins, conseil, familles.",
       classRoom: "Là où la classe se tient par défaut.",
-      groupSubject: "À renseigner lorsque le groupe existe pour une seule matière.",
-      billingCycle: "La façon dont le montant est encaissé, pas dont il est annoncé.",
+      groupSubject:
+        "À renseigner lorsque le groupe existe pour une seule matière.",
+      billingCycle:
+        "La façon dont le montant est encaissé, pas dont il est annoncé.",
       isMandatory: "Les frais obligatoires sont facturés à tout élève inscrit.",
-      feeRateLevel: "Laissez vide pour appliquer le même tarif à tous les niveaux.",
+      feeRateLevel:
+        "Laissez vide pour appliquer le même tarif à tous les niveaux.",
       amount: "En dirhams. Enregistré au centime près.",
       instalmentCount: "Répartir le montant sur ce nombre de versements.",
       discountKind: "Pourcentage, ou montant fixe en dirhams.",
@@ -190,6 +215,11 @@ const fr = {
   },
 
   configOptions: {
+    categoryKinds: {
+      IN: "Encaissement",
+      OUT: "Décaissement",
+      BOTH: "Les deux",
+    },
     cycles: {
       PRESCHOOL: "Préscolaire",
       PRIMARY: "Primaire",

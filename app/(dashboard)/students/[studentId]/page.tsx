@@ -20,9 +20,17 @@ import {
 import { findFamily, listFamilyChoices } from "@/modules/families/queries";
 import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
+import { loadPupilMarks } from "@/modules/assessments/queries";
+import {
+  loadPupilAttendance,
+  loadPupilRemarks,
+} from "@/modules/classroom/queries";
 import { findStudent, loadStudentWorkflow } from "@/modules/students/queries";
 import {
   familyPaymentStanding,
+  findOpenSession,
+  findPayableFamily,
+  listBanks,
   studentPaymentStanding,
 } from "@/modules/treasury/queries";
 import { STUDENT_WORKFLOW_STEPS } from "@/modules/students/enums";
@@ -73,21 +81,55 @@ export default async function StudentPage({
   // guardians to load, no class means no week to draw, and the fratrie's
   // standing is only worth summing when there is a dossier and a reader
   // allowed to see money.
-  const [family, feeGrid, timetable, timetableChoices, standing, familyStanding] =
-    await Promise.all([
-      student.familyId ? findFamily(context, student.familyId) : null,
-      enrolment ? loadFeeGrid(context, enrolment.id) : null,
-      enrolment?.schoolClassId
-        ? loadClassTimetable(context, enrolment.schoolClassId)
-        : null,
-      enrolment?.schoolClassId
-        ? loadTimetableChoices(context, enrolment.schoolClassId)
-        : null,
-      canSeeMoney ? studentPaymentStanding(context, student.id) : null,
-      canSeeMoney && student.familyId
-        ? familyPaymentStanding(context, student.id, student.familyId)
-        : null,
-    ]);
+  // Three separate grants, because the school treats them as three separate
+  // things: a secretary may read the register without reading what a teacher
+  // wrote about a child, and marks are a third decision again. The codes
+  // already existed for the espace enseignant — see modules/classroom.
+  const canSeeAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW);
+  const canSeeRemarks = context.can(PERMISSIONS.CLASSROOM_REMARK_VIEW);
+  const canSeeMarks = context.can(PERMISSIONS.ASSESSMENT_VIEW);
+  const canCollect = context.can(PERMISSIONS.TREASURY_COLLECT);
+
+  const [
+    family,
+    feeGrid,
+    timetable,
+    timetableChoices,
+    standing,
+    familyStanding,
+    attendance,
+    marks,
+    remarks,
+    payable,
+    banks,
+    openSession,
+  ] = await Promise.all([
+    student.familyId ? findFamily(context, student.familyId) : null,
+    enrolment ? loadFeeGrid(context, enrolment.id) : null,
+    enrolment?.schoolClassId
+      ? loadClassTimetable(context, enrolment.schoolClassId)
+      : null,
+    enrolment?.schoolClassId
+      ? loadTimetableChoices(context, enrolment.schoolClassId)
+      : null,
+    canSeeMoney ? studentPaymentStanding(context, student.id) : null,
+    canSeeMoney && student.familyId
+      ? familyPaymentStanding(context, student.id, student.familyId)
+      : null,
+    // All three hang off the enrolment — no place this year, nothing to show.
+    enrolment && canSeeAttendance
+      ? loadPupilAttendance(context, enrolment.id)
+      : null,
+    enrolment && canSeeMarks ? loadPupilMarks(context, enrolment.id) : null,
+    enrolment && canSeeRemarks ? loadPupilRemarks(context, enrolment.id) : null,
+    // The till on the payment tab. Only for a reader who may actually collect,
+    // and only when there is a household to bill.
+    canCollect && student.familyId
+      ? findPayableFamily(context, student.familyId)
+      : null,
+    canCollect ? listBanks(context) : [],
+    canCollect ? findOpenSession(context) : null,
+  ]);
 
   return (
     <>
@@ -153,6 +195,12 @@ export default async function StudentPage({
         timetable={timetable}
         timetableChoices={timetableChoices}
         standing={standing}
+        attendance={attendance}
+        marks={marks}
+        remarks={remarks}
+        payable={payable}
+        banks={banks}
+        hasOpenSession={openSession !== null}
         familyStanding={familyStanding}
         workflow={workflow}
         // Whether a family is behind on its payments is money: a teacher who

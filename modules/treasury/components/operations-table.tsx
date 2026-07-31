@@ -86,8 +86,8 @@ export function OperationsTable({
         // their own columns — the ledger is read down the label.
         accessorFn: (row) =>
           `${row.label} ${row.beneficiaryName ?? ""} ${row.categoryName ?? ""} ${
-            row.reference ?? ""
-          }`,
+            row.subcategoryName ?? ""
+          } ${row.reference ?? ""}`,
         header: t.treasury.label,
         cell: ({ row }) => {
           const operation = row.original;
@@ -100,10 +100,15 @@ export function OperationsTable({
               >
                 {operation.label}
               </span>
-              {operation.beneficiaryName ? (
+              {operation.beneficiaryName || operation.categoryName ? (
                 <p className="text-muted-foreground truncate text-xs">
-                  {operation.beneficiaryName}
-                  {operation.categoryName ? ` · ${operation.categoryName}` : ""}
+                  {[
+                    operation.beneficiaryName,
+                    operation.categoryName,
+                    operation.subcategoryName,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               ) : null}
               {operation.isReversal ? (

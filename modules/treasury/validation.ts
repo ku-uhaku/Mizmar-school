@@ -76,6 +76,7 @@ export function tenderSchema(t: Dictionary) {
       method: enumField(TENDER_METHODS, v),
       amount: moneyField(v, { min: 0 }),
       reference: optionalText(80),
+      bankId: optionalText(40),
       bankName: optionalText(120),
       chequeNumber: optionalText(40),
       chequeDueOn: optionalDate(v),
@@ -85,6 +86,7 @@ export function tenderSchema(t: Dictionary) {
       method: data.method,
       amountCentimes: Math.round(data.amount * 100),
       reference: data.reference,
+      bankId: data.bankId,
       bankName: data.bankName,
       chequeNumber: data.chequeNumber,
       chequeDueOn: data.chequeDueOn,
@@ -146,7 +148,10 @@ export function disbursementSchema(t: Dictionary) {
   const v = t.validation;
   return z
     .object({
-      expenseCategoryId: optionalText(40),
+      categoryId: optionalText(40),
+      subcategoryId: optionalText(40),
+      motifId: optionalText(40),
+      bankId: optionalText(40),
       /** The employee paid, when there is one. The name is required regardless. */
       beneficiaryStaffId: optionalText(40),
       beneficiaryName: requiredText(v, { max: 160 }),
@@ -181,6 +186,7 @@ export function transferSchema(t: Dictionary) {
       fromRegisterId: requiredText(v, { max: 40 }),
       target: enumField(TRANSFER_TARGETS, v),
       toRegisterId: optionalText(40),
+      bankId: optionalText(40),
       bankAccountLabel: optionalText(160),
       amount: moneyField(v, { min: 0.01 }),
       reference: optionalText(80),
@@ -196,8 +202,13 @@ export function transferSchema(t: Dictionary) {
       { error: v.required, path: ["toRegisterId"] },
     )
     .refine(
-      (data) => data.target !== "BANK" || Boolean(data.bankAccountLabel),
-      { error: v.required, path: ["bankAccountLabel"] },
+      // Either the declared bank or a written account says where the money
+      // went; requiring both would make the picker pointless.
+      (data) =>
+        data.target !== "BANK" ||
+        Boolean(data.bankId) ||
+        Boolean(data.bankAccountLabel),
+      { error: v.required, path: ["bankId"] },
     )
     .refine(
       // Money that leaves a till and arrives in the same one has not moved, and

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertCircleIcon,
+  CalendarCheckIcon,
   CalendarClockIcon,
+  ClipboardCheckIcon,
   ClockIcon,
   GraduationCapIcon,
   HomeIcon,
@@ -100,12 +102,37 @@ export default async function SchoolLifePage() {
       badgeTone: stats.enrolment.unplaced > 0 ? "warn" : undefined,
     });
   }
+  if (context.can(PERMISSIONS.ASSESSMENT_VIEW)) {
+    links.push({
+      href: "/assessments",
+      label: t.assessment.title,
+      description: t.schoolLife.assessmentsHint,
+      icon: <ClipboardCheckIcon className="size-4" />,
+    });
+  }
   if (context.can(PERMISSIONS.TIMETABLE_VIEW)) {
     links.push({
       href: "/timetable",
       label: t.timetable.title,
       description: t.schoolLife.timetableHint,
       icon: <CalendarClockIcon className="size-4" />,
+    });
+  }
+  /*
+    The register and the carnet have no whole-school screen of their own — they
+    are taken and written in the espace enseignant, and read on a pupil's file.
+    Pointing office staff at the pupil list is honest about that: it is where
+    the assiduité and the notes actually are.
+  */
+  if (
+    context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW) &&
+    context.can(PERMISSIONS.STUDENT_VIEW)
+  ) {
+    links.push({
+      href: "/students",
+      label: t.classroom.attendance,
+      description: t.schoolLife.attendanceHint,
+      icon: <CalendarCheckIcon className="size-4" />,
     });
   }
 

@@ -9,7 +9,7 @@ import { PayrollList } from "@/modules/hr/components/payroll-list";
 import { listPayroll } from "@/modules/hr/queries";
 import {
   findOpenSession,
-  listExpenseCategories,
+  listOperationCategories,
 } from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Paie" };
@@ -42,7 +42,7 @@ export default async function HrPayrollPage({
 
   const [payroll, expenseCategories, openSession] = await Promise.all([
     listPayroll(context, period.year, period.month),
-    listExpenseCategories(context),
+    listOperationCategories(context, "OUT"),
     findOpenSession(context),
   ]);
 

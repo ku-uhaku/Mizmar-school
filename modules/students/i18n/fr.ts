@@ -4,14 +4,16 @@
  */
 const fr = {
   student: {
+    tabAttendance: "Assiduité",
+    tabMarks: "Notes",
+    tabRemarks: "Remarques",
     title: "Élèves",
     subtitle: "Tous les enfants inscrits sur les registres de l'école.",
     newStudent: "Nouvel élève",
     editStudent: "Modifier l'élève",
     createStudent: "Créer l'élève",
     identity: "Identité",
-    identityHint:
-      "Qui est l'enfant. Sa place est définie par l'inscription.",
+    identityHint: "Qui est l'enfant. Sa place est définie par l'inscription.",
     essentials: "L'essentiel",
     essentialsHint: "De quoi ouvrir le dossier — le reste peut attendre.",
     moreDetails: "Ajouter plus de détails",

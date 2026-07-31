@@ -10,6 +10,7 @@ import {
   findOpenSession,
   findPayableFamily,
   listFamilyOptions,
+  listBanks,
 } from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Encaissement" };
@@ -34,9 +35,10 @@ export default async function EncaissementPage({
 
   const { family: familyId } = await searchParams;
 
-  const [families, family, openSession] = await Promise.all([
+  const [families, family, banks, openSession] = await Promise.all([
     listFamilyOptions(context),
     familyId ? findPayableFamily(context, familyId) : Promise.resolve(null),
+    listBanks(context),
     findOpenSession(context),
   ]);
 
@@ -50,6 +52,7 @@ export default async function EncaissementPage({
       <PaymentConsole
         families={families}
         family={family}
+        banks={banks}
         hasOpenSession={openSession !== null}
       />
     </>

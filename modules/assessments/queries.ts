@@ -4,6 +4,7 @@ import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import {
+  COUNTED_STATUSES,
   markStatistics,
   type MarkStatistics,
 } from "@/modules/assessments/enums";
@@ -620,4 +621,201 @@ export async function assessmentSummary(
     draft,
     gradesEntered,
   };
+}
+
+// ── One pupil's marks ────────────────────────────────────────────────────────
+
+export type PupilMark = {
+  id: string;
+  title: string;
+  typeName: string;
+  termName: string;
+  scheduledOn: string | null;
+  score: number | null;
+  maxScore: number;
+  /** The paper's weight inside its subject. */
+  coefficient: number;
+  isAbsent: boolean;
+  isExcused: boolean;
+  comment: string | null;
+  /** Whether this paper's kind moves the subject's average at all. */
+  counts: boolean;
+};
+
+export type PupilSubjectMarks = {
+  subjectId: string;
+  subjectName: string;
+  /** The subject's weight in the overall average, from the programme. */
+  coefficient: number;
+  marks: PupilMark[];
+  /**
+   * Weighted mean of the counted marks, on the school's own scale. Null when
+   * nothing counted has been marked yet.
+   */
+  average: number | null;
+};
+
+export type PupilMarks = {
+  subjects: PupilSubjectMarks[];
+  /** Weighted by each subject's programme coefficient. Null when empty. */
+  overall: number | null;
+  /** The scale everything above is expressed on — the school's. */
+  outOf: number;
+  markedCount: number;
+};
+
+/**
+ * A pupil's marks for the year, grouped by subject, with averages.
+ *
+ * ── What counts, and why ─────────────────────────────────────────────────────
+ * Three filters, and each one is a decision a school actually makes:
+ *
+ *   * only papers in a `COUNTED_STATUSES` state — a draft nobody has sat is not
+ *     a zero;
+ *   * only kinds whose `countsTowardAverage` is on — a school marks work it
+ *     shows the family but never averages;
+ *   * absences are excluded rather than averaged as zero, exactly as
+ *     `markStatistics` does under a mark sheet. A child who was not there has
+ *     not demonstrated a zero.
+ *
+ * Every mark is normalised onto the school's scale before it is averaged, so a
+ * paper set out of 10 does not silently count half. See SchoolSettings.
+ *
+ * Computed, never stored. A published bulletin would have to be frozen — that
+ * is a different thing, and it is not this.
+ */
+export async function loadPupilMarks(
+  context: AuthContext,
+  enrollmentId: string,
+): Promise<PupilMarks> {
+  const outOf = context.settings.gradingMaxScore;
+
+  const grades = await db.assessmentGrade.findMany({
+    where: {
+      enrollmentId,
+      // The enrolment id comes from the URL; the school does not.
+      enrollment: { schoolYear: schoolScope(context) },
+      assessment: { status: { in: [...COUNTED_STATUSES] } },
+    },
+    orderBy: [{ assessment: { scheduledOn: "asc" } }],
+    include: {
+      assessment: {
+        include: {
+          subject: { select: { id: true, name: true } },
+          assessmentType: { select: { name: true, countsTowardAverage: true } },
+          term: { select: { name: true, number: true } },
+        },
+      },
+    },
+  });
+
+  // The programme decides what each subject is worth overall. A subject with no
+  // programme row still shows its marks — it just weighs 1, rather than
+  // vanishing from a list the family expects to be complete.
+  const enrolment = await db.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      levelOffering: {
+        select: {
+          levelId: true,
+          trackId: true,
+          level: {
+            select: {
+              subjects: {
+                select: { subjectId: true, coefficient: true, trackId: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const weightOf = new Map<string, number>();
+  for (const row of enrolment?.levelOffering.level.subjects ?? []) {
+    // A track-specific weight wins over the level-wide one for that track.
+    const applies =
+      row.trackId === null || row.trackId === enrolment?.levelOffering.trackId;
+    if (applies) weightOf.set(row.subjectId, row.coefficient);
+  }
+
+  const bySubject = new Map<string, PupilSubjectMarks>();
+
+  for (const grade of grades) {
+    const { assessment } = grade;
+    const key = assessment.subject.id;
+
+    let bucket = bySubject.get(key);
+    if (!bucket) {
+      bucket = {
+        subjectId: key,
+        subjectName: assessment.subject.name,
+        coefficient: weightOf.get(key) ?? 1,
+        marks: [],
+        average: null,
+      };
+      bySubject.set(key, bucket);
+    }
+
+    bucket.marks.push({
+      id: grade.id,
+      title: assessment.title,
+      typeName: assessment.assessmentType.name,
+      termName: assessment.term.name,
+      scheduledOn: assessment.scheduledOn?.toISOString() ?? null,
+      score: grade.score,
+      maxScore: assessment.maxScore,
+      coefficient: assessment.coefficient,
+      isAbsent: grade.isAbsent,
+      isExcused: grade.isExcused,
+      comment: grade.comment,
+      counts: assessment.assessmentType.countsTowardAverage,
+    });
+  }
+
+  for (const bucket of bySubject.values()) {
+    bucket.average = weightedAverage(
+      bucket.marks
+        .filter((mark) => mark.counts && !mark.isAbsent && mark.score !== null)
+        .map((mark) => ({
+          // Normalised onto the school's scale before weighting.
+          value: ((mark.score as number) / mark.maxScore) * outOf,
+          weight: mark.coefficient,
+        })),
+    );
+  }
+
+  const subjects = [...bySubject.values()].sort((a, b) =>
+    a.subjectName.localeCompare(b.subjectName),
+  );
+
+  return {
+    subjects,
+    overall: weightedAverage(
+      subjects
+        .filter((subject) => subject.average !== null)
+        .map((subject) => ({
+          value: subject.average as number,
+          weight: subject.coefficient,
+        })),
+    ),
+    outOf,
+    markedCount: grades.filter(
+      (grade) => grade.score !== null || grade.isAbsent,
+    ).length,
+  };
+}
+
+/** Rounded to two decimals, like every other mark in the app. */
+function weightedAverage(
+  entries: readonly { value: number; weight: number }[],
+): number | null {
+  const totalWeight = entries.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight === 0) return null;
+
+  const total = entries.reduce(
+    (sum, entry) => sum + entry.value * entry.weight,
+    0,
+  );
+  return Math.round((total / totalWeight) * 100) / 100;
 }

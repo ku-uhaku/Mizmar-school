@@ -4,6 +4,8 @@
  */
 const ar = {
   schoolLife: {
+    assessmentsHint: "فروض السنة والنقط المرتبطة بها.",
+    attendanceHint: "الغيابات والتأخرات، في ملف كل تلميذ.",
     title: "الحياة المدرسية",
     subtitle: "{school} — {year}، إلى حدود اليوم.",
     noYear: "اختر سنة دراسية لعرض أرقام هذه السنة.",

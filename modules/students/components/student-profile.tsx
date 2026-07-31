@@ -19,6 +19,14 @@ import type {
   EnrolmentDetail,
   FeeGrid as FeeGridData,
 } from "@/modules/enrolment/queries";
+import { PupilMarksPanel } from "@/modules/assessments/components/pupil-marks-panel";
+import type { PupilMarks } from "@/modules/assessments/queries";
+import { PupilAttendancePanel } from "@/modules/classroom/components/pupil-attendance-panel";
+import { PupilRemarksPanel } from "@/modules/classroom/components/pupil-remarks-panel";
+import type {
+  PupilAttendance,
+  PupilRemarkRow,
+} from "@/modules/classroom/queries";
 import { StudentForm } from "@/modules/students/components/student-form";
 import { StudentFamilyPanel } from "@/modules/students/components/student-family-panel";
 import { StudentWorkflow } from "@/modules/students/components/student-workflow";
@@ -26,7 +34,9 @@ import type { StudentWorkflowStep } from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
 import { StudentPaymentPanel } from "@/modules/treasury/components/student-payment-panel";
 import type {
+  BankOption,
   FamilyStanding,
+  PayableFamily,
   PaymentStanding,
 } from "@/modules/treasury/queries";
 import {
@@ -68,6 +78,12 @@ export function StudentProfile({
   timetableChoices,
   standing,
   familyStanding,
+  attendance,
+  marks,
+  remarks,
+  payable,
+  banks,
+  hasOpenSession,
   workflow,
   workflowSteps,
   permissions,
@@ -100,6 +116,17 @@ export function StudentProfile({
   standing: PaymentStanding | null;
   /** The rest of the household, for the fratrie switch on the payment tab. */
   familyStanding: FamilyStanding | null;
+  /**
+   * The three below all hang off the enrolment: null when the child has no
+   * place this year, and there is nothing to show rather than an empty tab.
+   */
+  attendance: PupilAttendance | null;
+  marks: PupilMarks | null;
+  remarks: PupilRemarkRow[] | null;
+  /** The household's payable schedule, so the till renders on the payment tab. */
+  payable: PayableFamily | null;
+  banks: BankOption[];
+  hasOpenSession: boolean;
   workflow: Record<StudentWorkflowStep, boolean>;
   /** Narrowed by the page when the reader may not see money. */
   workflowSteps: readonly StudentWorkflowStep[];
@@ -127,131 +154,187 @@ export function StudentProfile({
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-      <TabsList variant="line" className="mb-4">
-        <TabsTrigger value="information">{t.student.tabInformation}</TabsTrigger>
-        <TabsTrigger value="family">
-          {t.student.tabFamily}
-          {guardians.length > 0 ? (
-            <Badge variant="secondary" className="ms-1.5 tabular-nums">
-              {guardians.length}
-            </Badge>
-          ) : null}
-        </TabsTrigger>
-        <TabsTrigger value="enrolment">{t.student.tabEnrolment}</TabsTrigger>
-        <TabsTrigger value="fees">
-          {t.student.tabFees}
-          {enrolment && enrolment.feeLineCount > 0 ? (
-            <Badge variant="secondary" className="ms-1.5 tabular-nums">
-              {enrolment.feeLineCount}
-            </Badge>
-          ) : null}
-        </TabsTrigger>
-        {/* Absent, not disabled, when the reader may not see money: a greyed-out
-            tab still tells a teacher the family is behind on something. */}
-        {standing ? (
-          <TabsTrigger value="payment">
-            {t.student.tabPayment}
-            {standing.totalLines > 0 ? (
-              <span
-                aria-hidden
-                className={cn(
-                  "ms-1.5 size-2 rounded-full",
-                  PAYMENT_STATE_STYLES[standingStateOf(standing)].bar,
-                )}
-              />
+        <TabsList variant="line" className="mb-4">
+          <TabsTrigger value="information">
+            {t.student.tabInformation}
+          </TabsTrigger>
+          <TabsTrigger value="family">
+            {t.student.tabFamily}
+            {guardians.length > 0 ? (
+              <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                {guardians.length}
+              </Badge>
             ) : null}
           </TabsTrigger>
-        ) : null}
-        <TabsTrigger value="timetable">{t.student.tabTimetable}</TabsTrigger>
-      </TabsList>
+          <TabsTrigger value="enrolment">{t.student.tabEnrolment}</TabsTrigger>
+          <TabsTrigger value="fees">
+            {t.student.tabFees}
+            {enrolment && enrolment.feeLineCount > 0 ? (
+              <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                {enrolment.feeLineCount}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
+          {/* Absent, not disabled, when the reader may not see money: a greyed-out
+            tab still tells a teacher the family is behind on something. */}
+          {standing ? (
+            <TabsTrigger value="payment">
+              {t.student.tabPayment}
+              {standing.totalLines > 0 ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "ms-1.5 size-2 rounded-full",
+                    PAYMENT_STATE_STYLES[standingStateOf(standing)].bar,
+                  )}
+                />
+              ) : null}
+            </TabsTrigger>
+          ) : null}
+          {/* The three below all hang off the enrolment, so they appear together
+            or not at all — a pupil with no place this year has no register, no
+            marks and no carnet. */}
+          {attendance ? (
+            <TabsTrigger value="attendance">
+              {t.student.tabAttendance}
+              {attendance.unjustifiedAbsences > 0 ? (
+                <Badge variant="destructive" className="ms-1.5 tabular-nums">
+                  {attendance.unjustifiedAbsences}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ) : null}
+          {marks ? (
+            <TabsTrigger value="marks">
+              {t.student.tabMarks}
+              {marks.overall !== null ? (
+                <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                  {marks.overall}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ) : null}
+          {remarks ? (
+            <TabsTrigger value="remarks">
+              {t.student.tabRemarks}
+              {remarks.length > 0 ? (
+                <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                  {remarks.length}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ) : null}
+          <TabsTrigger value="timetable">{t.student.tabTimetable}</TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="information">
-        <StudentForm student={student} families={families} />
-      </TabsContent>
+        <TabsContent value="information">
+          <StudentForm student={student} families={families} />
+        </TabsContent>
 
-      <TabsContent value="family">
-        <StudentFamilyPanel
-          studentId={student.id}
-          family={family}
-          guardians={guardians}
-          families={families}
-          canManage={permissions.canManageFamily}
-        />
-      </TabsContent>
-
-      <TabsContent value="enrolment">
-        <EnrolmentPanel
-          studentId={student.id}
-          enrolment={enrolment}
-          offerings={offerings}
-          yearName={yearName}
-          permissions={{
-            canCreate: permissions.canCreateEnrolment,
-            canUpdate: permissions.canUpdateEnrolment,
-            canDelete: permissions.canDeleteEnrolment,
-          }}
-        />
-      </TabsContent>
-
-      <TabsContent value="fees">
-        {enrolment && feeGrid ? (
-          <FeeGrid
-            grid={feeGrid}
-            enrollmentId={enrolment.id}
-            discounts={discounts}
-            canManage={permissions.canManageFees}
-          />
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <EmptyState
-                title={t.enrolment.notEnrolled}
-                description={t.enrolment.notEnrolledHint}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </TabsContent>
-
-      {standing ? (
-        <TabsContent value="payment">
-          <StudentPaymentPanel
-            standing={standing}
-            family={familyStanding}
-            familyId={student.familyId}
-            canCollect={permissions.canCollect}
+        <TabsContent value="family">
+          <StudentFamilyPanel
+            studentId={student.id}
+            family={family}
+            guardians={guardians}
+            families={families}
+            canManage={permissions.canManageFamily}
           />
         </TabsContent>
-      ) : null}
 
-      <TabsContent value="timetable">
-        {timetable && timetableChoices && enrolment?.schoolClassId ? (
-          <div className="space-y-3">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/classes/${enrolment.schoolClassId}`}>
-                {enrolment.className}
-              </Link>
-            </Button>
-            <TimetableGrid
-              grid={timetable}
-              schoolClassId={enrolment.schoolClassId}
-              choices={timetableChoices}
-              // Read-only on purpose — see the note above.
-              canManage={false}
+        <TabsContent value="enrolment">
+          <EnrolmentPanel
+            studentId={student.id}
+            enrolment={enrolment}
+            offerings={offerings}
+            yearName={yearName}
+            permissions={{
+              canCreate: permissions.canCreateEnrolment,
+              canUpdate: permissions.canUpdateEnrolment,
+              canDelete: permissions.canDeleteEnrolment,
+            }}
+          />
+        </TabsContent>
+
+        <TabsContent value="fees">
+          {enrolment && feeGrid ? (
+            <FeeGrid
+              grid={feeGrid}
+              enrollmentId={enrolment.id}
+              discounts={discounts}
+              canManage={permissions.canManageFees}
             />
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              <EmptyState
-                icon={<CalendarXIcon className="size-5" />}
-                title={t.student.notPlaced}
-                description={t.enrolment.classHint}
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <EmptyState
+                  title={t.enrolment.notEnrolled}
+                  description={t.enrolment.notEnrolledHint}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {standing ? (
+          <TabsContent value="payment">
+            <StudentPaymentPanel
+              standing={standing}
+              family={familyStanding}
+              familyId={student.familyId}
+              canCollect={permissions.canCollect}
+              payable={payable}
+              banks={banks}
+              hasOpenSession={hasOpenSession}
+            />
+          </TabsContent>
+        ) : null}
+
+        {attendance ? (
+          <TabsContent value="attendance">
+            <PupilAttendancePanel attendance={attendance} />
+          </TabsContent>
+        ) : null}
+
+        {marks ? (
+          <TabsContent value="marks">
+            <PupilMarksPanel marks={marks} />
+          </TabsContent>
+        ) : null}
+
+        {remarks ? (
+          <TabsContent value="remarks">
+            <PupilRemarksPanel remarks={remarks} />
+          </TabsContent>
+        ) : null}
+
+        <TabsContent value="timetable">
+          {timetable && timetableChoices && enrolment?.schoolClassId ? (
+            <div className="space-y-3">
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/classes/${enrolment.schoolClassId}`}>
+                  {enrolment.className}
+                </Link>
+              </Button>
+              <TimetableGrid
+                grid={timetable}
+                schoolClassId={enrolment.schoolClassId}
+                choices={timetableChoices}
+                // Read-only on purpose — see the note above.
+                canManage={false}
               />
-            </CardContent>
-          </Card>
-        )}
-      </TabsContent>
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-0">
+                <EmptyState
+                  icon={<CalendarXIcon className="size-5" />}
+                  title={t.student.notPlaced}
+                  description={t.enrolment.classHint}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
       </Tabs>
     </>
   );

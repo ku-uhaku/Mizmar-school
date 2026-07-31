@@ -21,6 +21,12 @@ model Cheque {
   /// The number printed on the cheque.
   number String
 
+  /// The drawer's bank, picked from the school's list when it is one the school
+  /// deals with. `bankName` stays beside it: a parent's cheque may be drawn on
+  /// any bank in the country, and the desk cannot wait for configuration.
+  bankId String?
+  bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
+
   bankName String?
 
   /// Whose cheque it is: the parent who signed it, or the school when outgoing.
@@ -62,6 +68,7 @@ model Cheque {
   /// that has banked with three of them over ten years will see collisions. The
   /// index is here because the follow-up screen searches on it.
   @@index([schoolId])
+  @@index([bankId])
   @@index([schoolId, status])
   @@index([schoolId, number])
   @@index([dueOn])

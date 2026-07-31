@@ -26,11 +26,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatAmount, toDateInputValue } from "@/lib/i18n/format";
 import { recordTransferAction } from "@/modules/treasury/actions";
+import { BankPicker } from "@/modules/treasury/components/bank-picker";
 import {
   TRANSFER_TARGETS,
   type TransferTarget,
 } from "@/modules/treasury/enums";
-import type { RegisterRow } from "@/modules/treasury/queries";
+import type { BankOption, RegisterRow } from "@/modules/treasury/queries";
 
 /**
  * Transfert: cash leaving one till for another, or for the bank.
@@ -39,7 +40,13 @@ import type { RegisterRow } from "@/modules/treasury/queries";
  * is holding — the select is filtered rather than the error being left to the
  * action, so the impossible option is never offered in the first place.
  */
-export function TransferForm({ registers }: { registers: RegisterRow[] }) {
+export function TransferForm({
+  registers,
+  banks,
+}: {
+  registers: RegisterRow[];
+  banks: BankOption[];
+}) {
   const t = useT();
   const { currencyCode: currency } = useSettings();
   const locale = useLocale();
@@ -148,22 +155,24 @@ export function TransferForm({ registers }: { registers: RegisterRow[] }) {
             </Select>
           </FormField>
         ) : (
-          <FormField
-            name="bankAccountLabel"
-            label={t.treasury.bankAccount}
-            hint={t.treasury.bankAccountHint}
-            error={errors.bankAccountLabel}
-            required
-          >
-            <Input
-              {...controlProps(
-                "bankAccountLabel",
-                errors.bankAccountLabel,
-                t.treasury.bankAccountHint,
-              )}
-              required
-            />
-          </FormField>
+          <FormGrid cols={2}>
+            <BankPicker banks={banks} label={t.treasury.bank} />
+            {/* The account, when the school holds several at one bank. */}
+            <FormField
+              name="bankAccountLabel"
+              label={t.treasury.bankAccount}
+              hint={t.treasury.bankAccountHint}
+              error={errors.bankAccountLabel ?? errors.bankId}
+            >
+              <Input
+                {...controlProps(
+                  "bankAccountLabel",
+                  errors.bankAccountLabel,
+                  t.treasury.bankAccountHint,
+                )}
+              />
+            </FormField>
+          </FormGrid>
         )}
 
         <FormGrid cols={3}>
