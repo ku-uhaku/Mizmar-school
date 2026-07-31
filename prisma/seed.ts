@@ -18,6 +18,7 @@ import {
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments } from "@/modules/enrolment/seed";
 import { seedTreasury } from "@/modules/treasury/seed";
+import { seedTransport } from "@/modules/transport/seed";
 import {
   FAMILY_SEEDS,
   seedFamilies,
@@ -245,6 +246,7 @@ async function main() {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
       const slots = await seedTimeSlots(db, year.id);
+      await seedTransport(db, { schoolId: school.id, schoolYearId: year.id });
       await seedFeeRatesAndDiscounts(db, {
         schoolYearId: year.id,
         rates: plan.rates,

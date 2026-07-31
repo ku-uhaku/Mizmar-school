@@ -1,0 +1,49 @@
+/// A trajet: one bus line, run for one school year.
+///
+/// Per year rather than per school, because a line *is* a year's arrangement —
+/// which neighbourhoods are served, by which bus, at what times — and next
+/// year's is drawn up afresh. The vehicle it runs on is year-independent and
+/// lives in Vehicle; this is what that vehicle is doing this year.
+model TransportRoute {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "L1", "L2".
+  code   String
+  name   String
+  nameAr String?
+
+  /// "MORNING" | "AFTERNOON" | "BOTH" — see modules/transport/enums.ts.
+  /// A line that only runs one way in the morning is ordinary: some schools put
+  /// the return on a different bus.
+  direction String @default("BOTH")
+
+  /// The bus assigned. Null while a line is being planned before the fleet is
+  /// allocated. SetNull: retiring a bus must leave the line standing so somebody
+  /// can put another one on it, not delete the route and its passengers.
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  /// Seats this line offers, when that is not simply the vehicle's.
+  ///
+  /// A school running a 30-seat bus may cap a line at 25 to keep room for
+  /// late joiners. Null means "the vehicle's own seat count", which is why this
+  /// is nullable rather than defaulted — a copied number would silently stop
+  /// tracking the bus it came from.
+  capacity Int?
+
+  isActive Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stops         RouteStop[]
+  subscriptions TransportSubscription[]
+
+  @@unique([schoolYearId, code])
+  @@index([schoolYearId])
+  @@index([vehicleId])
+  @@map("transport_routes")
+}

@@ -1,0 +1,57 @@
+/// A vehicle in the school's fleet — a bus, a minibus, the van that does the
+/// small runs.
+///
+/// Declared per school and **year-independent**, exactly as FeeType is: a bus is
+/// a bus across school years, and what it is used for this year is a
+/// TransportRoute pointing at it. That split is what lets a fleet be carried
+/// into a new year without being re-entered.
+///
+/// The two expiry dates are the reason a school keeps this list at all. A bus
+/// whose visite technique lapsed is a bus that may not legally carry children,
+/// and the date is the sort of thing nobody remembers until the gendarmerie
+/// asks — so the fleet screen sorts on them and flags what is close.
+model Vehicle {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Matricule, as written on the plate: "12345-A-6".
+  registration String
+
+  make  String?
+  model String?
+  /// Year of first registration — mise en circulation.
+  modelYear Int?
+
+  /// Seats available to pupils, which is not always the seats in the vehicle.
+  seatCount Int
+
+  /// "ACTIVE" | "MAINTENANCE" | "RETIRED" — see modules/transport/enums.ts.
+  status String @default("ACTIVE")
+
+  /// Assurance and visite technique. Nullable because a school entering its
+  /// fleet on a Tuesday afternoon should not be blocked on finding the papers.
+  insuranceExpiresOn  DateTime?
+  inspectionExpiresOn DateTime?
+
+  /// The driver, as free text.
+  ///
+  /// There is no HR module, and a school's drivers are as often a contractor's
+  /// employees as its own — so this is a name and a phone number, the two things
+  /// somebody needs when a bus has not arrived. See the same decision on
+  /// CashOperation.beneficiaryName.
+  driverName  String?
+  driverPhone String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes TransportRoute[]
+
+  @@unique([schoolId, registration])
+  @@index([schoolId])
+  @@index([schoolId, status])
+  @@map("vehicles")
+}

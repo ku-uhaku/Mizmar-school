@@ -32,6 +32,8 @@ import { timetableModule } from "@/modules/timetable/module";
 import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
 import { treasuryModule } from "@/modules/treasury/module";
 import { TREASURY_PERMISSIONS } from "@/modules/treasury/permissions";
+import { transportModule } from "@/modules/transport/module";
+import { TRANSPORT_PERMISSIONS } from "@/modules/transport/permissions";
 import { usersModule } from "@/modules/users/module";
 import { USER_PERMISSIONS } from "@/modules/users/permissions";
 
@@ -91,6 +93,12 @@ export const MODULES: readonly AppModule[] = [
   // is owed; this decides what has actually been paid.
   treasuryModule,
 
+  // ── Logistique ────────────────────────────────────────────────────────────
+  // The fleet, the lines it runs and who rides on them. It owns no charge of
+  // its own: a stop's zone decides the price, and that price is written onto
+  // the pupil's transport instalments on the échéancier.
+  transportModule,
+
   // Academic configuration. Tables and enums only — edited through the generic
   // configuration screens, so they contribute no nav entry and no permissions.
   academicsModule,
@@ -125,4 +133,5 @@ export const PERMISSIONS = {
   ...CLASS_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
+  ...TRANSPORT_PERMISSIONS,
 } as const;

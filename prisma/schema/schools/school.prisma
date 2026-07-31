@@ -49,6 +49,11 @@ model School {
   families Family[]
   students Student[]
 
+  // ── Logistique ────────────────────────────────────────────────────────────
+  /// The fleet. Year-independent: what each bus does in a given year is a
+  /// TransportRoute. See prisma/schema/transport/.
+  vehicles Vehicle[]
+
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// The tills the school collects at, what it spends under, and every movement
   /// of money either way. See prisma/schema/treasury/.

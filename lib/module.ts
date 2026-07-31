@@ -41,7 +41,8 @@ export type NavIcon =
   | "encaissement"
   | "decaissement"
   | "transfert"
-  | "cheques";
+  | "cheques"
+  | "transport";
 
 /** Where a nav entry sits in the sidebar. Rendered in this order. */
 export const NAV_SECTIONS = [

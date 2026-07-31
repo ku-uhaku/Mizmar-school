@@ -1,0 +1,71 @@
+/// An abonnement: one pupil riding one line, from one stop, for one year.
+///
+/// ── Why it hangs off the Enrollment, not the Student ────────────────────────
+/// Riding the bus is a year-shaped fact, exactly like the class the child sits
+/// in and the fees they are charged — see the note on Enrollment. A family moves
+/// house and changes zone between years; a child rides in 4AP and walks in 5AP.
+/// Attaching this to the pupil would flatten all of that into one mutable row
+/// and lose last year's arrangement the moment this year's was entered.
+///
+/// It also means the year and the school come for free, through the enrolment,
+/// so a subscription can never point at a line from a different year.
+///
+/// ── What it does to the bill ────────────────────────────────────────────────
+/// The subscription decides the *price*; the échéancier remains the only record
+/// of what is *owed*. Subscribing sets `Enrollment.usesTransport` and reprices
+/// the pupil's TRANSPORT fee lines to the zone's rate — see
+/// `applyTransportPricing` in modules/transport/service.ts. Nothing here is ever
+/// summed to work out a balance; that is the enrolment's job and the caisse's.
+model TransportSubscription {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a line with passengers cannot be dropped without moving them
+  /// first — deleting it would silently take children off the bus.
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  /// Where they board. Restrict for the same reason.
+  stopId String
+  stop   RouteStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
+
+  /// The zone the price was taken from, copied at subscription time.
+  ///
+  /// Copied rather than read through the stop, for the same reason
+  /// EnrollmentFee copies its amount: re-drawing a line and moving a stop into
+  /// another zone in March must not silently restate what a family agreed to in
+  /// September. SetNull leaves the subscription standing if a zone is retired.
+  zoneId String?
+  zone   TransportZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+
+  /// "MORNING" | "AFTERNOON" | "BOTH" — see modules/transport/enums.ts.
+  /// A child taken to school by the bus and collected by a parent is ordinary,
+  /// and is charged differently by most schools.
+  direction String @default("BOTH")
+
+  /// "ACTIVE" | "SUSPENDED" | "CANCELLED" — see modules/transport/enums.ts.
+  /// SUSPENDED is the family that stops for a term and comes back; CANCELLED is
+  /// the one that leaves the bus for good. Kept apart because the first keeps
+  /// its seat and the second frees it.
+  status String @default("ACTIVE")
+
+  startsOn DateTime  @default(now())
+  endsOn   DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One subscription per direction per enrolment. A pupil taking one line in
+  /// the morning and another in the afternoon has two rows; a pupil on the same
+  /// line both ways has one, with direction BOTH.
+  @@unique([enrollmentId, direction])
+  @@index([enrollmentId])
+  @@index([routeId])
+  @@index([stopId])
+  @@index([zoneId])
+  @@index([routeId, status])
+  @@map("transport_subscriptions")
+}

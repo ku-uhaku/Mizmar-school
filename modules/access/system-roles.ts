@@ -104,6 +104,11 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TREASURY_TRANSFER,
       PERMISSIONS.TREASURY_CHEQUES,
       PERMISSIONS.TREASURY_CANCEL,
+      // The logistics, end to end.
+      PERMISSIONS.TRANSPORT_VIEW,
+      PERMISSIONS.TRANSPORT_MANAGE,
+      PERMISSIONS.TRANSPORT_SUBSCRIBE,
+      PERMISSIONS.TRANSPORT_DELETE,
     ],
   },
   {
@@ -138,6 +143,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TREASURY_SESSION,
       PERMISSIONS.TREASURY_COLLECT,
       PERMISSIONS.TREASURY_CHEQUES,
+      // Puts children on a bus, which is desk work — but does not redraw the
+      // lines or retire a vehicle, which is not.
+      PERMISSIONS.TRANSPORT_VIEW,
+      PERMISSIONS.TRANSPORT_SUBSCRIBE,
     ],
   },
   {

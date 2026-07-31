@@ -2,6 +2,7 @@ import {
   ArrowLeftRightIcon,
   BanknoteArrowDownIcon,
   BanknoteArrowUpIcon,
+  BusIcon,
   BuildingIcon,
   CalendarClockIcon,
   CalendarRangeIcon,
@@ -51,4 +52,5 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   decaissement: BanknoteArrowUpIcon,
   transfert: ArrowLeftRightIcon,
   cheques: ReceiptTextIcon,
+  transport: BusIcon,
 };

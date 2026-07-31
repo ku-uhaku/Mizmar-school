@@ -55,6 +55,10 @@ import treasury, {
   nav as treasuryNav,
   permissions as treasuryPermissions,
 } from "@/modules/treasury/i18n/en";
+import transport, {
+  nav as transportNav,
+  permissions as transportPermissions,
+} from "@/modules/transport/i18n/en";
 
 /**
  * The canonical dictionary, assembled from the core strings plus every module's
@@ -100,6 +104,9 @@ const en = {
   // Caisse.
   ...treasury,
 
+  // Logistique.
+  ...transport,
+
   // Merged namespaces — contributed to by many modules.
   nav: {
     ...coreNav,
@@ -118,6 +125,7 @@ const en = {
     ...classesNav,
     ...timetableNav,
     ...treasuryNav,
+    ...transportNav,
   },
   permissions: {
     groups: {
@@ -134,6 +142,7 @@ const en = {
       ...classesPermissions.groups,
       ...timetablePermissions.groups,
       ...treasuryPermissions.groups,
+      ...transportPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -149,6 +158,7 @@ const en = {
       ...classesPermissions.codes,
       ...timetablePermissions.codes,
       ...treasuryPermissions.codes,
+      ...transportPermissions.codes,
     },
   },
 } as const;

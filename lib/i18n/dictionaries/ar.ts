@@ -57,6 +57,10 @@ import treasury, {
   nav as treasuryNav,
   permissions as treasuryPermissions,
 } from "@/modules/treasury/i18n/ar";
+import transport, {
+  nav as transportNav,
+  permissions as transportPermissions,
+} from "@/modules/transport/i18n/ar";
 
 /**
  * Arabic. Assembled exactly like `en.ts` — see that file for the registration
@@ -91,6 +95,9 @@ const ar: Dictionary = {
   // Caisse.
   ...treasury,
 
+  // Logistique.
+  ...transport,
+
   nav: {
     ...coreNav,
     ...dashboardNav,
@@ -108,6 +115,7 @@ const ar: Dictionary = {
     ...classesNav,
     ...timetableNav,
     ...treasuryNav,
+    ...transportNav,
   },
   permissions: {
     groups: {
@@ -124,6 +132,7 @@ const ar: Dictionary = {
       ...classesPermissions.groups,
       ...timetablePermissions.groups,
       ...treasuryPermissions.groups,
+      ...transportPermissions.groups,
     },
     codes: {
       ...organizationPermissions.codes,
@@ -139,6 +148,7 @@ const ar: Dictionary = {
       ...classesPermissions.codes,
       ...timetablePermissions.codes,
       ...treasuryPermissions.codes,
+      ...transportPermissions.codes,
     },
   },
 };

@@ -1,0 +1,53 @@
+/// An arrêt: one point on a line, in the order the bus reaches it.
+///
+/// The stop carries the zone, not the pupil, and that is the whole of how
+/// transport gets priced. A family says "we live by the pharmacy on Boulevard
+/// Zerktouni"; the secretary picks that stop; the zone — and therefore the
+/// price — follows from it. Asking the secretary to choose a zone directly
+/// would make the price a judgement call rather than a consequence, and two
+/// families at the same corner would end up paying differently.
+model RouteStop {
+  id      String         @id @default(cuid())
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  name   String
+  nameAr String?
+
+  /// What to look for: "devant la pharmacie", "rond-point".
+  landmark String?
+
+  /// Order along the line, from the first pick-up to the school.
+  ///
+  /// Not unique with `routeId`: reordering stops would otherwise need a
+  /// temporary value to swap two rows past the constraint, and an index is
+  /// enough for a list that is read in order and written whole.
+  position Int @default(0)
+
+  /// Zone this stop sits in, and so the price a pupil boarding here pays.
+  /// Restrict: a zone with stops on it cannot be deleted out from under the
+  /// subscriptions priced from it.
+  zoneId String?
+  zone   TransportZone? @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+
+  /// Scheduled times, as plain strings in "HH:MM".
+  ///
+  /// Not DateTime: these are times of day repeated every school day, and a
+  /// DateTime would force an arbitrary date onto them that somebody would
+  /// eventually read as meaningful. The timetable module stores its slots the
+  /// same way.
+  pickupTime  String?
+  dropoffTime String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions TransportSubscription[]
+
+  /// One stop of a given name per line — two "Pharmacie" stops on one route is
+  /// a data-entry slip, and the secretary picking between them is a coin toss.
+  @@unique([routeId, name])
+  @@index([routeId])
+  @@index([zoneId])
+  @@map("route_stops")
+}

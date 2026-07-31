@@ -67,6 +67,10 @@ model Enrollment {
 
   fees EnrollmentFee[]
 
+  /// The bus, when this pupil takes it — a year-shaped fact like the rest of
+  /// this row. See prisma/schema/transport/transport-subscription.prisma.
+  transportSubscriptions TransportSubscription[]
+
   /// A child is enrolled once per year. Re-admitting after a withdrawal edits
   /// the existing row rather than adding a second, so the year's fee schedule
   /// cannot be generated twice.

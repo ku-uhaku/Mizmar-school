@@ -1,0 +1,44 @@
+/// A pricing zone for the bus: "Zone 1 — centre", "Zone 2 — périphérie".
+///
+/// Transport is priced by **how far the child lives**, not by what level they
+/// are in — which is why it cannot simply be a FeeRate. A FeeRate is keyed by
+/// (year, fee type, level), and the price of the bus has nothing to do with
+/// whether the passenger is in 3AP or 2BAC.
+///
+/// Declared per school year for the same reason the price list is: last year's
+/// zone prices must stay readable on last year's échéanciers after this year's
+/// have gone up.
+///
+/// A school with one flat price for everybody declares a single zone. That is
+/// the degenerate case, not a special one.
+model TransportZone {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "Z1", "Z2".
+  code   String
+  name   String
+  nameAr String?
+
+  /// The annual price of riding from this zone, in centimes of dirham.
+  ///
+  /// Annual, then split into instalments by the échéancier exactly as scolarité
+  /// is — see `applyTransportPricing` in modules/transport/service.ts. Storing a
+  /// monthly figure would make the yearly total a multiplication that two
+  /// screens could round differently.
+  amountCentimes Int
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stops         RouteStop[]
+  subscriptions TransportSubscription[]
+
+  @@unique([schoolYearId, code])
+  @@index([schoolYearId])
+  @@map("transport_zones")
+}
