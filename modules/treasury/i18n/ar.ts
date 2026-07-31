@@ -9,6 +9,27 @@ const ar = {
 
     // ── Sessions ────────────────────────────────────────────────────────────
     registers: "الصناديق",
+    registerCreated: "تمت إضافة الصندوق.",
+    registerUpdated: "تم تعديل الصندوق.",
+    registerDeleted: "تم حذف الصندوق.",
+    registerRetired: "تم سحب الصندوق من الخدمة.",
+    registerRestored: "تمت إعادة الصندوق إلى الخدمة.",
+    registerCodeTaken: "هذا الرمز مستعمل من طرف صندوق آخر.",
+    registerInUse: "جرت حصص على هذا الصندوق — اسحبه من الخدمة بدل حذفه.",
+    registerHasOpenSession: "هذا الصندوق مفتوح. أغلق الحصة قبل سحبه.",
+    newRegister: "صندوق جديد",
+    editRegister: "تعديل الصندوق",
+    registerCode: "الرمز",
+    registerName: "الاسم",
+    registerPosition: "الترتيب",
+    registerNotes: "ملاحظات",
+    registersHint: "الشبابيك التي تحصّل بها المدرسة وتؤدي منها.",
+    noRegistersHint: "يلزم صندوق واحد على الأقل قبل التحصيل في الشباك.",
+    shifts: "الحصص",
+    retire: "سحب من الخدمة",
+    restore: "إعادة إلى الخدمة",
+    deleteRegisterTitle: "حذف هذا الصندوق؟",
+    deleteRegisterBody: "سيتم حذف «{name}».",
     register: "الصندوق",
     session: "الجلسة",
     sessions: "الجلسات الأخيرة",
@@ -223,6 +244,7 @@ const ar = {
 };
 
 export const nav = {
+  registers: "الصناديق",
   encaissement: "القبض",
   decaissement: "الصرف",
   transfert: "التحويل",

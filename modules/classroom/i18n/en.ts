@@ -12,6 +12,14 @@ const en = {
 
     // ── The workspace home ──────────────────────────────────────────────────
     myClasses: "My classes",
+    myTimetable: "My timetable",
+    myTimetableHint: "Where you are expected to be, week by week.",
+    lessonsPerWeek: "Lessons a week",
+    freePeriods: "Free periods",
+    freePeriodsHint: "When you can be found.",
+    noLessonsThisWeek: "Nothing on your timetable for this schedule.",
+    noLessonsThisWeekHint:
+      "Lessons appear here once the timetable is drawn for your classes.",
     myClassesHint: "Every class and subject you are assigned to this year.",
     noClasses: "You are not assigned to any class this year.",
     noClassesHint:
@@ -120,6 +128,7 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  classroomTimetable: "Timetable",
   classroomAttendance: "Attendance",
   classroomDevoirs: "Homework",
   classroomRemarks: "Remarks",

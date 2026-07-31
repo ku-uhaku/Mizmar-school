@@ -44,6 +44,7 @@ export type NavIcon =
   | "decaissement"
   | "transfert"
   | "cheques"
+  | "registers"
   | "transport"
   | "routes"
   | "fleet"

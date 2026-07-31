@@ -12,6 +12,13 @@ const ar = {
 
     // ── واجهة الفضاء ────────────────────────────────────────────────────────
     myClasses: "أقسامي",
+    myTimetable: "استعمال زمني",
+    myTimetableHint: "أين يُنتظر حضورك، أسبوعًا بأسبوع.",
+    lessonsPerWeek: "ساعات في الأسبوع",
+    freePeriods: "ساعات فارغة",
+    freePeriodsHint: "متى يمكن إيجادك.",
+    noLessonsThisWeek: "لا شيء في استعمال زمنك لهذا التوقيت.",
+    noLessonsThisWeekHint: "تظهر الحصص هنا بمجرد وضع استعمال الزمن لأقسامك.",
     myClassesHint: "كل قسم ومادة أُسندت إليك هذه السنة.",
     noClasses: "لم يُسند إليك أي قسم هذه السنة.",
     noClassesHint: "يظهر القسم هنا بمجرد أن يُسنده إليك المسؤول البيداغوجي.",
@@ -117,6 +124,7 @@ const ar = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  classroomTimetable: "استعمال الزمن",
   classroomAttendance: "الحضور",
   classroomDevoirs: "الواجبات",
   classroomRemarks: "الملاحظات",

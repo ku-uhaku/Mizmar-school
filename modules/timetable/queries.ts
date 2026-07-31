@@ -416,3 +416,145 @@ export async function listTimetableClasses(context: AuthContext): Promise<
     studentCount: schoolClass._count.enrollments,
   }));
 }
+
+// ── One teacher's own week ───────────────────────────────────────────────────
+
+export type TeacherLesson = {
+  timetableEntryId: string;
+  timeSlotId: string;
+  schoolClassId: string;
+  classCode: string;
+  groupLabel: string | null;
+  subjectName: string;
+  subjectShort: string;
+  colorHex: string | null;
+  roomCode: string | null;
+};
+
+export type TeacherWeek = {
+  columns: SlotColumn[];
+  /** Indexed by ISO day (1 = Monday), then by column key. Null = free period. */
+  rows: { dayOfWeek: number; cells: Record<string, TeacherLesson | null> }[];
+  scheduleKind: string;
+  lessonCount: number;
+  /** Distinct classes taught across the week — the headline figure. */
+  classCount: number;
+};
+
+/**
+ * The week as one teacher sees it.
+ *
+ * ── Why this is not `loadClassTimetable` with a filter ───────────────────────
+ * A class grid answers "what does 3AP-A have on Tuesday" and names the teacher
+ * in each cell. A teacher's grid answers "where am I on Tuesday" and names the
+ * *class* — putting their own name in all thirty cells would be the one fact
+ * they already know. The two also differ in what an empty cell means: for a
+ * class it is a period the school does not teach, for a teacher it is a free
+ * period, which is the thing they scan the grid for.
+ *
+ * Double periods are not merged here. A class grid merges them because the
+ * lesson is one block; a teacher reading their own week wants to see each
+ * period they are booked for, and a merged cell hides that the 10:00 is taken.
+ */
+export async function loadTeacherTimetable(
+  context: AuthContext,
+  teacherId: string,
+  scheduleKind = "STANDARD",
+): Promise<TeacherWeek> {
+  const [slots, entries] = await Promise.all([
+    db.timeSlot.findMany({
+      where: { ...yearScope(context), scheduleKind, isActive: true },
+      orderBy: [{ startTime: "asc" }, { dayOfWeek: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        isBreak: true,
+      },
+    }),
+    db.timetableEntry.findMany({
+      where: {
+        teacherId,
+        // Bound to the year in context through the slot, and to the school
+        // through the class — a teacher who moved schools does not carry last
+        // year's grid with them.
+        timeSlot: { ...yearScope(context), scheduleKind },
+        schoolClass: { schoolId: context.currentSchool?.id ?? "__none__" },
+      },
+      select: {
+        id: true,
+        timeSlotId: true,
+        subject: {
+          select: { name: true, shortName: true, code: true, colorHex: true },
+        },
+        room: { select: { code: true } },
+        schoolClass: { select: { id: true, code: true } },
+        classGroup: { select: { code: true, name: true } },
+      },
+    }),
+  ]);
+
+  const columnByKey = new Map<string, SlotColumn>();
+  for (const slot of slots) {
+    const key = slotKey(slot.startTime, slot.endTime);
+    const existing = columnByKey.get(key);
+    if (existing) {
+      // A period is a break only if it is one on every day that runs it.
+      existing.isBreak = existing.isBreak && slot.isBreak;
+      continue;
+    }
+    columnByKey.set(key, {
+      key,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      isBreak: slot.isBreak,
+    });
+  }
+
+  const columns = [...columnByKey.values()].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+
+  const lessonBySlot = new Map(
+    entries.map((entry) => [
+      entry.timeSlotId,
+      {
+        timetableEntryId: entry.id,
+        timeSlotId: entry.timeSlotId,
+        schoolClassId: entry.schoolClass.id,
+        classCode: entry.schoolClass.code,
+        groupLabel: entry.classGroup
+          ? (entry.classGroup.name ?? entry.classGroup.code)
+          : null,
+        subjectName: entry.subject.name,
+        subjectShort: entry.subject.shortName ?? entry.subject.code,
+        colorHex: entry.subject.colorHex,
+        roomCode: entry.room?.code ?? null,
+      } satisfies TeacherLesson,
+    ]),
+  );
+
+  const rows = TEACHING_DAYS.map((dayOfWeek) => {
+    const cells: Record<string, TeacherLesson | null> = {};
+    for (const column of columns) {
+      const slot = slots.find(
+        (candidate) =>
+          candidate.dayOfWeek === dayOfWeek &&
+          slotKey(candidate.startTime, candidate.endTime) === column.key,
+      );
+      cells[column.key] = slot
+        ? (lessonBySlot.get(slot.id) ?? null)
+        : null;
+    }
+    return { dayOfWeek, cells };
+  });
+
+  return {
+    columns,
+    rows,
+    scheduleKind,
+    lessonCount: entries.length,
+    classCount: new Set(entries.map((entry) => entry.schoolClass.id)).size,
+  };
+}

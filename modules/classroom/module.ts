@@ -43,6 +43,15 @@ export const classroomModule = defineModule({
       schoolPermission: CLASSROOM_PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
     },
     {
+      href: "/teacher/timetable",
+      icon: "timetable",
+      section: "enseignant",
+      labelKey: "classroomTimetable",
+      // Right after the register: both answer "where am I meant to be".
+      order: 25,
+      schoolPermission: CLASSROOM_PERMISSIONS.CLASSROOM_WORKSPACE,
+    },
+    {
       href: "/teacher/devoirs",
       icon: "homework",
       section: "enseignant",

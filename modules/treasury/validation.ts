@@ -216,3 +216,19 @@ export function chequeStatusSchema(t: Dictionary) {
     bounceReason: optionalText(300),
   });
 }
+
+/** A till. `code` is what the unique index per school is on. */
+export function cashRegisterSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    code: requiredText(v, { max: 32 }),
+    name: requiredText(v, { max: 120 }),
+    nameAr: optionalText(120),
+    position: z.coerce
+      .number({ error: v.invalidNumber })
+      .int({ error: v.invalidNumber })
+      .min(0, { error: v.invalidNumber })
+      .max(99, { error: v.invalidNumber }),
+    notes: optionalText(500),
+  });
+}

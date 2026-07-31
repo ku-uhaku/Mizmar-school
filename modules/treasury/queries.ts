@@ -27,7 +27,14 @@ export type RegisterRow = {
   code: string;
   name: string;
   nameAr: string | null;
+  notes: string | null;
+  position: number;
   isActive: boolean;
+  /**
+   * Shifts ever held on this till. Nonzero means it has history, which is what
+   * decides whether it may be deleted or only retired — see the action.
+   */
+  sessionCount: number;
   /** The open session, when there is one. This is what "la caisse est ouverte" means. */
   openSession: {
     id: string;
@@ -55,6 +62,7 @@ export async function listRegisters(
     where: schoolScope(context),
     orderBy: [{ position: "asc" }, { name: "asc" }],
     include: {
+      _count: { select: { sessions: true } },
       sessions: {
         where: { status: "OPEN" },
         include: {
@@ -76,7 +84,10 @@ export async function listRegisters(
       code: register.code,
       name: register.name,
       nameAr: register.nameAr,
+      notes: register.notes,
+      position: register.position,
       isActive: register.isActive,
+      sessionCount: register._count.sessions,
       openSession: session
         ? {
             id: session.id,

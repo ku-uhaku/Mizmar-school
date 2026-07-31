@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   CalendarCheckIcon,
+  CalendarClockIcon,
   CheckCircle2Icon,
   ClipboardCheckIcon,
   MessageSquareTextIcon,
@@ -78,6 +79,12 @@ export default async function TeacherPage() {
       badgeTone: summary.registersLeftToday > 0 ? "warn" : undefined,
     });
   }
+  links.push({
+    href: "/teacher/timetable",
+    label: t.classroom.myTimetable,
+    description: t.classroom.myTimetableHint,
+    icon: <CalendarClockIcon className="size-4" />,
+  });
   links.push({
     href: "/teacher/devoirs",
     label: t.classroom.devoirs,

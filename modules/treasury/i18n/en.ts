@@ -12,6 +12,30 @@ const en = {
 
     // ── Sessions ────────────────────────────────────────────────────────────
     registers: "Tills",
+    registerCreated: "Till added.",
+    registerUpdated: "Till updated.",
+    registerDeleted: "Till deleted.",
+    registerRetired: "Till retired.",
+    registerRestored: "Till brought back.",
+    registerCodeTaken: "That code is already used by another till.",
+    registerInUse:
+      "A shift has been held on this till — retire it instead of deleting it.",
+    registerHasOpenSession:
+      "This till is open. Close the session before retiring it.",
+    newRegister: "New till",
+    editRegister: "Edit till",
+    registerCode: "Code",
+    registerName: "Name",
+    registerPosition: "Order",
+    registerNotes: "Notes",
+    registersHint: "The desks this school takes and pays out money at.",
+    noRegistersHint:
+      "A school needs at least one before anybody can take money at the desk.",
+    shifts: "Shifts",
+    retire: "Retire",
+    restore: "Bring back",
+    deleteRegisterTitle: "Delete this till?",
+    deleteRegisterBody: "“{name}” will be removed.",
     register: "Till",
     session: "Session",
     sessions: "Recent sessions",
@@ -231,6 +255,7 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  registers: "Tills",
   encaissement: "Collection",
   decaissement: "Disbursement",
   transfert: "Transfer",

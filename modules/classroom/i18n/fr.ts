@@ -12,6 +12,14 @@ const fr = {
 
     // ── L'accueil de l'espace ───────────────────────────────────────────────
     myClasses: "Mes classes",
+    myTimetable: "Mon emploi du temps",
+    myTimetableHint: "Où vous êtes attendu, semaine par semaine.",
+    lessonsPerWeek: "Heures par semaine",
+    freePeriods: "Heures libres",
+    freePeriodsHint: "Quand on peut vous trouver.",
+    noLessonsThisWeek: "Rien à votre emploi du temps pour cet horaire.",
+    noLessonsThisWeekHint:
+      "Les cours apparaissent ici dès que l'emploi du temps de vos classes est établi.",
     myClassesHint: "Chaque classe et matière qui vous est affectée cette année.",
     noClasses: "Vous n'êtes affecté à aucune classe cette année.",
     noClassesHint:
@@ -121,6 +129,7 @@ const fr = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  classroomTimetable: "Emploi du temps",
   classroomAttendance: "Appel",
   classroomDevoirs: "Devoirs",
   classroomRemarks: "Remarques",

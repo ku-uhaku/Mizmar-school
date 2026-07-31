@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { field, withActionErrors } from "@/lib/server-action";
+import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { fieldErrors } from "@/lib/validation";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
@@ -21,6 +21,7 @@ import {
   setChequeStatus,
 } from "@/modules/treasury/service";
 import {
+  cashRegisterSchema,
   chequeStatusSchema,
   closeSessionSchema,
   disbursementSchema,
@@ -549,5 +550,158 @@ export async function setChequeStatusAction(
 
     refresh();
     return success(t.treasury.chequeUpdated);
+  });
+}
+
+// ── The tills themselves ─────────────────────────────────────────────────────
+
+/**
+ * Creates or renames a till.
+ *
+ * Behind TREASURY_SESSION rather than a code of its own: whoever may open and
+ * close a drawer is whoever is answerable for how many drawers there are. A
+ * cashier who may only collect does not get to invent a second till and start
+ * posting into it.
+ */
+export async function saveCashRegisterAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await currentSchool();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_SESSION);
+
+    const id = field(formData, "id");
+    const parsed = cashRegisterSchema(t).safeParse({
+      code: field(formData, "code"),
+      name: field(formData, "name"),
+      nameAr: field(formData, "nameAr"),
+      position: field(formData, "position"),
+      notes: field(formData, "notes"),
+    });
+    if (!parsed.success) {
+      return failure(t.errors.invalid, fieldErrors(parsed.error));
+    }
+
+    if (id) {
+      // Re-derived against the school in context, so a crafted id renames
+      // nothing.
+      const existing = await db.cashRegister.findFirst({
+        where: { id, schoolId },
+        select: { id: true },
+      });
+      if (!existing) return failure(t.errors.notFound);
+    }
+
+    // The unique index would throw; catching it here turns a stack trace into a
+    // message pointing at the field the cashier has to change.
+    const clash = await db.cashRegister.findFirst({
+      where: {
+        schoolId,
+        code: parsed.data.code,
+        ...(id ? { NOT: { id } } : {}),
+      },
+      select: { id: true },
+    });
+    if (clash) {
+      return failure(t.treasury.registerCodeTaken, {
+        code: t.treasury.registerCodeTaken,
+      });
+    }
+
+    const data = {
+      code: parsed.data.code,
+      name: parsed.data.name,
+      nameAr: parsed.data.nameAr,
+      position: parsed.data.position,
+      notes: parsed.data.notes,
+    };
+
+    if (id) {
+      await db.cashRegister.updateMany({ where: { id, schoolId }, data });
+    } else {
+      await db.cashRegister.create({ data: { schoolId, ...data } });
+    }
+
+    refresh();
+    return success(id ? t.treasury.registerUpdated : t.treasury.registerCreated);
+  });
+}
+
+/**
+ * Retires a till, or brings it back.
+ *
+ * Retiring is refused while a session is open on it: the drawer still holds
+ * cash somebody will be asked to account for, and a till that has quietly
+ * vanished from the pickers is one nobody can close.
+ */
+export async function setCashRegisterActiveAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await currentSchool();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_SESSION);
+
+    const id = field(formData, "id");
+    const isActive = boolField(formData, "isActive");
+
+    const register = await db.cashRegister.findFirst({
+      where: { id, schoolId },
+      select: { id: true, _count: { select: { sessions: { where: { status: "OPEN" } } } } },
+    });
+    if (!register) return failure(t.errors.notFound);
+
+    if (!isActive && register._count.sessions > 0) {
+      return failure(t.treasury.registerHasOpenSession);
+    }
+
+    await db.cashRegister.updateMany({
+      where: { id: register.id, schoolId },
+      data: { isActive },
+    });
+
+    refresh();
+    return success(
+      isActive ? t.treasury.registerRestored : t.treasury.registerRetired,
+    );
+  });
+}
+
+/**
+ * Deletes a till that has never been used.
+ *
+ * Once a shift has been held on it the row is history — the sessions and every
+ * operation posted through them point at it — so it may only be retired. That
+ * is a `Restrict` the schema cannot express, since deleting the register would
+ * cascade the sessions and take the ledger's audit trail with it.
+ */
+export async function deleteCashRegisterAction(
+  registerId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await currentSchool();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_SESSION);
+
+    const register = await db.cashRegister.findFirst({
+      where: { id: registerId, schoolId },
+      select: { id: true, _count: { select: { sessions: true } } },
+    });
+    if (!register) return failure(t.errors.notFound);
+
+    if (register._count.sessions > 0) {
+      return failure(t.treasury.registerInUse);
+    }
+
+    await db.cashRegister.deleteMany({ where: { id: register.id, schoolId } });
+
+    refresh();
+    return success(t.treasury.registerDeleted);
   });
 }

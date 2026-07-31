@@ -12,6 +12,30 @@ const fr = {
 
     // ── Sessions ────────────────────────────────────────────────────────────
     registers: "Caisses",
+    registerCreated: "Caisse ajoutée.",
+    registerUpdated: "Caisse modifiée.",
+    registerDeleted: "Caisse supprimée.",
+    registerRetired: "Caisse retirée du service.",
+    registerRestored: "Caisse remise en service.",
+    registerCodeTaken: "Ce code est déjà utilisé par une autre caisse.",
+    registerInUse:
+      "Des séances ont été tenues sur cette caisse — retirez-la du service plutôt que de la supprimer.",
+    registerHasOpenSession:
+      "Cette caisse est ouverte. Clôturez la séance avant de la retirer.",
+    newRegister: "Nouvelle caisse",
+    editRegister: "Modifier la caisse",
+    registerCode: "Code",
+    registerName: "Nom",
+    registerPosition: "Ordre",
+    registerNotes: "Notes",
+    registersHint: "Les guichets où l'école encaisse et décaisse.",
+    noRegistersHint:
+      "Il en faut au moins une avant de pouvoir encaisser au guichet.",
+    shifts: "Séances",
+    retire: "Retirer du service",
+    restore: "Remettre en service",
+    deleteRegisterTitle: "Supprimer cette caisse ?",
+    deleteRegisterBody: "« {name} » sera supprimée.",
     register: "Caisse",
     session: "Session",
     sessions: "Sessions récentes",
@@ -230,6 +254,7 @@ const fr = {
 };
 
 export const nav = {
+  registers: "Caisses",
   encaissement: "Encaissement",
   decaissement: "Décaissement",
   transfert: "Transfert",

@@ -28,6 +28,7 @@ import {
   ShieldCheckIcon,
   UserIcon,
   UsersIcon,
+  WalletCardsIcon,
   WalletIcon,
 } from "lucide-react";
 
@@ -64,6 +65,7 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   decaissement: BanknoteArrowUpIcon,
   transfert: ArrowLeftRightIcon,
   cheques: ReceiptTextIcon,
+  registers: WalletCardsIcon,
   transport: BusIcon,
   routes: RouteIcon,
   fleet: BusIcon,

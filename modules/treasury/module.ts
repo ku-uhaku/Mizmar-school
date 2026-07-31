@@ -52,6 +52,16 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_TRANSFER,
     },
     {
+      href: "/caisse/registers",
+      icon: "registers",
+      section: "finance",
+      labelKey: "registers",
+      // Last: a bursar sets the tills up once and then lives on the four
+      // screens above it.
+      order: 60,
+      schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
+    },
+    {
       href: "/caisse/cheques",
       icon: "cheques",
       section: "finance",
