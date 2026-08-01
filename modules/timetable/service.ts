@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   bookingKeyOf,
   parityOverlaps,
+  weekWindowsOverlap,
   planSchoolWeeks,
   type SchoolWeekParity,
 } from "@/modules/timetable/enums";
@@ -65,6 +66,9 @@ export async function findClash(input: {
   termId: string | null;
   /** "ALL" | "A" | "B" — lessons on opposite weeks never collide. */
   weekParity?: string | null;
+  /** The weeks the incoming lesson is in force for. */
+  fromWeek?: number | null;
+  toWeek?: number | null;
   exceptEntryIds?: string[];
 }): Promise<Clash | null> {
   const except = input.exceptEntryIds ?? [];
@@ -112,6 +116,8 @@ export async function findClash(input: {
       schoolClassId: true,
       classGroupId: true,
       weekParity: true,
+      fromWeek: true,
+      toWeek: true,
       timeSlot: { select: { dayOfWeek: true, startTime: true } },
       schoolClass: { select: { code: true } },
     },
@@ -124,6 +130,18 @@ export async function findClash(input: {
     // that is the whole point of a fortnightly grid. ALL overlaps both, which
     // is why the unique index cannot decide this on its own.
     if (!parityOverlaps(entry.weekParity, input.weekParity)) continue;
+
+    // Nor do lessons that are never in force in the same week: the two halves
+    // of a lesson edited mid-year are exactly this case, and treating them as a
+    // clash would make a grid uneditable after the first term.
+    if (
+      !weekWindowsOverlap(
+        { fromWeek: entry.fromWeek, toWeek: entry.toWeek },
+        { fromWeek: input.fromWeek ?? null, toWeek: input.toWeek ?? null },
+      )
+    ) {
+      continue;
+    }
 
     // Rule 1, checked here as well as by the index — a repeat across days can
     // land on a slot the class already uses, and a constraint violation is not
@@ -160,6 +178,10 @@ export type LessonBlock = {
   termId: string | null;
   /** "ALL" | "A" | "B" — which weeks of the rotation it runs in. */
   weekParity: string;
+  /** The first week it applies to. Null = since the start of the year. */
+  fromWeek: number | null;
+  /** The last. Null = until further notice. */
+  toWeek: number | null;
 };
 
 /**
@@ -182,6 +204,8 @@ export async function saveLessonBlock(
     block.classGroupId,
     block.termId,
     block.weekParity,
+    block.fromWeek,
+    block.toWeek,
   );
 
   return db.$transaction(async (tx) => {
@@ -210,6 +234,8 @@ export async function saveLessonBlock(
           classGroupId: block.classGroupId,
           termId: block.termId,
           weekParity: block.weekParity,
+          fromWeek: block.fromWeek,
+          toWeek: block.toWeek,
         },
         create: {
           schoolClassId: block.schoolClassId,
@@ -220,6 +246,8 @@ export async function saveLessonBlock(
           classGroupId: block.classGroupId,
           termId: block.termId,
           weekParity: block.weekParity,
+          fromWeek: block.fromWeek,
+          toWeek: block.toWeek,
           bookingKey,
         },
       });
@@ -339,6 +367,7 @@ export async function generateSchoolWeeks(
       update: {
         startsOn: week.startsOn,
         endsOn: week.endsOn,
+        isTeaching: week.isTeaching,
         parity: week.parity,
       },
       create: {
@@ -346,6 +375,7 @@ export async function generateSchoolWeeks(
         number: week.number,
         startsOn: week.startsOn,
         endsOn: week.endsOn,
+        isTeaching: week.isTeaching,
         parity: week.parity,
       },
     });
@@ -356,4 +386,90 @@ export async function generateSchoolWeeks(
   });
 
   return { written: plan.length, removed: removed.count };
+}
+
+// ── Editing a grid that already has history ──────────────────────────────────
+
+/**
+ * Closes a lesson at the week before `fromWeek`, or deletes it outright.
+ *
+ * ── Why a grid is not simply overwritten ────────────────────────────────────
+ * A timetable is a fact about a week, not about a year. A room changed in
+ * February must not rewrite what September taught: the register, the
+ * remplacement and the inspection are all read against what was true at the
+ * time. So an edit made from week 12 ends the old row at week 11 and leaves it
+ * standing, rather than rewriting the term that has already happened.
+ *
+ * A row that only ever applied from week 12 onwards has no past to keep, so it
+ * is deleted — closing it at week 11 would leave a lesson that runs from 12 to
+ * 11, which is nothing at all.
+ *
+ * Returns what happened, so the caller can say "ended" rather than "deleted"
+ * when that is what a user will see on last week's grid.
+ */
+export async function closeEntriesFromWeek(
+  entryIds: string[],
+  fromWeek: number | null,
+): Promise<{ ended: number; deleted: number }> {
+  if (entryIds.length === 0) return { ended: 0, deleted: 0 };
+
+  // No week in play — the caller is editing the template itself, so there is no
+  // history to protect and the old rows simply go.
+  if (fromWeek === null || fromWeek <= 1) {
+    const gone = await db.timetableEntry.deleteMany({
+      where: { id: { in: entryIds } },
+    });
+    return { ended: 0, deleted: gone.count };
+  }
+
+  const entries = await db.timetableEntry.findMany({
+    where: { id: { in: entryIds } },
+    select: { id: true, fromWeek: true },
+  });
+
+  const toEnd = entries
+    .filter((entry) => (entry.fromWeek ?? 1) < fromWeek)
+    .map((entry) => entry.id);
+  const toDelete = entries
+    .filter((entry) => (entry.fromWeek ?? 1) >= fromWeek)
+    .map((entry) => entry.id);
+
+  const [ended, deleted] = await db.$transaction([
+    db.timetableEntry.updateMany({
+      where: { id: { in: toEnd } },
+      // The key carries the window, so it has to move with it.
+      data: { toWeek: fromWeek - 1 },
+    }),
+    db.timetableEntry.deleteMany({ where: { id: { in: toDelete } } }),
+  ]);
+
+  // `updateMany` cannot recompute a derived column per row, so the ended rows
+  // get their keys rewritten here — the invariant on `bookingKey` is absolute.
+  for (const id of toEnd) {
+    const entry = await db.timetableEntry.findUnique({
+      where: { id },
+      select: {
+        classGroupId: true,
+        termId: true,
+        weekParity: true,
+        fromWeek: true,
+        toWeek: true,
+      },
+    });
+    if (!entry) continue;
+    await db.timetableEntry.update({
+      where: { id },
+      data: {
+        bookingKey: bookingKeyOf(
+          entry.classGroupId,
+          entry.termId,
+          entry.weekParity,
+          entry.fromWeek,
+          entry.toWeek,
+        ),
+      },
+    });
+  }
+
+  return { ended: ended.count, deleted: deleted.count };
 }

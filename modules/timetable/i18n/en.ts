@@ -7,6 +7,11 @@
  */
 const en = {
   timetable: {
+    endedAtWeek: "Ended after week {week}. Earlier weeks are untouched.",
+    savedFromWeek: "Changed from week {week}. Earlier weeks keep what was taught.",
+    applyToFollowing: "Apply to the following weeks",
+    applyToFollowingHint:
+      "On: it runs from this week until further notice. Off: this week only — a one-off swap that leaves the pattern alone.",
     teacherUnavailable: "This teacher does not work in that period. {class}",
     weeksGenerated: "{count} weeks laid out for the year.",
     generateWeeks: "Lay out the year's weeks",

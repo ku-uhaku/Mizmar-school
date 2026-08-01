@@ -27,6 +27,9 @@ export function timetableEntrySchema(t: Dictionary) {
     termId: optionalText(40),
     /** "ALL" | "A" | "B" — which weeks of the rotation the lesson runs in. */
     weekParity: enumField(WEEK_PARITIES, t.validation),
+    /** The week the grid was showing. Blank when editing the template itself. */
+    weekNumber: optionalText(8),
+    applyToFollowing: z.boolean(),
     /** Consecutive periods the lesson runs for — 2 is a double period. */
     spanSlots: z.coerce
       .number({ error: v.invalidNumber })

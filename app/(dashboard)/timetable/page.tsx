@@ -70,12 +70,14 @@ export default async function TimetablePage({
     classes.find((schoolClass) => schoolClass.id === classId) ?? classes[0];
   const scheduleKind = schedule === "RAMADAN" ? "RAMADAN" : "STANDARD";
 
-  const [grid, choices, weekContext] = await Promise.all([
-    loadClassTimetable(context, selected.id, scheduleKind),
+  // The week first: the grid is drawn for one week, and which lessons are in
+  // force depends on it — see the window on TimetableEntry.
+  const weekContext = await loadWeekContext(context, week);
+  const weekNumber = weekContext.current?.index ?? null;
+
+  const [grid, choices] = await Promise.all([
+    loadClassTimetable(context, selected.id, scheduleKind, weekNumber),
     loadTimetableChoices(context, selected.id),
-    // Resolved server-side so a `?week=` outside the year falls back to a real
-    // one before anything is drawn — see modules/timetable/weeks.ts.
-    loadWeekContext(context, week),
   ]);
 
   const holidays = holidaysByWeekday(weekContext);

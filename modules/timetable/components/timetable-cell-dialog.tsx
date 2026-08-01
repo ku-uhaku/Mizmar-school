@@ -19,6 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -130,7 +132,9 @@ export function TimetableCellDialog({
   function clear() {
     if (!entry) return;
     startClearing(async () => {
-      const result = await deleteTimetableEntryAction(entry.id);
+      // Ends the lesson after last week rather than erasing the term —
+      // see the note on the action.
+      const result = await deleteTimetableEntryAction(entry.id, weekNumber);
       if (result.status === "success") {
         toast.success(result.message ?? t.timetable.cleared);
         onOpenChange(false);
@@ -153,6 +157,11 @@ export function TimetableCellDialog({
         <form action={formAction} key={entry?.id ?? timeSlotId}>
           <input type="hidden" name="schoolClassId" value={schoolClassId} />
           <input type="hidden" name="timeSlotId" value={timeSlotId} />
+          {/* The week the grid is showing. It is what makes a change start
+            here rather than be retroactively true of September. */}
+          {weekNumber !== null ? (
+            <input type="hidden" name="weekNumber" value={weekNumber} />
+          ) : null}
           {entry ? <input type="hidden" name="id" value={entry.id} /> : null}
 
           <div className="grid gap-5">
@@ -316,6 +325,26 @@ export function TimetableCellDialog({
                   </SelectContent>
                 </Select>
               </FormField>
+
+              {weekNumber !== null ? (
+                <div className="flex items-start justify-between gap-4 rounded-lg border p-3 sm:col-span-2">
+                  <div className="min-w-0">
+                    <Label htmlFor="applyToFollowing">
+                      {t.timetable.applyToFollowing}
+                    </Label>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      {t.timetable.applyToFollowingHint}
+                    </p>
+                  </div>
+                  {/* On by default: a lesson set up in week 12 normally runs
+                    from then on, and the one-off swap is the exception. */}
+                  <Switch
+                    id="applyToFollowing"
+                    name="applyToFollowing"
+                    defaultChecked
+                  />
+                </div>
+              ) : null}
 
               <FormField
                 name="weekParity"

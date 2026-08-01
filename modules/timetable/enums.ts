@@ -5,6 +5,7 @@
  */
 
 import { nullableKey } from "@/lib/db-keys";
+import { addDays, atMidnight, schoolWeeks } from "@/modules/timetable/weeks";
 
 /**
  * The two halves of a Moroccan school day. Many rules (canteen, transport,
@@ -113,8 +114,54 @@ export function bookingKeyOf(
   classGroupId: string | null | undefined,
   termId: string | null | undefined,
   weekParity: string | null | undefined = "ALL",
+  fromWeek: number | null | undefined = null,
+  toWeek: number | null | undefined = null,
 ): string {
-  return nullableKey(classGroupId, termId, weekParity ?? "ALL");
+  return nullableKey(
+    classGroupId,
+    termId,
+    weekParity ?? "ALL",
+    fromWeek === null || fromWeek === undefined ? "" : String(fromWeek),
+    toWeek === null || toWeek === undefined ? "" : String(toWeek),
+  );
+}
+
+// ── Week windows ─────────────────────────────────────────────────────────────
+
+export type WeekWindow = {
+  /** Null = since the start of the year. */
+  fromWeek: number | null;
+  /** Null = until further notice. */
+  toWeek: number | null;
+};
+
+/** Whether a lesson is in force in a given week. */
+export function runsInWeekNumber(
+  window: WeekWindow,
+  weekNumber: number | null,
+): boolean {
+  // No week in play — a printout of the template, say — so everything counts.
+  if (weekNumber === null) return true;
+  if (window.fromWeek !== null && weekNumber < window.fromWeek) return false;
+  if (window.toWeek !== null && weekNumber > window.toWeek) return false;
+  return true;
+}
+
+/**
+ * Whether two lessons are ever in force in the same week.
+ *
+ * Open ends are what make this worth a function: "since the start" and "until
+ * further notice" are both null, and the naive comparison of two nulls says
+ * nothing. Two halves of a split lesson — one ending at S11, one starting at
+ * S12 — must come out as *not* overlapping, or a grid could never be edited
+ * mid-year.
+ */
+export function weekWindowsOverlap(a: WeekWindow, b: WeekWindow): boolean {
+  const aFrom = a.fromWeek ?? Number.NEGATIVE_INFINITY;
+  const aTo = a.toWeek ?? Number.POSITIVE_INFINITY;
+  const bFrom = b.fromWeek ?? Number.NEGATIVE_INFINITY;
+  const bTo = b.toWeek ?? Number.POSITIVE_INFINITY;
+  return aFrom <= bTo && bFrom <= aTo;
 }
 
 /**
@@ -183,54 +230,33 @@ export function slotsOverlap(
 
 // ── The year's weeks ─────────────────────────────────────────────────────────
 
-/** Midnight of a date, local — the calendar day, with no time on it. */
-function atMidnight(value: Date): Date {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-/** The Monday of the week a date falls in. Sunday counts as the week before. */
-export function mondayOf(value: Date): Date {
-  const date = atMidnight(value);
-  // getDay(): 0 = Sunday … 6 = Saturday. Sunday is the *end* of the Moroccan
-  // school week, not the start, so it belongs to the Monday six days back.
-  const weekday = date.getDay();
-  const shift = weekday === 0 ? -6 : 1 - weekday;
-  date.setDate(date.getDate() + shift);
-  return date;
-}
-
-function addDays(value: Date, days: number): Date {
-  const date = new Date(value);
-  date.setDate(date.getDate() + days);
-  return date;
-}
-
 export type WeekPlan = {
   number: number;
   startsOn: Date;
-  /** Saturday — the Moroccan school week runs Monday to Saturday. */
   endsOn: Date;
+  /** False when a holiday swallows the week whole. */
+  isTeaching: boolean;
   parity: SchoolWeekParity;
 };
 
 /**
- * Lays out the weeks a school year actually teaches in.
+ * Lays out every week the school year spans, and which half of the rotation
+ * each taught one falls on.
  *
- * ── What gets a number ──────────────────────────────────────────────────────
- * Only weeks with at least one teaching day left in them. A week swallowed
- * whole by the vacances is skipped rather than numbered and flagged, because
- * "semaine 12" is what a progression pédagogique counts in — the twelfth week
- * the school taught, not the twelfth square on a calendar. A week that loses
- * three days to a férié is still a teaching week and keeps its real dates.
+ * ── One numbering ───────────────────────────────────────────────────────────
+ * The weeks and their bounds come straight from `schoolWeeks()`, which is what
+ * the week picker navigates by, so a stored week and a `?week=` are the same
+ * week. Numbering only the taught weeks was tried and made "semaine 12" mean
+ * two different fortnights depending on which screen you read.
  *
- * Parity alternates from `firstParity`, so the rotation is a consequence of the
- * numbering rather than a second thing to maintain. A school that comes back
- * from the holidays on the wrong foot fixes the one row, not the year.
+ * ── The rotation skips the holidays ─────────────────────────────────────────
+ * Parity advances on taught weeks only. A fortnight of vacances must not
+ * silently swap which half comes back — that is exactly the mistake a school
+ * makes doing this on paper. A holiday week carries the parity the next taught
+ * week will use, so reading down the column never jumps.
  *
- * Pure, and exported so the seed, the generator action and any preview all lay
- * the year out identically.
+ * Pure, and exported so the seed, the generator action and any preview lay the
+ * year out identically.
  */
 export function planSchoolWeeks(input: {
   yearStart: Date;
@@ -239,56 +265,34 @@ export function planSchoolWeeks(input: {
   holidays: readonly { startDate: Date; endDate: Date }[];
   firstParity?: SchoolWeekParity;
 }): WeekPlan[] {
-  const lastDay = atMidnight(input.yearEnd);
   const holidays = input.holidays.map((holiday) => ({
     start: atMidnight(holiday.startDate).getTime(),
     end: atMidnight(holiday.endDate).getTime(),
   }));
 
-  const isHoliday = (day: Date) => {
+  const covered = (day: Date) => {
     const time = day.getTime();
     return holidays.some((holiday) => time >= holiday.start && time <= holiday.end);
   };
 
-  const weeks: WeekPlan[] = [];
-  let cursor = mondayOf(input.yearStart);
-  let number = 1;
   let parity: SchoolWeekParity = input.firstParity ?? "A";
 
-  // Bounded rather than `while (true)`: a mis-entered year with the end before
-  // the start must not spin. Sixty covers any school year with room to spare.
-  for (let guard = 0; guard < 60 && cursor <= lastDay; guard += 1) {
-    const saturday = addDays(cursor, 5);
-
-    // Monday to Saturday — Sunday is never a teaching day, so it cannot rescue
-    // a week that is otherwise entirely holiday.
+  return schoolWeeks(input.yearStart, input.yearEnd).map((week) => {
+    // Monday to Saturday: Sunday is never taught, so it cannot rescue a week
+    // that is otherwise entirely holiday.
     const teaches = [0, 1, 2, 3, 4, 5]
-      .map((offset) => addDays(cursor, offset))
-      .some((day) => day <= lastDay && !isHoliday(day));
+      .map((offset) => addDays(week.start, offset))
+      .some((day) => !covered(day));
 
-    if (teaches) {
-      weeks.push({ number, startsOn: cursor, endsOn: saturday, parity });
-      number += 1;
-      parity = parity === "A" ? "B" : "A";
-    }
+    const plan: WeekPlan = {
+      number: week.index,
+      startsOn: week.start,
+      endsOn: week.end,
+      isTeaching: teaches,
+      parity,
+    };
 
-    cursor = addDays(cursor, 7);
-  }
-
-  return weeks;
-}
-
-/** The week a date falls in, or null when it is outside the taught year. */
-export function weekOf<T extends { startsOn: Date; endsOn: Date }>(
-  weeks: readonly T[],
-  date: Date,
-): T | null {
-  const time = atMidnight(date).getTime();
-  return (
-    weeks.find(
-      (week) =>
-        time >= atMidnight(week.startsOn).getTime() &&
-        time <= atMidnight(week.endsOn).getTime(),
-    ) ?? null
-  );
+    if (teaches) parity = parity === "A" ? "B" : "A";
+    return plan;
+  });
 }

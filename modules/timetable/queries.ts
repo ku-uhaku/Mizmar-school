@@ -12,6 +12,7 @@ import {
   toDateKey,
   type SchoolWeek,
 } from "@/modules/timetable/weeks";
+import { runsInWeekNumber } from "@/modules/timetable/enums";
 
 /**
  * Reads for the timetable module.
@@ -95,6 +96,15 @@ export async function loadClassTimetable(
   context: AuthContext,
   schoolClassId: string,
   scheduleKind = "STANDARD",
+  /**
+   * The week being looked at. Lessons whose window does not cover it are left
+   * out, so a grid shows what was — or will be — actually taught that week
+   * rather than everything the class has ever had.
+   *
+   * Null draws the whole template, which is what a class file or a pupil's page
+   * wants: they ask "what does this class do", not "what happened in week 12".
+   */
+  weekNumber: number | null = null,
 ): Promise<TimetableGrid | null> {
   const schoolClass = await db.schoolClass.findFirst({
     where: {
@@ -129,6 +139,8 @@ export async function loadClassTimetable(
         classGroupId: true,
         termId: true,
         weekParity: true,
+        fromWeek: true,
+        toWeek: true,
         subject: {
           select: { name: true, shortName: true, code: true, colorHex: true },
         },
@@ -140,6 +152,16 @@ export async function loadClassTimetable(
       },
     }),
   ]);
+
+  // Narrowed here rather than in the query: the window is two nullable columns
+  // and the open-ended cases do not express cleanly as a `where`, while the
+  // rule itself is one pure function shared with the clash check.
+  const inForce = entries.filter((entry) =>
+    runsInWeekNumber(
+      { fromWeek: entry.fromWeek, toWeek: entry.toWeek },
+      weekNumber,
+    ),
+  );
 
   const columnByKey = new Map<string, SlotColumn>();
   for (const slot of slots) {
@@ -162,7 +184,7 @@ export async function loadClassTimetable(
     a.startTime.localeCompare(b.startTime),
   );
 
-  const entryBySlot = new Map(entries.map((entry) => [entry.timeSlotId, entry]));
+  const entryBySlot = new Map(inForce.map((entry) => [entry.timeSlotId, entry]));
 
   /** Two rows are the same lesson when everything but the period matches. */
   const sameLesson = (
@@ -261,7 +283,7 @@ export async function loadClassTimetable(
     return { dayOfWeek, cells };
   });
 
-  return { columns, rows, scheduleKind, entryCount: entries.length };
+  return { columns, rows, scheduleKind, entryCount: inForce.length };
 }
 
 /**

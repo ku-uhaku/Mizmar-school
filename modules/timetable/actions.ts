@@ -8,12 +8,18 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
-import { field, listField, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { isTeachingDayIn } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
+  closeEntriesFromWeek,
   entriesInBlock,
   findClash,
   generateSchoolWeeks,
@@ -64,6 +70,10 @@ export async function saveTimetableEntryAction(
       termId: optionalId(formData, "termId"),
       weekParity: field(formData, "weekParity") || "ALL",
       spanSlots: field(formData, "spanSlots") || "1",
+      /** The week the grid was showing. Blank when the template is edited. */
+      weekNumber: field(formData, "weekNumber"),
+      /** Unticked means "this week only". */
+      applyToFollowing: boolField(formData, "applyToFollowing"),
     });
     if (!parsed.success) {
       return failure(
@@ -206,6 +216,25 @@ export async function saveTimetableEntryAction(
 
     if (timeSlotIds.length === 0) return failure(t.timetable.slotUnavailable);
 
+    /*
+      The week the edit is being made from, and the window the new rows carry.
+
+      A lesson added while looking at week 12 starts at week 12 — it is not
+      retroactively true of September, and a grid that claimed it was would
+      make every register before it wrong. Ticking "the following weeks" leaves
+      the end open; leaving it unticked writes the one week only, which is how
+      a one-off swap is recorded without touching the pattern.
+    */
+    const weekNumber =
+      parsed.data.weekNumber === null ? null : Number(parsed.data.weekNumber);
+    const fromWeek =
+      weekNumber !== null && Number.isFinite(weekNumber) && weekNumber > 1
+        ? weekNumber
+        : null;
+    const toWeek = parsed.data.applyToFollowing
+      ? null
+      : (fromWeek ?? weekNumber ?? null);
+
     // The rows this block already occupies, so growing, shrinking or moving it
     // replaces them instead of leaving orphans behind.
     const existing = entryId ? await entriesInBlock(entryId) : [];
@@ -223,6 +252,8 @@ export async function saveTimetableEntryAction(
         classGroupId: group?.id ?? null,
         termId: term?.id ?? null,
         weekParity: parsed.data.weekParity,
+        fromWeek,
+        toWeek,
         exceptEntryIds: keepIds,
       });
 
@@ -244,6 +275,26 @@ export async function saveTimetableEntryAction(
       }
     }
 
+    /*
+      Editing an existing lesson from a later week *splits* it rather than
+      overwriting: the old rows are closed at the week before, and the new
+      window starts here. `closeEntriesFromWeek` deletes instead when the row
+      has no past to keep — one that only ever ran from week 12 onwards.
+
+      The rows are closed before the new ones are written so the two windows
+      never overlap, which is what would otherwise trip the clash check against
+      the lesson's own previous self.
+    */
+    const kept = existing.filter((entry) => timeSlotIds.includes(entry.timeSlotId));
+    let ended = 0;
+    if (kept.length > 0 && fromWeek !== null) {
+      const closed = await closeEntriesFromWeek(
+        kept.map((entry) => entry.id),
+        fromWeek,
+      );
+      ended = closed.ended;
+    }
+
     const written = await saveLessonBlock(
       {
         schoolClassId: schoolClass.id,
@@ -254,11 +305,22 @@ export async function saveTimetableEntryAction(
         classGroupId: group?.id ?? null,
         termId: term?.id ?? null,
         weekParity: parsed.data.weekParity,
+        fromWeek,
+        toWeek,
       },
       replaceIds,
     );
 
     refresh();
+
+    // Say when history was kept: "modifié à partir de la semaine 12" is a very
+    // different reassurance from "modifié", and it is the thing an operator is
+    // uncertain about the first few times.
+    if (ended > 0 && fromWeek !== null) {
+      return success(
+        interpolate(t.timetable.savedFromWeek, { week: fromWeek }),
+      );
+    }
     return success(
       written > 1
         ? interpolate(t.timetable.savedMany, { count: written })
@@ -270,6 +332,13 @@ export async function saveTimetableEntryAction(
 /** Clears a lesson — every period it occupies, not just the one clicked. */
 export async function deleteTimetableEntryAction(
   entryId: string,
+  /**
+   * The week the grid was showing. Given, the lesson is *ended* the week before
+   * rather than erased: it genuinely ran until then, and the registers already
+   * marked against it have to keep making sense. Omitted, the whole lesson goes,
+   * which is what removing a mistake means.
+   */
+  fromWeek?: number | null,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
     const t = await getDictionary();
@@ -290,10 +359,14 @@ export async function deleteTimetableEntryAction(
     const block = await entriesInBlock(entryId);
     const ids = block.length > 0 ? block.map((row) => row.id) : [entryId];
 
-    await db.timetableEntry.deleteMany({ where: { id: { in: ids } } });
+    const result = await closeEntriesFromWeek(ids, fromWeek ?? null);
 
     refresh();
-    return success(t.timetable.cleared);
+    return success(
+      result.ended > 0 && fromWeek
+        ? interpolate(t.timetable.endedAtWeek, { week: fromWeek - 1 })
+        : t.timetable.cleared,
+    );
   });
 }
 

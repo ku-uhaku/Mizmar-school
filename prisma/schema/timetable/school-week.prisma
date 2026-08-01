@@ -1,5 +1,10 @@
 /// One week of the school year — "S12, du 30 novembre au 5 décembre, semaine B".
 ///
+/// The numbering and the dates mirror `schoolWeeks()` in
+/// modules/timetable/weeks.ts, which is what the picker navigates by. What this
+/// table adds is what cannot be computed: the A/B rotation, a week's name, and
+/// the fact that a school edited one.
+///
 /// ── Why the weeks are stored and not computed ───────────────────────────────
 /// They could be derived from the year's start date and the holidays, and for a
 /// week or two that would be simpler. It falls apart the moment anything points
@@ -26,21 +31,38 @@ model SchoolWeek {
   schoolYearId String
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
-  /// 1-based, in teaching order. Weeks lost entirely to holidays are not
-  /// numbered at all — "semaine 12" means the twelfth week the school taught,
-  /// which is what a progression pédagogique counts in.
+  /// 1-based over **every** week the year spans, holidays included.
+  ///
+  /// The same number the week picker navigates by (`?week=12`) and the same one
+  /// `schoolWeeks()` in modules/timetable/weeks.ts computes — there is one
+  /// notion of "semaine 12" in the app and this is it. Numbering only the taught
+  /// weeks was tried and made the picker and the calendar disagree.
   number Int
 
-  /// Monday and Saturday of the week, inclusive. Stored rather than derived
-  /// from `number` so a week shortened by a férié still says its real dates.
+  /// Monday and Sunday of the week, inclusive — the same bounds
+  /// `schoolWeeks()` produces, so a stored week and a computed one compare
+  /// equal. Stored rather than derived so a week the school renamed or reshaped
+  /// keeps what it was given.
   startsOn DateTime
   endsOn   DateTime
 
+  /// False when a holiday swallows the week whole.
+  ///
+  /// Kept as a flag rather than by omitting the row: a secretary looking for
+  /// "the week of 10 February" must find it and be told it is the mi-année
+  /// break, not have it silently missing. It is also what the rotation skips —
+  /// see `parity`.
+  isTeaching Boolean @default(true)
+
   /// "A" | "B" — see WEEK_PARITIES in modules/timetable/enums.ts.
   ///
-  /// Alternates as the weeks are generated, and is editable afterwards: a term
-  /// that resumes on the wrong foot after the holidays is fixed by flipping one
-  /// row rather than regenerating the year.
+  /// Alternates across **teaching** weeks only: a fortnight of vacances must
+  /// not silently swap which half of the rotation comes back, which is exactly
+  /// the mistake a school makes on paper. A holiday week carries the parity the
+  /// next taught week will use, so reading down the column never jumps.
+  ///
+  /// Editable afterwards: a term that resumes on the wrong foot is one flipped
+  /// row rather than a regenerated year.
   parity String @default("A")
 
   /// A name, when the week has one — "Semaine d'examens", "Rentrée".

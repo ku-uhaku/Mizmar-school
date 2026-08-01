@@ -4,6 +4,12 @@
  */
 const ar = {
   timetable: {
+    endedAtWeek: "انتهت بعد الأسبوع {week}. الأسابيع السابقة لم تُمس.",
+    savedFromWeek:
+      "عُدِّل ابتداءً من الأسبوع {week}. تحتفظ الأسابيع السابقة بما دُرِّس فيها.",
+    applyToFollowing: "تطبيق على الأسابيع الموالية",
+    applyToFollowingHint:
+      "مفعَّل: تسري الحصة من هذا الأسبوع حتى إشعار آخر. غير مفعَّل: هذا الأسبوع فقط — تبديل ظرفي لا يمس النمط.",
     teacherUnavailable: "هذا الأستاذ لا يعمل في هذه الحصة. {class}",
     weeksGenerated: "تم ضبط {count} أسبوعًا للسنة.",
     generateWeeks: "ضبط أسابيع السنة",

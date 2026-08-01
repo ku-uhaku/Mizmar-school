@@ -51,6 +51,21 @@ model TimetableEntry {
   /// `parityOverlaps` and the service-layer check in `findClash`.
   weekParity String @default("ALL")
 
+  /// The weeks this lesson actually runs in, as week numbers — see SchoolWeek.
+  ///
+  /// ── Why a grid has history at all ───────────────────────────────────────
+  /// A timetable is not a fact about the year, it is a fact about a week. A
+  /// room changed in February must not rewrite what September taught: the
+  /// register, the remplacement and the inspection are all read against what
+  /// was true at the time. So editing a lesson from week 12 closes the old row
+  /// at week 11 and opens a new one — see `saveLessonBlock`.
+  ///
+  /// Null `fromWeek` means "since the start of the year", null `toWeek` means
+  /// "until further notice". Both null is the ordinary all-year lesson, and is
+  /// what every row created before this existed carries.
+  fromWeek Int?
+  toWeek   Int?
+
   /// Makes rule 1 enforceable by the database.
   ///
   /// Both `classGroupId` and `termId` are nullable, and SQLite treats NULLs as
@@ -62,8 +77,14 @@ model TimetableEntry {
   /// This column mirrors the two nullable keys with "" standing in for null, so
   /// the index below has nothing nullable in it.
   ///
-  /// INVARIANT: always `bookingKeyOf(classGroupId, termId, weekParity)` from
+  /// INVARIANT: always
+  /// `bookingKeyOf(classGroupId, termId, weekParity, fromWeek, toWeek)` from
   /// modules/timetable/enums.ts. Never set it by hand.
+  ///
+  /// The week window is in the key so the two halves of a split lesson — the
+  /// same class, slot and parity, one ending at S11 and one starting at S12 —
+  /// can coexist. Whether two windows *overlap* is still a service-layer
+  /// question; see `weekWindowsOverlap`.
   bookingKey String
 
   createdAt DateTime @default(now())
@@ -78,5 +99,6 @@ model TimetableEntry {
   @@index([teacherId])
   @@index([roomId])
   @@index([termId])
+  @@index([schoolClassId, fromWeek])
   @@map("timetable_entries")
 }

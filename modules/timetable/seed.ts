@@ -401,6 +401,7 @@ export async function seedSchoolWeeks(
       update: {
         startsOn: week.startsOn,
         endsOn: week.endsOn,
+        isTeaching: week.isTeaching,
         parity: week.parity,
       },
       create: {
@@ -408,6 +409,7 @@ export async function seedSchoolWeeks(
         number: week.number,
         startsOn: week.startsOn,
         endsOn: week.endsOn,
+        isTeaching: week.isTeaching,
         parity: week.parity,
       },
     });

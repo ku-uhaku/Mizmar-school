@@ -4,6 +4,13 @@
  */
 const fr = {
   timetable: {
+    endedAtWeek:
+      "Terminée après la semaine {week}. Les semaines précédentes sont intactes.",
+    savedFromWeek:
+      "Modifié à partir de la semaine {week}. Les semaines précédentes gardent ce qui a été enseigné.",
+    applyToFollowing: "Appliquer aux semaines suivantes",
+    applyToFollowingHint:
+      "Activé : la séance vaut à partir de cette semaine, jusqu'à nouvel ordre. Désactivé : cette semaine seulement — un échange ponctuel qui ne touche pas au schéma.",
     teacherUnavailable: "Cet enseignant ne travaille pas sur ce créneau. {class}",
     weeksGenerated: "{count} semaines calées pour l'année.",
     generateWeeks: "Caler les semaines de l'année",
