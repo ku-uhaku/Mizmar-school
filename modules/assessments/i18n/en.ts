@@ -7,6 +7,14 @@
  */
 const en = {
   assessment: {
+    generatedAcross: "{count} papers written across {classes} classes.",
+    willCover: "{classes} classes · {subjects} subjects each",
+    scope: "Scope",
+    scopeHint: "A round of contrôles is normally set for a whole level at once.",
+    scopeClass: "One class",
+    scopeLevel: "A level",
+    scopeYear: "The whole year",
+    pickLevel: "Level",
     assessment: "Paper",
     noMarksYet: "No marks yet.",
     noMarksHint: "Marks appear here as teachers enter them.",

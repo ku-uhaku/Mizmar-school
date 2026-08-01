@@ -7,6 +7,14 @@
  */
 const ar = {
   assessment: {
+    generatedAcross: "تم إنشاء {count} فرضًا عبر {classes} أقسام.",
+    willCover: "{classes} أقسام · {subjects} مواد لكل قسم",
+    scope: "النطاق",
+    scopeHint: "تُحضَّر سلسلة الفروض عادةً لمستوى كامل دفعة واحدة.",
+    scopeClass: "قسم واحد",
+    scopeLevel: "مستوى",
+    scopeYear: "السنة كاملة",
+    pickLevel: "المستوى",
     assessment: "الفرض",
     noMarksYet: "لا توجد نقط بعد.",
     noMarksHint: "تظهر النقط هنا كلما أدخلها الأساتذة.",

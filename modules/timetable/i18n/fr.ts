@@ -4,6 +4,14 @@
  */
 const fr = {
   timetable: {
+    teacherUnavailable: "Cet enseignant ne travaille pas sur ce créneau. {class}",
+    weeksGenerated: "{count} semaines calées pour l'année.",
+    generateWeeks: "Caler les semaines de l'année",
+    generateWeeksHint:
+      "Numérote chaque semaine effectivement enseignée, saute les vacances et alterne A et B. Relançable sans risque — cela renumérote au lieu de dupliquer.",
+    weekParity: "Semaines",
+    weekParityHint:
+      "Les semaines de la rotation où cette séance a lieu. À laisser sur « toutes » sauf si elle est en quinzaine.",
     title: "Emploi du temps",
     subtitle:
       "La semaine d'une classe. Cliquez sur une case pour placer un cours.",
@@ -86,6 +94,11 @@ const fr = {
       "4": "Jeu",
       "5": "Ven",
       "6": "Sam",
+    },
+    weekParities: {
+      ALL: "Toutes les semaines",
+      A: "Semaine A",
+      B: "Semaine B",
     },
     scheduleKinds: {
       STANDARD: "Standard",

@@ -175,6 +175,24 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ number: "asc" }],
   },
 
+  "school-weeks": {
+    table: () => db.schoolWeek as unknown as Delegate,
+    where: byYear,
+    createData: (context) => ({ schoolYearId: context.currentSchoolYear?.id }),
+    orderBy: [{ number: "asc" }],
+  },
+
+  "teacher-unavailability": {
+    table: () => db.teacherUnavailability as unknown as Delegate,
+    // No schoolYearId of its own: reached through the slot, which has one.
+    where: (context) => ({ timeSlot: byYear(context) }),
+    // The order a week is read in, so one teacher's blocks sit together.
+    orderBy: [
+      { timeSlot: { dayOfWeek: "asc" } },
+      { timeSlot: { startTime: "asc" } },
+    ],
+  },
+
   "time-slots": {
     table: () => db.timeSlot as unknown as Delegate,
     where: byYear,

@@ -1,0 +1,59 @@
+/// One week of the school year — "S12, du 30 novembre au 5 décembre, semaine B".
+///
+/// ── Why the weeks are stored and not computed ───────────────────────────────
+/// They could be derived from the year's start date and the holidays, and for a
+/// week or two that would be simpler. It falls apart the moment anything points
+/// at a week: moving the rentrée by a day would renumber the whole year, so a
+/// contrôle "planned for S12" would silently move, and last year's records would
+/// stop agreeing with last year's calendar. Storing them makes the numbering a
+/// decision the school made once, which is what everybody already treats it as.
+///
+/// It also makes the numbering *editable*, which matters because no rule
+/// survives a real calendar: a school that loses a fortnight to exams renumbers
+/// by hand, and one that starts its rotation on B rather than A simply flips a
+/// row.
+///
+/// ── Parity ──────────────────────────────────────────────────────────────────
+/// `parity` is what makes a fortnightly timetable possible: a lesson can be set
+/// to run only in A weeks or only in B weeks, so a lab that alternates between
+/// two half-groups fits one grid instead of two. See `TimetableEntry.weekParity`.
+///
+/// Owned by the timetable rather than by school-years, for the same reason
+/// SchoolHoliday is: the year owns its own dates, and this is a fact *about the
+/// week* that only the grid and the things pinned to it ever read.
+model SchoolWeek {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// 1-based, in teaching order. Weeks lost entirely to holidays are not
+  /// numbered at all — "semaine 12" means the twelfth week the school taught,
+  /// which is what a progression pédagogique counts in.
+  number Int
+
+  /// Monday and Saturday of the week, inclusive. Stored rather than derived
+  /// from `number` so a week shortened by a férié still says its real dates.
+  startsOn DateTime
+  endsOn   DateTime
+
+  /// "A" | "B" — see WEEK_PARITIES in modules/timetable/enums.ts.
+  ///
+  /// Alternates as the weeks are generated, and is editable afterwards: a term
+  /// that resumes on the wrong foot after the holidays is fixed by flipping one
+  /// row rather than regenerating the year.
+  parity String @default("A")
+
+  /// A name, when the week has one — "Semaine d'examens", "Rentrée".
+  /// Null for the ordinary weeks, which are known by their number.
+  label String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Renumbering is the school's business, but two S12s are not a calendar.
+  @@unique([schoolYearId, number])
+  @@index([schoolYearId])
+  /// What "which week is this date in?" reads.
+  @@index([schoolYearId, startsOn])
+  @@map("school_weeks")
+}

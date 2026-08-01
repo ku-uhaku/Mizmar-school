@@ -38,6 +38,10 @@ model SchoolYear {
   /// receipts against it is closed history.
   payments Payment[]
 
+  /// The weeks the school teaches in, numbered — see
+  /// prisma/schema/timetable/school-week.prisma.
+  schoolWeeks SchoolWeek[]
+
   /// This year's bus lines and the runs they make.
   transportRoutes    TransportRoute[]
   transportSchedules TransportSchedule[]

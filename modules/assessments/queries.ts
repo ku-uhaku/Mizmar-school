@@ -91,6 +91,8 @@ export type ClassOption = {
   code: string;
   name: string | null;
   levelLabel: string;
+  /** Which level offering it belongs to — what the "a level" scope groups on. */
+  levelOfferingId: string;
 };
 
 /** The classes of the year, for the picker and the generator. */
@@ -104,6 +106,7 @@ export async function listAssessableClasses(
       id: true,
       code: true,
       name: true,
+      levelOfferingId: true,
       levelOffering: { select: { level: { select: { code: true, name: true } } } },
     },
   });
@@ -113,6 +116,7 @@ export async function listAssessableClasses(
     code: schoolClass.code,
     name: schoolClass.name,
     levelLabel: schoolClass.levelOffering.level.code,
+    levelOfferingId: schoolClass.levelOfferingId,
   }));
 }
 

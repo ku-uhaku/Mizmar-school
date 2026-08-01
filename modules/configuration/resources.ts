@@ -13,6 +13,7 @@ import { CATEGORY_KINDS } from "@/modules/treasury/enums";
 import { ROOM_KINDS } from "@/modules/facilities/enums";
 import { SCHEDULE_DIRECTIONS } from "@/modules/transport/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
+import { SCHOOL_WEEK_PARITIES } from "@/modules/timetable/enums";
 import {
   ABSENCE_KINDS,
   DAY_SESSIONS,
@@ -817,6 +818,56 @@ export const RESOURCES: ResourceDef[] = [
   },
 
   // ── Classes ───────────────────────────────────────────────────────────────
+  /*
+    Les semaines de l'année. Generated rather than typed — see the button on the
+    timetable screen — but editable here, because no rule survives a real
+    calendar: a fortnight lost to exams is renumbered by hand, and a rotation
+    that resumes on the wrong foot is one flipped parity.
+  */
+  {
+    id: "school-weeks",
+    section: "year",
+    labelKey: "schoolWeeks",
+    scope: "YEAR",
+    labelFields: ["number"],
+    fields: [
+      { name: "number", type: "number", labelKey: "weekNumber", hintKey: "weekNumber", required: true, min: 1, max: 60, inTable: true },
+      { name: "startsOn", type: "date", labelKey: "startsOn", required: true, inTable: true },
+      { name: "endsOn", type: "date", labelKey: "endsOn", required: true, inTable: true },
+      {
+        name: "parity",
+        type: "select",
+        labelKey: "weekParity",
+        hintKey: "weekParity",
+        options: SCHOOL_WEEK_PARITIES,
+        optionsKey: "weekParities",
+        defaultValue: "A",
+        required: true,
+        inTable: true,
+      },
+      { name: "label", type: "text", labelKey: "weekLabel", hintKey: "weekLabel", maxLength: 120, inTable: true },
+    ],
+  },
+
+  /*
+    Les horaires des enseignants — when each one does *not* work.
+    A hard constraint: `findClash` refuses a lesson placed in a blocked period,
+    exactly as it refuses a teacher already booked. A day off sick is a
+    TeacherAbsence instead; this is the standing arrangement.
+  */
+  {
+    id: "teacher-unavailability",
+    section: "year",
+    labelKey: "teacherUnavailability",
+    scope: "YEAR",
+    labelFields: ["teacherId"],
+    fields: [
+      { name: "teacherId", type: "reference", labelKey: "teacher", referenceTo: "@teachers", required: true, inTable: true },
+      { name: "timeSlotId", type: "reference", labelKey: "timeSlot", hintKey: "timeSlot", referenceTo: "@slots", required: true, inTable: true },
+      { name: "reason", type: "text", labelKey: "unavailabilityReason", hintKey: "unavailabilityReason", maxLength: 200, inTable: true, wide: true },
+    ],
+  },
+
   {
     id: "level-offerings",
     section: "classes",

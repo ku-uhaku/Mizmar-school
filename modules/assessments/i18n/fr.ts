@@ -7,6 +7,15 @@
  */
 const fr = {
   assessment: {
+    generatedAcross: "{count} contrôles créés sur {classes} classes.",
+    willCover: "{classes} classes · {subjects} matières chacune",
+    scope: "Portée",
+    scopeHint:
+      "Une série de contrôles se prépare normalement pour tout un niveau à la fois.",
+    scopeClass: "Une classe",
+    scopeLevel: "Un niveau",
+    scopeYear: "Toute l'année",
+    pickLevel: "Niveau",
     assessment: "Épreuve",
     noMarksYet: "Aucune note pour le moment.",
     noMarksHint: "Les notes apparaissent ici au fur et à mesure des saisies.",

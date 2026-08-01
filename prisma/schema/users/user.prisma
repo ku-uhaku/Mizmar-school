@@ -34,6 +34,9 @@ model User {
   mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
   teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
   timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
+  /// Periods of the week this teacher does not work. A hard constraint on the
+  /// grid — see prisma/schema/timetable/teacher-unavailability.prisma.
+  unavailability      TeacherUnavailability[] @relation("TeacherUnavailability")
   /// Days away, and the lessons somebody else covers — see
   /// prisma/schema/timetable/teacher-absence.prisma.
   absences            TeacherAbsence[]     @relation("TeacherAbsences")

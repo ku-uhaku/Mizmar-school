@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { getDictionary } from "@/lib/i18n/server";
 import { findResource } from "@/modules/configuration/resources";
 import { resourceSchema } from "@/modules/configuration/resource-schema";
 import type {
@@ -74,6 +75,40 @@ export async function loadChoices(
       label: user.profile
         ? `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.email
         : user.email,
+    }));
+  }
+
+  /*
+    The bell schedule, labelled with its day.
+    `time-slots` alone would render every reference as "08:00 — 09:00", which is
+    the same string six times over and unpickable. A loader rather than wider
+    `labelFields` because the day is an integer that has to be looked up in the
+    dictionary before it means anything to a reader.
+  */
+  if (referenceTo === "@slots") {
+    const t = await getDictionary();
+    const days = t.configOptions.days as Record<string, string>;
+
+    const slots = await db.timeSlot.findMany({
+      where: {
+        schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+        isActive: true,
+      },
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+      select: {
+        id: true,
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        scheduleKind: true,
+      },
+    });
+
+    return slots.map((slot) => ({
+      id: slot.id,
+      label: `${days[String(slot.dayOfWeek)] ?? slot.dayOfWeek} ${slot.startTime}–${slot.endTime}${
+        slot.scheduleKind === "STANDARD" ? "" : ` (${slot.scheduleKind})`
+      }`,
     }));
   }
 

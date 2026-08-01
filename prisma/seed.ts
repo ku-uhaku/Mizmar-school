@@ -43,6 +43,7 @@ import {
 } from "@/modules/students/seed";
 import {
   seedHolidays,
+  seedSchoolWeeks,
   seedTimeSlots,
   seedTimetable,
 } from "@/modules/timetable/seed";
@@ -271,6 +272,8 @@ async function main() {
       const slots = await seedTimeSlots(db, year.id);
       // The calendar the timetable reads to know which weeks are taught.
       await seedHolidays(db, year.id, year.startDate, year.endDate);
+      // After the holidays: which weeks are taught depends on them.
+      await seedSchoolWeeks(db, year.id, year.startDate, year.endDate);
       await seedTransport(db, {
         schoolId: school.id,
         schoolYearId: year.id,

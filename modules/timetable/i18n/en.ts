@@ -7,6 +7,14 @@
  */
 const en = {
   timetable: {
+    teacherUnavailable: "This teacher does not work in that period. {class}",
+    weeksGenerated: "{count} weeks laid out for the year.",
+    generateWeeks: "Lay out the year's weeks",
+    generateWeeksHint:
+      "Numbers every week the school teaches in, skipping the holidays, and alternates A and B. Safe to run again — it renumbers rather than duplicates.",
+    weekParity: "Weeks",
+    weekParityHint:
+      "Which weeks of the rotation this lesson runs in. Leave it on every week unless it is fortnightly.",
     title: "Timetable",
     subtitle: "The week for one class. Click a slot to place a lesson.",
     pickClass: "Choose a class",
@@ -87,6 +95,11 @@ const en = {
       "4": "Thu",
       "5": "Fri",
       "6": "Sat",
+    },
+    weekParities: {
+      ALL: "Every week",
+      A: "Week A",
+      B: "Week B",
     },
     scheduleKinds: {
       STANDARD: "Standard",

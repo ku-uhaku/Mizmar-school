@@ -1,4 +1,4 @@
-import { bookingKeyOf } from "@/modules/timetable/enums";
+import { bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
@@ -367,4 +367,52 @@ export async function seedHolidays(
 
   log("holidays", written);
   return written;
+}
+
+/**
+ * Numbers the year's teaching weeks, from the same pure planner the action uses.
+ *
+ * Runs after the holidays, because which weeks are taught depends on them.
+ * Idempotent — upserts on `(schoolYearId, number)` and never deletes, so a week
+ * a school renamed or re-parityed by hand keeps whatever it was given except
+ * the dates and the rotation the plan owns.
+ */
+export async function seedSchoolWeeks(
+  db: SeedDb,
+  schoolYearId: string,
+  yearStart: Date,
+  yearEnd: Date,
+): Promise<number> {
+  const holidays = await db.schoolHoliday.findMany({
+    where: { schoolYearId },
+    select: { startDate: true, endDate: true },
+  });
+
+  const weeks = planSchoolWeeks({
+    yearStart,
+    yearEnd,
+    holidays,
+    firstParity: "A",
+  });
+
+  for (const week of weeks) {
+    await db.schoolWeek.upsert({
+      where: { schoolYearId_number: { schoolYearId, number: week.number } },
+      update: {
+        startsOn: week.startsOn,
+        endsOn: week.endsOn,
+        parity: week.parity,
+      },
+      create: {
+        schoolYearId,
+        number: week.number,
+        startsOn: week.startsOn,
+        endsOn: week.endsOn,
+        parity: week.parity,
+      },
+    });
+  }
+
+  log("weeks", `${weeks.length} taught weeks`);
+  return weeks.length;
 }

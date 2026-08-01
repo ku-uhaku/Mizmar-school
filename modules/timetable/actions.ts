@@ -16,6 +16,7 @@ import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
   entriesInBlock,
   findClash,
+  generateSchoolWeeks,
   saveLessonBlock,
 } from "@/modules/timetable/service";
 import {
@@ -61,6 +62,7 @@ export async function saveTimetableEntryAction(
       roomId: optionalId(formData, "roomId"),
       classGroupId: optionalId(formData, "classGroupId"),
       termId: optionalId(formData, "termId"),
+      weekParity: field(formData, "weekParity") || "ALL",
       spanSlots: field(formData, "spanSlots") || "1",
     });
     if (!parsed.success) {
@@ -220,6 +222,7 @@ export async function saveTimetableEntryAction(
         roomId: room?.id ?? null,
         classGroupId: group?.id ?? null,
         termId: term?.id ?? null,
+        weekParity: parsed.data.weekParity,
         exceptEntryIds: keepIds,
       });
 
@@ -229,7 +232,9 @@ export async function saveTimetableEntryAction(
             ? t.timetable.teacherClash
             : clash.kind === "ROOM"
               ? t.timetable.roomClash
-              : t.timetable.classClash;
+              : clash.kind === "UNAVAILABLE"
+                ? t.timetable.teacherUnavailable
+                : t.timetable.classClash;
         return failure(
           interpolate(message, {
             class: clash.className,
@@ -248,6 +253,7 @@ export async function saveTimetableEntryAction(
         roomId: room?.id ?? null,
         classGroupId: group?.id ?? null,
         termId: term?.id ?? null,
+        weekParity: parsed.data.weekParity,
       },
       replaceIds,
     );
@@ -493,5 +499,47 @@ export async function deleteTimetableExceptionAction(
 
     refresh();
     return success(t.timetable.exceptionCleared);
+  });
+}
+
+/**
+ * Lays out the year's numbered weeks.
+ *
+ * Idempotent, so it is safe to press again after adding a holiday — the weeks
+ * renumber from the same rules and any trailing week the year no longer reaches
+ * is dropped. TIMETABLE_MANAGE rather than a code of its own: the weeks are the
+ * spine the grid hangs on, and whoever may redraw the grid may number them.
+ */
+export async function generateSchoolWeeksAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const schoolId = context.currentSchool?.id;
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    // Re-derived against the school, so a year id from another tenant reaches
+    // nothing — the working context is the only thing trusted here.
+    const year = await db.schoolYear.findFirst({
+      where: { id: schoolYearId, schoolId },
+      select: { id: true },
+    });
+    if (!year) return failure(t.errors.notFound);
+
+    const firstParity = field(formData, "firstParity") === "B" ? "B" : "A";
+    const result = await generateSchoolWeeks(year.id, firstParity);
+
+    refresh();
+    return success(
+      interpolate(t.timetable.weeksGenerated, { count: result.written }),
+    );
   });
 }

@@ -45,6 +45,8 @@ const fr = {
     },
 
     resources: {
+      schoolWeeks: "Semaines de l'année",
+      teacherUnavailability: "Horaires des enseignants",
       transportSchedules: "Horaires de transport",
       banks: "Banques",
       operationCategories: "Rubriques",
@@ -73,6 +75,12 @@ const fr = {
     },
 
     fields: {
+      weekNumber: "Semaine",
+      weekParity: "Rotation",
+      weekLabel: "Libellé",
+      teacher: "Enseignant",
+      timeSlot: "Créneau",
+      unavailabilityReason: "Motif",
       scheduleDirection: "Sens",
       departureTime: "Départ",
       arrivalTime: "Arrivée",
@@ -158,6 +166,14 @@ const fr = {
     },
 
     hints: {
+      weekNumber:
+        "Compte les semaines réellement enseignées — les vacances sont sautées, pas numérotées.",
+      weekParity:
+        "Alterne A et B pour qu'une séance en quinzaine tienne dans une seule grille. Modifiez une ligne pour décaler la rotation.",
+      weekLabel: "Seulement pour les semaines qui en ont un — « Examens », « Rentrée ».",
+      timeSlot: "Le créneau où cet enseignant ne travaille pas.",
+      unavailabilityReason:
+        "Pour qui construit la grille — « cours à l'autre établissement », « temps partiel ».",
       scheduleDirection:
         "Un horaire va dans un seul sens. Un élève qui fait l'aller et le retour est inscrit sur deux d'entre eux, ou sur le circuit lui-même.",
       arrivalTime:
@@ -239,6 +255,10 @@ const fr = {
   },
 
   configOptions: {
+    weekParities: {
+      A: "Semaine A",
+      B: "Semaine B",
+    },
     scheduleDirections: {
       MORNING: "Matin",
       AFTERNOON: "Après-midi",

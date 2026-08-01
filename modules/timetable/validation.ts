@@ -5,6 +5,7 @@ import { enumField, optionalText, requiredText } from "@/lib/validation";
 import {
   EXCEPTION_KINDS,
   MAX_LESSON_SPAN,
+  WEEK_PARITIES,
 } from "@/modules/timetable/enums";
 
 /**
@@ -24,6 +25,8 @@ export function timetableEntrySchema(t: Dictionary) {
     roomId: optionalText(40),
     classGroupId: optionalText(40),
     termId: optionalText(40),
+    /** "ALL" | "A" | "B" — which weeks of the rotation the lesson runs in. */
+    weekParity: enumField(WEEK_PARITIES, t.validation),
     /** Consecutive periods the lesson runs for — 2 is a double period. */
     spanSlots: z.coerce
       .number({ error: v.invalidNumber })

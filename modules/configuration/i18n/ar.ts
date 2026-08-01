@@ -45,6 +45,8 @@ const ar = {
     },
 
     resources: {
+      schoolWeeks: "أسابيع السنة",
+      teacherUnavailability: "أوقات عمل الأساتذة",
       transportSchedules: "مواعيد النقل",
       banks: "الأبناك",
       operationCategories: "الأبواب",
@@ -73,6 +75,12 @@ const ar = {
     },
 
     fields: {
+      weekNumber: "الأسبوع",
+      weekParity: "المناوبة",
+      weekLabel: "التسمية",
+      teacher: "الأستاذ",
+      timeSlot: "الحصة",
+      unavailabilityReason: "السبب",
       scheduleDirection: "الاتجاه",
       departureTime: "الانطلاق",
       arrivalTime: "الوصول",
@@ -158,6 +166,14 @@ const ar = {
     },
 
     hints: {
+      weekNumber:
+        "يعدّ الأسابيع التي تُدرَّس فعلًا — تُتخطى العطل ولا تُرقَّم.",
+      weekParity:
+        "يناوب بين A وB حتى تتسع حصة كل أسبوعين في جدول واحد. عدِّل سطرًا لتغيير موضع استئناف المناوبة.",
+      weekLabel: "فقط للأسابيع التي لها تسمية — «الامتحانات»، «الدخول».",
+      timeSlot: "الحصة التي لا يعمل فيها هذا الأستاذ.",
+      unavailabilityReason:
+        "لمن يبني الجدول — «يدرّس في المؤسسة الأخرى»، «بدوام جزئي».",
       scheduleDirection:
         "تسير الرحلة في اتجاه واحد. التلميذ الذي يقطع الذهاب والإياب يُسجّل في رحلتين، أو على المسار نفسه.",
       arrivalTime:
@@ -228,6 +244,10 @@ const ar = {
   },
 
   configOptions: {
+    weekParities: {
+      A: "الأسبوع A",
+      B: "الأسبوع B",
+    },
     scheduleDirections: {
       MORNING: "صباحًا",
       AFTERNOON: "بعد الزوال",

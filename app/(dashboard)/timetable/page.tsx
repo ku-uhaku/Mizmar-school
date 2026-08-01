@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClassPicker } from "@/modules/timetable/components/class-picker";
+import { GenerateWeeksButton } from "@/modules/timetable/components/generate-weeks-button";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import { WeekPicker } from "@/modules/timetable/components/week-picker";
 import {
@@ -104,6 +105,9 @@ export default async function TimetablePage({
         <Button asChild variant="outline" size="sm">
           <Link href={`/classes/${selected.id}`}>{t.timetable.openClass}</Link>
         </Button>
+        {/* The weeks are the spine the grid hangs on, so the button that lays
+          them out belongs here rather than three screens away. */}
+        {context.can(PERMISSIONS.TIMETABLE_MANAGE) ? <GenerateWeeksButton /> : null}
       </PageHeader>
 
       <ClassPicker

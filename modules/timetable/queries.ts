@@ -46,6 +46,8 @@ export type TimetableEntryView = {
   classGroupId: string | null;
   groupLabel: string | null;
   termId: string | null;
+  /** "ALL" | "A" | "B" — which weeks of the rotation the lesson runs in. */
+  weekParity: string;
   /**
    * How many consecutive periods this lesson runs for — 2 for a double period.
    *
@@ -126,6 +128,7 @@ export async function loadClassTimetable(
         roomId: true,
         classGroupId: true,
         termId: true,
+        weekParity: true,
         subject: {
           select: { name: true, shortName: true, code: true, colorHex: true },
         },
@@ -247,6 +250,7 @@ export async function loadClassTimetable(
             ? (entry.classGroup.name ?? entry.classGroup.code)
             : null,
           termId: entry.termId,
+          weekParity: entry.weekParity,
           span: 1,
           entryIds: [entry.id],
         },

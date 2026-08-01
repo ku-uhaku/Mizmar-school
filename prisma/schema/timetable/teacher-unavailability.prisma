@@ -1,0 +1,53 @@
+/// A period of the week a teacher does not work — "M. Bennis, lundi 08:00–10:00".
+///
+/// ── Why it is one row per slot ──────────────────────────────────────────────
+/// Not a start and end time: the timetable is laid out in slots, every clash
+/// rule already works per slot, and a range would have to be re-intersected with
+/// the grid on every check. One row per blocked slot makes "is this teacher free
+/// here?" a lookup rather than an interval calculation, and it survives a school
+/// that changes its bell schedule mid-year.
+///
+/// ── Why unavailability and not availability ─────────────────────────────────
+/// A full-time teacher is free almost everywhere, so recording what they *can*
+/// do would mean ticking thirty boxes each to say nothing. Blocking is the short
+/// list, and an empty list correctly means "available whenever the school
+/// teaches". The vacataire who comes in two mornings a week is the awkward case
+/// either way, and blocking the rest is no worse than ticking the two.
+///
+/// This is a **hard** constraint: `findClash` refuses a lesson placed in a
+/// blocked slot, exactly as it refuses a teacher already booked elsewhere. It is
+/// a standing arrangement, not a one-off — a day off sick is a TeacherAbsence,
+/// and a single lesson moved is a TimetableException.
+///
+/// Year-scoped through the slot rather than by its own column: TimeSlot already
+/// belongs to a year, and a second copy of that fact is a second thing to keep
+/// in step.
+model TeacherUnavailability {
+  id String @id @default(cuid())
+
+  /// Cascade: an account removed takes its own constraints with it. Nothing is
+  /// lost that is not re-derivable — no lesson points at this row.
+  teacherId String
+  teacher   User   @relation("TeacherUnavailability", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  /// Cascade for the same reason: rewriting the bell schedule drops the blocks
+  /// that referred to slots which no longer exist, which is the right answer —
+  /// a block on a period that is gone constrains nothing.
+  timeSlotId String
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+
+  /// Why, when it is worth saying — "cours à l'autre établissement", "temps
+  /// partiel". Free text: this is a note for whoever builds the grid, not
+  /// something the app reasons about.
+  reason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One block per teacher per period. Blocking the same slot twice is a
+  /// double-click, not a stronger constraint.
+  @@unique([teacherId, timeSlotId])
+  @@index([teacherId])
+  @@index([timeSlotId])
+  @@map("teacher_unavailability")
+}

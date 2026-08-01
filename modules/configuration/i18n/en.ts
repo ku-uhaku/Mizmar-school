@@ -48,6 +48,8 @@ const en = {
     },
 
     resources: {
+      schoolWeeks: "Weeks of the year",
+      teacherUnavailability: "Teacher availability",
       transportSchedules: "Transport timetables",
       banks: "Banks",
       operationCategories: "Rubrics",
@@ -76,6 +78,12 @@ const en = {
     },
 
     fields: {
+      weekNumber: "Week",
+      weekParity: "Rotation",
+      weekLabel: "Name",
+      teacher: "Teacher",
+      timeSlot: "Period",
+      unavailabilityReason: "Reason",
       scheduleDirection: "Direction",
       departureTime: "Departs",
       arrivalTime: "Arrives",
@@ -161,6 +169,14 @@ const en = {
     },
 
     hints: {
+      weekNumber:
+        "Counts the weeks the school actually teaches in — holidays are skipped, not numbered.",
+      weekParity:
+        "Alternates A and B so a fortnightly lesson can sit in one grid. Flip a row to change where the rotation resumes.",
+      weekLabel: "Only for the weeks that have one — \"Exams\", \"Rentrée\".",
+      timeSlot: "The period this teacher does not work.",
+      unavailabilityReason:
+        "For whoever builds the grid — \"teaches at the other school\", \"part-time\".",
       scheduleDirection:
         "A run goes one way. A pupil riding both ways is booked on two of them, or on the line itself.",
       arrivalTime: "Leave it blank until somebody has timed the round.",
@@ -233,6 +249,10 @@ const en = {
   },
 
   configOptions: {
+    weekParities: {
+      A: "Week A",
+      B: "Week B",
+    },
     scheduleDirections: {
       MORNING: "Morning",
       AFTERNOON: "Afternoon",

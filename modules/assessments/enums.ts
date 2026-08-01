@@ -165,3 +165,18 @@ export function markStatistics(
     passRate: Math.round((passCount / scores.length) * 100),
   };
 }
+
+/**
+ * How wide a round of contrôles is generated.
+ *
+ *   CLASS  one class — a make-up paper, or a class running behind
+ *   LEVEL  every class of one level, which is how a round is actually set:
+ *          3AP sits the same contrôle n°1 in all three of its classes
+ *   YEAR   every class in the school, for a round that is school-wide
+ *
+ * LEVEL is the ordinary case and the reason this exists. Generating class by
+ * class meant the same dialog filled in eight times, and the eighth was where
+ * somebody mistyped a date.
+ */
+export const GENERATE_SCOPES = ["CLASS", "LEVEL", "YEAR"] as const;
+export type GenerateScope = (typeof GENERATE_SCOPES)[number];

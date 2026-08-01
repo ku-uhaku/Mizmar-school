@@ -79,7 +79,9 @@ export async function generateAssessmentsAction(
     await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_MANAGE);
 
     const parsed = generateSchema(t).safeParse({
+      scope: field(formData, "scope") || "CLASS",
       schoolClassId: field(formData, "schoolClassId"),
+      levelOfferingId: field(formData, "levelOfferingId"),
       termId: field(formData, "termId"),
       assessmentTypeId: field(formData, "assessmentTypeId"),
       sequence: field(formData, "sequence"),
@@ -93,16 +95,34 @@ export async function generateAssessmentsAction(
       );
     }
 
-    // The class and the term are both re-derived against the working context,
-    // so neither id can point outside the school and year the user has selected.
-    const [schoolClass, term] = await Promise.all([
-      db.schoolClass.findFirst({
+    /*
+      The classes to write for, always re-derived against the working context so
+      no id in the request can reach outside the school and year in play.
+
+      The three scopes narrow the same query rather than taking three paths:
+      CLASS pins the class, LEVEL pins its offering, YEAR pins nothing beyond
+      the year itself. Inactive classes are left out of the wider scopes — a
+      class kept for last year's records should not gain this year's papers.
+    */
+    const classWhere =
+      parsed.data.scope === "CLASS"
+        ? { id: parsed.data.schoolClassId ?? "__none__" }
+        : parsed.data.scope === "LEVEL"
+          ? {
+              isActive: true,
+              levelOfferingId: parsed.data.levelOfferingId ?? "__none__",
+            }
+          : { isActive: true };
+
+    const [classes, term] = await Promise.all([
+      db.schoolClass.findMany({
         where: {
-          id: parsed.data.schoolClassId,
+          ...classWhere,
           schoolId,
           levelOffering: { schoolYearId: context.currentSchoolYear.id },
         },
-        select: { id: true },
+        orderBy: { code: "asc" },
+        select: { id: true, code: true },
       }),
       db.term.findFirst({
         where: {
@@ -113,7 +133,7 @@ export async function generateAssessmentsAction(
       }),
     ]);
 
-    if (!schoolClass || !term) return failure(t.errors.notFound);
+    if (classes.length === 0 || !term) return failure(t.errors.notFound);
     if (term.status === "CLOSED") return failure(t.assessment.termClosed);
 
     /*
@@ -145,14 +165,41 @@ export async function generateAssessmentsAction(
 
     if (targets.length === 0) return failure(t.assessment.noSubjectsChosen);
 
-    const result = await generateAssessments({
-      schoolClassId: schoolClass.id,
-      termId: term.id,
-      assessmentTypeId: parsed.data.assessmentTypeId,
-      sequence: parsed.data.sequence,
-      targets,
-      createdById: context.user.id,
-    });
+    /*
+      One run per class, aggregated.
+
+      Sequential rather than in parallel: each run reads the class's programme
+      and its teaching assignments, and a whole year at once would open a
+      connection per class against SQLite for no gain — the work is small and
+      the screen is used a handful of times a term.
+
+      `generateAssessments` only writes subjects that are genuinely on the
+      class's own programme, so a wider scope can be handed the union of every
+      level's subjects and each class still gets exactly its own.
+    */
+    let created = 0;
+    let skipped = 0;
+    const unstaffedSubjects = new Set<string>();
+
+    for (const schoolClass of classes) {
+      const result = await generateAssessments({
+        schoolClassId: schoolClass.id,
+        termId: term.id,
+        assessmentTypeId: parsed.data.assessmentTypeId,
+        sequence: parsed.data.sequence,
+        targets,
+        createdById: context.user.id,
+      });
+      created += result.created;
+      skipped += result.skipped;
+      for (const subject of result.unstaffed) unstaffedSubjects.add(subject);
+    }
+
+    const result = {
+      created,
+      skipped,
+      unstaffed: [...unstaffedSubjects].sort(),
+    };
 
     refresh();
 
@@ -176,9 +223,9 @@ export async function generateAssessmentsAction(
         : failure(t.assessment.noProgramme);
     }
 
-    const message = interpolate(t.assessment.generated, {
+    const message = interpolate(t.assessment.generatedAcross, {
       count: result.created,
-      skipped: result.skipped,
+      classes: classes.length,
     });
 
     // Partial success is still a success — the papers that could be written

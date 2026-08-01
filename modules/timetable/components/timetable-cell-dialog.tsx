@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
+import { WEEK_PARITIES } from "@/modules/timetable/enums";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
@@ -310,6 +311,31 @@ export function TimetableCellDialog({
                     {choices.terms.map((term) => (
                       <SelectItem key={term.id} value={term.id}>
                         {term.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField
+                name="weekParity"
+                label={t.timetable.weekParity}
+                hint={t.timetable.weekParityHint}
+                error={errors.weekParity}
+              >
+                <Select
+                  name="weekParity"
+                  defaultValue={
+                    valueOf(state, "weekParity", entry?.weekParity) || "ALL"
+                  }
+                >
+                  <SelectTrigger id="weekParity" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEEK_PARITIES.map((parity) => (
+                      <SelectItem key={parity} value={parity}>
+                        {t.timetable.weekParities[parity]}
                       </SelectItem>
                     ))}
                   </SelectContent>

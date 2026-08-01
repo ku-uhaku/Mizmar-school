@@ -9,6 +9,7 @@ import {
 } from "@/lib/validation";
 import {
   ASSESSMENT_STATUSES,
+  GENERATE_SCOPES,
   MAX_SEQUENCE,
 } from "@/modules/assessments/enums";
 
@@ -28,7 +29,12 @@ function sequenceField(t: Dictionary) {
 export function generateSchema(t: Dictionary) {
   const v = t.validation;
   return z.object({
-    schoolClassId: requiredText(v, { max: 40 }),
+    /** "CLASS" | "LEVEL" | "YEAR" — see modules/assessments/enums.ts. */
+    scope: enumField(GENERATE_SCOPES, v),
+    /** Required for CLASS, ignored otherwise — the action decides which. */
+    schoolClassId: optionalText(40),
+    /** Required for LEVEL, ignored otherwise. */
+    levelOfferingId: optionalText(40),
     termId: requiredText(v, { max: 40 }),
     assessmentTypeId: requiredText(v, { max: 40 }),
     sequence: sequenceField(t),

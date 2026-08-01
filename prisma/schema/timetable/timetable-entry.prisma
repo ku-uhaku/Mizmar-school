@@ -39,6 +39,18 @@ model TimetableEntry {
   termId String?
   term   Term?   @relation(fields: [termId], references: [id], onDelete: Cascade)
 
+  /// "ALL" | "A" | "B" — see WEEK_PARITIES in modules/timetable/enums.ts.
+  ///
+  /// Which weeks this lesson actually runs in. ALL is the ordinary case; A and B
+  /// are what let a fortnightly lab, or two half-groups alternating in one
+  /// room, share a single grid instead of needing two.
+  ///
+  /// It is part of `bookingKey` below, so the same class can hold the same slot
+  /// in A and in B. It does **not** make the database able to enforce the whole
+  /// rule: ALL overlaps both A and B, and no key can express that — see
+  /// `parityOverlaps` and the service-layer check in `findClash`.
+  weekParity String @default("ALL")
+
   /// Makes rule 1 enforceable by the database.
   ///
   /// Both `classGroupId` and `termId` are nullable, and SQLite treats NULLs as
@@ -50,7 +62,7 @@ model TimetableEntry {
   /// This column mirrors the two nullable keys with "" standing in for null, so
   /// the index below has nothing nullable in it.
   ///
-  /// INVARIANT: always `bookingKeyOf(classGroupId, termId)` from
+  /// INVARIANT: always `bookingKeyOf(classGroupId, termId, weekParity)` from
   /// modules/timetable/enums.ts. Never set it by hand.
   bookingKey String
 

@@ -50,6 +50,9 @@ model TimeSlot {
 
   timetableEntries TimetableEntry[]
   timetableExceptions TimetableException[]
+  /// Teachers who do not work this period — see
+  /// prisma/schema/timetable/teacher-unavailability.prisma.
+  unavailability   TeacherUnavailability[]
   /// Registers taken during this period. SetNull: rewriting the bell schedule
   /// must not delete last term's absences.
   attendance       StudentAttendance[]
