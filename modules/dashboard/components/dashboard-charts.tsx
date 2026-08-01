@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SectionHeading } from "@/modules/dashboard/components/section-card";
 import { formatMonth, interpolate } from "@/lib/i18n/format";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import type { DashboardCharts as ChartData } from "@/modules/dashboard/queries";
@@ -50,15 +51,17 @@ export function DashboardCharts({ charts }: { charts: ChartData }) {
     ? Math.round((standing.paidCentimes / standing.chargedCentimes) * 100)
     : 0;
 
+  // The two plots share a row, but a reader permitted only one of them would
+  // get a card beside half a row of nothing. The survivor takes the width.
+  const alone = hasLevels !== hasTrend ? "lg:col-span-2" : undefined;
+
   return (
-    <section className="grid gap-4">
-      <h2 className="text-lg font-semibold tracking-tight">
-        {t.dashboard.charts}
-      </h2>
+    <section className="space-y-3">
+      <SectionHeading label={t.dashboard.charts} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {hasLevels ? (
-          <Card>
+          <Card className={alone}>
             <CardHeader>
               <CardTitle>{t.dashboard.pupilsPerLevel}</CardTitle>
               <CardDescription>{t.dashboard.pupilsPerLevelHint}</CardDescription>
@@ -75,7 +78,7 @@ export function DashboardCharts({ charts }: { charts: ChartData }) {
         ) : null}
 
         {hasTrend ? (
-          <Card>
+          <Card className={alone}>
             <CardHeader>
               <CardTitle>{t.dashboard.collectionTrend}</CardTitle>
               <CardDescription>

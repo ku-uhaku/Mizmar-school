@@ -17,6 +17,7 @@ const fr = {
     essentials: "L'essentiel",
     essentialsHint:
       "Seuls le nom, le sexe et la date de naissance sont obligatoires.",
+    sections: "Sections",
     createHint: "Tout ce qui reste vide pourra être complété plus tard.",
     references: "Identifiants",
     referencesHint:
@@ -34,12 +35,14 @@ const fr = {
     birthDate: "Date de naissance",
     birthDateHint: "Détermine le niveau auquel l'enfant peut être admis.",
     birthPlace: "Lieu de naissance",
-    noCities: "Aucune ville configur\u00e9e \u2014 ajoutez-les dans Configuration.",
+    noCities:
+      "Aucune ville configur\u00e9e \u2014 ajoutez-les dans Configuration.",
     nationality: "Nationalité",
     nationalId: "CNIE",
     nationalIdHint: "Pour les élèves en âge d'en posséder une.",
     photoUrl: "URL de la photo",
     age: "Âge",
+    ageYears: "{count} ans",
     entryDate: "Arrivée à l'école",
     exitDate: "Départ le",
     medical: "Santé",

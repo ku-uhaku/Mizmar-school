@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { FormField, controlProps } from "@/components/form/form-field";
+import { FormNav, type FormNavItem } from "@/components/form/form-nav";
 import { ImageField } from "@/components/form/image-field";
 import {
   FormActions,
@@ -16,6 +17,7 @@ import {
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,6 +39,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
+import type { Dictionary } from "@/lib/i18n/types";
 import { ageFrom } from "@/lib/utils";
 import { formatNumber, interpolate } from "@/lib/i18n/format";
 import {
@@ -51,6 +54,21 @@ import {
   siblingCountOf,
 } from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
+
+/**
+ * The fiche's table of contents, in the order the sections are rendered in.
+ * Kept beside the form rather than in `enums.ts` — these are the ids of this
+ * screen's own anchors, not a domain value anything else may read.
+ */
+const SECTIONS = (t: Dictionary): FormNavItem[] => [
+  { id: "section-essentials", label: t.student.essentials },
+  { id: "section-names", label: t.student.names },
+  { id: "section-references", label: t.student.references },
+  { id: "section-medical", label: t.student.medical },
+  { id: "section-schooling", label: t.student.schooling },
+  { id: "section-household", label: t.student.household },
+  { id: "section-notes", label: t.student.notes },
+];
 
 /**
  * A pupil's identity. Nothing about a year is here — the level, the class and
@@ -97,7 +115,24 @@ export function StudentForm({
   });
 
   const errors = state.fieldErrors ?? {};
-  const age = student ? ageFrom(student.birthDate) : null;
+
+  // The three identity fields are mirrored into state so the aside can show the
+  // child taking shape as the fiche is copied out — a date of birth that reads
+  // back as "47 years" is caught at the desk rather than at the next enrolment.
+  // The inputs stay uncontrolled; this only watches them.
+  const [firstName, setFirstName] = React.useState(
+    valueOf(state, "firstName", student?.firstName),
+  );
+  const [lastName, setLastName] = React.useState(
+    valueOf(state, "lastName", student?.lastName),
+  );
+  const [birthDate, setBirthDate] = React.useState(
+    valueOf(state, "birthDate", student?.birthDate),
+  );
+  const age = ageFrom(birthDate);
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  const initials =
+    `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "—";
 
   // Held in state only so the fratrie total updates as the counts are typed —
   // the total is never submitted, and never stored. See `siblingCountOf`.
@@ -118,7 +153,7 @@ export function StudentForm({
 
   const details = (
     <>
-      <FormSection title={t.student.names}>
+      <FormSection id="section-names" title={t.student.names}>
         <FormGrid cols={2}>
           <FormField
             name="firstNameAr"
@@ -176,6 +211,7 @@ export function StudentForm({
       </FormSection>
 
       <FormSection
+        id="section-references"
         title={t.student.references}
         description={t.student.referencesHint}
       >
@@ -273,6 +309,7 @@ export function StudentForm({
       </FormSection>
 
       <FormSection
+        id="section-medical"
         title={t.student.medical}
         description={t.student.medicalHint}
       >
@@ -441,6 +478,7 @@ export function StudentForm({
       </FormSection>
 
       <FormSection
+        id="section-schooling"
         title={t.student.schooling}
         description={t.student.schoolingHint}
       >
@@ -556,6 +594,7 @@ export function StudentForm({
       </FormSection>
 
       <FormSection
+        id="section-household"
         title={t.student.household}
         description={t.student.householdHint}
       >
@@ -679,7 +718,7 @@ export function StudentForm({
         </FormGrid>
       </FormSection>
 
-      <FormSection title={t.student.notes}>
+      <FormSection id="section-notes" title={t.student.notes}>
         <FormField name="notes" label={t.student.notes} error={errors.notes}>
           <Textarea
             {...controlProps("notes", errors.notes)}
@@ -697,76 +736,106 @@ export function StudentForm({
 
       <FormLayout
         aside={
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.student.family}</CardTitle>
-              <CardDescription>{t.student.familyHint}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-5">
-              <FormField
-                name="familyId"
-                label={t.student.family}
-                error={errors.familyId}
-              >
-                <Select
-                  name="familyId"
-                  defaultValue={
-                    valueOf(state, "familyId", student?.familyId) || "__none__"
-                  }
-                >
-                  <SelectTrigger id="familyId" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{t.common.none}</SelectItem>
-                    {families.map((family) => (
-                      <SelectItem key={family.id} value={family.id}>
-                        {family.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              {!isEdit ? (
-                <p className="text-muted-foreground text-xs text-pretty">
-                  {t.student.familyLater}
-                </p>
-              ) : null}
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="isActive">{t.common.active}</Label>
-                  <p className="text-muted-foreground text-xs">
-                    {t.common.active} / {t.common.inactive}
+          <>
+            {/* The child as typed so far. On a blank fiche it is the only thing
+              on screen that says what is being created, and on an open file it
+              is the confirmation that the right one is being edited. */}
+            <Card className="gap-0 py-4">
+              <CardContent className="flex items-center gap-3 px-4">
+                <Avatar className="size-11 border">
+                  {student?.photoUrl ? (
+                    <AvatarImage src={student.photoUrl} alt="" />
+                  ) : null}
+                  <AvatarFallback className="text-sm">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {fullName || (
+                      <span className="text-muted-foreground font-normal">
+                        {t.student.newStudent}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {age !== null
+                      ? interpolate(t.student.ageYears, {
+                          count: formatNumber(age, locale),
+                        })
+                      : t.student.birthDateHint}
                   </p>
                 </div>
-                <Switch
-                  id="isActive"
-                  name="isActive"
-                  defaultChecked={checkedOf(
-                    state,
-                    "isActive",
-                    student?.isActive ?? true,
-                  )}
-                />
-              </div>
+              </CardContent>
+            </Card>
 
-              {age !== null ? (
-                <dl className="grid gap-2 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="text-muted-foreground">{t.student.age}</dt>
-                    <dd className="tabular-nums">
-                      {formatNumber(age, locale)}
-                    </dd>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.student.family}</CardTitle>
+                <CardDescription>{t.student.familyHint}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5">
+                <FormField
+                  name="familyId"
+                  label={t.student.family}
+                  error={errors.familyId}
+                >
+                  <Select
+                    name="familyId"
+                    defaultValue={
+                      valueOf(state, "familyId", student?.familyId) ||
+                      "__none__"
+                    }
+                  >
+                    <SelectTrigger id="familyId" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t.common.none}</SelectItem>
+                      {families.map((family) => (
+                        <SelectItem key={family.id} value={family.id}>
+                          {family.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                {!isEdit ? (
+                  <p className="text-muted-foreground text-xs text-pretty">
+                    {t.student.familyLater}
+                  </p>
+                ) : null}
+
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="isActive">{t.common.active}</Label>
+                    <p className="text-muted-foreground text-xs">
+                      {t.common.active} / {t.common.inactive}
+                    </p>
                   </div>
-                </dl>
-              ) : null}
-            </CardContent>
-          </Card>
+                  <Switch
+                    id="isActive"
+                    name="isActive"
+                    defaultChecked={checkedOf(
+                      state,
+                      "isActive",
+                      student?.isActive ?? true,
+                    )}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* The age used to sit here as a lone definition row; it now reads
+              off the preview above, where it is next to the name it belongs
+              to. */}
+            <FormNav label={t.student.sections} items={SECTIONS(t)} />
+          </>
         }
       >
         <FormSection
+          id="section-essentials"
           title={t.student.essentials}
           description={isEdit ? undefined : t.student.essentialsHint}
         >
@@ -780,6 +849,7 @@ export function StudentForm({
               <Input
                 {...controlProps("firstName", errors.firstName)}
                 defaultValue={valueOf(state, "firstName", student?.firstName)}
+                onChange={(event) => setFirstName(event.target.value)}
                 autoFocus={!isEdit}
                 required
               />
@@ -794,6 +864,7 @@ export function StudentForm({
               <Input
                 {...controlProps("lastName", errors.lastName)}
                 defaultValue={valueOf(state, "lastName", student?.lastName)}
+                onChange={(event) => setLastName(event.target.value)}
                 required
               />
             </FormField>
@@ -840,6 +911,7 @@ export function StudentForm({
                 )}
                 type="date"
                 defaultValue={valueOf(state, "birthDate", student?.birthDate)}
+                onChange={(event) => setBirthDate(event.target.value)}
                 dir="ltr"
                 required
               />

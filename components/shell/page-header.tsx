@@ -9,6 +9,7 @@ export function PageHeader({
   backHref,
   backLabel,
   avatar,
+  meta,
   children,
 }: {
   title: string;
@@ -23,6 +24,12 @@ export function PageHeader({
    * wants to be sure they have the right child open.
    */
   avatar?: React.ReactNode;
+  /**
+   * Status badges and the like, under the title. Kept out of the action
+   * cluster: a badge is something to read and a button is something to press,
+   * and mixing them makes the reader test each one to find out which it is.
+   */
+  meta?: React.ReactNode;
   /** Primary actions, rendered at the inline end. */
   children?: React.ReactNode;
 }) {
@@ -52,6 +59,11 @@ export function PageHeader({
             <p className="text-muted-foreground text-sm text-pretty">
               {description}
             </p>
+          ) : null}
+          {meta ? (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {meta}
+            </div>
           ) : null}
         </div>
         {children ? (

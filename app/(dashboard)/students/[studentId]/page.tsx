@@ -79,7 +79,10 @@ export default async function StudentPage({
     listFamilyChoices(context),
     // The pupil's own towns are kept in the list even if deactivated, so
     // merging two spellings never blanks a birthplace on the next save.
-    listCityChoices(context, [student.birthCityId, student.previousSchoolCityId]),
+    listCityChoices(context, [
+      student.birthCityId,
+      student.previousSchoolCityId,
+    ]),
   ]);
 
   // The rest depends on what the first round found: no dossier means no
@@ -157,6 +160,17 @@ export default async function StudentPage({
             </AvatarFallback>
           </Avatar>
         }
+        meta={
+          <>
+            <StudentStatusBadge status={student.status} />
+            {student.levelName ? (
+              <Badge variant="secondary">{student.levelName}</Badge>
+            ) : null}
+            {student.className ? (
+              <Badge variant="outline">{student.className}</Badge>
+            ) : null}
+          </>
+        }
       >
         <Button asChild variant="outline" size="sm">
           <Link href={`/print/student/${student.id}/attestation`}>
@@ -171,13 +185,6 @@ export default async function StudentPage({
               {t.print.schedule}
             </Link>
           </Button>
-        ) : null}
-        <StudentStatusBadge status={student.status} />
-        {student.levelName ? (
-          <Badge variant="secondary">{student.levelName}</Badge>
-        ) : null}
-        {student.className ? (
-          <Badge variant="outline">{student.className}</Badge>
         ) : null}
       </PageHeader>
 

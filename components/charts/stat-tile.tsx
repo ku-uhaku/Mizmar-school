@@ -25,6 +25,7 @@ export function StatTile({
   href,
   trend,
   delta,
+  compact,
 }: {
   label: string;
   value: number;
@@ -38,6 +39,12 @@ export function StatTile({
   trend?: number[];
   /** Signed percentage against a named period, e.g. { value: 4.1, period: "…" } */
   delta?: { value: number; period: string; upIsGood?: boolean };
+  /**
+   * A smaller figure, for a band that is reference rather than the point of the
+   * screen. Same contract and same tile — only the weight changes, so a
+   * secondary band cannot out-shout the primary one above it.
+   */
+  compact?: boolean;
 }) {
   const upIsGood = delta?.upIsGood ?? true;
   const isGood = delta ? delta.value >= 0 === upIsGood : true;
@@ -46,11 +53,12 @@ export function StatTile({
   const body = (
     <Card
       className={cn(
-        "h-full gap-0 py-5 transition-colors",
+        "h-full gap-0 transition-colors",
+        compact ? "py-4" : "py-5",
         href ? "group-hover:border-primary/40" : "",
       )}
     >
-      <CardContent className="px-5">
+      <CardContent className={compact ? "px-4" : "px-5"}>
         <div className="flex items-start justify-between gap-2">
           <p className="text-muted-foreground text-sm">{label}</p>
           <span className="text-muted-foreground/70 shrink-0">
@@ -62,12 +70,27 @@ export function StatTile({
           </span>
         </div>
 
-        <div className="mt-2 flex items-end justify-between gap-3">
+        <div
+          className={cn(
+            "flex items-end justify-between gap-3",
+            compact ? "mt-1.5" : "mt-2",
+          )}
+        >
           <div className="min-w-0">
-            <p className="text-3xl font-semibold tracking-tight">
+            <p
+              className={cn(
+                "font-semibold tracking-tight",
+                compact ? "text-2xl" : "text-3xl",
+              )}
+            >
               {formatNumber(value, locale)}
               {suffix ? (
-                <span className="text-muted-foreground ms-0.5 text-xl font-medium">
+                <span
+                  className={cn(
+                    "text-muted-foreground ms-0.5 font-medium",
+                    compact ? "text-lg" : "text-xl",
+                  )}
+                >
                   {suffix}
                 </span>
               ) : null}

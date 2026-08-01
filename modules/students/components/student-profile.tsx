@@ -29,6 +29,7 @@ import type {
 } from "@/modules/classroom/queries";
 import { StudentForm } from "@/modules/students/components/student-form";
 import { StudentFamilyPanel } from "@/modules/students/components/student-family-panel";
+import { StudentSummary } from "@/modules/students/components/student-summary";
 import { StudentWorkflow } from "@/modules/students/components/student-workflow";
 import type { StudentWorkflowStep } from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
@@ -153,7 +154,11 @@ export function StudentProfile({
 
   return (
     <>
-      <div className="mb-4">
+      {/* Who, then how far along, then the file itself. The two bands are read
+        in that order at the desk and are laid out in it. */}
+      <div className="mb-4 space-y-3">
+        <StudentSummary student={student} family={family} />
+
         <StudentWorkflow
           state={workflow}
           steps={workflowSteps}

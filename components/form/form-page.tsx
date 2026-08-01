@@ -14,18 +14,25 @@ import { cn } from "@/lib/utils";
  */
 
 export function FormSection({
+  id,
   title,
   description,
   children,
   className,
 }: {
+  /**
+   * Anchor for `FormNav`. The scroll margin keeps the heading clear of the app
+   * header when a jump link lands on it — without it the title sits under the
+   * bar and the reader has to scroll back up to see where they arrived.
+   */
+  id?: string;
   title: string;
   description?: string;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <Card>
+    <Card id={id} className={id ? "scroll-mt-24" : undefined}>
       <CardHeader className="border-b">
         <CardTitle>{title}</CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
