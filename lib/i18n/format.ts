@@ -61,6 +61,28 @@ export function formatNumber(value: number, locale: Locale): string {
 }
 
 /**
+ * A number with a fixed number of decimals — "45,0", "10,9".
+ *
+ * For quantities that are stored as integers in a smaller unit and read in a
+ * larger one: litres held in tenths, a consumption figure per 100 km. Fixed
+ * rather than "up to", because a column of 45,0 and 46 does not line up and the
+ * trailing zero is what says the tenth was measured.
+ *
+ * Money does not come through here — it has `formatAmount` and `formatMoney`,
+ * which fix two decimals and know about the currency.
+ */
+export function formatDecimal(
+  value: number,
+  locale: Locale,
+  fractionDigits = 1,
+): string {
+  return new Intl.NumberFormat(intlLocale(locale), {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+/**
  * "September 2025" — the label for a column or card standing for a whole month.
  *
  * Takes the month 1-based, as the schedule's `dueMonth` stores it, rather than

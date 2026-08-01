@@ -45,6 +45,11 @@ import {
   PAYMENT_STATE_STYLES,
   standingStateOf,
 } from "@/modules/treasury/payment-state";
+import { TransportPanel } from "@/modules/transport/components/transport-panel";
+import type {
+  NeighbourhoodChoice,
+  RiderRow,
+} from "@/modules/transport/queries";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableChoices } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableGrid as TimetableGridData } from "@/modules/timetable/queries";
@@ -88,6 +93,8 @@ export function StudentProfile({
   payable,
   banks,
   hasOpenSession,
+  transportChoices,
+  transportSubscriptions,
   workflow,
   workflowSteps,
   permissions,
@@ -131,6 +138,12 @@ export function StudentProfile({
   attendance: PupilAttendance | null;
   marks: PupilMarks | null;
   remarks: PupilRemarkRow[] | null;
+  /**
+   * The bus. Null when the viewer may not see transport at all — the tab is
+   * absent rather than empty, like the money tabs above.
+   */
+  transportChoices: NeighbourhoodChoice[] | null;
+  transportSubscriptions: RiderRow[];
   /** The household's payable schedule, so the till renders on the payment tab. */
   payable: PayableFamily | null;
   banks: BankOption[];
@@ -147,6 +160,7 @@ export function StudentProfile({
     canManageFees: boolean;
     canCollect: boolean;
     canCancelPayment: boolean;
+    canSubscribeTransport: boolean;
   };
 }) {
   const t = useT();
@@ -237,6 +251,18 @@ export function StudentProfile({
               ) : null}
             </TabsTrigger>
           ) : null}
+          {/* Absent, not disabled, when the reader may not see transport —
+            the same rule the money and register tabs follow. */}
+          {transportChoices ? (
+            <TabsTrigger value="transport">
+              {t.transport.tabTransport}
+              {transportSubscriptions.length > 0 ? (
+                <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                  {transportSubscriptions.length}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="timetable">{t.student.tabTimetable}</TabsTrigger>
         </TabsList>
 
@@ -319,6 +345,17 @@ export function StudentProfile({
         {remarks ? (
           <TabsContent value="remarks">
             <PupilRemarksPanel remarks={remarks} />
+          </TabsContent>
+        ) : null}
+
+        {transportChoices ? (
+          <TabsContent value="transport">
+            <TransportPanel
+              enrolmentId={enrolment?.id ?? null}
+              neighbourhoods={transportChoices}
+              subscriptions={transportSubscriptions}
+              canSubscribe={permissions.canSubscribeTransport}
+            />
           </TabsContent>
         ) : null}
 

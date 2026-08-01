@@ -19,6 +19,7 @@ const fr = {
     outOfContext:
       "Ce choix n'appartient pas à l'école dans laquelle vous travaillez.",
 
+    arrivalBeforeDeparture: "L'arrivée doit suivre le départ.",
     codeFormatNeedsSequence:
       "Incluez {seq} — sans lui, toutes les références de l'année seraient identiques.",
 
@@ -30,6 +31,7 @@ const fr = {
       classes: "Classes",
       billing: "Frais",
       treasury: "Caisse",
+      logistique: "Transport",
     },
 
     groups: {
@@ -43,6 +45,7 @@ const fr = {
     },
 
     resources: {
+      transportSchedules: "Horaires de transport",
       banks: "Banques",
       operationCategories: "Rubriques",
       operationSubcategories: "Sous-rubriques",
@@ -70,6 +73,9 @@ const fr = {
     },
 
     fields: {
+      scheduleDirection: "Sens",
+      departureTime: "Départ",
+      arrivalTime: "Arrivée",
       region: "Région",
       city: "Ville",
       landmark: "Rue ou repère",
@@ -152,6 +158,10 @@ const fr = {
     },
 
     hints: {
+      scheduleDirection:
+        "Un horaire va dans un seul sens. Un élève qui fait l'aller et le retour est inscrit sur deux d'entre eux, ou sur le circuit lui-même.",
+      arrivalTime:
+        "À laisser vide tant que la tournée n'a pas été chronométrée.",
       region: "Facultatif — utile seulement pour regrouper une longue liste.",
       holidayEnd: "Inclus — pour un seul jour, répétez la date de début.",
       substitute: "Laisser vide si personne ne remplace.",
@@ -229,6 +239,10 @@ const fr = {
   },
 
   configOptions: {
+    scheduleDirections: {
+      MORNING: "Matin",
+      AFTERNOON: "Après-midi",
+    },
     categoryKinds: {
       IN: "Encaissement",
       OUT: "Décaissement",

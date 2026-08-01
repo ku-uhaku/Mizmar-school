@@ -1,15 +1,19 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { splitIntoInstalments } from "@/modules/billing/enums";
-import { netAmount } from "@/modules/enrolment/enums";
+import { generateFeeSchedule } from "@/modules/enrolment/service";
+import { recordDisbursement } from "@/modules/treasury/service";
 import {
   SEAT_HOLDING_STATUSES,
-  priceForDirection,
+  driverLabel,
   seatsOnRoute,
   seatsRemaining,
-  type SubscriptionStatus,
+  busRegisterScopeKey,
   type TransportDirection,
+  tenthsToLitres,
+  type FuelRequestStatus,
+  type RiderAttendanceStatus,
+  type SubscriptionStatus,
 } from "@/modules/transport/enums";
 
 /**
@@ -54,99 +58,14 @@ export async function seatCheck(routeId: string): Promise<SeatCheck | null> {
   return { seats, taken, remaining: seatsRemaining(seats, taken) };
 }
 
-// ── The bill ─────────────────────────────────────────────────────────────────
-
-/**
- * Writes the zone's price onto a pupil's TRANSPORT fee lines.
- *
- * ── Why this exists ─────────────────────────────────────────────────────────
- * The échéancier is generated from the price list, which prices a charge by
- * *level*. Transport is priced by *distance*, and there is no level in that
- * sentence — so the schedule raises transport lines at whatever flat rate the
- * fee list carries, and this corrects them to what the family actually agreed
- * to when they picked a stop.
- *
- * The annual figure is split across the lines that already exist, rather than
- * new lines being raised: how many instalments transport is collected in is the
- * bursar's decision, recorded in the price list, and this must not quietly
- * re-plan it. `splitIntoInstalments` is the same helper the schedule itself
- * uses, so the parts sum back exactly with no centime lost.
- *
- * Reductions on each line are preserved. A sibling discount granted on the bus
- * in October is not undone by the family moving zone in January — only the base
- * amount moves, and `netAmount` recomputes the total from it, exactly as
- * `repriceFeeLine` does.
- *
- * Returns how many lines were repriced.
- */
-export async function applyTransportPricing(
-  enrollmentId: string,
-): Promise<number> {
-  const subscriptions = await db.transportSubscription.findMany({
-    where: {
-      enrollmentId,
-      status: { in: [...SEAT_HOLDING_STATUSES] },
-    },
-    select: {
-      direction: true,
-      zone: { select: { amountCentimes: true } },
-    },
-  });
-
-  // What the pupil pays for the year: each live subscription priced by its own
-  // zone and direction. Two one-way subscriptions on different lines therefore
-  // add up, which is exactly what such a family is charged.
-  const annualCentimes = subscriptions.reduce(
-    (total, subscription) =>
-      total +
-      priceForDirection(
-        subscription.zone?.amountCentimes ?? 0,
-        subscription.direction as TransportDirection,
-      ),
-    0,
-  );
-
-  const lines = await db.enrollmentFee.findMany({
-    where: {
-      enrollmentId,
-      feeType: { kind: "TRANSPORT" },
-      // Waived and cancelled lines are out of the reckoning already; repricing
-      // them would quietly bring them back into what is owed.
-      status: "DUE",
-    },
-    orderBy: [{ periodIndex: "asc" }],
-    select: {
-      id: true,
-      discountBps: true,
-      discountCentimes: true,
-    },
-  });
-
-  if (lines.length === 0) return 0;
-
-  const parts = splitIntoInstalments(annualCentimes, lines.length);
-
-  await db.$transaction(
-    lines.map((line, index) => {
-      const base = parts[index] ?? 0;
-      return db.enrollmentFee.update({
-        where: { id: line.id },
-        data: {
-          baseAmountCentimes: base,
-          // The stored total is always recomputed from its parts — the same
-          // rule repriceFeeLine enforces, so the two cannot drift.
-          amountCentimes: netAmount(
-            base,
-            line.discountBps,
-            line.discountCentimes,
-          ),
-        },
-      });
-    }),
-  );
-
-  return lines.length;
-}
+// ── The bill: none of this module's business ─────────────────────────────────
+//
+// Transport is charged once, at enrolment, from the price list — one flat fee
+// per rider. This module used to reprice a pupil's TRANSPORT lines from the
+// zone their stop sat in, which meant the price list and the zone list gave two
+// different answers and the stop silently won. The zones are gone; what a
+// family owes for the bus lives on EnrollmentFee and is decided by the
+// `usesTransport` flag the enrolment form already sets.
 
 // ── Subscriptions ────────────────────────────────────────────────────────────
 
@@ -155,10 +74,34 @@ export type SubscribeInput = {
   stopId: string;
   direction: TransportDirection;
   status: SubscriptionStatus;
+  /** The run they board. Refused unless the line actually makes it. */
+  scheduleId: string | null;
   startsOn: Date;
   endsOn: Date | null;
   notes: string | null;
 };
+
+/**
+ * The run a subscription may record, or null.
+ *
+ * Re-derived rather than trusted, exactly as the route is derived from the stop
+ * above: a schedule id from another line — or another year — would otherwise put
+ * a child on a departure that does not serve them. An id that does not check out
+ * becomes null rather than an error, because the arrangement is still valid
+ * without a named run and refusing the whole subscription over it would be worse
+ * than recording it plainly.
+ */
+async function resolveSchedule(
+  routeId: string,
+  scheduleId: string | null,
+): Promise<string | null> {
+  if (!scheduleId) return null;
+  const link = await db.routeSchedule.findUnique({
+    where: { routeId_scheduleId: { routeId, scheduleId } },
+    select: { scheduleId: true },
+  });
+  return link?.scheduleId ?? null;
+}
 
 export type SubscribeFailure = "STOP_UNREACHABLE" | "FULL" | "ALREADY_ON_BOARD";
 
@@ -181,7 +124,6 @@ export async function subscribeRider(
     select: {
       id: true,
       routeId: true,
-      zoneId: true,
       route: { select: { schoolYearId: true } },
     },
   });
@@ -220,9 +162,8 @@ export async function subscribeRider(
       enrollmentId: input.enrollmentId,
       routeId: stop.routeId,
       stopId: stop.id,
-      // Copied from the stop at subscription time — see the note on the column.
-      zoneId: stop.zoneId,
       direction: input.direction,
+      scheduleId: await resolveSchedule(stop.routeId, input.scheduleId),
       status: input.status,
       startsOn: input.startsOn,
       endsOn: input.endsOn,
@@ -231,22 +172,53 @@ export async function subscribeRider(
     select: { id: true },
   });
 
-  // Riding and being billed for it are one act. See the note at the top.
-  await db.enrollment.update({
-    where: { id: input.enrollmentId },
-    data: { usesTransport: true },
-  });
-  const repricedLines = await applyTransportPricing(input.enrollmentId);
+  // The flag, and only the flag. It is what the fee schedule is generated from,
+  // so a child put on a bus by a secretary who forgot to tick the box at
+  // enrolment still ends up billed — see `syncTransportOption`.
+  const raisedLines = await syncTransportOption(input.enrollmentId, true);
 
-  return { ok: true, id: created.id, repricedLines };
+  return { ok: true, id: created.id, repricedLines: raisedLines };
+}
+
+/**
+ * Keeps `Enrollment.usesTransport` in step with whether the pupil is on a bus,
+ * and raises the transport lines the first time they are.
+ *
+ * Billing is decided at enrolment: ticking "Transport" is what puts the flat
+ * fee on the échéancier. Seating a child at a stop must therefore change
+ * nothing in the ordinary case — the lines are already there and
+ * `generateFeeSchedule` is idempotent on (enrolment, fee type, instalment), so
+ * it adds nothing.
+ *
+ * It matters in the one case that is not ordinary: a secretary who assigns a
+ * circuit without having ticked the box. Without this the child would ride all
+ * year unbilled, which is the sort of thing discovered in June. Returns how many
+ * lines were raised — zero whenever transport was already on the schedule.
+ */
+async function syncTransportOption(
+  enrollmentId: string,
+  usesTransport: boolean,
+): Promise<number> {
+  await db.enrollment.update({
+    where: { id: enrollmentId },
+    data: { usesTransport },
+  });
+  if (!usesTransport) return 0;
+
+  const existing = await db.enrollmentFee.count({
+    where: { enrollmentId, feeType: { kind: "TRANSPORT" } },
+  });
+  if (existing > 0) return 0;
+
+  return generateFeeSchedule(enrollmentId);
 }
 
 /**
  * Moves a rider to another stop, changes their direction, or suspends them.
  *
- * Any of the three changes what they pay, so the bill is rewritten every time
- * rather than only when the zone visibly moves — a stop reassigned to another
- * zone in March would otherwise leave the price behind.
+ * None of the three changes what they pay: the bus is one flat fee. All that is
+ * kept in step is `usesTransport`, so suspending the last abonnement takes the
+ * charge off next year's schedule.
  */
 export async function updateRider(
   subscriptionId: string,
@@ -254,6 +226,7 @@ export async function updateRider(
     stopId: string;
     direction: TransportDirection;
     status: SubscriptionStatus;
+    scheduleId: string | null;
     startsOn: Date;
     endsOn: Date | null;
     notes: string | null;
@@ -267,7 +240,7 @@ export async function updateRider(
 
   const stop = await db.routeStop.findUnique({
     where: { id: input.stopId },
-    select: { id: true, routeId: true, zoneId: true },
+    select: { id: true, routeId: true },
   });
   if (!stop) return { ok: false, reason: "STOP_UNREACHABLE" };
 
@@ -276,8 +249,8 @@ export async function updateRider(
     data: {
       routeId: stop.routeId,
       stopId: stop.id,
-      zoneId: stop.zoneId,
       direction: input.direction,
+      scheduleId: await resolveSchedule(stop.routeId, input.scheduleId),
       status: input.status,
       startsOn: input.startsOn,
       endsOn: input.endsOn,
@@ -291,13 +264,12 @@ export async function updateRider(
       status: { in: [...SEAT_HOLDING_STATUSES] },
     },
   });
-  await db.enrollment.update({
-    where: { id: subscription.enrollmentId },
-    data: { usesTransport: stillRiding > 0 },
-  });
+  const raisedLines = await syncTransportOption(
+    subscription.enrollmentId,
+    stillRiding > 0,
+  );
 
-  const repricedLines = await applyTransportPricing(subscription.enrollmentId);
-  return { ok: true, id: subscriptionId, repricedLines };
+  return { ok: true, id: subscriptionId, repricedLines: raisedLines };
 }
 
 /**
@@ -332,16 +304,10 @@ export async function unsubscribeRider(
     },
   });
 
-  if (stillRiding > 0) {
-    // Still on another line — reprice rather than cancel.
-    await applyTransportPricing(subscription.enrollmentId);
-    return { cancelledLines: 0 };
-  }
+  // Still on another line — they are still a rider, so nothing is cancelled.
+  if (stillRiding > 0) return { cancelledLines: 0 };
 
-  await db.enrollment.update({
-    where: { id: subscription.enrollmentId },
-    data: { usesTransport: false },
-  });
+  await syncTransportOption(subscription.enrollmentId, false);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -368,26 +334,298 @@ export async function unsubscribeRider(
   return { cancelledLines: futureUnpaid.length };
 }
 
+// ── Consommation ─────────────────────────────────────────────────────────────
+
+export type FuelDecisionInput = {
+  requestId: string;
+  schoolId: string;
+  /** "APPROVED" | "REJECTED" | "PAID" — PENDING is where a request starts, not
+   *  somewhere it is sent back to. */
+  status: FuelRequestStatus;
+  decidedById: string;
+  /** The till the money leaves, when there is an open one. */
+  cashSessionId: string | null;
+  /** The rubrique to post the décaissement under — carburant. */
+  categoryId: string | null;
+  notes: string | null;
+};
+
+export type FuelDecisionFailure =
+  | "NOT_FOUND"
+  | "ALREADY_DECIDED"
+  | "NOTHING_TO_PAY";
+
+export type FuelDecisionResult =
+  | { ok: true; operationId: string | null }
+  | { ok: false; reason: FuelDecisionFailure };
+
 /**
- * Reprices every rider on a zone after its rate changes.
+ * Decides a driver's fuel request, and — when it is agreed — posts the money.
  *
- * A school putting its bus prices up in September changes one number and expects
- * every échéancier to follow; doing it rider by rider is a hundred edits and an
- * eventual mistake. Returns how many pupils were repriced.
+ * ── Why the two are one call ────────────────────────────────────────────────
+ * An approved request with no décaissement behind it is a promise the ledger
+ * has never heard of, and a décaissement with no request behind it is a spend
+ * nobody signed for. Neither is a state worth being able to reach, so the
+ * approval and the movement are written together and the unique index on
+ * `cashOperationId` is what stops a double-click paying twice — the same guard
+ * `payStaffSalary` leans on.
+ *
+ * A rejection writes no movement, for the obvious reason. It is still recorded
+ * rather than deleted, so a second ask for the same tank reads as a second ask.
  */
-export async function repriceZone(zoneId: string): Promise<number> {
-  const subscriptions = await db.transportSubscription.findMany({
-    where: { zoneId, status: { in: [...SEAT_HOLDING_STATUSES] } },
-    select: { enrollmentId: true },
+export async function decideFuelRequest(
+  input: FuelDecisionInput,
+): Promise<FuelDecisionResult> {
+  const request = await db.fuelRequest.findFirst({
+    // Scoped by the school from the working context, never by id alone.
+    where: { id: input.requestId, schoolId: input.schoolId },
+    select: {
+      id: true,
+      status: true,
+      amountCentimes: true,
+      litresTenths: true,
+      occurredOn: true,
+      cashOperationId: true,
+      requestedById: true,
+      requestedByName: true,
+      vehicle: { select: { registration: true } },
+      requestedBy: { select: { firstName: true, lastName: true } },
+    },
   });
+  if (!request) return { ok: false, reason: "NOT_FOUND" };
 
-  const enrollmentIds = Array.from(
-    new Set(subscriptions.map((subscription) => subscription.enrollmentId)),
-  );
-
-  for (const enrollmentId of enrollmentIds) {
-    await applyTransportPricing(enrollmentId);
+  // Deciding is once. Re-deciding a settled request would either orphan the
+  // first movement or post a second one for the same tank.
+  if (request.status !== "PENDING" || request.cashOperationId) {
+    return { ok: false, reason: "ALREADY_DECIDED" };
   }
 
-  return enrollmentIds.length;
+  if (input.status === "REJECTED") {
+    await db.fuelRequest.update({
+      where: { id: request.id },
+      data: {
+        status: "REJECTED",
+        decidedById: input.decidedById,
+        decidedAt: new Date(),
+        notes: input.notes ?? undefined,
+      },
+    });
+    return { ok: true, operationId: null };
+  }
+
+  if (request.amountCentimes <= 0) {
+    return { ok: false, reason: "NOTHING_TO_PAY" };
+  }
+
+  const beneficiaryName =
+    driverLabel(
+      request.requestedBy
+        ? `${request.requestedBy.firstName} ${request.requestedBy.lastName}`
+        : null,
+      request.requestedByName,
+    ) ?? request.vehicle.registration;
+
+  const operation = await recordDisbursement({
+    schoolId: input.schoolId,
+    createdById: input.decidedById,
+    cashSessionId: input.cashSessionId,
+    categoryId: input.categoryId,
+    subcategoryId: null,
+    motifId: null,
+    bankId: null,
+    bankName: null,
+    beneficiaryStaffId: request.requestedById,
+    beneficiaryName,
+    // The bus is in the label because that is what makes the line answerable
+    // three months later: "Carburant — 12345-A-6, 45,0 L".
+    label: `Carburant — ${request.vehicle.registration}, ${tenthsToLitres(
+      request.litresTenths,
+    ).toFixed(1)} L`,
+    method: "CASH",
+    amountCentimes: request.amountCentimes,
+    reference: null,
+    chequeNumber: null,
+    occurredAt: request.occurredOn,
+  });
+
+  await db.fuelRequest.update({
+    where: { id: request.id },
+    data: {
+      status: input.status,
+      decidedById: input.decidedById,
+      decidedAt: new Date(),
+      cashOperationId: operation.id,
+      notes: input.notes ?? undefined,
+    },
+  });
+
+  return { ok: true, operationId: operation.id };
+}
+
+// ── Assignment ───────────────────────────────────────────────────────────────
+
+/**
+ * Replaces the set of quartiers a circuit serves.
+ *
+ * Wholesale rather than diffed, exactly as the permission matrix is: the form
+ * submits the full desired state, so working out what changed would only add a
+ * chance to get it wrong. The ids are re-derived against the school first, so a
+ * crafted quartier from another tenant matches nothing instead of being linked.
+ */
+export async function setRouteNeighbourhoods(
+  routeId: string,
+  schoolId: string,
+  neighbourhoodIds: string[],
+): Promise<number> {
+  const reachable = await db.neighbourhood.findMany({
+    where: { id: { in: neighbourhoodIds }, schoolId },
+    select: { id: true },
+  });
+
+  await db.$transaction([
+    db.routeNeighbourhood.deleteMany({ where: { routeId } }),
+    db.routeNeighbourhood.createMany({
+      data: reachable.map((neighbourhood) => ({
+        routeId,
+        neighbourhoodId: neighbourhood.id,
+      })),
+    }),
+  ]);
+
+  return reachable.length;
+}
+
+/** The same, for the runs a circuit makes. Scoped by the year the line is in. */
+export async function setRouteSchedules(
+  routeId: string,
+  schoolYearId: string,
+  scheduleIds: string[],
+): Promise<number> {
+  const reachable = await db.transportSchedule.findMany({
+    where: { id: { in: scheduleIds }, schoolYearId },
+    select: { id: true },
+  });
+
+  await db.$transaction([
+    db.routeSchedule.deleteMany({ where: { routeId } }),
+    db.routeSchedule.createMany({
+      data: reachable.map((schedule) => ({
+        routeId,
+        scheduleId: schedule.id,
+      })),
+    }),
+  ]);
+
+  return reachable.length;
+}
+
+// ── L'appel du bus ───────────────────────────────────────────────────────────
+
+export type MarkRiderInput = {
+  subscriptionId: string;
+  scheduleId: string | null;
+  date: Date;
+  status: RiderAttendanceStatus;
+  minutesLate: number | null;
+  isJustified: boolean;
+  reason: string | null;
+  recordedById: string;
+};
+
+/**
+ * Marks one rider on one run, or corrects an existing mark.
+ *
+ * Upserted on `(subscription, date, scopeKey)` rather than created: a driver
+ * correcting a mis-tap must overwrite the morning's answer, not stack a second
+ * one on top and have the child counted absent twice. The key is built through
+ * `busRegisterScopeKey` in the same statement that sets `scheduleId`, which is
+ * the rule every mirrored column in this schema follows.
+ *
+ * `minutesLate` is cleared for every status but LATE. Leaving a stale figure on
+ * a child who turned out to have been present would put a retard in their count
+ * that nobody recorded — the same correction `markAttendance` makes in the
+ * classroom.
+ */
+export async function markRiderAttendance(
+  input: MarkRiderInput,
+): Promise<{ id: string }> {
+  const isLate = input.status === "LATE";
+  const scopeKey = busRegisterScopeKey(input.scheduleId);
+
+  const data = {
+    status: input.status,
+    minutesLate: isLate ? (input.minutesLate ?? 0) : null,
+    isJustified: input.isJustified,
+    reason: input.reason,
+    recordedById: input.recordedById,
+  };
+
+  return db.transportAttendance.upsert({
+    where: {
+      subscriptionId_date_scopeKey: {
+        subscriptionId: input.subscriptionId,
+        date: input.date,
+        scopeKey,
+      },
+    },
+    update: data,
+    create: {
+      subscriptionId: input.subscriptionId,
+      scheduleId: input.scheduleId,
+      date: input.date,
+      scopeKey,
+      ...data,
+    },
+    select: { id: true },
+  });
+}
+
+/**
+ * Marks a whole run at once — the "everyone else got on" button.
+ *
+ * The one thing a driver does forty times a morning is confirm that nothing was
+ * wrong, and making them tap each name would guarantee the register stops being
+ * taken by October. Only riders with no mark yet are written, so pressing it
+ * after flagging two absences leaves those two alone.
+ *
+ * Returns how many were written.
+ */
+export async function markBusRunInBulk(input: {
+  subscriptionIds: string[];
+  scheduleId: string | null;
+  date: Date;
+  status: RiderAttendanceStatus;
+  recordedById: string;
+}): Promise<number> {
+  const scopeKey = busRegisterScopeKey(input.scheduleId);
+
+  const alreadyMarked = await db.transportAttendance.findMany({
+    where: {
+      subscriptionId: { in: input.subscriptionIds },
+      date: input.date,
+      scopeKey,
+    },
+    select: { subscriptionId: true },
+  });
+  const taken = new Set(alreadyMarked.map((row) => row.subscriptionId));
+
+  const fresh = input.subscriptionIds.filter((id) => !taken.has(id));
+  if (fresh.length === 0) return 0;
+
+  // `createMany` rather than a loop of upserts: none of these rows exists, and
+  // the unique index is what guarantees that stays true.
+  const created = await db.transportAttendance.createMany({
+    data: fresh.map((subscriptionId) => ({
+      subscriptionId,
+      scheduleId: input.scheduleId,
+      date: input.date,
+      scopeKey,
+      status: input.status,
+      minutesLate: null,
+      isJustified: false,
+      recordedById: input.recordedById,
+    })),
+  });
+
+  return created.count;
 }

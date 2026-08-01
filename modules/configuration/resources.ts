@@ -11,6 +11,7 @@ import {
 import { GROUP_PURPOSES } from "@/modules/classes/enums";
 import { CATEGORY_KINDS } from "@/modules/treasury/enums";
 import { ROOM_KINDS } from "@/modules/facilities/enums";
+import { SCHEDULE_DIRECTIONS } from "@/modules/transport/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
 import {
   ABSENCE_KINDS,
@@ -45,6 +46,9 @@ export const SECTIONS: SectionDef[] = [
   { id: "classes", labelKey: "classes" },
   { id: "billing", labelKey: "billing" },
   { id: "treasury", labelKey: "treasury" },
+  // Last, and only the horaires: the quartiers stay under Établissement, where
+  // an address belongs — see the note on the neighbourhoods resource below.
+  { id: "logistique", labelKey: "logistique" },
 ];
 
 /** Shared trailing fields — every resource that has them wants them last. */
@@ -1248,6 +1252,40 @@ export const RESOURCES: ResourceDef[] = [
         nullable: true,
         inTable: true,
       },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  // ── Logistique ────────────────────────────────────────────────────────────
+  /*
+    Horaires de transport. Declared once per year and shared by every circuit
+    that runs them, rather than retyped on each stop — which is what
+    RouteStop.pickupTime was doing before. Which circuit makes which run is the
+    circuit's own screen, under /transport/routes.
+  */
+  {
+    id: "transport-schedules",
+    section: "logistique",
+    labelKey: "transportSchedules",
+    scope: "YEAR",
+    labelFields: ["code", "name"],
+    fields: [
+      { name: "code", type: "text", labelKey: "code", required: true, maxLength: 20, dir: "ltr", placeholder: "M1", inTable: true },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 120, inTable: true },
+      NAME_AR,
+      {
+        name: "direction",
+        type: "select",
+        labelKey: "scheduleDirection",
+        hintKey: "scheduleDirection",
+        options: SCHEDULE_DIRECTIONS,
+        optionsKey: "scheduleDirections",
+        defaultValue: "MORNING",
+        required: true,
+        inTable: true,
+      },
+      { name: "departureTime", type: "time", labelKey: "departureTime", required: true, dir: "ltr", inTable: true },
+      { name: "arrivalTime", type: "time", labelKey: "arrivalTime", hintKey: "arrivalTime", dir: "ltr", inTable: true },
       POSITION,
       IS_ACTIVE,
     ],

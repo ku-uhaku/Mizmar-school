@@ -108,8 +108,8 @@ export const MODULES: readonly AppModule[] = [
 
   // ── Logistique ────────────────────────────────────────────────────────────
   // The fleet, the lines it runs and who rides on them. It owns no charge of
-  // its own: a stop's zone decides the price, and that price is written onto
-  // the pupil's transport instalments on the échéancier.
+  // its own: the bus is one flat fee on the price list, raised on the
+  // échéancier at enrolment like every other charge.
   transportModule,
 
   // Academic configuration. Tables and enums only — edited through the generic

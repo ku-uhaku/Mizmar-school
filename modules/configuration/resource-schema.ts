@@ -136,6 +136,14 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ name: "asc" }],
   },
 
+  "transport-schedules": {
+    table: () => db.transportSchedule as unknown as Delegate,
+    where: byYear,
+    createData: (context) => ({ schoolYearId: context.currentSchoolYear?.id }),
+    // The order the day runs in, which is the order anybody reads a timetable.
+    orderBy: [{ direction: "asc" }, { departureTime: "asc" }],
+  },
+
   neighbourhoods: {
     table: () => db.neighbourhood as unknown as Delegate,
     where: bySchool,

@@ -112,6 +112,10 @@ model Staff {
   /// The buses this person drives. See the note on Vehicle.driverId.
   vehiclesDriven Vehicle[] @relation("VehicleDriver")
 
+  /// Fuel this person asked for. SetNull on the other side: a leaver must not
+  /// take the fleet's spending history with them.
+  fuelRequests FuelRequest[] @relation("FuelRequestedBy")
+
   /// Décaissements made out to this person — salaries, advances, reimbursed
   /// expenses. See the note on CashOperation.beneficiaryStaffId.
   paidOperations CashOperation[] @relation("OperationBeneficiaryStaff")

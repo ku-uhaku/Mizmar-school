@@ -1,7 +1,7 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
- * The fleet, the zones and the lines — the arrangement, not the passengers.
+ * The fleet, the runs and the lines — the arrangement, not the passengers.
  *
  * No subscriptions are seeded on purpose. Putting a child on a bus reprices
  * their échéancier (see `applyTransportPricing`), so a seeded rider would write
@@ -9,8 +9,13 @@ import { log, type SeedDb } from "@/prisma/seed/client";
  * would do it again. Pupils are subscribed through the screen, which is also the
  * shortest way to see the pricing work.
  *
- * Idempotent — vehicles upsert on `(schoolId, registration)`, zones and lines on
- * their year-scoped codes, stops on `(routeId, name)`.
+ * No fuel requests either, and for a related reason: approving one posts a
+ * décaissement into the caisse, so a seeded request would either sit pending
+ * forever or invent a movement in the ledger.
+ *
+ * Idempotent — vehicles upsert on `(schoolId, registration)`, runs and lines on
+ * their year-scoped codes, stops on `(routeId, name)`, and the two join tables
+ * on their pairings.
  */
 
 export type VehicleSeed = {
@@ -29,19 +34,20 @@ export const VEHICLE_SEEDS: VehicleSeed[] = [
   { registration: "10298-C-6", make: "Renault", model: "Master", modelYear: 2017, seatCount: 16, driverName: "Said Amrani", driverPhone: "0661234503" },
 ];
 
-export type ZoneSeed = {
+export type ScheduleSeed = {
   code: string;
   name: string;
   nameAr: string;
-  /** Annual price in dirhams; converted to centimes on the way in. */
-  amount: number;
+  direction: "MORNING" | "AFTERNOON";
+  departureTime: string;
+  arrivalTime: string;
   position: number;
 };
 
-export const ZONE_SEEDS: ZoneSeed[] = [
-  { code: "Z1", name: "Zone 1 — centre", nameAr: "المنطقة 1 — الوسط", amount: 2400, position: 1 },
-  { code: "Z2", name: "Zone 2 — périphérie", nameAr: "المنطقة 2 — الضواحي", amount: 3200, position: 2 },
-  { code: "Z3", name: "Zone 3 — éloignée", nameAr: "المنطقة 3 — البعيدة", amount: 4000, position: 3 },
+export const SCHEDULE_SEEDS: ScheduleSeed[] = [
+  { code: "M1", name: "Ramassage du matin", nameAr: "جولة الصباح", direction: "MORNING", departureTime: "06:45", arrivalTime: "08:00", position: 1 },
+  { code: "S1", name: "Retour de midi", nameAr: "عودة الظهيرة", direction: "AFTERNOON", departureTime: "12:30", arrivalTime: "13:30", position: 2 },
+  { code: "S2", name: "Retour du soir", nameAr: "عودة المساء", direction: "AFTERNOON", departureTime: "17:00", arrivalTime: "18:15", position: 3 },
 ];
 
 export type RouteSeed = {
@@ -51,11 +57,16 @@ export type RouteSeed = {
   direction: "MORNING" | "AFTERNOON" | "BOTH";
   /** Index into VEHICLE_SEEDS, or null while unassigned. */
   vehicleIndex: number | null;
+  /** Quartiers this line is advertised to serve — codes from modules/geography. */
+  neighbourhoodCodes: string[];
+  /** Runs it makes — codes from SCHEDULE_SEEDS above. */
+  scheduleCodes: string[];
   stops: {
     name: string;
+    /** The quartier the stop physically stands in — see RouteStop. */
+    neighbourhoodCode: string;
     nameAr: string;
     landmark: string;
-    zoneCode: string;
     pickupTime: string;
     dropoffTime: string;
   }[];
@@ -68,10 +79,12 @@ export const ROUTE_SEEDS: RouteSeed[] = [
     nameAr: "الخط 1 — المعاريف",
     direction: "BOTH",
     vehicleIndex: 0,
+    neighbourhoodCodes: ["MAARIF", "BOURGOGNE"],
+    scheduleCodes: ["M1", "S2"],
     stops: [
-      { name: "Place Zerktouni", nameAr: "ساحة الزرقطوني", landmark: "devant la pharmacie", zoneCode: "Z1", pickupTime: "07:15", dropoffTime: "17:15" },
-      { name: "Boulevard Ghandi", nameAr: "شارع غاندي", landmark: "arrêt de bus", zoneCode: "Z1", pickupTime: "07:25", dropoffTime: "17:05" },
-      { name: "Rond-point Bourgogne", nameAr: "دوار بورغوني", landmark: "près du café", zoneCode: "Z2", pickupTime: "07:35", dropoffTime: "16:55" },
+      { name: "Place Zerktouni", neighbourhoodCode: "MAARIF", nameAr: "ساحة الزرقطوني", landmark: "devant la pharmacie", pickupTime: "07:15", dropoffTime: "17:15" },
+      { name: "Boulevard Ghandi", neighbourhoodCode: "MAARIF", nameAr: "شارع غاندي", landmark: "arrêt de bus", pickupTime: "07:25", dropoffTime: "17:05" },
+      { name: "Rond-point Bourgogne", neighbourhoodCode: "BOURGOGNE", nameAr: "دوار بورغوني", landmark: "près du café", pickupTime: "07:35", dropoffTime: "16:55" },
     ],
   },
   {
@@ -80,10 +93,12 @@ export const ROUTE_SEEDS: RouteSeed[] = [
     nameAr: "الخط 2 — عين الذئاب",
     direction: "BOTH",
     vehicleIndex: 1,
+    neighbourhoodCodes: ["AIN-DIAB", "ANFA"],
+    scheduleCodes: ["M1", "S1", "S2"],
     stops: [
-      { name: "Corniche", nameAr: "الكورنيش", landmark: "face à l'hôtel", zoneCode: "Z2", pickupTime: "07:00", dropoffTime: "17:30" },
-      { name: "Anfa Place", nameAr: "أنفا بلاس", landmark: "entrée principale", zoneCode: "Z2", pickupTime: "07:12", dropoffTime: "17:18" },
-      { name: "Californie", nameAr: "كاليفورنيا", landmark: "rond-point", zoneCode: "Z3", pickupTime: "07:28", dropoffTime: "17:02" },
+      { name: "Corniche", neighbourhoodCode: "AIN-DIAB", nameAr: "الكورنيش", landmark: "face à l'hôtel", pickupTime: "07:00", dropoffTime: "17:30" },
+      { name: "Anfa Place", neighbourhoodCode: "ANFA", nameAr: "أنفا بلاس", landmark: "entrée principale", pickupTime: "07:12", dropoffTime: "17:18" },
+      { name: "Californie", neighbourhoodCode: "ANFA", nameAr: "كاليفورنيا", landmark: "rond-point", pickupTime: "07:28", dropoffTime: "17:02" },
     ],
   },
   {
@@ -92,9 +107,11 @@ export const ROUTE_SEEDS: RouteSeed[] = [
     nameAr: "الخط 3 — سيدي معروف",
     direction: "MORNING",
     vehicleIndex: 2,
+    neighbourhoodCodes: ["SIDI-MAAROUF"],
+    scheduleCodes: ["M1"],
     stops: [
-      { name: "Sidi Maârouf centre", nameAr: "سيدي معروف المركز", landmark: "devant la mosquée", zoneCode: "Z3", pickupTime: "06:50", dropoffTime: "" },
-      { name: "Technopark", nameAr: "تكنوبارك", landmark: "parking visiteurs", zoneCode: "Z3", pickupTime: "07:05", dropoffTime: "" },
+      { name: "Sidi Maârouf centre", neighbourhoodCode: "SIDI-MAAROUF", nameAr: "سيدي معروف المركز", landmark: "devant la mosquée", pickupTime: "06:50", dropoffTime: "" },
+      { name: "Technopark", neighbourhoodCode: "SIDI-MAAROUF", nameAr: "تكنوبارك", landmark: "parking visiteurs", pickupTime: "07:05", dropoffTime: "" },
     ],
   },
 ];
@@ -111,6 +128,16 @@ export async function seedTransport(
     driverIdByName?: Record<string, string>;
   },
 ): Promise<void> {
+  // The quartiers were seeded by `seedGeography`; looked up by code rather than
+  // passed in, so adding a line to a quartier needs no change at the call site.
+  const neighbourhoods = await db.neighbourhood.findMany({
+    where: { schoolId: input.schoolId },
+    select: { id: true, code: true },
+  });
+  const neighbourhoodIdByCode = Object.fromEntries(
+    neighbourhoods.map((row) => [row.code, row.id]),
+  ) as Record<string, string | undefined>;
+
   const vehicleIds: string[] = [];
 
   for (const vehicle of VEHICLE_SEEDS) {
@@ -149,33 +176,36 @@ export async function seedTransport(
     vehicleIds.push(row.id);
   }
 
-  const zoneIdByCode: Record<string, string> = {};
-  for (const zone of ZONE_SEEDS) {
-    const row = await db.transportZone.upsert({
+  const scheduleIdByCode: Record<string, string> = {};
+  for (const schedule of SCHEDULE_SEEDS) {
+    const row = await db.transportSchedule.upsert({
       where: {
         schoolYearId_code: {
           schoolYearId: input.schoolYearId,
-          code: zone.code,
+          code: schedule.code,
         },
       },
       update: {
-        name: zone.name,
-        nameAr: zone.nameAr,
-        // Centimes, exactly as an action would write them.
-        amountCentimes: Math.round(zone.amount * 100),
-        position: zone.position,
+        name: schedule.name,
+        nameAr: schedule.nameAr,
+        direction: schedule.direction,
+        departureTime: schedule.departureTime,
+        arrivalTime: schedule.arrivalTime,
+        position: schedule.position,
       },
       create: {
         schoolYearId: input.schoolYearId,
-        code: zone.code,
-        name: zone.name,
-        nameAr: zone.nameAr,
-        amountCentimes: Math.round(zone.amount * 100),
-        position: zone.position,
+        code: schedule.code,
+        name: schedule.name,
+        nameAr: schedule.nameAr,
+        direction: schedule.direction,
+        departureTime: schedule.departureTime,
+        arrivalTime: schedule.arrivalTime,
+        position: schedule.position,
       },
       select: { id: true },
     });
-    zoneIdByCode[zone.code] = row.id;
+    scheduleIdByCode[schedule.code] = row.id;
   }
 
   let stopCount = 0;
@@ -208,13 +238,37 @@ export async function seedTransport(
       select: { id: true },
     });
 
+    // Both are plain join rows with nothing of their own to update, so an
+    // upsert with an empty `update` is exactly "make sure this pairing exists".
+    for (const code of route.neighbourhoodCodes) {
+      const neighbourhoodId = neighbourhoodIdByCode[code];
+      if (!neighbourhoodId) continue;
+      await db.routeNeighbourhood.upsert({
+        where: {
+          routeId_neighbourhoodId: { routeId: row.id, neighbourhoodId },
+        },
+        update: {},
+        create: { routeId: row.id, neighbourhoodId },
+      });
+    }
+
+    for (const code of route.scheduleCodes) {
+      const scheduleId = scheduleIdByCode[code];
+      if (!scheduleId) continue;
+      await db.routeSchedule.upsert({
+        where: { routeId_scheduleId: { routeId: row.id, scheduleId } },
+        update: {},
+        create: { routeId: row.id, scheduleId },
+      });
+    }
+
     for (const [index, stop] of route.stops.entries()) {
       await db.routeStop.upsert({
         where: { routeId_name: { routeId: row.id, name: stop.name } },
         update: {
           nameAr: stop.nameAr,
           landmark: stop.landmark,
-          zoneId: zoneIdByCode[stop.zoneCode] ?? null,
+          neighbourhoodId: neighbourhoodIdByCode[stop.neighbourhoodCode] ?? null,
           position: index,
           pickupTime: stop.pickupTime || null,
           dropoffTime: stop.dropoffTime || null,
@@ -224,7 +278,7 @@ export async function seedTransport(
           name: stop.name,
           nameAr: stop.nameAr,
           landmark: stop.landmark,
-          zoneId: zoneIdByCode[stop.zoneCode] ?? null,
+          neighbourhoodId: neighbourhoodIdByCode[stop.neighbourhoodCode] ?? null,
           position: index,
           pickupTime: stop.pickupTime || null,
           dropoffTime: stop.dropoffTime || null,
@@ -236,6 +290,6 @@ export async function seedTransport(
 
   log(
     "transport",
-    `${VEHICLE_SEEDS.length} vehicles, ${ZONE_SEEDS.length} zones, ${ROUTE_SEEDS.length} lines, ${stopCount} stops`,
+    `${VEHICLE_SEEDS.length} vehicles, ${SCHEDULE_SEEDS.length} runs, ${ROUTE_SEEDS.length} lines, ${stopCount} stops`,
   );
 }

@@ -42,6 +42,12 @@ model TransportRoute {
   stops         RouteStop[]
   subscriptions TransportSubscription[]
 
+  /// The runs this line makes, and the quartiers it is advertised to serve.
+  /// Both are what the inscription screen narrows on — see the notes on
+  /// RouteSchedule and RouteNeighbourhood.
+  schedules      RouteSchedule[]
+  neighbourhoods RouteNeighbourhood[]
+
   @@unique([schoolYearId, code])
   @@index([schoolYearId])
   @@index([vehicleId])

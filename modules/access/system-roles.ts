@@ -147,11 +147,15 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.HR_ATTENDANCE,
       PERMISSIONS.HR_PAYROLL,
       PERMISSIONS.HR_DELETE,
-      // The logistics, end to end.
+      // The logistics, end to end — including agreeing to what the buses burn,
+      // which is a spend and so belongs with whoever answers for the caisse.
       PERMISSIONS.TRANSPORT_VIEW,
       PERMISSIONS.TRANSPORT_MANAGE,
       PERMISSIONS.TRANSPORT_SUBSCRIBE,
       PERMISSIONS.TRANSPORT_DELETE,
+      PERMISSIONS.TRANSPORT_ATTENDANCE,
+      PERMISSIONS.TRANSPORT_FUEL,
+      PERMISSIONS.TRANSPORT_FUEL_APPROVE,
     ],
   },
   {
@@ -204,6 +208,12 @@ export const SYSTEM_ROLES: {
       // lines or retire a vehicle, which is not.
       PERMISSIONS.TRANSPORT_VIEW,
       PERMISSIONS.TRANSPORT_SUBSCRIBE,
+      // Calls the bus roll when a driver has no account of their own, and
+      // types up their fuel slips. Deliberately without
+      // TRANSPORT_FUEL_APPROVE: recording a spend and agreeing to it are the
+      // two halves a caisse exists to keep apart.
+      PERMISSIONS.TRANSPORT_ATTENDANCE,
+      PERMISSIONS.TRANSPORT_FUEL,
     ],
   },
   {

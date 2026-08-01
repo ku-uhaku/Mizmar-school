@@ -59,6 +59,10 @@ model Vehicle {
 
   routes TransportRoute[]
 
+  /// Every tank of fuel drawn for it. Restrict on the other side: a bus with
+  /// spending history against it is not deletable.
+  fuelRequests FuelRequest[]
+
   @@unique([schoolId, registration])
   @@index([schoolId])
   @@index([driverId])

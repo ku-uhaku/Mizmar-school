@@ -1,3 +1,5 @@
+import { nullableKey } from "@/lib/db-keys";
+
 /**
  * Allowed values for this module's "enum-like" String columns — the source of
  * truth for `prisma/schema/transport/*.prisma` — plus the small amount of
@@ -28,6 +30,33 @@ export const ROADWORTHY_STATUSES: readonly VehicleStatus[] = ["ACTIVE"];
  */
 export const TRANSPORT_DIRECTIONS = ["MORNING", "AFTERNOON", "BOTH"] as const;
 export type TransportDirection = (typeof TRANSPORT_DIRECTIONS)[number];
+
+/**
+ * Which way one scheduled run goes.
+ *
+ * Deliberately narrower than TRANSPORT_DIRECTIONS, which also has BOTH: a
+ * departure happens once and goes one way. BOTH belongs to an *abonnement* —
+ * the child who rides morning and evening — and a run claiming it would be two
+ * buses wearing one row. See prisma/schema/transport/transport-schedule.prisma.
+ */
+export const SCHEDULE_DIRECTIONS = ["MORNING", "AFTERNOON"] as const;
+export type ScheduleDirection = (typeof SCHEDULE_DIRECTIONS)[number];
+
+/**
+ * The runs worth offering for one abonnement direction.
+ *
+ * A one-way rider is only shown the runs that go their way. A BOTH rider is
+ * shown every run the line makes and picks the one they board in the morning —
+ * the return follows from the line, and a family genuinely needing two named
+ * runs takes two one-way abonnements, which is what `@@unique([enrollmentId,
+ * direction])` already allows for.
+ */
+export function schedulesForDirection(
+  direction: TransportDirection,
+): readonly ScheduleDirection[] {
+  if (direction === "BOTH") return SCHEDULE_DIRECTIONS;
+  return [direction];
+}
 
 /**
  * Where an abonnement stands.
@@ -113,22 +142,184 @@ export function seatsRemaining(seats: number, taken: number): number {
   return Math.max(0, seats - taken);
 }
 
-/**
- * What one pupil pays for the bus over the year.
+/*
+ * There is deliberately no pricing helper here.
  *
- * A one-way rider pays half. Rounded once, here, so the échéancier and the
- * screen quoting the family cannot arrive at figures a centime apart — the same
- * rule `applyPercentBps` follows on the discount side.
+ * Transport is charged once, at enrolment, from the price list — one flat fee
+ * per rider, whatever quartier they live in and whichever way they travel. The
+ * module used to carry pricing zones and halve the fee for a one-way rider;
+ * both were a second answer to a question the échéancier had already settled,
+ * and the two answers disagreed. What a family owes lives on EnrollmentFee and
+ * nowhere else.
  */
-export function priceForDirection(
-  zoneAmountCentimes: number,
-  direction: TransportDirection,
-): number {
-  if (direction === "BOTH") return zoneAmountCentimes;
-  return Math.round(zoneAmountCentimes / 2);
-}
 
 /** `HH:MM`, or null. Guards the times the stop list is ordered and printed by. */
 export function isTimeOfDay(value: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+/**
+ * How to name one run in a picker: its code and when it leaves.
+ *
+ * "M1 · 07:00" rather than the code alone, because a secretary asked to put a
+ * child on "M1" has to remember what M1 means and a parent on the phone never
+ * knew. Decided here so the enrolment cascade, the circuit screen and the
+ * pupil's file cannot label the same run three ways.
+ */
+export function scheduleLabel(code: string, departureTime: string): string {
+  return `${code} · ${departureTime}`;
+}
+
+// ── L'appel du bus ───────────────────────────────────────────────────────────
+
+/**
+ * Whether a pupil got on the bus.
+ *
+ *   PRESENT  boarded
+ *   LATE     kept the bus waiting — `minutesLate` says how long
+ *   ABSENT   never turned up, and nobody had said
+ *   EXCUSED  not travelling today, and the family had said so
+ *
+ * The same four words the classroom register uses, deliberately: a driver and a
+ * teacher describing the same child should not have to learn two vocabularies.
+ * What they mean here is narrower — this is the kerb, not the classroom, and a
+ * child absent from the bus is not thereby absent from school. See the note on
+ * TransportAttendance.
+ *
+ * ABSENT and EXCUSED are apart because at half past seven in the morning they
+ * are completely different problems: one is a child unaccounted for and the
+ * other is a seat nobody is waiting on.
+ */
+export const RIDER_ATTENDANCE_STATUSES = [
+  "PRESENT",
+  "LATE",
+  "ABSENT",
+  "EXCUSED",
+] as const;
+export type RiderAttendanceStatus =
+  (typeof RIDER_ATTENDANCE_STATUSES)[number];
+
+/** Statuses meaning the child was not on the bus. */
+export const OFF_BUS_STATUSES: readonly RiderAttendanceStatus[] = [
+  "ABSENT",
+  "EXCUSED",
+];
+
+/** Did they ride at all? LATE counts — they got on. */
+export function boarded(status: string): boolean {
+  return status === "PRESENT" || status === "LATE";
+}
+
+/** Most minutes a bus can sensibly be held before the child has simply missed it. */
+export const MAX_MINUTES_WAITED = 30;
+
+/**
+ * Mirror for the nullable `scheduleId`, so the unique index on
+ * TransportAttendance actually fires.
+ *
+ * SQLite treats NULLs as distinct, so without this a rider could be marked
+ * twice for the same departure and counted absent twice. See lib/db-keys.ts,
+ * and `attendanceScopeKey` in modules/classroom/enums.ts, which does the same
+ * job for the nullable time slot.
+ */
+export function busRegisterScopeKey(
+  scheduleId: string | null | undefined,
+): string {
+  return nullableKey(scheduleId);
+}
+
+/** What one run's register adds up to — the counts the sheet shows live. */
+export type BusRegisterTally = {
+  marked: number;
+  present: number;
+  late: number;
+  absent: number;
+  excused: number;
+  unmarked: number;
+};
+
+export function tallyBusRegister(
+  entries: readonly { status: string | null }[],
+): BusRegisterTally {
+  const count = (status: string) =>
+    entries.filter((entry) => entry.status === status).length;
+
+  return {
+    marked: entries.filter((entry) => entry.status !== null).length,
+    present: count("PRESENT"),
+    late: count("LATE"),
+    absent: count("ABSENT"),
+    excused: count("EXCUSED"),
+    unmarked: entries.filter((entry) => entry.status === null).length,
+  };
+}
+
+// ── Consommation ─────────────────────────────────────────────────────────────
+
+/**
+ * Where a fuel request has got to.
+ *
+ *   PENDING   the driver has asked; nobody has decided
+ *   APPROVED  agreed, and the décaissement has been posted
+ *   REJECTED  refused; kept, never deleted, so a second ask is visibly a second
+ *   PAID      the money has actually left the drawer
+ *
+ * APPROVED and PAID are apart for the same reason SALARY_STATUSES keeps them
+ * apart: agreeing to a spend and handing over the notes are two acts, often on
+ * two different days, and a school that reconciles a till needs to know which
+ * of the two has happened.
+ */
+export const FUEL_REQUEST_STATUSES = [
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "PAID",
+] as const;
+export type FuelRequestStatus = (typeof FUEL_REQUEST_STATUSES)[number];
+
+/** Statuses that have a décaissement behind them — see `decideFuelRequest`. */
+export const SETTLED_FUEL_STATUSES: readonly FuelRequestStatus[] = [
+  "APPROVED",
+  "PAID",
+];
+
+/** Requests that still count as spending on a bus. A refusal never does. */
+export const COUNTED_FUEL_STATUSES: readonly FuelRequestStatus[] = [
+  "PENDING",
+  "APPROVED",
+  "PAID",
+];
+
+/**
+ * Litres are stored as **tenths of a litre** — see the note on
+ * `FuelRequest.litresTenths`. These two are the only places the factor appears,
+ * so no screen divides by ten on its own and the form and the server cannot
+ * disagree about what "45,5" meant.
+ */
+export const LITRE_TENTHS = 10;
+
+export function litresToTenths(litres: number): number {
+  return Math.round(litres * LITRE_TENTHS);
+}
+
+export function tenthsToLitres(tenths: number): number {
+  return tenths / LITRE_TENTHS;
+}
+
+/**
+ * Consumption in **tenths of a litre per 100 km**, or null when it cannot be
+ * worked out.
+ *
+ * Null rather than zero for a missing or non-advancing odometer: "we do not
+ * know" and "this bus used nothing" are different answers, and a fleet screen
+ * showing 0,0 L/100km beside a bus somebody forgot to read the meter on is
+ * worse than a blank. Kept in tenths, like the litres it comes from, so the
+ * figure is an integer everywhere until it is rendered.
+ */
+export function consumptionPer100km(
+  litresTenths: number,
+  distanceKm: number,
+): number | null {
+  if (distanceKm <= 0 || litresTenths <= 0) return null;
+  return Math.round((litresTenths * 100) / distanceKm);
 }

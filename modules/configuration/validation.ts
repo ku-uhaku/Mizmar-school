@@ -169,6 +169,23 @@ const REFINEMENTS: Record<
   string,
   (schema: z.ZodObject, t: Dictionary) => z.ZodTypeAny
 > = {
+  // A run that arrives before it leaves reads fine in a table and makes nonsense
+  // of every list ordered by time. "HH:MM" strings compare correctly as text,
+  // which is half the reason the times are stored that way at all.
+  "transport-schedules": (schema, t) =>
+    schema.refine(
+      (values) => {
+        const departure = values.departureTime;
+        const arrival = values.arrivalTime;
+        // Only a comparison — a missing or malformed time is the field
+        // schema's business, and failing it twice helps nobody.
+        if (typeof departure !== "string" || typeof arrival !== "string") {
+          return true;
+        }
+        return arrival > departure;
+      },
+      { error: t.configuration.arrivalBeforeDeparture, path: ["arrivalTime"] },
+    ),
   "school-settings": (schema, t) =>
     // A matricule format with no sequence gives every pupil admitted this year
     // the same code. The unique index would then reject them one at a time,

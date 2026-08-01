@@ -1,0 +1,54 @@
+/// An horaire: one scheduled run of the school's transport — "ramassage du
+/// matin, départ 07:00", "retour du soir, départ 17:00".
+///
+/// Declared once per year and shared by every circuit that runs it, rather than
+/// retyped on each one. Before this table the times lived on each stop as free
+/// text (see RouteStop.pickupTime), which answered "when does the bus reach the
+/// pharmacy" but never "which runs does this school operate" — and that second
+/// question is the one a parent is asked at inscription.
+///
+/// Per school year for the same reason TimeSlot is: the
+/// timings are renegotiated every rentrée, and last year's must keep resolving
+/// on last year's abonnements after this year's have been set.
+model TransportSchedule {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "M1", "S2".
+  code   String
+  name   String
+  nameAr String?
+
+  /// "MORNING" | "AFTERNOON" — see SCHEDULE_DIRECTIONS in
+  /// modules/transport/enums.ts.
+  ///
+  /// Deliberately *not* TRANSPORT_DIRECTIONS, which also has BOTH: a departure
+  /// happens once and goes one way. BOTH is a property of an abonnement — the
+  /// child who rides morning and evening — and a run that claimed it would be
+  /// two buses wearing one row.
+  direction String @default("MORNING")
+
+  /// Wall-clock "HH:MM", 24-hour. Text rather than DateTime for the reason
+  /// given on RouteStop.pickupTime: these are times of day with no date, and a
+  /// DateTime forces a fictitious one that somebody eventually reads as real.
+  departureTime String
+  /// When the run is expected to finish. Null while a school knows when the bus
+  /// leaves but has not timed the round yet.
+  arrivalTime String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  routes        RouteSchedule[]
+  subscriptions TransportSubscription[]
+  /// Registers taken on this run.
+  attendance    TransportAttendance[]
+
+  @@unique([schoolYearId, code])
+  @@index([schoolYearId])
+  @@map("transport_schedules")
+}

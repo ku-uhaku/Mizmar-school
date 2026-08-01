@@ -2,7 +2,6 @@
 
 import {
   BusIcon,
-  MapPinnedIcon,
   RouteIcon,
   TriangleAlertIcon,
   UsersIcon,
@@ -45,14 +44,10 @@ export function TransportDashboard({
   summary,
   routes,
   vehicles,
-  zoneCount,
-  canManageZones,
 }: {
   summary: TransportSummary;
   routes: RouteRow[];
   vehicles: VehicleRow[];
-  zoneCount: number;
-  canManageZones: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -89,16 +84,6 @@ export function TransportDashboard({
       badgeTone: summary.paperworkDue > 0 ? "warn" : undefined,
     },
   ];
-
-  if (canManageZones) {
-    links.push({
-      href: "/transport/zones",
-      label: t.nav.transportZones,
-      description: t.transport.zonesHint,
-      icon: <MapPinnedIcon className="size-4" />,
-      badge: String(zoneCount),
-    });
-  }
 
   return (
     <div className="grid gap-5">

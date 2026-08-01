@@ -50,19 +50,6 @@ const fr = {
     paperworkDue: "Papiers à renouveler",
     noExpiryRecorded: "Aucune date saisie",
 
-    // ── Zones ───────────────────────────────────────────────────────────────
-    zones: "Zones tarifaires",
-    zone: "Zone",
-    newZone: "Nouvelle zone",
-    editZone: "Modifier la zone",
-    zonesHint:
-      "Le transport se tarifie à la distance : la zone de l'arrêt détermine ce que paient ses usagers.",
-    zonePrice: "Tarif annuel",
-    zoneCodeTaken: "Ce code de zone est déjà utilisé cette année.",
-    zoneSaved: "Zone enregistrée.",
-    zoneRepriced: "Zone enregistrée — {count} élèves retarifés.",
-    noZones:
-      "Aucune zone déclarée. Les abonnements ne peuvent pas être tarifés sans zone.",
     riders: "Abonnés",
 
     // ── Lines ───────────────────────────────────────────────────────────────
@@ -112,7 +99,6 @@ const fr = {
     stopHasRiders:
       "Des élèves montent ici — déplacez-les avant de supprimer l'arrêt.",
     noStops: "Aucun arrêt sur cette ligne.",
-    noZoneOnStop: "Sans zone — les abonnés d'ici ne peuvent pas être tarifés.",
 
     // ── Riders ──────────────────────────────────────────────────────────────
     addRider: "Abonner un élève",
@@ -123,7 +109,6 @@ const fr = {
     subscriptionStatus: "État",
     startsOn: "À partir du",
     endsOn: "Jusqu'au",
-    pricePerYear: "Tarif annuel",
     riderAdded: "Élève abonné.",
     riderAddedBilled: "Élève abonné — {count} échéances tarifées.",
     riderUpdated: "Abonnement mis à jour.",
@@ -138,7 +123,7 @@ const fr = {
     notRiding: "Cet élève ne prend pas le bus.",
     transportOf: "Transport",
     billingNote:
-      "L'abonnement inscrit le tarif de la zone sur les échéances de transport de l'élève. Ce qui est dû reste sur l'échéancier.",
+      "Le transport est facturé une seule fois, à l'inscription, depuis la liste des prix. Affecter un élève à un circuit ne change rien à ce que sa famille doit.",
 
     // ── Summary ─────────────────────────────────────────────────────────────
     seatsOffered: "Places offertes",
@@ -160,8 +145,136 @@ const fr = {
     occupancy: "Remplissage des lignes",
     occupancyHint: "Abonnés par rapport aux places offertes.",
     seatsTaken: "{taken} places sur {seats}",
+
+    // ── Horaires ────────────────────────────────────────────────────────────
+    schedules: "Horaires",
+    schedule: "Horaire",
+    noSchedules: "Aucun horaire d\u00e9clar\u00e9 pour cette ann\u00e9e.",
+    noSchedulesHint:
+      "D\u00e9clarez-les dans la configuration, puis cochez ceux que chaque circuit assure.",
+    schedulesSaved: "{count} horaires sur ce circuit.",
+    routeSchedules: "Horaires",
+    routeSchedulesHint: "Les d\u00e9parts que ce circuit assure.",
+    scheduleOnRoute: "Horaire",
+    noScheduleChosen: "Aucun horaire particulier",
+
+    // ── Quartiers desservis ─────────────────────────────────────────────────
+    routeNeighbourhoods: "Quartiers desservis",
+    routeNeighbourhoodsHint:
+      "La zone de ramassage annonc\u00e9e pour ce circuit. C'est ce que l'on confronte au quartier de la famille \u00e0 l'inscription, et cela n'attend pas que les arr\u00eats soient trac\u00e9s.",
+    neighbourhoodsSaved: "{count} quartiers sur ce circuit.",
+    noNeighbourhoods: "Aucun quartier d\u00e9clar\u00e9 pour cet \u00e9tablissement.",
+    noNeighbourhoodsHint: "Ajoutez-les dans Configuration, \u00c9tablissement.",
+
+    // ── L'abonnement de l'\u00e9l\u00e8ve ──────────────────────────────────
+    riderNotes: "Notes",
+    tabTransport: "Transport",
+    arrangement: "Abonnement transport",
+    arrangementHint:
+      "Choisissez d'abord le quartier : seuls les circuits qui le desservent sont propos\u00e9s, et l'arr\u00eat d\u00e9coule des deux.",
+    chooseNeighbourhood: "Quartier",
+    chooseRoute: "Circuit",
+    chooseSchedule: "Horaire",
+    chooseStop: "Arr\u00eat",
+    stopAutoResolved: "Un seul arr\u00eat dessert ce quartier sur ce circuit.",
+    stopsUnfilteredHint:
+      "Aucun arr\u00eat de ce circuit n'est encore rattach\u00e9 \u00e0 ce quartier : tous les arr\u00eats sont propos\u00e9s.",
+    noRoutesForNeighbourhood: "Aucun circuit ne dessert encore ce quartier.",
+    notSubscribed: "Cet \u00e9l\u00e8ve ne prend pas le bus.",
+    notSubscribedHint:
+      "Choisissez un quartier et un circuit pour l'y inscrire. Les \u00e9ch\u00e9ances de transport sont r\u00e9\u00e9crites en cons\u00e9quence.",
+    subscribe: "Inscrire au transport",
+    enrolFirst:
+      "Inscrivez l'\u00e9l\u00e8ve pour cette ann\u00e9e avant de l'affecter \u00e0 un circuit.",
+
+    // ── Consommation ────────────────────────────────────────────────────────
+    fuel: "Carburant",
+    fuelTitle: "Demandes de consommation",
+    fuelSubtitle:
+      "Ce que chaque bus a consomm\u00e9, qui l'a demand\u00e9 et qui l'a valid\u00e9.",
+    newFuelRequest: "Nouvelle demande",
+    editFuelRequest: "Modifier la demande",
+    fuelVehicle: "Bus",
+    fuelDriver: "Chauffeur",
+    fuelDriverHint:
+      "L'employ\u00e9 \u00e0 la pompe. Laissez vide et saisissez un nom pour un prestataire.",
+    fuelDriverName: "Nom du chauffeur",
+    fuelDate: "Date",
+    fuelLitres: "Litres",
+    fuelOdometer: "Compteur",
+    fuelOdometerHint:
+      "Kilom\u00e9trage relev\u00e9. Sans lui, la consommation ne peut pas \u00eatre calcul\u00e9e.",
+    fuelAmount: "Montant",
+    fuelStatus: "Statut",
+    fuelCategory: "Rubrique",
+    fuelCategoryHint:
+      "La rubrique sous laquelle le d\u00e9caissement est enregistr\u00e9.",
+    fuelDecidedBy: "D\u00e9cid\u00e9 par",
+    fuelConsumption: "Consommation",
+    fuelDistance: "Distance",
+    fuelPerHundred: "{value} L/100km",
+    fuelLitresValue: "{value} L",
+    fuelKilometres: "{value} km",
+    noFuelRequests: "Aucune demande de consommation.",
+    noFuelRequestsHint:
+      "Un chauffeur en d\u00e9pose une ; le responsable du parc la valide.",
+    fuelRequestCreated: "Demande d\u00e9pos\u00e9e.",
+    fuelRequestUpdated: "Demande modifi\u00e9e.",
+    fuelRequestDeleted: "Demande retir\u00e9e.",
+    fuelApprove: "Valider",
+    fuelReject: "Refuser",
+    fuelApprovedPosted: "Valid\u00e9e. Le d\u00e9caissement est en caisse.",
+    fuelRejected: "Demande refus\u00e9e.",
+    fuelAlreadyDecided: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 tranch\u00e9e.",
+    fuelNothingToPay:
+      "Une demande sans montant ne peut pas \u00eatre valid\u00e9e.",
+    fuelPending: "{count} en attente",
+    fuelRecent: "D\u00e9pens\u00e9 sur 30 jours",
+    fuelDeleteTitle: "Retirer cette demande ?",
+    fuelDeleteBody: "Elle n'a pas \u00e9t\u00e9 tranch\u00e9e : rien ne change en caisse.",
+
+    // ── L'appel du bus ──────────────────────────────────────────────────────
+    attendance: "Appel du bus",
+    attendanceTitle: "Appel du bus",
+    attendanceSubtitle:
+      "Qui est monté, sur quelle rotation. Pointé au trottoir par le chauffeur ou l'accompagnateur.",
+    chooseRun: "Rotation",
+    noRuns: "Aucun circuit ne roule cette année.",
+    noRunsHint: "Tracez d'abord un circuit, puis déclarez ses horaires.",
+    noRidersOnRun: "Personne n'est inscrit sur cette rotation.",
+    noRidersHint:
+      "Les élèves apparaissent ici dès qu'ils sont affectés à ce circuit à l'inscription.",
+    riderMarked: "Pointé.",
+    bulkMarked: "{count} élèves pointés comme montés.",
+    nothingToMark: "Tout le monde est déjà pointé sur cette rotation.",
+    markRest: "Tous les autres sont montés",
+    unmarked: "Non pointé",
+    stopColumn: "Arrêt",
+    minutesWaited: "Minutes d'attente",
+    reason: "Motif",
+    justified: "Famille prévenue",
+    notBoardedCount: "{count} absents du bus",
+    allBoarded: "Tout le monde est monté sur cette rotation.",
+    registerNote:
+      "Cet appel ne concerne que le bus. Un élève qui l'a manqué n'est pas pour autant absent de l'école.",
   },
   transportOptions: {
+    riderAttendanceStatuses: {
+      PRESENT: "Monté",
+      LATE: "En retard",
+      ABSENT: "Non monté",
+      EXCUSED: "Ne voyage pas",
+    },
+    scheduleDirections: {
+      MORNING: "Matin",
+      AFTERNOON: "Apr\u00e8s-midi",
+    },
+    fuelStatuses: {
+      PENDING: "En attente",
+      APPROVED: "Valid\u00e9e",
+      REJECTED: "Refus\u00e9e",
+      PAID: "Pay\u00e9e",
+    },
     vehicleStatuses: {
       ACTIVE: "En service",
       MAINTENANCE: "Au garage",
@@ -181,9 +294,11 @@ const fr = {
 };
 
 export const nav = {
+  transportSchedules: "Horaires",
+  transportConsumption: "Carburant",
+  transportAttendance: "Appel du bus",
   transportRoutes: "Lignes",
   transportFleet: "Flotte",
-  transportZones: "Zones",
 };
 
 export const permissions = {
@@ -195,6 +310,9 @@ export const permissions = {
     "transport.manage": "Gérer le parc et les lignes",
     "transport.subscribe": "Abonner des élèves",
     "transport.delete": "Supprimer véhicules et lignes",
+    "transport.attendance": "Pointer l'appel du bus",
+    "transport.fuel": "D\u00e9poser des demandes de carburant",
+    "transport.fuelApprove": "Valider les demandes de carburant",
   },
 };
 

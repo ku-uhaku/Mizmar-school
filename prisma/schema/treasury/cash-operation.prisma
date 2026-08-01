@@ -114,6 +114,12 @@ model CashOperation {
   /// payroll is never summed from the ledger, nor the ledger from the payroll.
   salaryPayment SalaryPayment? @relation("OperationSalary")
 
+  /// The fuel request this décaissement settled, when it was a tank of diesel.
+  /// Written by `decideFuelRequest` in modules/transport/service.ts, and the
+  /// same arrangement as the salary above: the request justifies the movement,
+  /// the movement is the record of it.
+  fuelRequest FuelRequest? @relation("OperationFuel")
+
   /// TRANSFERT only. The two legs of a till-to-till handover share this id, so
   /// the pair can be shown as one movement and neither can be read as money
   /// appearing from nowhere.

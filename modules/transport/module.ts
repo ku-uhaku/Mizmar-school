@@ -4,12 +4,11 @@ import { TRANSPORT_PERMISSIONS } from "@/modules/transport/permissions";
 /**
  * Logistique: the fleet, the lines it runs, and who rides on them.
  *
- * It owns the vehicles and the routes outright. It does **not** own what a
- * family is charged — that stays on the échéancier, where every other charge
- * lives. What this module decides is the *price*: a stop sits in a zone, the
- * zone has a rate, and subscribing writes that rate onto the pupil's transport
- * fee lines. Billing declares what is owed, the caisse collects it, and the bus
- * only says how much.
+ * It owns the vehicles, the routes, the runs they make and who rides on them.
+ * It owns **nothing** about money: what a family pays for the bus is one flat
+ * fee on the price list, raised on the échéancier at enrolment like every other
+ * charge. Seating a child at a stop is an operational act and never touches what
+ * they owe.
  */
 export const transportModule = defineModule({
   id: "transport",
@@ -40,14 +39,23 @@ export const transportModule = defineModule({
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
     },
     {
-      href: "/transport/zones",
-      icon: "zones",
+      href: "/transport/attendance",
+      icon: "attendance",
       section: "logistique",
-      labelKey: "transportZones",
-      // Pricing, not operations: a zone's rate is what a family is charged, so
-      // reading the line list is not enough to open it.
-      order: 40,
-      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_MANAGE,
+      labelKey: "transportAttendance",
+      order: 50,
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_ATTENDANCE,
+    },
+    {
+      href: "/transport/consumption",
+      icon: "decaissement",
+      section: "logistique",
+      labelKey: "transportConsumption",
+      order: 60,
+      // The driver's own permission, not the fleet manager's: raising a request
+      // is the job of whoever is at the pump. Approving one is gated separately
+      // inside the screen — see modules/transport/permissions.ts.
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_FUEL,
     },
   ],
   permissions: [

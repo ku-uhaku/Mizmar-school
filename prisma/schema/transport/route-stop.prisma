@@ -1,11 +1,10 @@
 /// An arrêt: one point on a line, in the order the bus reaches it.
 ///
-/// The stop carries the zone, not the pupil, and that is the whole of how
-/// transport gets priced. A family says "we live by the pharmacy on Boulevard
-/// Zerktouni"; the secretary picks that stop; the zone — and therefore the
-/// price — follows from it. Asking the secretary to choose a zone directly
-/// would make the price a judgement call rather than a consequence, and two
-/// families at the same corner would end up paying differently.
+/// Purely operational — it says where the bus stops and when, and nothing about
+/// money. Transport is charged once, at enrolment, from the price list, and no
+/// stop or quartier changes that figure. It used to carry a pricing zone; the
+/// school charges one flat transport fee, so the zone was a second answer to a
+/// question the échéancier had already settled.
 model RouteStop {
   id      String         @id @default(cuid())
   routeId String
@@ -17,8 +16,7 @@ model RouteStop {
   /// What to look for: "devant la pharmacie", "rond-point".
   landmark String?
 
-  /// The quartier this stop stands in — the *place*, as opposed to `zoneId`
-  /// below, which is the *price band*. Nullable because a line drawn before the
+  /// The quartier this stop stands in. Nullable because a line drawn before the
   /// quartiers were listed still has its stops, and because a stop on a trunk
   /// road may genuinely be in none of them.
   /// Restrict: a quartier with stops in it cannot be deleted from under them.
@@ -31,12 +29,6 @@ model RouteStop {
   /// temporary value to swap two rows past the constraint, and an index is
   /// enough for a list that is read in order and written whole.
   position Int @default(0)
-
-  /// Zone this stop sits in, and so the price a pupil boarding here pays.
-  /// Restrict: a zone with stops on it cannot be deleted out from under the
-  /// subscriptions priced from it.
-  zoneId String?
-  zone   TransportZone? @relation(fields: [zoneId], references: [id], onDelete: Restrict)
 
   /// Scheduled times, as plain strings in "HH:MM".
   ///
@@ -56,7 +48,6 @@ model RouteStop {
   /// a data-entry slip, and the secretary picking between them is a coin toss.
   @@unique([routeId, name])
   @@index([routeId])
-  @@index([zoneId])
   @@index([neighbourhoodId])
   @@map("route_stops")
 }

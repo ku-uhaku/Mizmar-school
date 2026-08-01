@@ -8,21 +8,33 @@ import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { boolField, field, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
+import { startOfDay } from "@/modules/hr/enums";
 import {
-  repriceZone,
+  decideFuelRequest,
+  markBusRunInBulk,
+  markRiderAttendance,
+  setRouteNeighbourhoods,
+  setRouteSchedules,
   subscribeRider,
   unsubscribeRider,
   updateRider,
 } from "@/modules/transport/service";
 import {
+  fuelDecisionSchema,
+  fuelRequestSchema,
+  riderAttendanceSchema,
   routeSchema,
   stopSchema,
   subscriptionSchema,
   vehicleSchema,
-  zoneSchema,
 } from "@/modules/transport/validation";
 
 /**
@@ -153,88 +165,6 @@ export async function deleteVehicleAction(
   });
 }
 
-// ── Zones ────────────────────────────────────────────────────────────────────
-
-export async function saveZoneAction(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  return withActionErrors(async () => {
-    const { t, context, schoolId } = await schoolContext();
-    if (!schoolId) return failure(t.errors.noSchoolContext);
-
-    const schoolYearId = context.currentSchoolYear?.id;
-    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
-
-    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
-
-    const parsed = zoneSchema(t).safeParse({
-      code: field(formData, "code"),
-      name: field(formData, "name"),
-      nameAr: field(formData, "nameAr"),
-      amount: field(formData, "amount"),
-      position: field(formData, "position") || "0",
-      isActive: boolField(formData, "isActive"),
-    });
-    if (!parsed.success) {
-      return failure(
-        t.errors.invalid,
-        fieldErrors(parsed.error),
-        formValues(formData),
-      );
-    }
-
-    const id = field(formData, "id");
-    if (id) {
-      const existing = await db.transportZone.findFirst({
-        where: { id, schoolYearId },
-        select: { id: true },
-      });
-      if (!existing) return failure(t.errors.notFound);
-    }
-
-    const clash = await db.transportZone.findFirst({
-      where: {
-        schoolYearId,
-        code: parsed.data.code,
-        ...(id ? { NOT: { id } } : {}),
-      },
-      select: { id: true },
-    });
-    if (clash) return failure(t.transport.zoneCodeTaken);
-
-    const data = {
-      schoolYearId,
-      code: parsed.data.code,
-      name: parsed.data.name,
-      nameAr: parsed.data.nameAr,
-      amountCentimes: parsed.data.amountCentimes,
-      position: parsed.data.position,
-      isActive: parsed.data.isActive,
-    };
-
-    const zone = id
-      ? await db.transportZone.update({
-          where: { id },
-          data,
-          select: { id: true },
-        })
-      : await db.transportZone.create({ data, select: { id: true } });
-
-    // A price change is expected to reach the families riding from it — see
-    // `repriceZone`.
-    const repriced = id ? await repriceZone(zone.id) : 0;
-
-    refresh();
-    return success(
-      repriced > 0
-        ? interpolate(t.transport.zoneRepriced, { count: repriced })
-        : t.transport.zoneSaved,
-    );
-  });
-}
-
-// ── Lines ────────────────────────────────────────────────────────────────────
 
 export async function saveRouteAction(
   _prevState: ActionState,
@@ -366,7 +296,6 @@ export async function saveStopAction(
       nameAr: field(formData, "nameAr"),
       landmark: field(formData, "landmark"),
       neighbourhoodId: optionalId(formData, "neighbourhoodId"),
-      zoneId: optionalId(formData, "zoneId"),
       position: field(formData, "position") || "0",
       pickupTime: field(formData, "pickupTime"),
       dropoffTime: field(formData, "dropoffTime"),
@@ -385,14 +314,6 @@ export async function saveStopAction(
       select: { id: true },
     });
     if (!route) return failure(t.errors.notFound);
-
-    const zone = parsed.data.zoneId
-      ? await db.transportZone.findFirst({
-          where: { id: parsed.data.zoneId, schoolYearId },
-          select: { id: true },
-        })
-      : null;
-    if (parsed.data.zoneId && !zone) return failure(t.errors.notFound);
 
     // The quartier is school-scoped rather than year-scoped — a place does not
     // expire with the tariff — so it is re-read against the school, not the year.
@@ -431,7 +352,6 @@ export async function saveStopAction(
       nameAr: parsed.data.nameAr,
       landmark: parsed.data.landmark,
       neighbourhoodId: neighbourhood?.id ?? null,
-      zoneId: zone?.id ?? null,
       position: parsed.data.position,
       pickupTime: parsed.data.pickupTime,
       dropoffTime: parsed.data.dropoffTime,
@@ -494,6 +414,7 @@ export async function subscribeRiderAction(
       stopId: field(formData, "stopId"),
       direction: field(formData, "direction"),
       status: field(formData, "status") || "ACTIVE",
+      scheduleId: optionalId(formData, "scheduleId"),
       startsOn: field(formData, "startsOn"),
       endsOn: field(formData, "endsOn"),
       notes: field(formData, "notes"),
@@ -529,6 +450,8 @@ export async function subscribeRiderAction(
       stopId: stop.id,
       direction: parsed.data.direction,
       status: parsed.data.status,
+      // Checked against the line inside the service — see `resolveSchedule`.
+      scheduleId: parsed.data.scheduleId,
       startsOn: parsed.data.startsOn ?? new Date(),
       endsOn: parsed.data.endsOn,
       notes: parsed.data.notes,
@@ -586,6 +509,7 @@ export async function updateRiderAction(
       stopId: field(formData, "stopId"),
       direction: field(formData, "direction"),
       status: field(formData, "status"),
+      scheduleId: optionalId(formData, "scheduleId"),
       startsOn: field(formData, "startsOn"),
       endsOn: field(formData, "endsOn"),
       notes: field(formData, "notes"),
@@ -608,6 +532,7 @@ export async function updateRiderAction(
       stopId: stop.id,
       direction: parsed.data.direction,
       status: parsed.data.status,
+      scheduleId: parsed.data.scheduleId,
       startsOn: parsed.data.startsOn ?? new Date(),
       endsOn: parsed.data.endsOn,
       notes: parsed.data.notes,
@@ -650,6 +575,423 @@ export async function unsubscribeRiderAction(
             count: result.cancelledLines,
           })
         : t.transport.riderRemoved,
+    );
+  });
+}
+
+// ── What a circuit serves ────────────────────────────────────────────────────
+
+/** Replaces the quartiers a circuit is declared to serve. */
+export async function setRouteNeighbourhoodsAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
+
+    const route = await db.transportRoute.findFirst({
+      where: { id: field(formData, "routeId"), schoolYearId },
+      select: { id: true },
+    });
+    if (!route) return failure(t.errors.notFound);
+
+    const count = await setRouteNeighbourhoods(
+      route.id,
+      schoolId,
+      listField(formData, "neighbourhoodIds"),
+    );
+
+    refresh();
+    return success(
+      interpolate(t.transport.neighbourhoodsSaved, { count }),
+    );
+  });
+}
+
+/** Replaces the runs a circuit makes. */
+export async function setRouteSchedulesAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
+
+    const route = await db.transportRoute.findFirst({
+      where: { id: field(formData, "routeId"), schoolYearId },
+      select: { id: true },
+    });
+    if (!route) return failure(t.errors.notFound);
+
+    const count = await setRouteSchedules(
+      route.id,
+      schoolYearId,
+      listField(formData, "scheduleIds"),
+    );
+
+    refresh();
+    return success(interpolate(t.transport.schedulesSaved, { count }));
+  });
+}
+
+// ── Consommation ─────────────────────────────────────────────────────────────
+
+/**
+ * Raises a fuel request, or edits one still pending.
+ *
+ * TRANSPORT_FUEL, not TRANSPORT_MANAGE: this is the driver's own permission,
+ * and asking for fuel is not the same job as redrawing the lines. Nothing here
+ * touches money — that happens only when somebody with the approving permission
+ * decides it.
+ */
+export async function saveFuelRequestAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_FUEL);
+
+    const parsed = fuelRequestSchema(t).safeParse({
+      vehicleId: field(formData, "vehicleId"),
+      requestedById: optionalId(formData, "requestedById"),
+      requestedByName: field(formData, "requestedByName"),
+      occurredOn: field(formData, "occurredOn"),
+      litres: field(formData, "litres") || "0",
+      odometerKm: field(formData, "odometerKm"),
+      amount: field(formData, "amount") || "0",
+      notes: field(formData, "notes"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const vehicle = await db.vehicle.findFirst({
+      where: { id: parsed.data.vehicleId, schoolId },
+      select: { id: true },
+    });
+    if (!vehicle) return failure(t.errors.notFound);
+
+    // The driver, when one was named, must be this school's employee.
+    const staff = parsed.data.requestedById
+      ? await db.staff.findFirst({
+          where: { id: parsed.data.requestedById, schoolId },
+          select: { id: true },
+        })
+      : null;
+
+    const data = {
+      vehicleId: vehicle.id,
+      requestedById: staff?.id ?? null,
+      requestedByName: parsed.data.requestedByName,
+      occurredOn: parsed.data.occurredOn ?? new Date(),
+      litresTenths: parsed.data.litresTenths,
+      odometerKm: parsed.data.odometerKm,
+      amountCentimes: parsed.data.amountCentimes,
+      notes: parsed.data.notes,
+    };
+
+    const requestId = field(formData, "id");
+
+    if (requestId) {
+      // Only while it is still pending: a decided request is the paper behind a
+      // décaissement, and editing the litres under it would make the ledger lie.
+      const updated = await db.fuelRequest.updateMany({
+        where: { id: requestId, schoolId, status: "PENDING" },
+        data,
+      });
+      if (updated.count === 0) return failure(t.transport.fuelAlreadyDecided);
+
+      refresh();
+      return success(t.transport.fuelRequestUpdated);
+    }
+
+    await db.fuelRequest.create({ data: { ...data, schoolId } });
+
+    refresh();
+    return success(t.transport.fuelRequestCreated);
+  });
+}
+
+/**
+ * Approves or refuses a request — and, when it is approved, posts the money.
+ *
+ * The separate permission is the point: whoever is at the pump does not get to
+ * agree to their own spend. See modules/transport/permissions.ts.
+ */
+export async function decideFuelRequestAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_FUEL_APPROVE);
+
+    const parsed = fuelDecisionSchema(t).safeParse({
+      status: field(formData, "status"),
+      notes: field(formData, "notes"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+    if (parsed.data.status === "PENDING") {
+      return failure(t.errors.invalid);
+    }
+
+    // The rubrique and the open till, both re-derived against this school.
+    const categoryId = optionalId(formData, "categoryId");
+    const category = categoryId
+      ? await db.operationCategory.findFirst({
+          where: { id: categoryId, schoolId, kind: { in: ["OUT", "BOTH"] } },
+          select: { id: true },
+        })
+      : null;
+
+    const session = await db.cashSession.findFirst({
+      where: { status: "OPEN", cashRegister: { schoolId } },
+      orderBy: { openedAt: "desc" },
+      select: { id: true },
+    });
+
+    const result = await decideFuelRequest({
+      requestId: field(formData, "id"),
+      schoolId,
+      status: parsed.data.status,
+      decidedById: context.user.id,
+      cashSessionId: session?.id ?? null,
+      categoryId: category?.id ?? null,
+      notes: parsed.data.notes,
+    });
+
+    if (!result.ok) {
+      switch (result.reason) {
+        case "ALREADY_DECIDED":
+          return failure(t.transport.fuelAlreadyDecided);
+        case "NOTHING_TO_PAY":
+          return failure(t.transport.fuelNothingToPay);
+        case "NOT_FOUND":
+          return failure(t.errors.notFound);
+      }
+    }
+
+    refresh();
+    return success(
+      result.operationId
+        ? t.transport.fuelApprovedPosted
+        : t.transport.fuelRejected,
+    );
+  });
+}
+
+export async function deleteFuelRequestAction(
+  requestId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_FUEL_APPROVE);
+
+    // Only a pending request may be withdrawn. A decided one has a movement
+    // behind it and is history — cancel that in the caisse instead.
+    const deleted = await db.fuelRequest.deleteMany({
+      where: { id: requestId, schoolId, status: "PENDING" },
+    });
+    if (deleted.count === 0) return failure(t.transport.fuelAlreadyDecided);
+
+    refresh();
+    return success(t.transport.fuelRequestDeleted);
+  });
+}
+
+// ── L'appel du bus ───────────────────────────────────────────────────────────
+
+/**
+ * Re-derives a run from the request, against the year in context.
+ *
+ * The driver's sheet posts a route and a schedule; neither is trusted. The line
+ * must belong to this year, and the run must be one that line actually makes —
+ * otherwise a crafted pair would write a register against children on another
+ * bus. Returns null when either check fails.
+ */
+async function reachableRun(
+  schoolYearId: string,
+  routeId: string,
+  scheduleId: string,
+): Promise<{ routeId: string; scheduleId: string | null } | null> {
+  const route = await db.transportRoute.findFirst({
+    where: { id: routeId, schoolYearId },
+    select: { id: true },
+  });
+  if (!route) return null;
+
+  if (!scheduleId) return { routeId: route.id, scheduleId: null };
+
+  const link = await db.routeSchedule.findUnique({
+    where: { routeId_scheduleId: { routeId: route.id, scheduleId } },
+    select: { scheduleId: true },
+  });
+  if (!link) return null;
+
+  return { routeId: route.id, scheduleId: link.scheduleId };
+}
+
+/** Marks one rider on one run. */
+export async function markRiderAttendanceAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_ATTENDANCE);
+
+    const parsed = riderAttendanceSchema(t).safeParse({
+      subscriptionId: field(formData, "subscriptionId"),
+      routeId: field(formData, "routeId"),
+      scheduleId: optionalId(formData, "scheduleId"),
+      date: field(formData, "date"),
+      status: field(formData, "status"),
+      minutesLate: field(formData, "minutesLate") || "0",
+      isJustified: boolField(formData, "isJustified"),
+      reason: field(formData, "reason"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const run = await reachableRun(
+      schoolYearId,
+      parsed.data.routeId,
+      parsed.data.scheduleId ?? "",
+    );
+    if (!run) return failure(t.errors.notFound);
+
+    // The rider must be on that very line, this school, this year.
+    const subscription = await db.transportSubscription.findFirst({
+      where: {
+        id: parsed.data.subscriptionId,
+        routeId: run.routeId,
+        enrollment: { schoolYearId, student: { schoolId } },
+      },
+      select: { id: true },
+    });
+    if (!subscription) return failure(t.errors.notFound);
+
+    await markRiderAttendance({
+      subscriptionId: subscription.id,
+      scheduleId: run.scheduleId,
+      date: startOfDay(parsed.data.date),
+      status: parsed.data.status,
+      minutesLate: parsed.data.minutesLate,
+      isJustified: parsed.data.isJustified,
+      reason: parsed.data.reason,
+      recordedById: context.user.id,
+    });
+
+    refresh();
+    return success(t.transport.riderMarked);
+  });
+}
+
+/** The "everyone else got on" button at the foot of the sheet. */
+export async function markBusRunInBulkAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_ATTENDANCE);
+
+    const parsed = riderAttendanceSchema(t).safeParse({
+      // The bulk sheet marks a run, not one child, so the schema's
+      // subscriptionId is satisfied with a placeholder and the real ids are
+      // re-derived from the line below.
+      subscriptionId: "bulk",
+      routeId: field(formData, "routeId"),
+      scheduleId: optionalId(formData, "scheduleId"),
+      date: field(formData, "date"),
+      status: field(formData, "status"),
+      minutesLate: "0",
+      isJustified: false,
+      reason: "",
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const run = await reachableRun(
+      schoolYearId,
+      parsed.data.routeId,
+      parsed.data.scheduleId ?? "",
+    );
+    if (!run) return failure(t.errors.notFound);
+
+    const requested = listField(formData, "subscriptionIds");
+    const reachable = await db.transportSubscription.findMany({
+      where: {
+        id: { in: requested },
+        routeId: run.routeId,
+        status: "ACTIVE",
+        enrollment: { schoolYearId, student: { schoolId } },
+      },
+      select: { id: true },
+    });
+    if (reachable.length === 0) return failure(t.transport.nothingToMark);
+
+    const written = await markBusRunInBulk({
+      subscriptionIds: reachable.map((row) => row.id),
+      scheduleId: run.scheduleId,
+      date: startOfDay(parsed.data.date),
+      status: parsed.data.status,
+      recordedById: context.user.id,
+    });
+
+    refresh();
+    return success(
+      written > 0
+        ? interpolate(t.transport.bulkMarked, { count: written })
+        : t.transport.nothingToMark,
     );
   });
 }

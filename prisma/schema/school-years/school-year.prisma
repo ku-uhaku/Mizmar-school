@@ -38,9 +38,9 @@ model SchoolYear {
   /// receipts against it is closed history.
   payments Payment[]
 
-  /// This year's bus lines and what riding on them costs.
-  transportRoutes TransportRoute[]
-  transportZones  TransportZone[]
+  /// This year's bus lines and the runs they make.
+  transportRoutes    TransportRoute[]
+  transportSchedules TransportSchedule[]
 
   @@unique([schoolId, name])
   @@index([schoolId])

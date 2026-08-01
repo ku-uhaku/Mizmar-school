@@ -2,11 +2,12 @@
 
 import { MapPinIcon, PlusIcon, UsersIcon } from "lucide-react";
 import * as React from "react";
+import { useActionState } from "react";
 import { toast } from "sonner";
 
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
-import { useLocale, useT } from "@/components/providers/i18n-provider";
+import { useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import {
   AlertDialog,
@@ -20,7 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -47,13 +49,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { IDLE } from "@/lib/action-state";
+import { IDLE, type ActionState } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
-import { formatAmount, interpolate } from "@/lib/i18n/format";
+import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   deleteStopAction,
   saveStopAction,
+  setRouteNeighbourhoodsAction,
+  setRouteSchedulesAction,
   subscribeRiderAction,
   unsubscribeRiderAction,
   updateRiderAction,
@@ -66,33 +70,32 @@ import type {
   RouteDetail,
   StopRow,
   SubscribableStudent,
-  ZoneRow,
 } from "@/modules/transport/queries";
 import { Field } from "@/modules/transport/components/field";
 
 /**
  * One line: the stops it serves, in order, and everyone riding it.
  *
- * The stops come first because they are what the riders are chosen from — a
- * pupil is put on the bus by picking where they board, never by picking a zone,
- * so a line with no stops cannot take passengers and the screen shows why.
+ * The stops come first because they are what the riders are chosen from: a line
+ * with no stops cannot take passengers, and the screen shows why. Nothing here
+ * is a price — the bus is billed at enrolment, from the price list.
  */
 export function RoutePanel({
   route,
-  zones,
   neighbourhoods,
+  schedules,
   subscribable,
   permissions,
 }: {
   route: RouteDetail;
-  zones: ZoneRow[];
   /** The school's quartiers, for the stop dialog — see modules/geography. */
   neighbourhoods: { id: string; label: string }[];
+  /** The year's runs, declared under /configuration/logistique. */
+  schedules: { id: string; label: string; name: string; direction: string }[];
   subscribable: SubscribableStudent[];
   permissions: { canManage: boolean; canSubscribe: boolean };
 }) {
   const t = useT();
-  const locale = useLocale();
 
   return (
     <div className="grid gap-5">
@@ -132,12 +135,23 @@ export function RoutePanel({
               {route.riders.length}
             </Badge>
           </TabsTrigger>
+          <TabsTrigger value="neighbourhoods">
+            {t.transport.routeNeighbourhoods}
+            <Badge variant="secondary" className="ms-1.5 tabular-nums">
+              {route.neighbourhoodIds.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="schedules">
+            {t.transport.routeSchedules}
+            <Badge variant="secondary" className="ms-1.5 tabular-nums">
+              {route.scheduleIds.length}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="stops">
           <StopsTab
             route={route}
-            zones={zones}
             neighbourhoods={neighbourhoods}
             canManage={permissions.canManage}
           />
@@ -148,7 +162,39 @@ export function RoutePanel({
             route={route}
             subscribable={subscribable}
             canSubscribe={permissions.canSubscribe}
-            locale={locale}
+          />
+        </TabsContent>
+
+        <TabsContent value="neighbourhoods">
+          <AssignmentTab
+            routeId={route.id}
+            action={setRouteNeighbourhoodsAction}
+            fieldName="neighbourhoodIds"
+            selected={route.neighbourhoodIds}
+            options={neighbourhoods}
+            title={t.transport.routeNeighbourhoods}
+            description={t.transport.routeNeighbourhoodsHint}
+            emptyTitle={t.transport.noNeighbourhoods}
+            emptyHint={t.transport.noNeighbourhoodsHint}
+            canManage={permissions.canManage}
+          />
+        </TabsContent>
+
+        <TabsContent value="schedules">
+          <AssignmentTab
+            routeId={route.id}
+            action={setRouteSchedulesAction}
+            fieldName="scheduleIds"
+            selected={route.scheduleIds}
+            options={schedules.map((schedule) => ({
+              id: schedule.id,
+              label: `${schedule.label} · ${schedule.name}`,
+            }))}
+            title={t.transport.routeSchedules}
+            description={t.transport.routeSchedulesHint}
+            emptyTitle={t.transport.noSchedules}
+            emptyHint={t.transport.noSchedulesHint}
+            canManage={permissions.canManage}
           />
         </TabsContent>
       </Tabs>
@@ -186,18 +232,15 @@ function Summary({
 
 function StopsTab({
   route,
-  zones,
   neighbourhoods,
   canManage,
 }: {
   route: RouteDetail;
-  zones: ZoneRow[];
   /** The school's quartiers, for the stop dialog — see modules/geography. */
   neighbourhoods: { id: string; label: string }[];
   canManage: boolean;
 }) {
   const t = useT();
-  const locale = useLocale();
   const [editing, setEditing] = React.useState<StopRow | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [removing, setRemoving] = React.useState<StopRow | null>(null);
@@ -241,7 +284,6 @@ function StopsTab({
                 <TableRow>
                   <TableHead className="w-12">{t.transport.position}</TableHead>
                   <TableHead>{t.transport.stopName}</TableHead>
-                  <TableHead>{t.transport.zone}</TableHead>
                   <TableHead>{t.transport.pickupTime}</TableHead>
                   <TableHead className="text-end">
                     {t.transport.riders}
@@ -266,21 +308,6 @@ function StopsTab({
                             .join(" · ")}
                         </span>
                       ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {stop.zoneName ? (
-                        <span className="text-sm">
-                          {stop.zoneName}
-                          <span className="text-muted-foreground ms-2 text-xs tabular-nums">
-                            {formatAmount(stop.zoneAmountCentimes ?? 0, locale)}
-                          </span>
-                        </span>
-                      ) : (
-                        // Without a zone a rider here has no price at all.
-                        <Badge variant="outline" className="text-destructive">
-                          {t.transport.noZoneOnStop}
-                        </Badge>
-                      )}
                     </TableCell>
                     <TableCell className="tabular-nums" dir="ltr">
                       {stop.pickupTime ?? "—"}
@@ -320,7 +347,6 @@ function StopsTab({
         <StopDialog
           routeId={route.id}
           stop={editing}
-          zones={zones}
           neighbourhoods={neighbourhoods}
           nextPosition={route.stops.length}
           onClose={() => {
@@ -360,14 +386,12 @@ function StopsTab({
 function StopDialog({
   routeId,
   stop,
-  zones,
   neighbourhoods,
   nextPosition,
   onClose,
 }: {
   routeId: string;
   stop: StopRow | null;
-  zones: ZoneRow[];
   /** The school's quartiers, for the stop dialog — see modules/geography. */
   neighbourhoods: { id: string; label: string }[];
   nextPosition: number;
@@ -440,26 +464,6 @@ function StopDialog({
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.transport.zone} name="zoneId">
-              <Select
-                name="zoneId"
-                defaultValue={
-                  valueOf(state, "zoneId", stop?.zoneId) || "__none__"
-                }
-              >
-                <SelectTrigger id="zoneId" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t.common.none}</SelectItem>
-                  {zones.map((zone) => (
-                    <SelectItem key={zone.id} value={zone.id}>
-                      {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
 
             <Field label={t.transport.position} name="position">
               <Input
@@ -520,12 +524,10 @@ function RidersTab({
   route,
   subscribable,
   canSubscribe,
-  locale,
 }: {
   route: RouteDetail;
   subscribable: SubscribableStudent[];
   canSubscribe: boolean;
-  locale: ReturnType<typeof useLocale>;
 }) {
   const t = useT();
   const [adding, setAdding] = React.useState(false);
@@ -597,10 +599,6 @@ function RidersTab({
                   <TableHead>{t.transport.pupil}</TableHead>
                   <TableHead>{t.transport.stop}</TableHead>
                   <TableHead>{t.transport.direction}</TableHead>
-                  <TableHead>{t.transport.zone}</TableHead>
-                  <TableHead className="text-end">
-                    {t.transport.pricePerYear}
-                  </TableHead>
                   {canSubscribe ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
@@ -632,10 +630,6 @@ function RidersTab({
                           }
                         </Badge>
                       ) : null}
-                    </TableCell>
-                    <TableCell>{rider.zoneName ?? "—"}</TableCell>
-                    <TableCell className="text-end tabular-nums">
-                      {formatAmount(rider.priceCentimes, locale)}
                     </TableCell>
                     {canSubscribe ? (
                       <TableCell className="text-end">
@@ -771,7 +765,6 @@ function RiderDialog({
                 {stops.map((stop) => (
                   <SelectItem key={stop.id} value={stop.id}>
                     {stop.name}
-                    {stop.zoneName ? ` · ${stop.zoneName}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -877,7 +870,6 @@ function EditRiderDialog({
                 {stops.map((stop) => (
                   <SelectItem key={stop.id} value={stop.id}>
                     {stop.name}
-                    {stop.zoneName ? ` · ${stop.zoneName}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -934,5 +926,124 @@ function EditRiderDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * A checklist of things a circuit may be given: its quartiers, or its runs.
+ *
+ * One component for both because the two are the same interaction — tick a set,
+ * save it whole. The whole desired set is submitted rather than a diff, exactly
+ * as the permission matrix does it: working out what changed on the client would
+ * only add a chance to get it wrong, and the server re-derives every id against
+ * the school or the year before writing.
+ *
+ * Radix's Checkbox is not a native input, so each ticked row carries a hidden
+ * field — the same trick `PermissionMatrix` uses.
+ */
+function AssignmentTab({
+  routeId,
+  action,
+  fieldName,
+  selected,
+  options,
+  title,
+  description,
+  emptyTitle,
+  emptyHint,
+  canManage,
+}: {
+  routeId: string;
+  action: (
+    prevState: ActionState,
+    formData: FormData,
+  ) => Promise<ActionState>;
+  fieldName: string;
+  selected: string[];
+  options: { id: string; label: string }[];
+  title: string;
+  description: string;
+  emptyTitle: string;
+  emptyHint: string;
+  canManage: boolean;
+}) {
+  const t = useT();
+  const [state, formAction] = useActionState(action, IDLE);
+  useActionFeedback(state);
+
+  const [ticked, setTicked] = React.useState<Set<string>>(
+    () => new Set(selected),
+  );
+
+  function toggle(id: string, checked: boolean) {
+    setTicked((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  if (options.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-0">
+          <EmptyState
+            icon={<MapPinIcon className="size-5" />}
+            title={emptyTitle}
+            description={emptyHint}
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <form action={formAction} className="grid gap-4">
+          <input type="hidden" name="routeId" value={routeId} />
+
+          <fieldset
+            disabled={!canManage}
+            className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {options.map((option) => {
+              const checked = ticked.has(option.id);
+              const id = `${fieldName}-${option.id}`;
+              return (
+                <label
+                  key={option.id}
+                  htmlFor={id}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                >
+                  <Checkbox
+                    id={id}
+                    checked={checked}
+                    disabled={!canManage}
+                    onCheckedChange={(value) => toggle(option.id, value === true)}
+                  />
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {checked ? (
+                    <input type="hidden" name={fieldName} value={option.id} />
+                  ) : null}
+                </label>
+              );
+            })}
+          </fieldset>
+
+          {canManage ? (
+            <div className="flex justify-end">
+              <SubmitButton>{t.common.save}</SubmitButton>
+            </div>
+          ) : null}
+        </form>
+      </CardContent>
+    </Card>
   );
 }

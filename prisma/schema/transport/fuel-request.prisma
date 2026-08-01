@@ -1,0 +1,100 @@
+/// A demande de consommation: the driver asking for the fuel their bus needs,
+/// and what it cost once somebody agreed to it.
+///
+/// ── Why it is a request and not just an expense ─────────────────────────────
+/// The driver is at the station and the bursar is not. Letting a chauffeur post
+/// straight into the ledger would give the person spending the money the power
+/// to record it, which is the one separation a caisse exists to keep. So this
+/// table holds the ask, somebody with TRANSPORT_FUEL_APPROVE decides it, and
+/// only that decision writes a décaissement — see `decideFuelRequest` in
+/// modules/transport/service.ts.
+///
+/// ── Why the ledger is still the ledger ──────────────────────────────────────
+/// Nothing here is ever summed to work out what the school spent. An approved
+/// request points at the CashOperation it produced and that operation is the
+/// record, exactly as SalaryPayment points at the décaissement that settled a
+/// bulletin. This table's own reason to exist is the *fleet* question — litres
+/// and kilometres per bus — which the ledger cannot answer because a
+/// décaissement has no odometer on it.
+///
+/// School-scoped and year-independent, like Vehicle: a tank of diesel is not a
+/// year-shaped fact, and a fleet's consumption history is worth reading across
+/// the rentrée that falls in the middle of it.
+model FuelRequest {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a bus with fuel history cannot be deleted out from under it.
+  /// Retire the vehicle instead — that is what `status` RETIRED is for.
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+
+  /// The driver, when they are on the school's payroll. SetNull for the same
+  /// reason as Vehicle.driverId: an employee record removed must leave the
+  /// spending history standing.
+  requestedById String?
+  requestedBy   Staff?  @relation("FuelRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  /// The driver as text, for the contractors who are on nobody's payroll.
+  /// Written in every case, so a cleared link degrades to a name rather than to
+  /// nothing — the same decision as CashOperation.beneficiaryName.
+  requestedByName String?
+
+  /// The day the fuel was taken, which is not always the day it was typed in.
+  occurredOn DateTime @default(now())
+
+  /// Fuel drawn, in **tenths of a litre**. An integer for the reason every
+  /// amount in this app is one: 45.3 litres is exact in tenths and is not in
+  /// binary floating point, and a consumption figure built from drifting halves
+  /// is worse than none. `litresLabel` in modules/transport/enums.ts is what
+  /// renders it, so no screen divides by ten on its own.
+  litresTenths Int @default(0)
+
+  /// The odometer reading at the pump, in whole kilometres.
+  ///
+  /// This is the whole reason the table is not simply a décaissement: litres
+  /// alone say what was spent, and only the distance between two readings says
+  /// whether a bus is drinking more than it should. Nullable because a driver
+  /// who forgot to look is still owed their money.
+  odometerKm Int?
+
+  /// What was paid, in centimes of dirham. Positive, always: the direction is
+  /// the décaissement's, not a minus sign here.
+  amountCentimes Int @default(0)
+
+  /// "PENDING" | "APPROVED" | "REJECTED" | "PAID" — see FUEL_REQUEST_STATUSES
+  /// in modules/transport/enums.ts.
+  status String @default("PENDING")
+
+  /// Who decided it, and when. Restrict is wrong here and SetNull is right: a
+  /// disputed approval should degrade to "approved, by an account since
+  /// removed" rather than block the removal of a leaver.
+  decidedById String?
+  decidedBy   User?     @relation("FuelRequestDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt   DateTime?
+
+  /// The décaissement approval produced. Nullable-unique: pending and rejected
+  /// requests have none, and no two requests may claim the same movement.
+  ///
+  /// SetNull rather than Cascade: cancelling a movement in the caisse must not
+  /// delete the request that justified it — the request is the paper the
+  /// cancellation has to be explained against.
+  cashOperationId String?        @unique
+  cashOperation   CashOperation? @relation("OperationFuel", fields: [cashOperationId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([vehicleId])
+  @@index([requestedById])
+  @@index([decidedById])
+  /// What the consumption screen reads: this school's requests, newest first,
+  /// and the pending ones somebody has to decide.
+  @@index([schoolId, status])
+  @@index([vehicleId, occurredOn])
+  @@map("fuel_requests")
+}

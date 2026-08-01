@@ -41,6 +41,10 @@ model Neighbourhood {
   /// Bus stops standing in it — see prisma/schema/transport/route-stop.prisma.
   routeStops RouteStop[]
 
+  /// Circuits that serve it. Not the same thing as the stops above, and the
+  /// difference is the point — see prisma/schema/transport/route-neighbourhood.prisma.
+  servingRoutes RouteNeighbourhood[]
+
   @@unique([schoolId, code])
   /// Two rows for the same quartier of the same town defeat the point.
   @@unique([cityId, name])

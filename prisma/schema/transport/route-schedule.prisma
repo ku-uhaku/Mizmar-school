@@ -1,0 +1,32 @@
+/// Which runs a circuit operates — the join between TransportRoute and
+/// TransportSchedule.
+///
+/// A line is not tied to one departure: the same bus commonly does the morning
+/// ramassage and the evening return, and a school with a collège and a primaire
+/// finishing at different hours runs the same line twice in an afternoon. So the
+/// horaires a circuit offers are a list, and choosing between them is what the
+/// family does at inscription.
+///
+/// A plain join row with no payload of its own. If a per-circuit departure time
+/// is ever wanted — the same run leaving five minutes earlier on the long line —
+/// it belongs here as a nullable override, not as a copy of the horaire.
+model RouteSchedule {
+  id String @id @default(cuid())
+
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  /// Restrict: an horaire that circuits are running cannot be deleted out from
+  /// under them, and least of all out from under the abonnements pointing at it.
+  scheduleId String
+  schedule   TransportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  /// One row per pairing. Assigning the same run twice is a double-click, not a
+  /// second departure.
+  @@unique([routeId, scheduleId])
+  @@index([routeId])
+  @@index([scheduleId])
+  @@map("route_schedules")
+}

@@ -48,18 +48,6 @@ const en = {
     paperworkDue: "Papers to renew",
     noExpiryRecorded: "No date recorded",
 
-    // ── Zones ───────────────────────────────────────────────────────────────
-    zones: "Pricing zones",
-    zone: "Zone",
-    newZone: "New zone",
-    editZone: "Edit zone",
-    zonesHint:
-      "The bus is priced by how far the child lives, so a stop's zone decides what its riders pay.",
-    zonePrice: "Price for the year",
-    zoneCodeTaken: "That zone code is already used this year.",
-    zoneSaved: "Zone saved.",
-    zoneRepriced: "Zone saved — {count} pupils repriced.",
-    noZones: "No zone declared. Riders cannot be priced until there is one.",
     riders: "Riders",
 
     // ── Lines ───────────────────────────────────────────────────────────────
@@ -107,7 +95,6 @@ const en = {
     stopNameTaken: "That stop already exists on this line.",
     stopHasRiders: "Pupils board here — move them before removing the stop.",
     noStops: "No stop on this line yet.",
-    noZoneOnStop: "No zone — riders here cannot be priced.",
 
     // ── Riders ──────────────────────────────────────────────────────────────
     addRider: "Add a rider",
@@ -118,7 +105,6 @@ const en = {
     subscriptionStatus: "Status",
     startsOn: "From",
     endsOn: "Until",
-    pricePerYear: "Price for the year",
     riderAdded: "Rider added.",
     riderAddedBilled: "Rider added — {count} instalments priced.",
     riderUpdated: "Rider updated.",
@@ -133,7 +119,7 @@ const en = {
     notRiding: "This pupil does not take the bus.",
     transportOf: "Transport",
     billingNote:
-      "Subscribing writes the zone's price onto the pupil's transport instalments. What is owed stays on the échéancier.",
+      "The bus is billed once, at enrolment, from the price list. Putting a pupil on a circuit does not change what their family owes.",
 
     // ── Summary ─────────────────────────────────────────────────────────────
     seatsOffered: "Seats offered",
@@ -155,8 +141,132 @@ const en = {
     occupancy: "How full the lines run",
     occupancyHint: "Riders against the seats each line offers.",
     seatsTaken: "{taken} of {seats} seats",
+
+    // ── Runs ────────────────────────────────────────────────────────────────
+    schedules: "Timetables",
+    schedule: "Run",
+    noSchedules: "No run declared for this year yet.",
+    noSchedulesHint:
+      "Declare them under Configuration, then tick the ones each line makes.",
+    schedulesSaved: "{count} runs on this line.",
+    routeSchedules: "Runs",
+    routeSchedulesHint: "Which departures this line makes.",
+    scheduleOnRoute: "Run",
+    noScheduleChosen: "No particular run",
+
+    // ── Districts served ────────────────────────────────────────────────────
+    routeNeighbourhoods: "Districts served",
+    routeNeighbourhoodsHint:
+      "The catchment this line is offered for. It is what a family's district is matched against at enrolment, and it does not have to wait for the stops to be drawn.",
+    neighbourhoodsSaved: "{count} districts on this line.",
+    noNeighbourhoods: "No district declared for this school yet.",
+    noNeighbourhoodsHint: "Add them under Configuration, Establishment.",
+
+    // ── The pupil's arrangement ─────────────────────────────────────────────
+    riderNotes: "Notes",
+    tabTransport: "Transport",
+    arrangement: "Bus arrangement",
+    arrangementHint:
+      "Pick the district first: only the lines serving it are offered, and the stop follows from the two.",
+    chooseNeighbourhood: "District",
+    chooseRoute: "Line",
+    chooseSchedule: "Run",
+    chooseStop: "Stop",
+    stopAutoResolved: "One stop serves this district on this line.",
+    stopsUnfilteredHint:
+      "No stop on this line is tagged with this district yet, so every stop is offered.",
+    noRoutesForNeighbourhood: "No line serves this district yet.",
+    notSubscribed: "This pupil does not take the bus.",
+    notSubscribedHint:
+      "Choose a district and a line to put them on one. The transport instalments are rewritten to match.",
+    subscribe: "Put on the bus",
+    enrolFirst: "Enrol the pupil for this year before putting them on a line.",
+
+    // ── Fuel ────────────────────────────────────────────────────────────────
+    fuel: "Fuel",
+    fuelTitle: "Fuel requests",
+    fuelSubtitle:
+      "What each bus has been fuelled with, who asked, and who agreed to it.",
+    newFuelRequest: "New request",
+    editFuelRequest: "Edit request",
+    fuelVehicle: "Bus",
+    fuelDriver: "Driver",
+    fuelDriverHint:
+      "The employee at the pump. Leave it and type a name for a contractor.",
+    fuelDriverName: "Driver's name",
+    fuelDate: "Date",
+    fuelLitres: "Litres",
+    fuelOdometer: "Odometer",
+    fuelOdometerHint:
+      "Kilometres on the clock. Without it the consumption cannot be worked out.",
+    fuelAmount: "Amount",
+    fuelStatus: "Status",
+    fuelCategory: "Expense heading",
+    fuelCategoryHint: "The heading the payment is posted under in the cash desk.",
+    fuelDecidedBy: "Decided by",
+    fuelConsumption: "Consumption",
+    fuelDistance: "Distance",
+    fuelPerHundred: "{value} L/100km",
+    fuelLitresValue: "{value} L",
+    fuelKilometres: "{value} km",
+    noFuelRequests: "No fuel request yet.",
+    noFuelRequestsHint: "A driver raises one; whoever runs the fleet agrees it.",
+    fuelRequestCreated: "Request raised.",
+    fuelRequestUpdated: "Request updated.",
+    fuelRequestDeleted: "Request withdrawn.",
+    fuelApprove: "Approve",
+    fuelReject: "Refuse",
+    fuelApprovedPosted: "Approved. The payment is in the cash desk.",
+    fuelRejected: "Request refused.",
+    fuelAlreadyDecided: "That request has already been decided.",
+    fuelNothingToPay: "A request for nothing cannot be approved.",
+    fuelPending: "{count} awaiting a decision",
+    fuelRecent: "Spent in the last 30 days",
+    fuelDeleteTitle: "Withdraw this request?",
+    fuelDeleteBody: "It has not been decided, so nothing in the ledger changes.",
+
+    // ── L'appel du bus ──────────────────────────────────────────────────────
+    attendance: "Bus register",
+    attendanceTitle: "Bus register",
+    attendanceSubtitle:
+      "Who boarded, on which run. Marked at the kerb by the driver or the accompagnateur.",
+    chooseRun: "Run",
+    noRuns: "No line runs this year yet.",
+    noRunsHint: "Draw a line first, then declare the runs it makes.",
+    noRidersOnRun: "Nobody is booked on this run.",
+    noRidersHint:
+      "Riders appear here once they are put on this line at enrolment.",
+    riderMarked: "Marked.",
+    bulkMarked: "{count} riders marked as boarded.",
+    nothingToMark: "Everybody on this run has already been marked.",
+    markRest: "Everyone else boarded",
+    unmarked: "Not marked",
+    stopColumn: "Stop",
+    minutesWaited: "Minutes waited",
+    reason: "Reason",
+    justified: "Family warned us",
+    notBoardedCount: "{count} not on the bus",
+    allBoarded: "Everybody on this run boarded.",
+    registerNote:
+      "This register is the bus only. A pupil who missed it is not thereby absent from school.",
   },
   transportOptions: {
+    riderAttendanceStatuses: {
+      PRESENT: "Boarded",
+      LATE: "Late",
+      ABSENT: "Did not board",
+      EXCUSED: "Not travelling",
+    },
+    scheduleDirections: {
+      MORNING: "Morning",
+      AFTERNOON: "Afternoon",
+    },
+    fuelStatuses: {
+      PENDING: "Awaiting a decision",
+      APPROVED: "Approved",
+      REJECTED: "Refused",
+      PAID: "Paid",
+    },
     vehicleStatuses: {
       ACTIVE: "In service",
       MAINTENANCE: "In the garage",
@@ -177,9 +287,11 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  transportSchedules: "Timetables",
+  transportConsumption: "Fuel",
+  transportAttendance: "Bus register",
   transportRoutes: "Routes",
   transportFleet: "Fleet",
-  transportZones: "Zones",
 } as const;
 
 /** Permission matrix labels for this module's own codes. */
@@ -192,6 +304,9 @@ export const permissions = {
     "transport.manage": "Manage the fleet and lines",
     "transport.subscribe": "Put pupils on a line",
     "transport.delete": "Delete vehicles and lines",
+    "transport.attendance": "Mark the bus register",
+    "transport.fuel": "Raise fuel requests",
+    "transport.fuelApprove": "Approve fuel requests",
   },
 } as const;
 

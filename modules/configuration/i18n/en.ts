@@ -22,6 +22,7 @@ const en = {
     deleteBody: "It will be removed from this school's configuration.",
     outOfContext:
       "That choice does not belong to the school you are working in.",
+    arrivalBeforeDeparture: "The arrival must come after the departure.",
     codeFormatNeedsSequence:
       "Include {seq} — without it every reference this year would be identical.",
 
@@ -33,6 +34,7 @@ const en = {
       classes: "Classes",
       billing: "Fees",
       treasury: "Caisse",
+      logistique: "Transport",
     },
 
     groups: {
@@ -46,6 +48,7 @@ const en = {
     },
 
     resources: {
+      transportSchedules: "Transport timetables",
       banks: "Banks",
       operationCategories: "Rubrics",
       operationSubcategories: "Sub-rubrics",
@@ -73,6 +76,9 @@ const en = {
     },
 
     fields: {
+      scheduleDirection: "Direction",
+      departureTime: "Departs",
+      arrivalTime: "Arrives",
       region: "Region",
       city: "Town",
       landmark: "Street or landmark",
@@ -155,6 +161,9 @@ const en = {
     },
 
     hints: {
+      scheduleDirection:
+        "A run goes one way. A pupil riding both ways is booked on two of them, or on the line itself.",
+      arrivalTime: "Leave it blank until somebody has timed the round.",
       region: "Optional — only useful for grouping a long list.",
       holidayEnd: "Inclusive — a single day repeats the start date.",
       substitute: "Leave blank if nobody is covering.",
@@ -224,6 +233,10 @@ const en = {
   },
 
   configOptions: {
+    scheduleDirections: {
+      MORNING: "Morning",
+      AFTERNOON: "Afternoon",
+    },
     categoryKinds: {
       IN: "Money in",
       OUT: "Money out",

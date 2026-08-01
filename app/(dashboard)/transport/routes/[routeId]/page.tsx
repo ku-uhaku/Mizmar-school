@@ -11,8 +11,8 @@ import { listNeighbourhoodChoices } from "@/modules/geography/queries";
 import { RoutePanel } from "@/modules/transport/components/route-panel";
 import {
   findRoute,
+  listScheduleOptions,
   listSubscribableStudents,
-  listZones,
 } from "@/modules/transport/queries";
 
 export const metadata: Metadata = { title: "Ligne" };
@@ -35,9 +35,9 @@ export default async function RoutePage({
   const route = await findRoute(context, routeId);
   if (!route) notFound();
 
-  const [zones, neighbourhoods, subscribable] = await Promise.all([
-    listZones(context),
+  const [neighbourhoods, schedules, subscribable] = await Promise.all([
     listNeighbourhoodChoices(context),
+    listScheduleOptions(context),
     listSubscribableStudents(context),
   ]);
 
@@ -54,8 +54,8 @@ export default async function RoutePage({
 
       <RoutePanel
         route={route}
-        zones={zones}
         neighbourhoods={neighbourhoods}
+        schedules={schedules}
         subscribable={subscribable}
         permissions={{
           canManage: context.can(PERMISSIONS.TRANSPORT_MANAGE),

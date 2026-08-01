@@ -18,7 +18,7 @@ import { nullableKey } from "@/lib/db-keys";
  *   TUITION       scolarité — the main annual charge
  *   REGISTRATION  frais d'inscription / réinscription
  *   INSURANCE     assurance scolaire, usually a small flat sum
- *   TRANSPORT     bus, often priced by zone rather than by level
+ *   TRANSPORT     bus — one flat fee, whatever level and however far they live
  *   CANTEEN       cantine / restauration
  *   CLUB          club or activité parascolaire, opt-in
  *   SUPPLIES      fournitures, manuels

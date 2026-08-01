@@ -74,6 +74,9 @@ model School {
   /// The fleet. Year-independent: what each bus does in a given year is a
   /// TransportRoute. See prisma/schema/transport/.
   vehicles Vehicle[]
+  /// What the fleet has been fuelled with, and who asked. Year-independent for
+  /// the same reason the buses are.
+  fuelRequests FuelRequest[]
 
   /// Days its teachers are away — see prisma/schema/timetable/teacher-absence.prisma.
   teacherAbsences TeacherAbsence[]

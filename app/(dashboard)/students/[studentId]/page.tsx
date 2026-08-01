@@ -28,6 +28,10 @@ import {
 } from "@/modules/classroom/queries";
 import { findStudent, loadStudentWorkflow } from "@/modules/students/queries";
 import {
+  loadTransportChoices,
+  studentTransport,
+} from "@/modules/transport/queries";
+import {
   familyPaymentStanding,
   findOpenSession,
   findPayableFamily,
@@ -97,6 +101,9 @@ export default async function StudentPage({
   const canSeeRemarks = context.can(PERMISSIONS.CLASSROOM_REMARK_VIEW);
   const canSeeMarks = context.can(PERMISSIONS.ASSESSMENT_VIEW);
   const canCollect = context.can(PERMISSIONS.TREASURY_COLLECT);
+  // Gated on its own: a teacher may read a pupil's file without learning which
+  // bus they take or what the family pays for it.
+  const canSeeTransport = context.can(PERMISSIONS.TRANSPORT_VIEW);
 
   const [
     family,
@@ -112,6 +119,8 @@ export default async function StudentPage({
     payable,
     banks,
     openSession,
+    transportChoices,
+    transportSubscriptions,
   ] = await Promise.all([
     student.familyId ? findFamily(context, student.familyId) : null,
     enrolment ? loadFeeGrid(context, enrolment.id) : null,
@@ -141,6 +150,10 @@ export default async function StudentPage({
       : null,
     canCollect ? listBanks(context) : [],
     canCollect ? findOpenSession(context) : null,
+    // The Quartier → Circuit → Horaire cascade, pre-nested so the panel
+    // narrows it in memory — see loadTransportChoices.
+    canSeeTransport ? loadTransportChoices(context) : null,
+    canSeeTransport ? studentTransport(context, student.id) : [],
   ]);
 
   return (
@@ -221,6 +234,8 @@ export default async function StudentPage({
         payable={payable}
         banks={banks}
         hasOpenSession={openSession !== null}
+        transportChoices={transportChoices}
+        transportSubscriptions={transportSubscriptions}
         familyStanding={familyStanding}
         payments={payments}
         workflow={workflow}
@@ -240,6 +255,7 @@ export default async function StudentPage({
           canManageFees: context.can(PERMISSIONS.ENROLMENT_FEES),
           canCollect: context.can(PERMISSIONS.TREASURY_COLLECT),
           canCancelPayment: context.can(PERMISSIONS.TREASURY_CANCEL),
+          canSubscribeTransport: context.can(PERMISSIONS.TRANSPORT_SUBSCRIBE),
         }}
       />
     </>

@@ -31,7 +31,7 @@ import { GENDERS } from "@/modules/students/enums";
 
 /**
  * An amount typed in dirhams and stored in centimes — the one conversion on the
- * way in, mirroring `zoneSchema` in the transport module.
+ * way in, mirroring the fee schemas in the billing module.
  */
 function moneyField(v: V, { max = 1_000_000 } = {}) {
   return z.coerce

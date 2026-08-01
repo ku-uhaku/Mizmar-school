@@ -77,6 +77,14 @@ model User {
   operationsCreated CashOperation[] @relation("OperationCreatedBy")
   paymentsCreated   Payment[]       @relation("PaymentCreatedBy")
 
+  // ── Logistique ────────────────────────────────────────────────────────────
+  /// Fuel requests this account decided. SetNull on the other side: an approval
+  /// must degrade to "by an account since removed" rather than block a leaver.
+  fuelDecisions FuelRequest[] @relation("FuelRequestDecidedBy")
+  /// Bus registers this account took. SetNull on the other side — a register
+  /// outlives the account of whoever marked it.
+  busRegistersTaken TransportAttendance[] @relation("BusRegisterRecordedBy")
+
   @@index([organizationId])
   @@map("users")
 }

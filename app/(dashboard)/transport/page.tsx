@@ -9,7 +9,6 @@ import { TransportDashboard } from "@/modules/transport/components/transport-das
 import {
   listRoutes,
   listVehicles,
-  listZones,
   transportSummary,
 } from "@/modules/transport/queries";
 
@@ -17,7 +16,7 @@ export const metadata: Metadata = { title: "Logistique" };
 
 /**
  * The logistics overview: how full the lines run, and which buses are about to
- * lose their papers. The lines, the fleet and the zones are edited on their own
+ * lose their papers. The lines and the fleet are edited on their own
  * screens — this one only says where to look first.
  */
 export default async function TransportPage() {
@@ -28,15 +27,11 @@ export default async function TransportPage() {
     return <ForbiddenState />;
   }
 
-  const canManageZones = context.can(PERMISSIONS.TRANSPORT_MANAGE);
 
-  const [summary, routes, vehicles, zones] = await Promise.all([
+  const [summary, routes, vehicles] = await Promise.all([
     transportSummary(context),
     listRoutes(context),
     listVehicles(context),
-    // Zones are pricing, not operations: a reader who may not touch them is not
-    // shown a card counting them.
-    canManageZones ? listZones(context) : Promise.resolve([]),
   ]);
 
   return (
@@ -47,8 +42,6 @@ export default async function TransportPage() {
         summary={summary}
         routes={routes}
         vehicles={vehicles}
-        zoneCount={zones.length}
-        canManageZones={canManageZones}
       />
     </>
   );

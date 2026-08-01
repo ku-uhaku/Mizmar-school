@@ -3,19 +3,20 @@
 /// ── Why it hangs off the Enrollment, not the Student ────────────────────────
 /// Riding the bus is a year-shaped fact, exactly like the class the child sits
 /// in and the fees they are charged — see the note on Enrollment. A family moves
-/// house and changes zone between years; a child rides in 4AP and walks in 5AP.
+/// house and changes circuit between years; a child rides in 4AP and walks in 5AP.
 /// Attaching this to the pupil would flatten all of that into one mutable row
 /// and lose last year's arrangement the moment this year's was entered.
 ///
 /// It also means the year and the school come for free, through the enrolment,
 /// so a subscription can never point at a line from a different year.
 ///
-/// ── What it does to the bill ────────────────────────────────────────────────
-/// The subscription decides the *price*; the échéancier remains the only record
-/// of what is *owed*. Subscribing sets `Enrollment.usesTransport` and reprices
-/// the pupil's TRANSPORT fee lines to the zone's rate — see
-/// `applyTransportPricing` in modules/transport/service.ts. Nothing here is ever
-/// summed to work out a balance; that is the enrolment's job and the caisse's.
+/// ── What it does to the bill: nothing ───────────────────────────────────────
+/// Transport is charged once, at enrolment, from the price list — the same flat
+/// fee for every rider however far they live. Putting a child on a circuit is an
+/// operational act and never rewrites an échéancier; all it does is set
+/// `Enrollment.usesTransport`, which is the flag the schedule was already built
+/// from. Nothing here is ever summed to work out a balance; that is the
+/// enrolment's job and the caisse's.
 model TransportSubscription {
   id           String     @id @default(cuid())
   enrollmentId String
@@ -30,19 +31,24 @@ model TransportSubscription {
   stopId String
   stop   RouteStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
 
-  /// The zone the price was taken from, copied at subscription time.
-  ///
-  /// Copied rather than read through the stop, for the same reason
-  /// EnrollmentFee copies its amount: re-drawing a line and moving a stop into
-  /// another zone in March must not silently restate what a family agreed to in
-  /// September. SetNull leaves the subscription standing if a zone is retired.
-  zoneId String?
-  zone   TransportZone? @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-
   /// "MORNING" | "AFTERNOON" | "BOTH" — see modules/transport/enums.ts.
   /// A child taken to school by the bus and collected by a parent is ordinary,
   /// and is charged differently by most schools.
   direction String @default("BOTH")
+
+  /// Which run of the line they are on — see
+  /// prisma/schema/transport/transport-schedule.prisma.
+  ///
+  /// Nullable, and deliberately: a line that makes one run needs no answer, and
+  /// every abonnement taken before the horaires were declared is still a valid
+  /// abonnement. SetNull rather than Restrict: retiring a run must leave the
+  /// child on the bus for somebody to re-seat, not refuse the change.
+  ///
+  /// INVARIANT (service layer): must be a run the subscribed route actually
+  /// makes, i.e. a RouteSchedule row must join the two. Not expressible as a
+  /// foreign key, so `subscribeRider` re-derives it rather than trusting it.
+  scheduleId String?
+  schedule   TransportSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   /// "ACTIVE" | "SUSPENDED" | "CANCELLED" — see modules/transport/enums.ts.
   /// SUSPENDED is the family that stops for a term and comes back; CANCELLED is
@@ -58,6 +64,10 @@ model TransportSubscription {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// L'appel du bus for this rider — see
+  /// prisma/schema/transport/transport-attendance.prisma.
+  attendance TransportAttendance[]
+
   /// One subscription per direction per enrolment. A pupil taking one line in
   /// the morning and another in the afternoon has two rows; a pupil on the same
   /// line both ways has one, with direction BOTH.
@@ -65,7 +75,7 @@ model TransportSubscription {
   @@index([enrollmentId])
   @@index([routeId])
   @@index([stopId])
-  @@index([zoneId])
+  @@index([scheduleId])
   @@index([routeId, status])
   @@map("transport_subscriptions")
 }

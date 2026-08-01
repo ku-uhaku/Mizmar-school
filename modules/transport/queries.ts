@@ -3,18 +3,20 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import {
+  COUNTED_FUEL_STATUSES,
   SEAT_HOLDING_STATUSES,
+  busRegisterScopeKey,
+  consumptionPer100km,
   driverLabel,
-  priceForDirection,
+  scheduleLabel,
   seatsOnRoute,
   seatsRemaining,
-  type TransportDirection,
 } from "@/modules/transport/enums";
 
 /**
  * Reads for the transport module.
  *
- * The fleet is scoped to `context.currentSchool`; the lines, the zones and the
+ * The fleet is scoped to `context.currentSchool`; the lines, the runs and the
  * subscriptions are scoped to the year as well, since all three are year-shaped
  * facts. Both come from the working context and never from the request.
  */
@@ -100,45 +102,6 @@ function routeDriverName(
   );
 }
 
-export type ZoneRow = {
-  id: string;
-  code: string;
-  name: string;
-  nameAr: string | null;
-  amountCentimes: number;
-  position: number;
-  isActive: boolean;
-  stopCount: number;
-  riderCount: number;
-};
-
-export async function listZones(context: AuthContext): Promise<ZoneRow[]> {
-  const zones = await db.transportZone.findMany({
-    where: { schoolYearId: yearId(context) },
-    orderBy: [{ position: "asc" }, { code: "asc" }],
-    include: {
-      _count: {
-        select: {
-          stops: true,
-          subscriptions: { where: { status: { in: [...SEAT_HOLDING_STATUSES] } } },
-        },
-      },
-    },
-  });
-
-  return zones.map((zone) => ({
-    id: zone.id,
-    code: zone.code,
-    name: zone.name,
-    nameAr: zone.nameAr,
-    amountCentimes: zone.amountCentimes,
-    position: zone.position,
-    isActive: zone.isActive,
-    stopCount: zone._count.stops,
-    riderCount: zone._count.subscriptions,
-  }));
-}
-
 export type RouteRow = {
   id: string;
   code: string;
@@ -211,9 +174,6 @@ export type StopRow = {
   /** The quartier the stop stands in — the place, not the price band. */
   neighbourhoodId: string | null;
   neighbourhoodName: string | null;
-  zoneId: string | null;
-  zoneName: string | null;
-  zoneAmountCentimes: number | null;
   pickupTime: string | null;
   dropoffTime: string | null;
   riderCount: number;
@@ -229,16 +189,46 @@ export type RiderRow = {
   stopName: string;
   direction: string;
   status: string;
-  zoneName: string | null;
-  /** What this rider is charged for the year, given their zone and direction. */
-  priceCentimes: number;
+  /** The run they board, when the line makes more than one. */
+  scheduleId: string | null;
+  scheduleLabel: string | null;
 };
+
+/** The runs a circuit may be given, for the assignment checklist. */
+export async function listScheduleOptions(
+  context: AuthContext,
+): Promise<{ id: string; label: string; name: string; direction: string }[]> {
+  const schedules = await db.transportSchedule.findMany({
+    where: { schoolYearId: yearId(context), isActive: true },
+    orderBy: [{ direction: "asc" }, { departureTime: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      direction: true,
+      departureTime: true,
+    },
+  });
+
+  return schedules.map((schedule) => ({
+    id: schedule.id,
+    label: scheduleLabel(schedule.code, schedule.departureTime),
+    name: schedule.name,
+    direction: schedule.direction,
+  }));
+}
 
 export type RouteDetail = RouteRow & {
   notes: string | null;
   capacity: number | null;
   stops: StopRow[];
   riders: RiderRow[];
+  /** The runs this line makes. */
+  schedules: { id: string; label: string; name: string; direction: string }[];
+  /** Ticked boxes on the two assignment tabs — ids only; the lists come from
+   *  `listScheduleOptions` and `listNeighbourhoodChoices`. */
+  scheduleIds: string[];
+  neighbourhoodIds: string[];
 };
 
 /** One line: its stops in order, and everyone riding it. */
@@ -263,7 +253,6 @@ export async function findRoute(
       stops: {
         orderBy: [{ position: "asc" }, { name: "asc" }],
         include: {
-          zone: { select: { id: true, name: true, amountCentimes: true } },
           neighbourhood: { select: { id: true, name: true } },
           _count: {
             select: {
@@ -274,11 +263,25 @@ export async function findRoute(
           },
         },
       },
+      schedules: {
+        include: {
+          schedule: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              direction: true,
+              departureTime: true,
+            },
+          },
+        },
+      },
+      neighbourhoods: { select: { neighbourhoodId: true } },
       subscriptions: {
         orderBy: [{ createdAt: "asc" }],
         include: {
-          zone: { select: { name: true, amountCentimes: true } },
           stop: { select: { id: true, name: true } },
+          schedule: { select: { id: true, code: true, departureTime: true } },
           enrollment: {
             select: {
               schoolClass: { select: { code: true } },
@@ -319,6 +322,21 @@ export async function findRoute(
     taken,
     remaining: seatsRemaining(seats, taken),
     stopCount: route._count.stops,
+    schedules: route.schedules
+      // Sorted before it is shaped: the join row has no departure time to order
+      // by in the query, and the read order of a join is not a promise. "HH:MM"
+      // compares correctly as text, which is half of why it is stored that way.
+      .toSorted((a, b) =>
+        a.schedule.departureTime.localeCompare(b.schedule.departureTime),
+      )
+      .map((link) => ({
+        id: link.schedule.id,
+        label: scheduleLabel(link.schedule.code, link.schedule.departureTime),
+        name: link.schedule.name,
+        direction: link.schedule.direction,
+      })),
+    scheduleIds: route.schedules.map((link) => link.scheduleId),
+    neighbourhoodIds: route.neighbourhoods.map((link) => link.neighbourhoodId),
     stops: route.stops.map((stop) => ({
       id: stop.id,
       name: stop.name,
@@ -327,9 +345,6 @@ export async function findRoute(
       position: stop.position,
       neighbourhoodId: stop.neighbourhood?.id ?? null,
       neighbourhoodName: stop.neighbourhood?.name ?? null,
-      zoneId: stop.zone?.id ?? null,
-      zoneName: stop.zone?.name ?? null,
-      zoneAmountCentimes: stop.zone?.amountCentimes ?? null,
       pickupTime: stop.pickupTime,
       dropoffTime: stop.dropoffTime,
       riderCount: stop._count.subscriptions,
@@ -344,11 +359,13 @@ export async function findRoute(
       stopName: subscription.stop.name,
       direction: subscription.direction,
       status: subscription.status,
-      zoneName: subscription.zone?.name ?? null,
-      priceCentimes: priceForDirection(
-        subscription.zone?.amountCentimes ?? 0,
-        subscription.direction as TransportDirection,
-      ),
+      scheduleId: subscription.schedule?.id ?? null,
+      scheduleLabel: subscription.schedule
+        ? scheduleLabel(
+            subscription.schedule.code,
+            subscription.schedule.departureTime,
+          )
+        : null,
     })),
   };
 }
@@ -458,9 +475,9 @@ export async function studentTransport(
       },
     },
     include: {
-      zone: { select: { name: true, amountCentimes: true } },
       stop: { select: { id: true, name: true } },
       route: { select: { code: true, name: true } },
+      schedule: { select: { id: true, code: true, departureTime: true } },
       enrollment: {
         select: {
           schoolClass: { select: { code: true } },
@@ -482,11 +499,13 @@ export async function studentTransport(
     stopName: `${subscription.route.code} · ${subscription.stop.name}`,
     direction: subscription.direction,
     status: subscription.status,
-    zoneName: subscription.zone?.name ?? null,
-    priceCentimes: priceForDirection(
-      subscription.zone?.amountCentimes ?? 0,
-      subscription.direction as TransportDirection,
-    ),
+    scheduleId: subscription.schedule?.id ?? null,
+    scheduleLabel: subscription.schedule
+      ? scheduleLabel(
+          subscription.schedule.code,
+          subscription.schedule.departureTime,
+        )
+      : null,
   }));
 }
 
@@ -522,4 +541,573 @@ export async function listVehicleOptions(
       : vehicle.registration,
     seatCount: vehicle.seatCount,
   }));
+}
+
+// ── The inscription cascade ──────────────────────────────────────────────────
+
+export type TransportStopChoice = {
+  id: string;
+  label: string;
+};
+
+export type TransportRouteChoice = {
+  id: string;
+  label: string;
+  direction: string;
+  seats: number;
+  remaining: number;
+  schedules: { id: string; label: string; name: string; direction: string }[];
+  stops: TransportStopChoice[];
+  /**
+   * True when `stops` is every stop on the line rather than the quartier's own.
+   *
+   * Happens when a circuit is declared to serve a quartier but none of its
+   * stops has been tagged with it — ordinary in July, when the catchment is
+   * agreed before the stops are drawn. Falling back to the whole line beats
+   * offering an empty select, and the flag lets the form say why the list is
+   * longer than expected.
+   */
+  stopsUnfiltered: boolean;
+};
+
+export type NeighbourhoodChoice = {
+  id: string;
+  label: string;
+  /** Circuits declared to serve this quartier — see RouteNeighbourhood. */
+  routes: TransportRouteChoice[];
+};
+
+/**
+ * Everything the Quartier → Circuit → Horaire → Arrêt cascade needs, in one
+ * read and pre-nested.
+ *
+ * Shaped like `loadEnrolmentChoices`, and for the same reason: the form narrows
+ * by `.find()` in memory, so choosing a quartier costs nothing and there is no
+ * loading state to design around. The duplication of a circuit under each
+ * quartier it serves is deliberate — a handful of lines against a round trip
+ * per keystroke is not a trade worth making.
+ */
+export async function loadTransportChoices(
+  context: AuthContext,
+): Promise<NeighbourhoodChoice[]> {
+  const [neighbourhoods, routes] = await Promise.all([
+    db.neighbourhood.findMany({
+      where: { ...schoolScope(context), isActive: true },
+      orderBy: [{ city: { name: "asc" } }, { name: "asc" }],
+      select: { id: true, name: true, city: { select: { name: true } } },
+    }),
+    db.transportRoute.findMany({
+      where: { schoolYearId: yearId(context), isActive: true },
+      orderBy: [{ code: "asc" }],
+      include: {
+        vehicle: { select: { seatCount: true } },
+        neighbourhoods: { select: { neighbourhoodId: true } },
+        schedules: {
+          include: {
+            schedule: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                direction: true,
+                departureTime: true,
+                isActive: true,
+              },
+            },
+          },
+        },
+        stops: {
+          orderBy: [{ position: "asc" }, { name: "asc" }],
+          select: { id: true, name: true, neighbourhoodId: true },
+        },
+        _count: {
+          select: {
+            subscriptions: {
+              where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const stopChoice = (stop: (typeof routes)[number]["stops"][number]) => ({
+    id: stop.id,
+    label: stop.name,
+  });
+
+  return neighbourhoods.map((neighbourhood) => ({
+    id: neighbourhood.id,
+    label: `${neighbourhood.city.name} · ${neighbourhood.name}`,
+    routes: routes
+      .filter((route) =>
+        route.neighbourhoods.some(
+          (link) => link.neighbourhoodId === neighbourhood.id,
+        ),
+      )
+      .map((route) => {
+        const seats = seatsOnRoute(
+          route.capacity,
+          route.vehicle?.seatCount ?? null,
+        );
+        const own = route.stops.filter(
+          (stop) => stop.neighbourhoodId === neighbourhood.id,
+        );
+        const stops = own.length > 0 ? own : route.stops;
+
+        return {
+          id: route.id,
+          label: `${route.code} · ${route.name}`,
+          direction: route.direction,
+          seats,
+          remaining: seatsRemaining(seats, route._count.subscriptions),
+          schedules: route.schedules
+            .filter((link) => link.schedule.isActive)
+            .sort((a, b) =>
+              a.schedule.departureTime.localeCompare(b.schedule.departureTime),
+            )
+            .map((link) => ({
+              id: link.schedule.id,
+              label: scheduleLabel(
+                link.schedule.code,
+                link.schedule.departureTime,
+              ),
+              name: link.schedule.name,
+              direction: link.schedule.direction,
+            })),
+          stops: stops.map(stopChoice),
+          stopsUnfiltered: own.length === 0 && route.stops.length > 0,
+        };
+      }),
+  }));
+}
+
+// ── Consommation ─────────────────────────────────────────────────────────────
+
+export type FuelRequestRow = {
+  id: string;
+  vehicleId: string;
+  vehicleRegistration: string;
+  /** Who asked: the employee's name, else the typed one — as `driverLabel` does. */
+  requestedBy: string | null;
+  occurredOn: string;
+  litresTenths: number;
+  odometerKm: number | null;
+  amountCentimes: number;
+  status: string;
+  notes: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  cashOperationId: string | null;
+  /** Kilometres since this bus's previous counted reading, when both are known. */
+  distanceKm: number | null;
+  /** Tenths of a litre per 100 km over that distance — see `consumptionPer100km`. */
+  consumptionTenths: number | null;
+};
+
+/**
+ * Every fuel request for the school, newest first, with each one's consumption.
+ *
+ * The consumption is worked out here rather than on the screen because it needs
+ * the *previous* reading for the same bus, which no single row carries. Doing it
+ * in the query is also what keeps the fleet list and a bus's own history from
+ * quoting two different figures for the same tank.
+ */
+export async function listFuelRequests(
+  context: AuthContext,
+): Promise<FuelRequestRow[]> {
+  const requests = await db.fuelRequest.findMany({
+    where: schoolScope(context),
+    orderBy: [{ occurredOn: "asc" }, { createdAt: "asc" }],
+    include: {
+      vehicle: { select: { id: true, registration: true } },
+      requestedBy: { select: { firstName: true, lastName: true } },
+      decidedBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  // Walked oldest-first, one cursor per bus, so each row is measured against the
+  // reading before it. A rejected request never happened, so it neither advances
+  // the cursor nor gets a figure of its own.
+  const lastOdometer = new Map<string, number>();
+
+  const rows = requests.map((request) => {
+    const counted = COUNTED_FUEL_STATUSES.includes(
+      request.status as (typeof COUNTED_FUEL_STATUSES)[number],
+    );
+    const previous = lastOdometer.get(request.vehicleId);
+    const distanceKm =
+      counted && request.odometerKm !== null && previous !== undefined
+        ? request.odometerKm - previous
+        : null;
+
+    if (counted && request.odometerKm !== null) {
+      lastOdometer.set(request.vehicleId, request.odometerKm);
+    }
+
+    return {
+      id: request.id,
+      vehicleId: request.vehicleId,
+      vehicleRegistration: request.vehicle.registration,
+      requestedBy: driverLabel(
+        request.requestedBy
+          ? `${request.requestedBy.firstName} ${request.requestedBy.lastName}`
+          : null,
+        request.requestedByName,
+      ),
+      occurredOn: request.occurredOn.toISOString(),
+      litresTenths: request.litresTenths,
+      odometerKm: request.odometerKm,
+      amountCentimes: request.amountCentimes,
+      status: request.status,
+      notes: request.notes,
+      decidedBy: request.decidedBy
+        ? (request.decidedBy.profile
+            ? `${request.decidedBy.profile.firstName} ${request.decidedBy.profile.lastName}`.trim()
+            : "") || request.decidedBy.email
+        : null,
+      decidedAt: request.decidedAt?.toISOString() ?? null,
+      cashOperationId: request.cashOperationId,
+      distanceKm,
+      consumptionTenths:
+        distanceKm === null
+          ? null
+          : consumptionPer100km(request.litresTenths, distanceKm),
+    };
+  });
+
+  // Read newest-first, computed oldest-first. The two orders are not the same
+  // question and reversing here is cheaper than a second pass over the table.
+  return rows.reverse();
+}
+
+export type FuelSummary = {
+  pendingCount: number;
+  pendingCentimes: number;
+  /** Approved or paid, in the last thirty days. */
+  recentCentimes: number;
+  recentLitresTenths: number;
+};
+
+export async function fuelSummary(context: AuthContext): Promise<FuelSummary> {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const [pending, recent] = await Promise.all([
+    db.fuelRequest.aggregate({
+      where: { ...schoolScope(context), status: "PENDING" },
+      _count: { _all: true },
+      _sum: { amountCentimes: true },
+    }),
+    db.fuelRequest.aggregate({
+      where: {
+        ...schoolScope(context),
+        status: { in: ["APPROVED", "PAID"] },
+        occurredOn: { gte: since },
+      },
+      _sum: { amountCentimes: true, litresTenths: true },
+    }),
+  ]);
+
+  return {
+    pendingCount: pending._count._all,
+    pendingCentimes: pending._sum.amountCentimes ?? 0,
+    recentCentimes: recent._sum.amountCentimes ?? 0,
+    recentLitresTenths: recent._sum.litresTenths ?? 0,
+  };
+}
+
+/** Buses a fuel request may be raised against: anything not retired. */
+export async function listFuelVehicleOptions(
+  context: AuthContext,
+): Promise<{ id: string; label: string; driverId: string | null }[]> {
+  const vehicles = await db.vehicle.findMany({
+    where: { ...schoolScope(context), status: { not: "RETIRED" } },
+    orderBy: { registration: "asc" },
+    select: {
+      id: true,
+      registration: true,
+      make: true,
+      driverId: true,
+    },
+  });
+
+  return vehicles.map((vehicle) => ({
+    id: vehicle.id,
+    label: vehicle.make
+      ? `${vehicle.registration} · ${vehicle.make}`
+      : vehicle.registration,
+    // So the request form can default the driver to whoever drives the bus.
+    driverId: vehicle.driverId,
+  }));
+}
+
+// ── L'appel du bus ───────────────────────────────────────────────────────────
+
+export type BusRunOption = {
+  routeId: string;
+  routeLabel: string;
+  scheduleId: string | null;
+  scheduleLabel: string | null;
+  /** "MORNING" | "AFTERNOON" | "BOTH" — the run's, else the line's. */
+  direction: string;
+  riderCount: number;
+};
+
+/**
+ * Every register that could be taken today: each line crossed with each run it
+ * makes.
+ *
+ * A line that declares no horaire still gets one entry with a null run — that
+ * is the single-departure case the nullable `scheduleId` exists for, and a
+ * driver on such a line must still be able to call the roll.
+ */
+export async function listBusRuns(
+  context: AuthContext,
+): Promise<BusRunOption[]> {
+  const routes = await db.transportRoute.findMany({
+    where: { schoolYearId: yearId(context), isActive: true },
+    orderBy: [{ code: "asc" }],
+    include: {
+      schedules: {
+        include: {
+          schedule: {
+            select: {
+              id: true,
+              code: true,
+              direction: true,
+              departureTime: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+      subscriptions: {
+        where: { status: "ACTIVE" },
+        select: {
+          direction: true,
+          scheduleId: true,
+          schedule: { select: { direction: true } },
+        },
+      },
+    },
+  });
+
+  const runs: BusRunOption[] = [];
+
+  for (const route of routes) {
+    const routeLabel = `${route.code} · ${route.name}`;
+    const schedules = route.schedules
+      .filter((link) => link.schedule.isActive)
+      .map((link) => link.schedule)
+      .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+
+    if (schedules.length === 0) {
+      runs.push({
+        routeId: route.id,
+        routeLabel,
+        scheduleId: null,
+        scheduleLabel: null,
+        direction: route.direction,
+        riderCount: route.subscriptions.length,
+      });
+      continue;
+    }
+
+    for (const schedule of schedules) {
+      runs.push({
+        routeId: route.id,
+        routeLabel,
+        scheduleId: schedule.id,
+        scheduleLabel: scheduleLabel(schedule.code, schedule.departureTime),
+        direction: schedule.direction,
+        riderCount: route.subscriptions.filter((subscription) =>
+          ridesThisRun(
+            {
+              ...subscription,
+              scheduleDirection: subscription.schedule?.direction ?? null,
+            },
+            schedule.id,
+            schedule.direction,
+          ),
+        ).length,
+      });
+    }
+  }
+
+  return runs;
+}
+
+/**
+ * Whether one abonnement is expected on one departure.
+ *
+ * Two rules, and both matter at the kerb:
+ *
+ *   * **Direction.** A child who only rides home is not called on the morning
+ *     run. BOTH rides every departure of their line.
+ *   * **The named run, within its own direction only.** A rider who chose the
+ *     07:00 pick-up is expected on that departure and no other *morning* one —
+ *     but choosing it says nothing about which return they take, so they are
+ *     still called on every afternoon run of their line. Binding the choice
+ *     across directions would drop every BOTH rider off the evening register,
+ *     which is exactly the half of the day a school worries about.
+ *
+ * Kept here rather than inlined so the picker's rider count and the sheet's
+ * rider list cannot disagree about who should be on the bus.
+ */
+function ridesThisRun(
+  subscription: {
+    direction: string;
+    scheduleId: string | null;
+    /** The direction of the run they named, when they named one. */
+    scheduleDirection: string | null;
+  },
+  scheduleId: string | null,
+  runDirection: string,
+): boolean {
+  const goesThisWay =
+    subscription.direction === "BOTH" ||
+    runDirection === "BOTH" ||
+    subscription.direction === runDirection;
+  if (!goesThisWay) return false;
+
+  // No run named: expected on any departure going their way, which is what a
+  // line with a single departure looks like.
+  if (subscription.scheduleId === null) return true;
+
+  // Named a run going the other way: it does not speak to this departure.
+  if (subscription.scheduleDirection !== runDirection) return true;
+
+  return subscription.scheduleId === scheduleId;
+}
+
+export type BusRegisterEntry = {
+  subscriptionId: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  className: string | null;
+  stopName: string;
+  /** Scheduled pick-up at their stop, so the driver reads the sheet in order. */
+  pickupTime: string | null;
+  direction: string;
+  /** Null when nobody has marked this rider on this run yet. */
+  attendanceId: string | null;
+  status: string | null;
+  minutesLate: number;
+  isJustified: boolean;
+  reason: string | null;
+};
+
+/**
+ * One run's register for one day: everybody expected on the bus, with their
+ * mark if it exists.
+ *
+ * Built as a left join rather than a list of marks, exactly as `listRegister`
+ * is: the question a driver has before pulling away is "who have I not
+ * accounted for", and a list of what was recorded cannot answer it.
+ *
+ * Ordered by the stop's pick-up time — the order the bus actually meets them,
+ * which is the order the sheet has to be read in.
+ */
+export async function loadBusRegister(
+  context: AuthContext,
+  input: { routeId: string; scheduleId: string | null; date: Date },
+): Promise<BusRegisterEntry[] | null> {
+  // Scoped by the year in context: a route id alone must never reach another
+  // year's line, let alone another school's.
+  const route = await db.transportRoute.findFirst({
+    where: { id: input.routeId, schoolYearId: yearId(context) },
+    select: { id: true, direction: true },
+  });
+  if (!route) return null;
+
+  // The run must be one this line actually makes — otherwise a crafted id would
+  // open a register for a departure that does not serve these children.
+  let runDirection = route.direction;
+  if (input.scheduleId) {
+    const link = await db.routeSchedule.findUnique({
+      where: {
+        routeId_scheduleId: {
+          routeId: route.id,
+          scheduleId: input.scheduleId,
+        },
+      },
+      select: { schedule: { select: { direction: true } } },
+    });
+    if (!link) return null;
+    runDirection = link.schedule.direction;
+  }
+
+  const subscriptions = await db.transportSubscription.findMany({
+    where: { routeId: route.id, status: "ACTIVE" },
+    include: {
+      schedule: { select: { direction: true } },
+      stop: { select: { name: true, position: true, pickupTime: true } },
+      enrollment: {
+        select: {
+          schoolClass: { select: { code: true } },
+          student: {
+            select: { id: true, code: true, firstName: true, lastName: true },
+          },
+        },
+      },
+      attendance: {
+        where: {
+          date: input.date,
+          scopeKey: busRegisterScopeKey(input.scheduleId),
+        },
+        select: {
+          id: true,
+          status: true,
+          minutesLate: true,
+          isJustified: true,
+          reason: true,
+        },
+        take: 1,
+      },
+    },
+  });
+
+  return subscriptions
+    .filter((subscription) =>
+      ridesThisRun(
+        {
+          ...subscription,
+          scheduleDirection: subscription.schedule?.direction ?? null,
+        },
+        input.scheduleId,
+        runDirection,
+      ),
+    )
+    .sort(
+      (a, b) =>
+        a.stop.position - b.stop.position ||
+        a.enrollment.student.lastName.localeCompare(
+          b.enrollment.student.lastName,
+        ),
+    )
+    .map((subscription) => {
+      const mark = subscription.attendance[0] ?? null;
+      return {
+        subscriptionId: subscription.id,
+        studentId: subscription.enrollment.student.id,
+        studentName: `${subscription.enrollment.student.firstName} ${subscription.enrollment.student.lastName}`,
+        studentCode: subscription.enrollment.student.code,
+        className: subscription.enrollment.schoolClass?.code ?? null,
+        stopName: subscription.stop.name,
+        pickupTime: subscription.stop.pickupTime,
+        direction: subscription.direction,
+        attendanceId: mark?.id ?? null,
+        status: mark?.status ?? null,
+        minutesLate: mark?.minutesLate ?? 0,
+        isJustified: mark?.isJustified ?? false,
+        reason: mark?.reason ?? null,
+      };
+    });
 }

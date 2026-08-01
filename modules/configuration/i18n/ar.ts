@@ -18,6 +18,8 @@ const ar = {
     deleteBody: "سيتم حذفه من إعدادات هذه المدرسة.",
     outOfContext: "هذا الاختيار لا ينتمي إلى المدرسة التي تعمل بها.",
 
+    arrivalBeforeDeparture:
+      "يجب أن يكون الوصول بعد الانطلاق.",
     codeFormatNeedsSequence:
       "أدرج ‏{seq}‏ — بدونه تصير كل مراجع السنة متطابقة.",
 
@@ -29,6 +31,7 @@ const ar = {
       classes: "الأقسام",
       billing: "الرسوم",
       treasury: "الصندوق",
+      logistique: "النقل",
     },
 
     groups: {
@@ -42,6 +45,7 @@ const ar = {
     },
 
     resources: {
+      transportSchedules: "مواعيد النقل",
       banks: "الأبناك",
       operationCategories: "الأبواب",
       operationSubcategories: "الأبواب الفرعية",
@@ -69,6 +73,9 @@ const ar = {
     },
 
     fields: {
+      scheduleDirection: "الاتجاه",
+      departureTime: "الانطلاق",
+      arrivalTime: "الوصول",
       region: "الجهة",
       city: "المدينة",
       landmark: "شارع أو معلمة",
@@ -151,6 +158,10 @@ const ar = {
     },
 
     hints: {
+      scheduleDirection:
+        "تسير الرحلة في اتجاه واحد. التلميذ الذي يقطع الذهاب والإياب يُسجّل في رحلتين، أو على المسار نفسه.",
+      arrivalTime:
+        "يُترك فارغًا ما لم تُضبط مدة الجولة بعد.",
       region: "اختياري — يفيد فقط في تجميع لائحة طويلة.",
       holidayEnd: "شامل — ليوم واحد، كرّر تاريخ البداية.",
       substitute: "اتركه فارغًا إذا لم ينب عنه أحد.",
@@ -217,6 +228,10 @@ const ar = {
   },
 
   configOptions: {
+    scheduleDirections: {
+      MORNING: "صباحًا",
+      AFTERNOON: "بعد الزوال",
+    },
     categoryKinds: {
       IN: "مداخيل",
       OUT: "مصاريف",

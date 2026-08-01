@@ -1,0 +1,32 @@
+/// The quartiers a circuit serves — its catchment.
+///
+/// ── Why this is not RouteStop.neighbourhoodId ───────────────────────────────
+/// The two look alike and answer different questions. A stop's quartier says
+/// *where that one stop physically stands*; this says *which quartiers the line
+/// is advertised to cover*. The difference matters at inscription, which is the
+/// only place either is read: a family gives their quartier and must be shown
+/// the circuits that will collect them — and that has to be answerable before
+/// anybody has drawn the stops, which is exactly the state a line is in when it
+/// is being planned in July.
+///
+/// It also lets a line claim a quartier it crosses without stopping in it, and —
+/// more usefully — lets a school stop offering a quartier on a full line without
+/// deleting the stop and the history hanging off it.
+model RouteNeighbourhood {
+  id String @id @default(cuid())
+
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a quartier that circuits are serving cannot be deleted from under
+  /// them — the same rule RouteStop.neighbourhoodId follows.
+  neighbourhoodId String
+  neighbourhood   Neighbourhood @relation(fields: [neighbourhoodId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([routeId, neighbourhoodId])
+  @@index([routeId])
+  @@index([neighbourhoodId])
+  @@map("route_neighbourhoods")
+}
