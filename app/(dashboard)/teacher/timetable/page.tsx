@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { PrinterIcon } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 
 import { StatTile } from "@/components/charts/stat-tile";
 import { PageHeader } from "@/components/shell/page-header";
@@ -50,7 +54,14 @@ export default async function TeacherTimetablePage({
         description={t.classroom.myTimetableHint}
         backHref="/teacher"
         backLabel={t.classroom.title}
-      />
+      >
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/print/teacher/timetable?schedule=${scheduleKind}`}>
+            <PrinterIcon />
+            {t.print.download}
+          </Link>
+        </Button>
+      </PageHeader>
 
       <div className="grid gap-4">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

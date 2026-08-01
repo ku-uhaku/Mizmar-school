@@ -124,6 +124,12 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASSROOM_REMARK_VIEW,
       PERMISSIONS.CLASSROOM_REMARK_WRITE,
       PERMISSIONS.CLASSROOM_REMARK_PUBLISH,
+      // Both halves of the fournitures: a head may write a list, and is who
+      // decides whether parents are asked to buy it.
+      PERMISSIONS.SUPPLY_VIEW,
+      PERMISSIONS.SUPPLY_WRITE,
+      PERMISSIONS.SUPPLY_REVIEW,
+      PERMISSIONS.SUPPLY_DELETE,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
       // The whole caisse: a head runs the tills, pays out and answers for both.
@@ -228,6 +234,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.CLASSROOM_ATTENDANCE_MARK,
       PERMISSIONS.CLASSROOM_REMARK_VIEW,
       PERMISSIONS.CLASSROOM_REMARK_WRITE,
+      // Writes a liste de fournitures for their own class; releasing it to
+      // families is the office's decision, so not SUPPLY_REVIEW.
+      PERMISSIONS.SUPPLY_VIEW,
+      PERMISSIONS.SUPPLY_WRITE,
     ],
   },
 ];

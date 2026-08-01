@@ -20,7 +20,9 @@ export function ScheduleKindTabs({ scheduleKind }: { scheduleKind: string }) {
   return (
     <Tabs
       value={scheduleKind}
-      onValueChange={(value) => router.push(`/teacher/timetable?schedule=${value}`)}
+      onValueChange={(value) =>
+        router.push(`/teacher/timetable?schedule=${value}`)
+      }
     >
       <TabsList>
         {SCHEDULE_KINDS.map((kind) => (

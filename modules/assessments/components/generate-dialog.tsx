@@ -28,7 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
-import { toDateInputValue } from "@/lib/utils";
+import { interpolate } from "@/lib/i18n/format";
+import { cn } from "@/lib/utils";
 import { generateAssessmentsAction } from "@/modules/assessments/actions";
 import type {
   AssessmentTypeOption,
@@ -53,6 +54,7 @@ export function GenerateDialog({
   programmes,
   defaultClassId,
   defaultTermId,
+  defaultDate: initialDate,
 }: {
   classes: ClassOption[];
   terms: TermOption[];
@@ -61,6 +63,12 @@ export function GenerateDialog({
   programmes: Record<string, ProgrammeEntry[]>;
   defaultClassId: string | null;
   defaultTermId: string | null;
+  /**
+   * What the shared date starts at, already clamped into the school year.
+   * Today falls outside it for two months a year, and a contrôle dated then
+   * belongs to no term at all. See lib/school-year.ts.
+   */
+  defaultDate: string;
 }) {
   const t = useT();
   const [open, setOpen] = React.useState(false);
@@ -76,11 +84,14 @@ export function GenerateDialog({
   const openTerms = terms.filter((term) => term.status !== "CLOSED");
 
   const [classId, setClassId] = React.useState(defaultClassId ?? "");
-  const [defaultDate, setDefaultDate] = React.useState(
-    toDateInputValue(new Date()),
-  );
+  const [defaultDate, setDefaultDate] = React.useState(initialDate);
 
-  const programme = programmes[classId] ?? [];
+  // Memoised so the empty-array fallback is not a fresh identity every render,
+  // which would defeat the grouping memo below.
+  const programme = React.useMemo(
+    () => programmes[classId] ?? [],
+    [programmes, classId],
+  );
 
   /**
    * What is ticked, and the date on each — kept together with the class it was
@@ -98,13 +109,55 @@ export function GenerateDialog({
     chosen: Record<string, string>;
   } | null>(null);
 
+  /**
+   * The programme as the picker shows it: components gathered under the matière
+   * they belong to, subjects in their own right on their own.
+   *
+   * The order of the programme is preserved — it is `LevelSubject.position`,
+   * which is the order a report card prints in — so a group appears where its
+   * first component does rather than being sorted somewhere else.
+   */
+  const groups = React.useMemo(() => {
+    const byParent: {
+      key: string;
+      title: string | null;
+      entries: ProgrammeEntry[];
+    }[] = [];
+    const index = new Map<string, number>();
+
+    for (const entry of programme) {
+      const key = entry.parentSubjectId ?? entry.subjectId;
+      const seen = index.get(key);
+      if (seen === undefined) {
+        index.set(key, byParent.length);
+        byParent.push({
+          key,
+          // Null for a matière with no components: it needs no heading, it *is*
+          // the row.
+          title: entry.parentSubjectName,
+          entries: [entry],
+        });
+      } else {
+        byParent[seen].entries.push(entry);
+      }
+    }
+
+    return byParent;
+  }, [programme]);
+
+  /** A subject nobody teaches cannot be generated — the action refuses it. */
+  const staffed = programme.filter((entry) => entry.teacherName !== null);
+  const unstaffedCount = programme.length - staffed.length;
+
   const everythingOn = (subjects: ProgrammeEntry[], date: string) =>
     Object.fromEntries(subjects.map((entry) => [entry.subjectId, date]));
 
+  // Untouched means "every subject that has a teacher" — the unstaffed ones
+  // start off because ticking them could not produce anything.
   const chosen =
     selection?.classId === classId
       ? selection.chosen
-      : everythingOn(programme, defaultDate);
+      : everythingOn(staffed, defaultDate);
 
   const setChosen = (chosenNext: Record<string, string>) =>
     setSelection({ classId, chosen: chosenNext });
@@ -117,7 +170,7 @@ export function GenerateDialog({
   }
 
   function setAll(checked: boolean) {
-    setChosen(checked ? everythingOn(programme, defaultDate) : {});
+    setChosen(checked ? everythingOn(staffed, defaultDate) : {});
   }
 
   /** Retyping the shared date moves every paper that still carries the old one. */
@@ -250,7 +303,7 @@ export function GenerateDialog({
                   <Label className="flex-1">
                     {t.assessment.subjectsToGenerate}
                     <Badge variant="secondary" className="ms-1.5 tabular-nums">
-                      {chosenCount}/{programme.length}
+                      {chosenCount}/{staffed.length}
                     </Badge>
                   </Label>
                   <Button
@@ -274,54 +327,95 @@ export function GenerateDialog({
                   {t.assessment.subjectsToGenerateHint}
                 </p>
 
+                {unstaffedCount > 0 ? (
+                  <p className="text-warning text-xs text-pretty">
+                    {interpolate(t.assessment.unstaffedSubjects, {
+                      count: unstaffedCount,
+                    })}
+                  </p>
+                ) : null}
+
                 {programme.length === 0 ? (
                   <p className="text-muted-foreground py-4 text-center text-sm">
                     {t.assessment.noProgramme}
                   </p>
                 ) : (
                   <div className="max-h-64 overflow-y-auto rounded-lg border">
-                    {programme.map((entry) => {
-                      const checked = entry.subjectId in chosen;
-                      return (
-                        <div
-                          key={entry.subjectId}
-                          className="flex items-center gap-3 border-b p-2 last:border-b-0"
-                        >
-                          <Checkbox
-                            id={`subject-${entry.subjectId}`}
-                            checked={checked}
-                            onCheckedChange={(value) =>
-                              toggle(entry.subjectId, value === true)
-                            }
-                          />
-                          <Label
-                            htmlFor={`subject-${entry.subjectId}`}
-                            className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
-                          >
-                            <span className="truncate">{entry.subjectName}</span>
-                            <span className="text-muted-foreground ms-1.5 text-xs">
-                              ×{entry.coefficient}
-                            </span>
-                          </Label>
-                          <Input
-                            type="date"
-                            value={chosen[entry.subjectId] ?? ""}
-                            onChange={(event) =>
-                              setChosen({
-                                ...chosen,
-                                [entry.subjectId]: event.target.value,
-                              })
-                            }
-                            // A date on an unticked subject would be a promise
-                            // the generator will not keep.
-                            disabled={!checked}
-                            dir="ltr"
-                            className="h-8 w-36 text-xs"
-                            aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
-                          />
-                        </div>
-                      );
-                    })}
+                    {groups.map((group) => (
+                      <div key={group.key} className="border-b last:border-b-0">
+                        {/* Only a matière split into components gets a heading;
+                          a subject marked as one paper is its own row. */}
+                        {group.title ? (
+                          <p className="bg-muted/50 text-muted-foreground px-2 py-1 text-xs font-medium">
+                            {group.title}
+                          </p>
+                        ) : null}
+
+                        {group.entries.map((entry) => {
+                          const checked = entry.subjectId in chosen;
+                          // No teacher, no paper — the action refuses it, so
+                          // the row cannot be ticked and says why.
+                          const blocked = entry.teacherName === null;
+
+                          return (
+                            <div
+                              key={entry.subjectId}
+                              className={cn(
+                                "flex items-center gap-3 p-2",
+                                group.title && "ps-6",
+                                blocked && "opacity-60",
+                              )}
+                            >
+                              <Checkbox
+                                id={`subject-${entry.subjectId}`}
+                                checked={checked}
+                                disabled={blocked}
+                                onCheckedChange={(value) =>
+                                  toggle(entry.subjectId, value === true)
+                                }
+                              />
+                              <Label
+                                htmlFor={`subject-${entry.subjectId}`}
+                                className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
+                              >
+                                <span className="truncate">
+                                  {entry.subjectName}
+                                </span>
+                                <span className="text-muted-foreground ms-1.5 text-xs">
+                                  ×{entry.coefficient}
+                                </span>
+                                <span
+                                  className={cn(
+                                    "block truncate text-xs",
+                                    blocked
+                                      ? "text-warning"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {entry.teacherName ?? t.assessment.noTeacher}
+                                </span>
+                              </Label>
+                              <Input
+                                type="date"
+                                value={chosen[entry.subjectId] ?? ""}
+                                onChange={(event) =>
+                                  setChosen({
+                                    ...chosen,
+                                    [entry.subjectId]: event.target.value,
+                                  })
+                                }
+                                // A date on an unticked subject would be a
+                                // promise the generator will not keep.
+                                disabled={!checked}
+                                dir="ltr"
+                                className="h-8 w-36 text-xs"
+                                aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
 

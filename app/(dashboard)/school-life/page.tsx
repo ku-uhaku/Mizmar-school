@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 
 import { ColumnChart } from "@/components/charts/column-chart";
+import { DonutChart } from "@/components/charts/donut-chart";
+import { RadialGauge } from "@/components/charts/radial-gauge";
 import { Meter } from "@/components/charts/meter";
 import { StatTile } from "@/components/charts/stat-tile";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -65,6 +67,26 @@ export default async function SchoolLifePage() {
     : t.schoolLife.noYear;
 
   const levelColumns = stats.byLevel.filter((entry) => entry.value > 0);
+
+  /*
+    Places filled across the school, as one ratio.
+
+    Only classes that declare a capacity are counted, on both sides of the
+    fraction: a class with no capacity set has no places to fill, and counting
+    its pupils into the numerator alone would push the gauge past 100% for a
+    school that simply had not finished its configuration.
+  */
+  const capped = stats.classFill.filter(
+    (schoolClass) => (schoolClass.capacity ?? 0) > 0,
+  );
+  const occupancy = {
+    taken: capped.reduce((total, entry) => total + entry.enrolled, 0),
+    capacity: capped.reduce((total, entry) => total + (entry.capacity ?? 0), 0),
+  };
+  const occupancyPercent =
+    occupancy.capacity === 0
+      ? 0
+      : Math.round((occupancy.taken / occupancy.capacity) * 100);
 
   // Only the screens this reader may actually open — a card leading to a
   // forbidden page is worse than no card.
@@ -188,7 +210,52 @@ export default async function SchoolLifePage() {
       <SectionLinks links={links} className="mt-4" />
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card className="gap-4 lg:col-span-2">
+        {/* The ring and the gauge lead: they are the shape of the year, and the
+          columns underneath are its detail. */}
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">{t.schoolLife.standing}</CardTitle>
+            <CardDescription>{t.schoolLife.standingHint}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DonutChart
+              slices={[
+                {
+                  label: t.schoolLife.standingEnrolled,
+                  value: stats.standing.enrolled,
+                },
+                {
+                  label: t.schoolLife.standingPreRegistered,
+                  value: stats.standing.preRegistered,
+                },
+                { label: t.schoolLife.standingLeft, value: stats.standing.left },
+              ]}
+              total={stats.standing.total}
+              totalLabel={t.schoolLife.pupilsTotal}
+              tableCaption={t.schoolLife.standing}
+              categoryLabel={t.schoolLife.standingColumn}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="gap-4">
+          <CardHeader>
+            <CardTitle className="text-base">{t.schoolLife.occupancy}</CardTitle>
+            <CardDescription>{t.schoolLife.classFillHint}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center">
+            <RadialGauge
+              value={occupancyPercent}
+              label={t.schoolLife.occupancy}
+              caption={interpolate(t.schoolLife.occupancyCaption, {
+                taken: formatNumber(occupancy.taken, locale),
+                total: formatNumber(occupancy.capacity, locale),
+              })}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="gap-4 lg:col-span-3">
           <CardHeader>
             <CardTitle className="text-base">{t.schoolLife.byLevel}</CardTitle>
             <CardDescription>{t.schoolLife.byLevelHint}</CardDescription>

@@ -12,6 +12,22 @@ const ar = {
 
     // ── أقسام العمل الأربعة ─────────────────────────────────────────────────
     sections: "أقسامك",
+
+    charts: "السنة في لمحة",
+    pupilsPerLevel: "التلاميذ حسب المستوى",
+    pupilsPerLevelHint: "كيف يتوزّع عدد هذه السنة على المستويات المفتوحة.",
+    pupilsUnit: "تلميذ",
+    levelLabel: "المستوى",
+    collectionTrend: "المحصّل كل شهر",
+    collectionTrendHint: "الوصولات المحرّرة، شهرًا بشهر. الملغاة غير محتسبة.",
+    collectionSplit: "رسوم السنة",
+    collectionSplitHint: "ما تم أداؤه مقابل ما تبقّى.",
+    paidLabel: "مؤدّى",
+    outstandingLabel: "المتبقّي",
+    collectionRate: "نسبة التحصيل",
+    overdueNote: "{amount} منها تجاوزت أجلها.",
+    monthLabel: "الشهر",
+    noChartData: "لا شيء لعرضه بعد.",
     vieScolaireHint: "الأسر والأطفال والسنة التي يتابعونها.",
     financeHint: "ما يدخل وما يخرج وما تحتويه الصناديق.",
     logistiqueHint: "الأسطول والخطوط التي يسيّرها ومن يستعملها.",

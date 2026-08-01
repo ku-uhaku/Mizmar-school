@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { SCHOOL_YEAR_STATUSES } from "@/modules/school-years/enums";
 
 export type SchoolYearRow = {
@@ -80,86 +81,93 @@ export function SchoolYearDialog({
           {year ? <input type="hidden" name="id" value={year.id} /> : null}
 
           <DialogBody className="grid gap-4 py-1">
-
-          <FormField
-            name="name"
-            label={t.schoolYear.name}
-            hint={t.schoolYear.nameHint}
-            error={errors.name}
-            required
-          >
-            <Input
-              {...controlProps("name", errors.name, t.schoolYear.nameHint)}
-              defaultValue={year?.name ?? ""}
-              placeholder="2025-2026"
-              dir="ltr"
-              required
-            />
-          </FormField>
-
-          <div className="grid gap-4 sm:grid-cols-2">
             <FormField
-              name="startDate"
-              label={t.schoolYear.startDate}
-              error={errors.startDate}
+              name="name"
+              label={t.schoolYear.name}
+              hint={t.schoolYear.nameHint}
+              error={errors.name}
               required
             >
               <Input
-                {...controlProps("startDate", errors.startDate)}
-                type="date"
-                defaultValue={year?.startDate ?? ""}
+                {...controlProps("name", errors.name, t.schoolYear.nameHint)}
+                defaultValue={valueOf(state, "name", year?.name)}
+                placeholder="2025-2026"
+                dir="ltr"
                 required
               />
             </FormField>
 
-            <FormField
-              name="endDate"
-              label={t.schoolYear.endDate}
-              error={errors.endDate}
-              required
-            >
-              <Input
-                {...controlProps("endDate", errors.endDate)}
-                type="date"
-                defaultValue={year?.endDate ?? ""}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                name="startDate"
+                label={t.schoolYear.startDate}
+                error={errors.startDate}
                 required
-              />
-            </FormField>
-          </div>
+              >
+                <Input
+                  {...controlProps("startDate", errors.startDate)}
+                  type="date"
+                  defaultValue={valueOf(state, "startDate", year?.startDate)}
+                  required
+                />
+              </FormField>
 
-          <FormField
-            name="status"
-            label={t.schoolYear.status}
-            error={errors.status}
-          >
-            <Select name="status" defaultValue={year?.status ?? "PLANNED"}>
-              <SelectTrigger id="status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SCHOOL_YEAR_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {t.schoolYear.statuses[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-
-          <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
-            <div className="space-y-0.5">
-              <Label htmlFor="isDefault">{t.schoolYear.isDefault}</Label>
-              <p className="text-muted-foreground text-xs">
-                {t.schoolYear.makeDefault}
-              </p>
+              <FormField
+                name="endDate"
+                label={t.schoolYear.endDate}
+                error={errors.endDate}
+                required
+              >
+                <Input
+                  {...controlProps("endDate", errors.endDate)}
+                  type="date"
+                  defaultValue={valueOf(state, "endDate", year?.endDate)}
+                  required
+                />
+              </FormField>
             </div>
-            <Switch
-              id="isDefault"
-              name="isDefault"
-              defaultChecked={year?.isDefault ?? false}
-            />
-          </div>
 
+            <FormField
+              name="status"
+              label={t.schoolYear.status}
+              error={errors.status}
+            >
+              <Select
+                name="status"
+                defaultValue={
+                  valueOf(state, "status", year?.status) || "PLANNED"
+                }
+              >
+                <SelectTrigger id="status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SCHOOL_YEAR_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {t.schoolYear.statuses[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="isDefault">{t.schoolYear.isDefault}</Label>
+                <p className="text-muted-foreground text-xs">
+                  {t.schoolYear.makeDefault}
+                </p>
+              </div>
+              <Switch
+                id="isDefault"
+                name="isDefault"
+                defaultChecked={checkedOf(
+                  state,
+                  "isDefault",
+                  year?.isDefault ?? false,
+                )}
+              />
+            </div>
           </DialogBody>
 
           <DialogFooter>

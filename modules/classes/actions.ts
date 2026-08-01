@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   ensurePrimaryTeacher,
@@ -48,7 +49,11 @@ export async function saveTeachingAssignmentAction(
       isPrimary: boolField(formData, "isPrimary"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const assignmentId = field(formData, "id");

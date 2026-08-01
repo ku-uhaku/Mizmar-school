@@ -55,6 +55,10 @@ import schoolLife, {
   nav as schoolLifeNav,
   permissions as schoolLifePermissions,
 } from "@/modules/school-life/i18n/en";
+import supplies, {
+  nav as suppliesNav,
+  permissions as suppliesPermissions,
+} from "@/modules/supplies/i18n/en";
 import students, {
   nav as studentsNav,
   permissions as studentsPermissions,
@@ -110,6 +114,7 @@ const en = {
   ...schoolLife,
   ...families,
   ...students,
+  ...supplies,
   ...enrolment,
   ...classes,
   ...assessments,
@@ -138,6 +143,7 @@ const en = {
     ...schoolLifeNav,
     ...familiesNav,
     ...studentsNav,
+    ...suppliesNav,
     ...classesNav,
     ...assessmentsNav,
     ...classroomNav,
@@ -157,6 +163,7 @@ const en = {
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
+      ...suppliesPermissions.groups,
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
@@ -176,6 +183,7 @@ const en = {
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,
+      ...suppliesPermissions.codes,
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,

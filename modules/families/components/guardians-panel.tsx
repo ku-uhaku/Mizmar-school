@@ -182,7 +182,9 @@ export function GuardiansPanel({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onSelect={() => dialog.openEdit(guardian)}>
+                      <DropdownMenuItem
+                        onSelect={() => dialog.openEdit(guardian)}
+                      >
                         <PencilIcon />
                         {t.common.edit}
                       </DropdownMenuItem>

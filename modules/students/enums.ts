@@ -8,6 +8,75 @@ export const GENDERS = ["MALE", "FEMALE"] as const;
 export type Gender = (typeof GENDERS)[number];
 
 /**
+ * ABO/Rh group, in the international notation.
+ *
+ * The only enum in this module with no entry in `studentOptions`: "O−" is
+ * written "O−" on a Moroccan carnet de santé, a French one and an English one
+ * alike, and putting it through a dictionary would invite three spellings of a
+ * thing whose whole purpose is to be read identically under pressure.
+ */
+export const BLOOD_TYPES = [
+  "A+",
+  "A-",
+  "B+",
+  "B-",
+  "AB+",
+  "AB-",
+  "O+",
+  "O-",
+] as const;
+export type BloodType = (typeof BLOOD_TYPES)[number];
+
+/**
+ * The kind of establishment a transferring pupil came from.
+ *
+ *   PUBLIC      an école publique
+ *   PRIVATE     a Moroccan private school
+ *   MISSION     mission étrangère — AEFE, Cervantes, and the like
+ *   HOMESCHOOL  taught at home
+ *   OTHER       anything else, described in `transferReason`
+ */
+export const SCHOOLING_TYPES = [
+  "PUBLIC",
+  "PRIVATE",
+  "MISSION",
+  "HOMESCHOOL",
+  "OTHER",
+] as const;
+export type SchoolingType = (typeof SCHOOLING_TYPES)[number];
+
+/**
+ * Who the child actually lives with in term time.
+ *
+ * Deliberately not derived from `Family.situation`: parents may be married and
+ * the child still board, and divorced parents may share custody. The school
+ * needs the address the child sleeps at, not the legal status of the couple.
+ */
+export const LIVES_WITH = [
+  "BOTH_PARENTS",
+  "MOTHER",
+  "FATHER",
+  "GUARDIAN",
+  "BOARDING",
+  "OTHER",
+] as const;
+export type LivesWith = (typeof LIVES_WITH)[number];
+
+/**
+ * Total fratrie size, derived rather than stored — a third column that can
+ * disagree with the two it sums is a bug waiting to be filed. Null only when
+ * neither count has been recorded, so "no siblings" and "not asked" stay
+ * distinguishable.
+ */
+export function siblingCountOf(input: {
+  brotherCount: number | null;
+  sisterCount: number | null;
+}): number | null {
+  if (input.brotherCount === null && input.sisterCount === null) return null;
+  return (input.brotherCount ?? 0) + (input.sisterCount ?? 0);
+}
+
+/**
  * Where a pupil's file has got to.
  *
  * Derived from the enrolments, never typed in — see `refreshStudentStatus` in

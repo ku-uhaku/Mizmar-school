@@ -49,6 +49,7 @@ export function AssessmentsManager({
   programmes,
   classId,
   termId,
+  defaultDate,
   permissions,
 }: {
   assessments: AssessmentRow[];
@@ -58,6 +59,8 @@ export function AssessmentsManager({
   programmes: Record<string, ProgrammeEntry[]>;
   classId: string | null;
   termId: string | null;
+  /** Clamped into the school year — see lib/school-year.ts. */
+  defaultDate: string;
   permissions: { canManage: boolean; canDelete: boolean };
 }) {
   const { t, locale } = useI18n();
@@ -257,6 +260,7 @@ export function AssessmentsManager({
       programmes={programmes}
       defaultClassId={classId}
       defaultTermId={termId}
+      defaultDate={defaultDate}
     />
   ) : undefined;
 

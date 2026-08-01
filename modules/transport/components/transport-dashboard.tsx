@@ -197,35 +197,42 @@ export function TransportDashboard({
               <EmptyState title={t.transport.allPapersValid} />
             ) : (
               <ul className="divide-y">
-                {expiring.slice(0, 6).map(({ vehicle, insurance, inspection }) => (
-                  <li key={vehicle.id} className="py-2.5 first:pt-0 last:pb-0">
-                    <p className="text-sm font-medium">{vehicle.registration}</p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {insurance !== "OK" ? (
-                        <ExpiryBadge
-                          state={insurance}
-                          label={t.transport.insurance}
-                          date={vehicle.insuranceExpiresOn}
-                          expiredLabel={t.transport.expired}
-                          soonLabel={t.transport.expiringSoon}
-                          missingLabel={t.transport.noExpiryRecorded}
-                          locale={locale}
-                        />
-                      ) : null}
-                      {inspection !== "OK" ? (
-                        <ExpiryBadge
-                          state={inspection}
-                          label={t.transport.inspection}
-                          date={vehicle.inspectionExpiresOn}
-                          expiredLabel={t.transport.expired}
-                          soonLabel={t.transport.expiringSoon}
-                          missingLabel={t.transport.noExpiryRecorded}
-                          locale={locale}
-                        />
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
+                {expiring
+                  .slice(0, 6)
+                  .map(({ vehicle, insurance, inspection }) => (
+                    <li
+                      key={vehicle.id}
+                      className="py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <p className="text-sm font-medium">
+                        {vehicle.registration}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {insurance !== "OK" ? (
+                          <ExpiryBadge
+                            state={insurance}
+                            label={t.transport.insurance}
+                            date={vehicle.insuranceExpiresOn}
+                            expiredLabel={t.transport.expired}
+                            soonLabel={t.transport.expiringSoon}
+                            missingLabel={t.transport.noExpiryRecorded}
+                            locale={locale}
+                          />
+                        ) : null}
+                        {inspection !== "OK" ? (
+                          <ExpiryBadge
+                            state={inspection}
+                            label={t.transport.inspection}
+                            date={vehicle.inspectionExpiresOn}
+                            expiredLabel={t.transport.expired}
+                            soonLabel={t.transport.expiringSoon}
+                            missingLabel={t.transport.noExpiryRecorded}
+                            locale={locale}
+                          />
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
               </ul>
             )}
           </CardContent>

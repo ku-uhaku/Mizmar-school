@@ -9,6 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
@@ -87,7 +88,11 @@ export async function openSessionAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The till must be one of this school's.
@@ -127,7 +132,11 @@ export async function closeSessionAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The session must belong to this school — never trust the id alone.
@@ -227,7 +236,11 @@ export async function recordPaymentAction(
       allocations: readAllocations(formData),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The family must be one of this school's.
@@ -309,7 +322,9 @@ export async function recordPaymentAction(
     }
 
     refresh();
-    return success(interpolate(t.treasury.paymentRecorded, { code: result.code }));
+    return success(
+      interpolate(t.treasury.paymentRecorded, { code: result.code }),
+    );
   });
 }
 
@@ -367,7 +382,11 @@ export async function recordDisbursementAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     /*
@@ -460,7 +479,8 @@ export async function recordDisbursementAction(
     await recordDisbursement({
       schoolId,
       createdById: context.user.id,
-      cashSessionId: parsed.data.method === "CASH" ? (session?.id ?? null) : null,
+      cashSessionId:
+        parsed.data.method === "CASH" ? (session?.id ?? null) : null,
       categoryId: category?.id ?? null,
       subcategoryId: subcategory?.id ?? null,
       motifId: motif?.id ?? null,
@@ -505,7 +525,11 @@ export async function recordTransferAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // Both tills must be this school's.
@@ -522,7 +546,8 @@ export async function recordTransferAction(
             select: { id: true, name: true },
           })
         : null;
-    if (parsed.data.target === "REGISTER" && !to) return failure(t.errors.notFound);
+    if (parsed.data.target === "REGISTER" && !to)
+      return failure(t.errors.notFound);
 
     // Money can only leave a drawer somebody is holding.
     const fromSession = await db.cashSession.findFirst({
@@ -609,7 +634,11 @@ export async function setChequeStatusAction(
       bounceReason: field(formData, "bounceReason"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const cheque = await db.cheque.findFirst({
@@ -663,7 +692,11 @@ export async function saveCashRegisterAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     if (id) {
@@ -707,7 +740,9 @@ export async function saveCashRegisterAction(
     }
 
     refresh();
-    return success(id ? t.treasury.registerUpdated : t.treasury.registerCreated);
+    return success(
+      id ? t.treasury.registerUpdated : t.treasury.registerCreated,
+    );
   });
 }
 
@@ -733,7 +768,10 @@ export async function setCashRegisterActiveAction(
 
     const register = await db.cashRegister.findFirst({
       where: { id, schoolId },
-      select: { id: true, _count: { select: { sessions: { where: { status: "OPEN" } } } } },
+      select: {
+        id: true,
+        _count: { select: { sessions: { where: { status: "OPEN" } } } },
+      },
     });
     if (!register) return failure(t.errors.notFound);
 

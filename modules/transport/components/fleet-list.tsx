@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
@@ -143,7 +144,9 @@ export function FleetList({
         meta: { className: "hidden @2xl/table:table-cell" },
         cell: ({ row }) => (
           <div className="min-w-0">
-            <p className="truncate text-sm">{row.original.driverLabel ?? "—"}</p>
+            <p className="truncate text-sm">
+              {row.original.driverLabel ?? "—"}
+            </p>
             {row.original.driverPhone ? (
               <p className="text-muted-foreground truncate text-xs" dir="ltr">
                 {row.original.driverPhone}
@@ -168,7 +171,10 @@ export function FleetList({
         header: t.transport.inspection,
         meta: { className: "hidden @4xl/table:table-cell" },
         cell: ({ row }) => (
-          <ExpiryValue date={row.original.inspectionExpiresOn} locale={locale} />
+          <ExpiryValue
+            date={row.original.inspectionExpiresOn}
+            locale={locale}
+          />
         ),
       },
     ];
@@ -272,7 +278,9 @@ export function FleetList({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t.transport.deleteVehicleTitle}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t.transport.deleteVehicleTitle}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {interpolate(t.transport.deleteVehicleBody, {
                 name: removing?.registration ?? "",
@@ -362,7 +370,9 @@ function VehicleDialog({
             <DialogDescription>{t.transport.complianceHint}</DialogDescription>
           </DialogHeader>
 
-          {vehicle ? <input type="hidden" name="id" value={vehicle.id} /> : null}
+          {vehicle ? (
+            <input type="hidden" name="id" value={vehicle.id} />
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field
@@ -374,7 +384,11 @@ function VehicleDialog({
               <Input
                 id="registration"
                 name="registration"
-                defaultValue={vehicle?.registration ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "registration",
+                  vehicle?.registration,
+                )}
                 dir="ltr"
                 placeholder="12345-A-6"
                 required
@@ -400,24 +414,48 @@ function VehicleDialog({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label={t.transport.make} name="make">
-              <Input id="make" name="make" defaultValue={vehicle?.make ?? ""} />
+              <Input
+                id="make"
+                name="make"
+                defaultValue={valueOf(state, "make", vehicle?.make)}
+              />
             </Field>
             <Field label={t.transport.model} name="model">
-              <Input id="model" name="model" defaultValue={vehicle?.model ?? ""} />
+              <Input
+                id="model"
+                name="model"
+                defaultValue={valueOf(state, "model", vehicle?.model)}
+              />
             </Field>
-            <Field label={t.transport.modelYear} name="modelYear" error={errors.modelYear}>
+            <Field
+              label={t.transport.modelYear}
+              name="modelYear"
+              error={errors.modelYear}
+            >
               <Input
                 id="modelYear"
                 name="modelYear"
                 type="number"
                 dir="ltr"
-                defaultValue={vehicle?.modelYear ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "modelYear",
+                  vehicle?.modelYear === null ||
+                    vehicle?.modelYear === undefined
+                    ? ""
+                    : String(vehicle.modelYear),
+                )}
               />
             </Field>
           </div>
 
           <Field label={t.transport.vehicleStatus} name="status">
-            <Select name="status" defaultValue={vehicle?.status ?? "ACTIVE"}>
+            <Select
+              name="status"
+              defaultValue={
+                valueOf(state, "status", vehicle?.status) || "ACTIVE"
+              }
+            >
               <SelectTrigger id="status" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -460,7 +498,9 @@ function VehicleDialog({
               <Field label={t.transport.driverStaff} name="driverId">
                 <Select
                   name="driverId"
-                  defaultValue={vehicle?.driverId ?? "__none__"}
+                  defaultValue={
+                    valueOf(state, "driverId", vehicle?.driverId) || "__none__"
+                  }
                 >
                   <SelectTrigger id="driverId" className="w-full">
                     <SelectValue />
@@ -488,7 +528,7 @@ function VehicleDialog({
               <Input
                 id="driverName"
                 name="driverName"
-                defaultValue={vehicle?.driverName ?? ""}
+                defaultValue={valueOf(state, "driverName", vehicle?.driverName)}
               />
             </Field>
             <Field label={t.transport.driverPhone} name="driverPhone">
@@ -496,13 +536,22 @@ function VehicleDialog({
                 id="driverPhone"
                 name="driverPhone"
                 dir="ltr"
-                defaultValue={vehicle?.driverPhone ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "driverPhone",
+                  vehicle?.driverPhone,
+                )}
               />
             </Field>
           </div>
 
           <Field label={t.transport.transportOf} name="notes">
-            <Textarea id="notes" name="notes" rows={2} defaultValue={vehicle?.notes ?? ""} />
+            <Textarea
+              id="notes"
+              name="notes"
+              rows={2}
+              defaultValue={valueOf(state, "notes", vehicle?.notes)}
+            />
           </Field>
 
           <DialogFooter>

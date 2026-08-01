@@ -11,6 +11,22 @@ export type ActionState = {
   message?: string;
   /** Keyed by form field name. */
   fieldErrors?: Record<string, string>;
+  /**
+   * What was submitted, echoed back so a rejected form can be redrawn with the
+   * user's own text still in it.
+   *
+   * React resets an uncontrolled form as soon as its action returns — that is
+   * the documented behaviour of passing a function to `<form action>`, and it
+   * is right for the success case, where the next thing you want is an empty
+   * form. On a validation failure it is exactly wrong: `defaultValue` snaps
+   * back to whatever the row held and fifteen fields of typing are gone, which
+   * is worse than no validation at all.
+   *
+   * So `failure()` carries the submitted values and the forms read their
+   * defaults through `valueOf` in lib/form-values.ts. Only failures carry them:
+   * echoing them on success would re-fill a form that is meant to clear.
+   */
+  values?: Record<string, string>;
   /** Bumped on every result so effects can react to repeat submissions. */
   key?: number;
 };
@@ -24,6 +40,7 @@ export function success(message?: string): ActionState {
 export function failure(
   message?: string,
   fieldErrors?: Record<string, string>,
+  values?: Record<string, string>,
 ): ActionState {
-  return { status: "error", message, fieldErrors, key: Date.now() };
+  return { status: "error", message, fieldErrors, values, key: Date.now() };
 }

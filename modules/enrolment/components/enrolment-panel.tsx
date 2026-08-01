@@ -33,6 +33,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { interpolate } from "@/lib/i18n/format";
 import {
   deleteEnrolmentAction,
@@ -256,7 +257,10 @@ export function EnrolmentPanel({
               >
                 <Select
                   name="classGroupId"
-                  defaultValue={enrolment?.classGroupId ?? "__none__"}
+                  defaultValue={
+                    valueOf(state, "classGroupId", enrolment?.classGroupId) ||
+                    "__none__"
+                  }
                   disabled={groups.length === 0}
                 >
                   <SelectTrigger id="classGroupId" className="w-full">
@@ -284,7 +288,9 @@ export function EnrolmentPanel({
               >
                 <Select
                   name="status"
-                  defaultValue={enrolment?.status ?? "ACTIVE"}
+                  defaultValue={
+                    valueOf(state, "status", enrolment?.status) || "ACTIVE"
+                  }
                 >
                   <SelectTrigger id="status" className="w-full">
                     <SelectValue />
@@ -307,7 +313,11 @@ export function EnrolmentPanel({
                 <Input
                   {...controlProps("enrolledOn", errors.enrolledOn)}
                   type="date"
-                  defaultValue={enrolment?.enrolledOn ?? ""}
+                  defaultValue={valueOf(
+                    state,
+                    "enrolledOn",
+                    enrolment?.enrolledOn,
+                  )}
                   dir="ltr"
                 />
               </FormField>
@@ -317,7 +327,11 @@ export function EnrolmentPanel({
                 <Switch
                   id="isRepeating"
                   name="isRepeating"
-                  defaultChecked={enrolment?.isRepeating ?? false}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isRepeating",
+                    enrolment?.isRepeating ?? false,
+                  )}
                 />
               </div>
             </div>
@@ -336,7 +350,11 @@ export function EnrolmentPanel({
                 <Switch
                   id="usesTransport"
                   name="usesTransport"
-                  defaultChecked={enrolment?.usesTransport ?? false}
+                  defaultChecked={checkedOf(
+                    state,
+                    "usesTransport",
+                    enrolment?.usesTransport ?? false,
+                  )}
                 />
               </div>
               <div className="flex items-center justify-between gap-4">
@@ -344,7 +362,11 @@ export function EnrolmentPanel({
                 <Switch
                   id="usesCanteen"
                   name="usesCanteen"
-                  defaultChecked={enrolment?.usesCanteen ?? false}
+                  defaultChecked={checkedOf(
+                    state,
+                    "usesCanteen",
+                    enrolment?.usesCanteen ?? false,
+                  )}
                 />
               </div>
             </fieldset>
@@ -356,7 +378,7 @@ export function EnrolmentPanel({
             >
               <Textarea
                 {...controlProps("notes", errors.notes)}
-                defaultValue={enrolment?.notes ?? ""}
+                defaultValue={valueOf(state, "notes", enrolment?.notes)}
                 rows={2}
               />
             </FormField>

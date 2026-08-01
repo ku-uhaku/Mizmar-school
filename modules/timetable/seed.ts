@@ -281,3 +281,90 @@ export async function seedTimetable(
   log("timetable entries", created);
   return created;
 }
+
+/**
+ * The school calendar: the announced holidays of a Moroccan academic year.
+ *
+ * Dates are derived from the year's own start rather than hard-coded, so
+ * re-seeding in a later year produces a coherent calendar instead of a set of
+ * 2025 dates hanging off a 2027 year. They are the *civil* holidays, whose
+ * dates are fixed; the religious ones move with the Hijri calendar and are the
+ * school's to enter under /configuration, which is exactly why that screen
+ * exists.
+ */
+type HolidaySeed = {
+  name: string;
+  nameAr: string;
+  kind: string;
+  /** Month (1-12) and day, resolved against the academic year it falls in. */
+  month: number;
+  day: number;
+  /** Days it runs for, inclusive. 1 is a single-day férié. */
+  days: number;
+};
+
+const HOLIDAYS: HolidaySeed[] = [
+  { name: "Fête de l'Indépendance", nameAr: "عيد الاستقلال", kind: "PUBLIC_HOLIDAY", month: 11, day: 18, days: 1 },
+  { name: "Vacances de mi-année", nameAr: "عطلة منتصف السنة", kind: "SCHOOL_HOLIDAY", month: 1, day: 27, days: 9 },
+  { name: "Manifeste de l'Indépendance", nameAr: "ذكرى تقديم وثيقة الاستقلال", kind: "PUBLIC_HOLIDAY", month: 1, day: 11, days: 1 },
+  { name: "Fête du Travail", nameAr: "عيد الشغل", kind: "PUBLIC_HOLIDAY", month: 5, day: 1, days: 1 },
+  { name: "Vacances de printemps", nameAr: "عطلة الربيع", kind: "SCHOOL_HOLIDAY", month: 4, day: 5, days: 12 },
+  { name: "Fête du Trône", nameAr: "عيد العرش", kind: "PUBLIC_HOLIDAY", month: 7, day: 30, days: 1 },
+];
+
+export async function seedHolidays(
+  db: SeedDb,
+  schoolYearId: string,
+  yearStart: Date,
+  yearEnd: Date,
+): Promise<number> {
+  let written = 0;
+
+  for (const holiday of HOLIDAYS) {
+    // A school year straddles two calendar years: a November date belongs to
+    // the first, a May date to the second. Deciding by month against the start
+    // is what keeps that right without hard-coding either year.
+    const calendarYear =
+      holiday.month >= yearStart.getMonth() + 1
+        ? yearStart.getFullYear()
+        : yearStart.getFullYear() + 1;
+
+    const startDate = new Date(calendarYear, holiday.month - 1, holiday.day);
+    const endDate = new Date(
+      calendarYear,
+      holiday.month - 1,
+      holiday.day + holiday.days - 1,
+    );
+
+    // A date the year does not cover is skipped rather than clamped: a school
+    // whose year ends in June has no Fête du Trône to declare.
+    if (startDate < yearStart || startDate > yearEnd) continue;
+
+    // No natural unique key on the table — a school may legitimately declare
+    // two closures with the same name — so idempotency is a find-then-write on
+    // (year, name), which is what a re-run should match.
+    const existing = await db.schoolHoliday.findFirst({
+      where: { schoolYearId, name: holiday.name },
+      select: { id: true },
+    });
+
+    const data = {
+      nameAr: holiday.nameAr,
+      kind: holiday.kind,
+      startDate,
+      endDate,
+    };
+
+    if (existing) {
+      await db.schoolHoliday.update({ where: { id: existing.id }, data });
+    } else {
+      await db.schoolHoliday.create({
+        data: { schoolYearId, name: holiday.name, ...data },
+      });
+    }
+    written += 1;
+  }
+
+  log("holidays", written);
+  return written;
+}

@@ -32,7 +32,11 @@ export function ThemeModeToggle({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size="icon" aria-label={t.appearance.themeMode}>
+        <Button
+          variant={variant}
+          size="icon"
+          aria-label={t.appearance.themeMode}
+        >
           <Icon />
         </Button>
       </DropdownMenuTrigger>

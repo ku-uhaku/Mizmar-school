@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { CalendarXIcon } from "lucide-react";
+import { CalendarXIcon, PrinterIcon } from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -37,6 +37,7 @@ import type {
   BankOption,
   FamilyStanding,
   PayableFamily,
+  PaymentRow,
   PaymentStanding,
 } from "@/modules/treasury/queries";
 import {
@@ -69,6 +70,7 @@ export function StudentProfile({
   family,
   guardians,
   families,
+  cities,
   enrolment,
   offerings,
   yearName,
@@ -78,6 +80,7 @@ export function StudentProfile({
   timetableChoices,
   standing,
   familyStanding,
+  payments,
   attendance,
   marks,
   remarks,
@@ -98,6 +101,8 @@ export function StudentProfile({
   } | null;
   guardians: GuardianRow[];
   families: { id: string; label: string }[];
+  /** The school's towns, for the birthplace picker on the information tab. */
+  cities: { id: string; label: string }[];
   enrolment: EnrolmentDetail | null;
   offerings: OfferingChoice[];
   yearName: string | null;
@@ -116,6 +121,8 @@ export function StudentProfile({
   standing: PaymentStanding | null;
   /** The rest of the household, for the fratrie switch on the payment tab. */
   familyStanding: FamilyStanding | null;
+  /** Receipts already taken against this pupil. Empty when money is hidden. */
+  payments: PaymentRow[];
   /**
    * The three below all hang off the enrolment: null when the child has no
    * place this year, and there is nothing to show rather than an empty tab.
@@ -138,6 +145,7 @@ export function StudentProfile({
     canDeleteEnrolment: boolean;
     canManageFees: boolean;
     canCollect: boolean;
+    canCancelPayment: boolean;
   };
 }) {
   const t = useT();
@@ -228,7 +236,7 @@ export function StudentProfile({
         </TabsList>
 
         <TabsContent value="information">
-          <StudentForm student={student} families={families} />
+          <StudentForm student={student} families={families} cities={cities} />
         </TabsContent>
 
         <TabsContent value="family">
@@ -282,6 +290,8 @@ export function StudentProfile({
               family={familyStanding}
               familyId={student.familyId}
               canCollect={permissions.canCollect}
+              canCancel={permissions.canCancelPayment}
+              payments={payments}
               payable={payable}
               banks={banks}
               hasOpenSession={hasOpenSession}
@@ -310,11 +320,23 @@ export function StudentProfile({
         <TabsContent value="timetable">
           {timetable && timetableChoices && enrolment?.schoolClassId ? (
             <div className="space-y-3">
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/classes/${enrolment.schoolClassId}`}>
-                  {enrolment.className}
-                </Link>
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/classes/${enrolment.schoolClassId}`}>
+                    {enrolment.className}
+                  </Link>
+                </Button>
+                {/* The pupil's week *is* their class's week, so this prints the
+                  class sheet rather than a per-child copy of the same grid. */}
+                <Button asChild variant="outline" size="sm">
+                  <Link
+                    href={`/print/class/${enrolment.schoolClassId}/timetable`}
+                  >
+                    <PrinterIcon />
+                    {t.print.timetable}
+                  </Link>
+                </Button>
+              </div>
               <TimetableGrid
                 grid={timetable}
                 schoolClassId={enrolment.schoolClassId}

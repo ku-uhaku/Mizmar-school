@@ -9,6 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { resolvePermissionIds } from "@/modules/access/queries";
 import { roleSchema } from "@/modules/access/validation";
@@ -32,7 +33,11 @@ export async function createRoleAction(
 
     const parsed = roleSchema(t).safeParse(readRoleForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.role.findUnique({
@@ -85,7 +90,11 @@ export async function updateRoleAction(
 
     const parsed = roleSchema(t).safeParse(readRoleForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // System roles keep their identity; only their permission set is editable.

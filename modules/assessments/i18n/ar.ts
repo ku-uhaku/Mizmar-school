@@ -55,6 +55,10 @@ const ar = {
     allSubjects: "الكل",
     noneSubjects: "لا شيء",
     nothingToGenerate: "كل المواد لها هذا الفرض بالفعل.",
+    noTeacherAssigned:
+      "لم يُنشأ شيء لـ {subjects} — لا أستاذ مسند إليها في هذا القسم.",
+    unstaffedSubjects:
+      "{count} مادة/مواد لا يمكن توليدها ما لم يُسند إليها أستاذ.",
     noProgramme:
       "لا توجد مادة منقّطة في برنامج هذا القسم — اضبط البرنامج أولًا.",
     termClosed: "هذه الدورة مغلقة؛ لا يمكن إضافة أي فرض إليها.",

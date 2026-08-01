@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { findUnreachableReference } from "@/modules/configuration/queries";
 import { findResource } from "@/modules/configuration/resources";
@@ -36,7 +37,9 @@ import {
  * Resolves the resource and asserts the caller may manage configuration in the
  * school they currently have selected.
  */
-async function authorizeResource(resourceId: string): Promise<
+async function authorizeResource(
+  resourceId: string,
+): Promise<
   | { ok: true; context: AuthContext; resource: ResourceDef }
   | { ok: false; state: ActionState }
 > {
@@ -83,14 +86,22 @@ export async function createConfigItemAction(
       coerceIntegerSelects(resource, readResourceForm(resource, formData)),
     );
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const values = parsed.data as Record<string, unknown>;
 
     // Every reference must point inside the current context — the dropdown was
     // filtered, but a direct POST was not.
-    const unreachable = await findUnreachableReference(context, resource, values);
+    const unreachable = await findUnreachableReference(
+      context,
+      resource,
+      values,
+    );
     if (unreachable) {
       return failure(t.errors.forbidden, {
         [unreachable]: t.configuration.outOfContext,
@@ -128,12 +139,20 @@ export async function updateConfigItemAction(
       coerceIntegerSelects(resource, readResourceForm(resource, formData)),
     );
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const values = parsed.data as Record<string, unknown>;
 
-    const unreachable = await findUnreachableReference(context, resource, values);
+    const unreachable = await findUnreachableReference(
+      context,
+      resource,
+      values,
+    );
     if (unreachable) {
       return failure(t.errors.forbidden, {
         [unreachable]: t.configuration.outOfContext,
@@ -181,7 +200,11 @@ export async function saveSingletonAction(
       readResourceForm(resource, formData),
     );
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const values = parsed.data as Record<string, unknown>;

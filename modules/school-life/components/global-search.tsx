@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCapIcon, HomeIcon, LayersIcon, SearchIcon } from "lucide-react";
+import {
+  GraduationCapIcon,
+  HomeIcon,
+  LayersIcon,
+  SearchIcon,
+} from "lucide-react";
 
 import { useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
@@ -15,7 +20,10 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { globalSearchAction, type SearchResults } from "@/modules/school-life/actions";
+import {
+  globalSearchAction,
+  type SearchResults,
+} from "@/modules/school-life/actions";
 
 const EMPTY: SearchResults = { students: [], families: [], classes: [] };
 
@@ -155,7 +163,9 @@ export function GlobalSearch() {
                     onSelect={() => go(`/families/${family.id}`)}
                   >
                     <HomeIcon />
-                    <span className="min-w-0 flex-1 truncate">{family.label}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {family.label}
+                    </span>
                     <span className="text-muted-foreground truncate text-xs">
                       {family.detail}
                     </span>

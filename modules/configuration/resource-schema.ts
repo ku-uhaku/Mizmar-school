@@ -127,6 +127,39 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ code: "asc" }],
   },
 
+  cities: {
+    table: () => db.city as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // By name, not by code: the list is read to find a town, and a code is
+    // only what the row is keyed on.
+    orderBy: [{ name: "asc" }],
+  },
+
+  neighbourhoods: {
+    table: () => db.neighbourhood as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // Grouped by town, then alphabetical — the order the list is searched in.
+    orderBy: [{ city: { name: "asc" } }, { name: "asc" }],
+  },
+
+  holidays: {
+    table: () => db.schoolHoliday as unknown as Delegate,
+    where: byYear,
+    createData: (context) => ({ schoolYearId: context.currentSchoolYear?.id }),
+    orderBy: [{ startDate: "asc" }],
+  },
+
+  "teacher-absences": {
+    table: () => db.teacherAbsence as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // Most recent first: the list is read to answer "who is off now", and the
+    // year's history is what you scroll for.
+    orderBy: [{ startDate: "desc" }],
+  },
+
   terms: {
     table: () => db.term as unknown as Delegate,
     where: byYear,

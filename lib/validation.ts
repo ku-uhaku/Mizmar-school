@@ -138,6 +138,21 @@ export function enumField<T extends readonly [string, ...string[]]>(
   return z.enum(values, { error: v.invalidChoice });
 }
 
+/**
+ * An enum column that may be left unanswered. A `<Select>` sends "" for its
+ * blank choice, which becomes null rather than failing the enum — the column is
+ * nullable precisely because "not asked yet" is a real state.
+ */
+export function optionalEnumField<T extends readonly [string, ...string[]]>(
+  values: T,
+  v: V,
+) {
+  return z
+    .union([z.literal(""), z.enum(values, { error: v.invalidChoice })])
+    .transform((value) => (value === "" ? null : value))
+    .nullable();
+}
+
 export function password(v: V) {
   return z.string().min(PASSWORD_MIN_LENGTH, {
     error: interpolate(v.passwordTooShort, { min: PASSWORD_MIN_LENGTH }),

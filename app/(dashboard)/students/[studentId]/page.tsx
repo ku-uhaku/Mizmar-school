@@ -18,6 +18,7 @@ import {
   loadFeeGrid,
 } from "@/modules/enrolment/queries";
 import { findFamily, listFamilyChoices } from "@/modules/families/queries";
+import { listCityChoices } from "@/modules/geography/queries";
 import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
 import { loadPupilMarks } from "@/modules/assessments/queries";
@@ -31,6 +32,7 @@ import {
   findOpenSession,
   findPayableFamily,
   listBanks,
+  listStudentPayments,
   studentPaymentStanding,
 } from "@/modules/treasury/queries";
 import { STUDENT_WORKFLOW_STEPS } from "@/modules/students/enums";
@@ -70,11 +72,14 @@ export default async function StudentPage({
   // child's record without learning whether their family is behind on fees.
   const canSeeMoney = context.can(PERMISSIONS.TREASURY_VIEW);
 
-  const [workflow, enrolment, choices, families] = await Promise.all([
+  const [workflow, enrolment, choices, families, cities] = await Promise.all([
     loadStudentWorkflow(context, student.id),
     findEnrolment(context, student.id),
     loadEnrolmentChoices(context),
     listFamilyChoices(context),
+    // The pupil's own towns are kept in the list even if deactivated, so
+    // merging two spellings never blanks a birthplace on the next save.
+    listCityChoices(context, [student.birthCityId, student.previousSchoolCityId]),
   ]);
 
   // The rest depends on what the first round found: no dossier means no
@@ -97,6 +102,7 @@ export default async function StudentPage({
     timetableChoices,
     standing,
     familyStanding,
+    payments,
     attendance,
     marks,
     remarks,
@@ -116,6 +122,9 @@ export default async function StudentPage({
     canSeeMoney && student.familyId
       ? familyPaymentStanding(context, student.id, student.familyId)
       : null,
+    // Gated with the rest of the money: the receipts say what a family paid and
+    // when, which is exactly what TREASURY_VIEW exists to withhold.
+    canSeeMoney ? listStudentPayments(context, student.id) : [],
     // All three hang off the enrolment — no place this year, nothing to show.
     enrolment && canSeeAttendance
       ? loadPupilAttendance(context, enrolment.id)
@@ -187,6 +196,7 @@ export default async function StudentPage({
         }
         guardians={family?.guardians ?? []}
         families={families}
+        cities={cities}
         enrolment={enrolment}
         offerings={choices.offerings}
         yearName={context.currentSchoolYear?.name ?? null}
@@ -202,6 +212,7 @@ export default async function StudentPage({
         banks={banks}
         hasOpenSession={openSession !== null}
         familyStanding={familyStanding}
+        payments={payments}
         workflow={workflow}
         // Whether a family is behind on its payments is money: a teacher who
         // may view a pupil has no business reading it off their parcours.
@@ -218,6 +229,7 @@ export default async function StudentPage({
           canDeleteEnrolment: context.can(PERMISSIONS.ENROLMENT_DELETE),
           canManageFees: context.can(PERMISSIONS.ENROLMENT_FEES),
           canCollect: context.can(PERMISSIONS.TREASURY_COLLECT),
+          canCancelPayment: context.can(PERMISSIONS.TREASURY_CANCEL),
         }}
       />
     </>

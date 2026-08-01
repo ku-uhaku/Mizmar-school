@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { deleteUserAction, toggleUserActiveAction } from "@/modules/users/actions";
+import {
+  deleteUserAction,
+  toggleUserActiveAction,
+} from "@/modules/users/actions";
 import { DataTable } from "@/components/data-table/data-table";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
@@ -30,7 +33,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDateTime, formatNumber, interpolate } from "@/lib/i18n/format";
 import { ageFrom } from "@/lib/utils";
 
@@ -95,7 +102,9 @@ export function UsersManager({
           return (
             <div className="flex min-w-0 items-center gap-3">
               <Avatar className="size-9 shrink-0">
-                {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
+                {user.avatarUrl ? (
+                  <AvatarImage src={user.avatarUrl} alt="" />
+                ) : null}
                 <AvatarFallback className="text-xs">
                   {initials || "?"}
                 </AvatarFallback>
@@ -175,7 +184,9 @@ export function UsersManager({
         cell: ({ row }) => {
           const memberships = row.original.memberships;
           if (memberships.length === 0) {
-            return <span className="text-muted-foreground">{t.user.noAccess}</span>;
+            return (
+              <span className="text-muted-foreground">{t.user.noAccess}</span>
+            );
           }
 
           // Two inline, the rest behind a count — the list can get long.

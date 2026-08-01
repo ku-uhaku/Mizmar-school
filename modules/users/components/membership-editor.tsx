@@ -59,9 +59,7 @@ export function MembershipEditor({
   }
 
   if (roles.length === 0) {
-    return (
-      <p className="text-muted-foreground text-sm">{t.role.noRoles}</p>
-    );
+    return <p className="text-muted-foreground text-sm">{t.role.noRoles}</p>;
   }
 
   return (

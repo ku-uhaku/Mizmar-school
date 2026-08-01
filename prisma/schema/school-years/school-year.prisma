@@ -22,6 +22,10 @@ model SchoolYear {
   terms          Term[]
   timeSlots      TimeSlot[]
   levelOfferings LevelOffering[]
+  /// When the school does not teach — see prisma/schema/timetable/school-holiday.prisma.
+  holidays       SchoolHoliday[]
+  /// What each class is asked to bring this year.
+  supplyLists    SupplyList[]
 
   /// This year's price list and the reductions offered against it.
   feeRates  FeeRate[]

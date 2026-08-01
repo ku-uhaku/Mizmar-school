@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { organizationSchema } from "@/modules/organization/validation";
 
@@ -37,7 +38,11 @@ export async function updateOrganizationAction(
     });
 
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The id comes from the session, never from the form — this deployment has

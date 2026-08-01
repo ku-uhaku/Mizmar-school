@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { saveGuardianAction } from "@/modules/families/actions";
 import { GUARDIAN_RELATIONSHIPS } from "@/modules/families/enums";
 import type { GuardianRow } from "@/modules/families/queries";
@@ -86,7 +87,10 @@ export function GuardianDialog({
                 >
                   <Select
                     name="relationship"
-                    defaultValue={guardian?.relationship ?? "FATHER"}
+                    defaultValue={
+                      valueOf(state, "relationship", guardian?.relationship) ||
+                      "FATHER"
+                    }
                   >
                     <SelectTrigger id="relationship" className="w-full">
                       <SelectValue />
@@ -109,7 +113,11 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("firstName", errors.firstName)}
-                    defaultValue={guardian?.firstName ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "firstName",
+                      guardian?.firstName,
+                    )}
                     required
                   />
                 </FormField>
@@ -122,7 +130,11 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("lastName", errors.lastName)}
-                    defaultValue={guardian?.lastName ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "lastName",
+                      guardian?.lastName,
+                    )}
                     required
                   />
                 </FormField>
@@ -136,7 +148,7 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("nameAr", errors.nameAr)}
-                    defaultValue={guardian?.nameAr ?? ""}
+                    defaultValue={valueOf(state, "nameAr", guardian?.nameAr)}
                     dir="rtl"
                   />
                 </FormField>
@@ -148,7 +160,11 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("nationalId", errors.nationalId)}
-                    defaultValue={guardian?.nationalId ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "nationalId",
+                      guardian?.nationalId,
+                    )}
                     dir="ltr"
                     className="uppercase"
                     placeholder="BE123456"
@@ -165,7 +181,7 @@ export function GuardianDialog({
                   <Input
                     {...controlProps("phone", errors.phone)}
                     type="tel"
-                    defaultValue={guardian?.phone ?? ""}
+                    defaultValue={valueOf(state, "phone", guardian?.phone)}
                     dir="ltr"
                   />
                 </FormField>
@@ -178,7 +194,11 @@ export function GuardianDialog({
                   <Input
                     {...controlProps("phoneAlt", errors.phoneAlt)}
                     type="tel"
-                    defaultValue={guardian?.phoneAlt ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "phoneAlt",
+                      guardian?.phoneAlt,
+                    )}
                     dir="ltr"
                   />
                 </FormField>
@@ -191,7 +211,7 @@ export function GuardianDialog({
                   <Input
                     {...controlProps("email", errors.email)}
                     type="email"
-                    defaultValue={guardian?.email ?? ""}
+                    defaultValue={valueOf(state, "email", guardian?.email)}
                     dir="ltr"
                   />
                 </FormField>
@@ -205,7 +225,11 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("profession", errors.profession)}
-                    defaultValue={guardian?.profession ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "profession",
+                      guardian?.profession,
+                    )}
                   />
                 </FormField>
 
@@ -216,7 +240,11 @@ export function GuardianDialog({
                 >
                   <Input
                     {...controlProps("employer", errors.employer)}
-                    defaultValue={guardian?.employer ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "employer",
+                      guardian?.employer,
+                    )}
                   />
                 </FormField>
               </div>
@@ -235,14 +263,22 @@ export function GuardianDialog({
                       errors.addressLine,
                       t.family.ownAddressHint,
                     )}
-                    defaultValue={guardian?.addressLine ?? ""}
+                    defaultValue={valueOf(
+                      state,
+                      "addressLine",
+                      guardian?.addressLine,
+                    )}
                   />
                 </FormField>
 
-                <FormField name="city" label={t.family.city} error={errors.city}>
+                <FormField
+                  name="city"
+                  label={t.family.city}
+                  error={errors.city}
+                >
                   <Input
                     {...controlProps("city", errors.city)}
-                    defaultValue={guardian?.city ?? ""}
+                    defaultValue={valueOf(state, "city", guardian?.city)}
                   />
                 </FormField>
               </div>
@@ -252,22 +288,38 @@ export function GuardianDialog({
                   name="isPrimaryContact"
                   label={t.family.isPrimaryContact}
                   hint={t.family.primaryContactHint}
-                  defaultChecked={guardian?.isPrimaryContact ?? false}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isPrimaryContact",
+                    guardian?.isPrimaryContact ?? false,
+                  )}
                 />
                 <ToggleRow
                   name="isEmergencyContact"
                   label={t.family.isEmergencyContact}
-                  defaultChecked={guardian?.isEmergencyContact ?? false}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isEmergencyContact",
+                    guardian?.isEmergencyContact ?? false,
+                  )}
                 />
                 <ToggleRow
                   name="canPickUp"
                   label={t.family.canPickUp}
-                  defaultChecked={guardian?.canPickUp ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "canPickUp",
+                    guardian?.canPickUp ?? true,
+                  )}
                 />
                 <ToggleRow
                   name="isActive"
                   label={t.common.active}
-                  defaultChecked={guardian?.isActive ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isActive",
+                    guardian?.isActive ?? true,
+                  )}
                 />
               </div>
             </div>
@@ -304,9 +356,7 @@ function ToggleRow({
     <div className="flex items-center justify-between gap-4">
       <div className="space-y-0.5">
         <Label htmlFor={name}>{label}</Label>
-        {hint ? (
-          <p className="text-muted-foreground text-xs">{hint}</p>
-        ) : null}
+        {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
       </div>
       <Switch id={name} name={name} defaultChecked={defaultChecked} />
     </div>

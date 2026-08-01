@@ -4,6 +4,7 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import {
+  siblingCountOf,
   workflowStateOf,
   type StudentWorkflowStep,
 } from "@/modules/students/enums";
@@ -47,13 +48,39 @@ export type StudentRow = {
 };
 
 export type StudentDetail = StudentRow & {
-  birthPlace: string | null;
-  birthPlaceAr: string | null;
+  birthCityId: string | null;
+  /** Resolved for display; the form edits the id. */
+  birthCityName: string | null;
   nationality: string;
   nationalId: string | null;
   entryDate: string;
   exitDate: string;
+
+  bloodType: string | null;
+  allergies: string | null;
+  chronicCondition: string | null;
+  medications: string | null;
+  doctorName: string | null;
+  doctorPhone: string | null;
+  insurer: string | null;
+  hasDisability: boolean;
   medicalNotes: string | null;
+
+  previousSchool: string | null;
+  previousSchoolCityId: string | null;
+  previousSchoolCityName: string | null;
+  previousLevel: string | null;
+  schoolingType: string | null;
+  transferReason: string | null;
+
+  brotherCount: number | null;
+  sisterCount: number | null;
+  /** Derived from the two counts — see `siblingCountOf`. Never a column. */
+  siblingCount: number | null;
+  birthRank: number | null;
+  livesWith: string | null;
+  isOrphan: boolean;
+
   notes: string | null;
   familyCode: string | null;
 };
@@ -138,6 +165,8 @@ export async function findStudent(
     where: { id: studentId, ...schoolScope(context) },
     include: {
       family: { select: { id: true, name: true, code: true } },
+      birthCity: { select: { name: true } },
+      previousSchoolCity: { select: { name: true } },
       enrollments: enrolmentInclude(context.currentSchoolYear?.id),
     },
   });
@@ -158,13 +187,37 @@ export async function findStudent(
     lastNameAr: student.lastNameAr,
     gender: student.gender,
     birthDate: toDateInputValue(student.birthDate),
-    birthPlace: student.birthPlace,
-    birthPlaceAr: student.birthPlaceAr,
+    birthCityId: student.birthCityId,
+    birthCityName: student.birthCity?.name ?? null,
     nationality: student.nationality,
     nationalId: student.nationalId,
     entryDate: toDateInputValue(student.entryDate),
     exitDate: toDateInputValue(student.exitDate),
+
+    bloodType: student.bloodType,
+    allergies: student.allergies,
+    chronicCondition: student.chronicCondition,
+    medications: student.medications,
+    doctorName: student.doctorName,
+    doctorPhone: student.doctorPhone,
+    insurer: student.insurer,
+    hasDisability: student.hasDisability,
     medicalNotes: student.medicalNotes,
+
+    previousSchool: student.previousSchool,
+    previousSchoolCityId: student.previousSchoolCityId,
+    previousSchoolCityName: student.previousSchoolCity?.name ?? null,
+    previousLevel: student.previousLevel,
+    schoolingType: student.schoolingType,
+    transferReason: student.transferReason,
+
+    brotherCount: student.brotherCount,
+    sisterCount: student.sisterCount,
+    siblingCount: siblingCountOf(student),
+    birthRank: student.birthRank,
+    livesWith: student.livesWith,
+    isOrphan: student.isOrphan,
+
     notes: student.notes,
     status: student.status,
     photoUrl: student.photoUrl,
@@ -314,6 +367,38 @@ export async function searchStudents(
       classId: enrolment?.schoolClass?.id ?? null,
     };
   });
+}
+
+/**
+ * The pupil body split three ways, for the ring on the vie scolaire dashboard.
+ *
+ * Three and not five, because that is where this app's validated categorical
+ * palette stops — see components/charts/donut-chart.tsx. The three that survive
+ * are the ones a school actually acts on: who is enrolled, whose file is still
+ * open, and who has gone. The five raw statuses stay on `/students`, where a
+ * table has room to tell TRANSFERRED from WITHDRAWN from GRADUATED.
+ */
+export async function countStudentsByStanding(context: AuthContext): Promise<{
+  enrolled: number;
+  preRegistered: number;
+  left: number;
+  total: number;
+}> {
+  const scope = schoolScope(context);
+
+  const [enrolled, preRegistered, left, total] = await Promise.all([
+    db.student.count({ where: { ...scope, status: "ENROLLED" } }),
+    db.student.count({ where: { ...scope, status: "PRE_REGISTERED" } }),
+    db.student.count({
+      where: {
+        ...scope,
+        status: { in: ["TRANSFERRED", "WITHDRAWN", "GRADUATED"] },
+      },
+    }),
+    db.student.count({ where: scope }),
+  ]);
+
+  return { enrolled, preRegistered, left, total };
 }
 
 /** Live counts for the school-life dashboard, scoped like the list. */

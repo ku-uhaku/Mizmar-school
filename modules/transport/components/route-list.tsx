@@ -41,9 +41,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
-import { deleteRouteAction, saveRouteAction } from "@/modules/transport/actions";
+import {
+  deleteRouteAction,
+  saveRouteAction,
+} from "@/modules/transport/actions";
 import { TRANSPORT_DIRECTIONS } from "@/modules/transport/enums";
 import { Field } from "@/modules/transport/components/field";
 import type { RouteRow } from "@/modules/transport/queries";
@@ -108,7 +112,8 @@ export function RouteList({
                       {route.code} · {route.name}
                     </Link>
                     <p className="text-muted-foreground truncate text-xs">
-                      {route.vehicleRegistration ?? t.transport.noVehicleAssigned}
+                      {route.vehicleRegistration ??
+                        t.transport.noVehicleAssigned}
                       {route.driverName ? ` · ${route.driverName}` : ""}
                     </p>
                   </div>
@@ -141,7 +146,9 @@ export function RouteList({
                       <div
                         className={cn(
                           "h-full rounded-full",
-                          route.remaining === 0 ? "bg-destructive" : "bg-primary",
+                          route.remaining === 0
+                            ? "bg-destructive"
+                            : "bg-primary",
                         )}
                         style={{
                           width: `${Math.min(100, (route.taken / Math.max(1, route.seats)) * 100)}%`,
@@ -157,11 +164,17 @@ export function RouteList({
 
                 {permissions.canManage ? (
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setEditing(route)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditing(route)}
+                    >
                       {t.common.edit}
                     </Button>
                     <Button asChild size="sm" variant="ghost">
-                      <Link href={`/transport/routes/${route.id}`}>{t.transport.stops}</Link>
+                      <Link href={`/transport/routes/${route.id}`}>
+                        {t.transport.stops}
+                      </Link>
                     </Button>
                     {permissions.canDelete ? (
                       <Button
@@ -251,16 +264,41 @@ function RouteDialog({
           {route ? <input type="hidden" name="id" value={route.id} /> : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.transport.routeCode} name="code" error={errors.code} required>
-              <Input id="code" name="code" defaultValue={route?.code ?? ""} required />
+            <Field
+              label={t.transport.routeCode}
+              name="code"
+              error={errors.code}
+              required
+            >
+              <Input
+                id="code"
+                name="code"
+                defaultValue={valueOf(state, "code", route?.code)}
+                required
+              />
             </Field>
-            <Field label={t.transport.routeName} name="name" error={errors.name} required>
-              <Input id="name" name="name" defaultValue={route?.name ?? ""} required />
+            <Field
+              label={t.transport.routeName}
+              name="name"
+              error={errors.name}
+              required
+            >
+              <Input
+                id="name"
+                name="name"
+                defaultValue={valueOf(state, "name", route?.name)}
+                required
+              />
             </Field>
           </div>
 
           <Field label={t.transport.direction} name="direction">
-            <Select name="direction" defaultValue={route?.direction ?? "BOTH"}>
+            <Select
+              name="direction"
+              defaultValue={
+                valueOf(state, "direction", route?.direction) || "BOTH"
+              }
+            >
               <SelectTrigger id="direction" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -276,7 +314,12 @@ function RouteDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t.transport.assignedVehicle} name="vehicleId">
-              <Select name="vehicleId" defaultValue={route?.vehicleId ?? "__none__"}>
+              <Select
+                name="vehicleId"
+                defaultValue={
+                  valueOf(state, "vehicleId", route?.vehicleId) || "__none__"
+                }
+              >
                 <SelectTrigger id="vehicleId" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -291,21 +334,35 @@ function RouteDialog({
               </Select>
             </Field>
 
-            <Field label={t.transport.capacity} name="capacity" error={errors.capacity}>
+            <Field
+              label={t.transport.capacity}
+              name="capacity"
+              error={errors.capacity}
+            >
               <Input
                 id="capacity"
                 name="capacity"
                 type="number"
                 min="0"
                 dir="ltr"
-                defaultValue={route?.seats && route.vehicleId === null ? route.seats : ""}
+                defaultValue={
+                  route?.seats && route.vehicleId === null ? route.seats : ""
+                }
               />
             </Field>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
             <Label htmlFor="isActive">{t.common.active}</Label>
-            <Switch id="isActive" name="isActive" defaultChecked={route?.isActive ?? true} />
+            <Switch
+              id="isActive"
+              name="isActive"
+              defaultChecked={checkedOf(
+                state,
+                "isActive",
+                route?.isActive ?? true,
+              )}
+            />
           </div>
 
           <DialogFooter>

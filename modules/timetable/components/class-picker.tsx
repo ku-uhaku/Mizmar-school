@@ -25,7 +25,12 @@ export function ClassPicker({
   classId,
   scheduleKind,
 }: {
-  classes: { id: string; code: string; levelLabel: string; entryCount: number }[];
+  classes: {
+    id: string;
+    code: string;
+    levelLabel: string;
+    entryCount: number;
+  }[];
   classId: string;
   scheduleKind: string;
 }) {

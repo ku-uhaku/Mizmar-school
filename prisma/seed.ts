@@ -32,6 +32,7 @@ import {
   seedRooms,
   type RoomSeed,
 } from "@/modules/facilities/seed";
+import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
@@ -40,7 +41,11 @@ import {
   seedStudents,
   type StudentSeed,
 } from "@/modules/students/seed";
-import { seedTimeSlots, seedTimetable } from "@/modules/timetable/seed";
+import {
+  seedHolidays,
+  seedTimeSlots,
+  seedTimetable,
+} from "@/modules/timetable/seed";
 import { seedUsers } from "@/modules/users/seed";
 import { db } from "@/prisma/seed/client";
 
@@ -216,6 +221,9 @@ async function main() {
     const { levelIdByCode, trackIdByCode, subjectIdByCode } =
       await seedAcademics(db, school.id, plan.academics);
     const roomIdByCode = await seedRooms(db, school.id, plan.rooms);
+    // Towns before pupils: a birthplace is now a reference, not a string.
+    const cityIdByCode = await seedCities(db, school.id);
+    await seedNeighbourhoods(db, school.id, cityIdByCode);
     const feeTypeIdByCode = await seedFeeTypes(db, school.id, plan.feeTypes);
 
     // The tills and expense rubriques. Year-independent, like the fee
@@ -261,6 +269,8 @@ async function main() {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
       const slots = await seedTimeSlots(db, year.id);
+      // The calendar the timetable reads to know which weeks are taught.
+      await seedHolidays(db, year.id, year.startDate, year.endDate);
       await seedTransport(db, {
         schoolId: school.id,
         schoolYearId: year.id,
@@ -307,6 +317,7 @@ async function main() {
           schoolId: school.id,
           yearStart: year.startDate,
           familyIdByCode,
+          cityIdByCode,
           students: studentsFor(plan.families),
         });
 

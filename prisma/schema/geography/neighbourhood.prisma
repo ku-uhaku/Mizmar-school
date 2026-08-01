@@ -1,0 +1,50 @@
+/// A quartier: the district a family gives as their address, and the one a bus
+/// stop stands in.
+///
+/// Kept apart from `TransportZone`, which is easy to confuse it with. A zone is
+/// a *price band* declared per school year; a quartier is a *place* and does not
+/// change when the tariff does. Two quartiers may share a zone, and a school
+/// that re-prices its lines next year re-draws the zones while the quartiers
+/// stay exactly where they are. Merging the two would make the address a
+/// consequence of the tariff, which is backwards.
+///
+/// Belongs to a town rather than floating free: "Maârif" means Casablanca to
+/// anyone reading it there, and a list mixing the quartiers of four cities is a
+/// dropdown nobody can find anything in.
+model Neighbourhood {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// The town it is part of. Restrict: a town with quartiers on it cannot be
+  /// deleted out from under the stops and addresses that point at them.
+  cityId String
+  city   City   @relation(fields: [cityId], references: [id], onDelete: Restrict)
+
+  /// Short reference, e.g. "MAARIF".
+  code String
+
+  name   String
+  /// The Arabic spelling, agreed once here — same reason as on City.
+  nameAr String?
+
+  /// A street or landmark that pins the quartier down where the name alone is
+  /// ambiguous: "Bd Zerktouni", "près du marché". Free text, because this is
+  /// the level at which addresses stop being worth structuring.
+  landmark String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Bus stops standing in it — see prisma/schema/transport/route-stop.prisma.
+  routeStops RouteStop[]
+
+  @@unique([schoolId, code])
+  /// Two rows for the same quartier of the same town defeat the point.
+  @@unique([cityId, name])
+  @@index([schoolId])
+  @@index([cityId])
+  @@map("neighbourhoods")
+}

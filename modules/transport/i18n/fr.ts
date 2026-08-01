@@ -100,6 +100,7 @@ const fr = {
     editStop: "Modifier l'arrêt",
     stopName: "Arrêt",
     landmark: "Repère",
+    neighbourhood: "Quartier",
     landmarkHint: "Ce qu'on cherche des yeux : « devant la pharmacie ».",
     position: "Ordre",
     pickupTime: "Ramassage",

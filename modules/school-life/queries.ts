@@ -7,7 +7,10 @@ import {
   loadEnrolmentStats,
 } from "@/modules/enrolment/queries";
 import { countFamilies } from "@/modules/families/queries";
-import { countStudents } from "@/modules/students/queries";
+import {
+  countStudents,
+  countStudentsByStanding,
+} from "@/modules/students/queries";
 
 /**
  * The school-life dashboard's figures.
@@ -28,20 +31,24 @@ export type SchoolLifeStats = {
     billedCentimes: number;
     discountedCentimes: number;
   };
-  byLevel: { label: string; value: number }[];
+  /** The pupil body split three ways, for the ring. */
+  standing: { enrolled: number; preRegistered: number; left: number; total: number };
+  byLevel: { label: string; levelCode: string; value: number }[];
   classFill: { id: string; code: string; enrolled: number; capacity: number | null }[];
 };
 
 export async function loadSchoolLifeStats(
   context: AuthContext,
 ): Promise<SchoolLifeStats> {
-  const [students, families, enrolment, byLevel, classFill] = await Promise.all([
-    countStudents(context),
-    countFamilies(context),
-    loadEnrolmentStats(context),
-    countEnrolmentsByLevel(context),
-    loadClassFill(context),
-  ]);
+  const [students, standing, families, enrolment, byLevel, classFill] =
+    await Promise.all([
+      countStudents(context),
+      countStudentsByStanding(context),
+      countFamilies(context),
+      loadEnrolmentStats(context),
+      countEnrolmentsByLevel(context),
+      loadClassFill(context),
+    ]);
 
-  return { students, families, enrolment, byLevel, classFill };
+  return { students, standing, families, enrolment, byLevel, classFill };
 }

@@ -144,7 +144,11 @@ export function SchoolsManager({
         header: t.school.level,
         cell: ({ row }) => (
           <Badge variant="outline">
-            {t.school.levels[row.original.level as keyof typeof t.school.levels]}
+            {
+              t.school.levels[
+                row.original.level as keyof typeof t.school.levels
+              ]
+            }
           </Badge>
         ),
       },
@@ -278,7 +282,9 @@ export function SchoolsManager({
           open={Boolean(deleting)}
           onOpenChange={(open) => !open && setDeleting(null)}
           title={t.school.deleteTitle}
-          description={interpolate(t.school.deleteBody, { name: deleting.name })}
+          description={interpolate(t.school.deleteBody, {
+            name: deleting.name,
+          })}
           action={() => deleteSchoolAction(deleting.id)}
         />
       ) : null}

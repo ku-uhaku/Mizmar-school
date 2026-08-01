@@ -40,8 +40,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, interpolate } from "@/lib/i18n/format";
-import { cn, toDateInputValue } from "@/lib/utils";
-import { deleteRemarkAction, saveRemarkAction } from "@/modules/classroom/actions";
+import { cn } from "@/lib/utils";
+import {
+  deleteRemarkAction,
+  saveRemarkAction,
+} from "@/modules/classroom/actions";
 import {
   REMARK_KINDS,
   REMARK_MAX_LENGTH,
@@ -66,11 +69,17 @@ const TONE_STYLES: Record<string, string> = {
  * has decided what to say.
  */
 export function RemarksManager({
+  defaultDate,
   remarks,
   pupils,
   teaching,
   permissions,
 }: {
+  /**
+   * What the date box starts at, already clamped into the school year —
+   * today is outside it for two months a year. See lib/school-year.ts.
+   */
+  defaultDate: string;
   remarks: RemarkRow[];
   pupils: PupilOption[];
   teaching: TeachingSlot[];
@@ -213,12 +222,17 @@ export function RemarksManager({
           <form action={formAction}>
             <DialogHeader>
               <DialogTitle>{t.classroom.newRemarkTitle}</DialogTitle>
-              <DialogDescription>{t.classroom.remarkBodyHint}</DialogDescription>
+              <DialogDescription>
+                {t.classroom.remarkBodyHint}
+              </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-4">
               <FormField name="enrollmentId" label={t.classroom.remarkAbout}>
-                <Select name="enrollmentId" defaultValue={pupils[0]?.enrollmentId}>
+                <Select
+                  name="enrollmentId"
+                  defaultValue={pupils[0]?.enrollmentId}
+                >
                   <SelectTrigger id="enrollmentId" className="w-full">
                     <SelectValue placeholder={t.classroom.remarkAbout} />
                   </SelectTrigger>
@@ -277,7 +291,7 @@ export function RemarksManager({
                       state.fieldErrors?.occurredOn,
                     )}
                     type="date"
-                    defaultValue={toDateInputValue(new Date())}
+                    defaultValue={defaultDate}
                     dir="ltr"
                   />
                 </FormField>

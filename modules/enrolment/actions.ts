@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { interpolate } from "@/lib/i18n/format";
 import {
@@ -17,10 +18,7 @@ import {
   repriceFollowingLines,
   setEnrolmentStatus,
 } from "@/modules/enrolment/service";
-import {
-  enrolmentSchema,
-  feeLineSchema,
-} from "@/modules/enrolment/validation";
+import { enrolmentSchema, feeLineSchema } from "@/modules/enrolment/validation";
 import { refreshStudentStatus } from "@/modules/students/service";
 
 /**
@@ -106,7 +104,11 @@ export async function enrolStudentAction(
 
     const parsed = enrolmentSchema(t).safeParse(readEnrolmentForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The pupil must be one of this school's.
@@ -184,7 +186,11 @@ export async function updateEnrolmentAction(
 
     const parsed = enrolmentSchema(t).safeParse(readEnrolmentForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const offering = await db.levelOffering.findFirst({
@@ -342,7 +348,11 @@ export async function updateFeeLineAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // A reduction must be one this year actually offers.

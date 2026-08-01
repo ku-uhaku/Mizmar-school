@@ -14,6 +14,7 @@ import {
   listField,
   withActionErrors,
 } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { ATTENDANCE_STATUSES } from "@/modules/classroom/enums";
 import {
@@ -62,7 +63,8 @@ export async function saveRegisterAction(
     const schoolClassId = field(formData, "schoolClassId");
     const subjectId = field(formData, "subjectId") || null;
     const rawSlot = field(formData, "timeSlotId");
-    const timeSlotId = rawSlot === "" || rawSlot === NO_SELECTION ? null : rawSlot;
+    const timeSlotId =
+      rawSlot === "" || rawSlot === NO_SELECTION ? null : rawSlot;
 
     const date = new Date(field(formData, "date"));
     if (Number.isNaN(date.getTime())) {
@@ -95,7 +97,9 @@ export async function saveRegisterAction(
           ? status
           : "PRESENT",
         minutesLate:
-          parsed !== null && Number.isFinite(parsed) ? Math.trunc(parsed) : null,
+          parsed !== null && Number.isFinite(parsed)
+            ? Math.trunc(parsed)
+            : null,
         reason: reasons[index]?.trim() || null,
       };
     });
@@ -103,6 +107,12 @@ export async function saveRegisterAction(
     const result = await saveRegister({
       // From the session, never the form.
       teacherId: context.user.id,
+      schoolId,
+      // Anything a teacher may do, the office may do too — see the note at the
+      // top of modules/classroom/service.ts. The justification code is the
+      // office half of the attendance pair, so it is what unlocks taking the
+      // register for a class the actor does not teach.
+      actsForSchool: context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY),
       schoolClassId,
       subjectId,
       timeSlotId,
@@ -146,7 +156,11 @@ export async function saveRemarkAction(
       occurredOn: field(formData, "occurredOn"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // Releasing a remark to the family is a separate grant — a teacher without
@@ -157,6 +171,10 @@ export async function saveRemarkAction(
 
     const result = await writeRemark({
       authorId: context.user.id,
+      schoolId,
+      // The publish code is the office half of the remark pair — the same rule
+      // as the register above.
+      actsForSchool: context.can(PERMISSIONS.CLASSROOM_REMARK_PUBLISH),
       enrollmentId: parsed.data.enrollmentId,
       subjectId: parsed.data.subjectId || null,
       kind: parsed.data.kind,
@@ -173,7 +191,14 @@ export async function saveRemarkAction(
   });
 }
 
-/** Deletes a remark. Only ever your own — a colleague's note is not yours. */
+/**
+ * Deletes a remark: your own, or any of the school's if you are the office.
+ *
+ * A teacher's note is not a colleague's to remove — but somebody has to be able
+ * to take down a remark written in anger or about the wrong child, and that is
+ * the office. `classroom.remarkPublish` is the code that decides what a family
+ * sees, so it is the right one to also decide what is retracted.
+ */
 export async function deleteRemarkAction(
   remarkId: string,
 ): Promise<ActionState> {
@@ -183,10 +208,17 @@ export async function deleteRemarkAction(
 
     await authorizeSchool(schoolId, PERMISSIONS.CLASSROOM_REMARK_WRITE);
 
+    const actsForSchool = context.can(PERMISSIONS.CLASSROOM_REMARK_PUBLISH);
+
     const deleted = await db.studentRemark.deleteMany({
-      // Scoped by author as well as id: a crafted id matches nothing rather
-      // than removing somebody else's observation.
-      where: { id: remarkId, authorId: context.user.id },
+      // Scoped by author, or by school for the office: either way a crafted id
+      // matches nothing rather than removing another school's observation.
+      where: {
+        id: remarkId,
+        ...(actsForSchool
+          ? { enrollment: { student: { schoolId } } }
+          : { authorId: context.user.id }),
+      },
     });
     if (deleted.count === 0) return failure(t.classroom.notYourRemark);
 

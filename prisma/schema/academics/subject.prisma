@@ -61,6 +61,8 @@ model Subject {
   classGroups      ClassGroup[]
   assignments      TeachingAssignment[]
   timetableEntries TimetableEntry[]
+  timetableExceptions TimetableException[]
+  supplyLists         SupplyList[]
   /// Restrict on the other side: a subject with marks against it is history.
   assessments      Assessment[]
   attendance       StudentAttendance[]

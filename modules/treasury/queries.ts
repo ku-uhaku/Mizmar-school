@@ -817,6 +817,58 @@ export async function listPayments(
   }));
 }
 
+/**
+ * The receipts that settled *this pupil's* échéancier, for their own file.
+ *
+ * Matched through the allocations rather than through the household: a receipt
+ * made out to a family may pay for one child and not another — that is the whole
+ * point of allocating line by line — so listing every receipt the family ever
+ * wrote would show a secretary money that never touched the child in front of
+ * them. The fratrie's receipts are one click away on the siblings' own files.
+ *
+ * Cancelled receipts are included, like the caisse ledger, so a reprint of a
+ * voided receipt is still reachable from where it was taken.
+ */
+export async function listStudentPayments(
+  context: AuthContext,
+  studentId: string,
+  limit = 50,
+): Promise<PaymentRow[]> {
+  const payments = await db.payment.findMany({
+    where: {
+      ...schoolScope(context),
+      allocations: {
+        some: { enrollmentFee: { enrollment: { studentId } } },
+      },
+    },
+    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+    include: {
+      family: { select: { name: true } },
+      createdBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      tenders: { select: { method: true } },
+      _count: { select: { allocations: true } },
+    },
+  });
+
+  return payments.map((payment) => ({
+    id: payment.id,
+    code: payment.code,
+    familyName: payment.family?.name ?? null,
+    paidAt: payment.paidAt.toISOString(),
+    totalCentimes: payment.totalCentimes,
+    status: payment.status,
+    methods: Array.from(new Set(payment.tenders.map((t) => t.method))),
+    createdByName: displayName(payment.createdBy),
+    allocationCount: payment._count.allocations,
+  }));
+}
+
 export type TreasurySummary = {
   /** Cash the school's open drawers should currently hold. */
   drawerCentimes: number;
@@ -1029,5 +1081,135 @@ export async function findReceipt(
       chequeNumber: tender.cheque?.number ?? null,
       chequeDueOn: tender.cheque?.dueOn?.toISOString() ?? null,
     })),
+  };
+}
+
+/**
+ * What was collected each month of the year, for the dashboard's trend.
+ *
+ * Cancelled receipts are excluded — a ledger shows them struck through because
+ * it must reconcile, but a trend line asking "how is collection going" would be
+ * overstated by money that was given back.
+ *
+ * Months with no receipts are returned as zeros rather than omitted: a gap in a
+ * trend line reads as "no data", and "nobody paid in February" is a fact worth
+ * seeing. The series runs from the year's start to whichever is earlier, its end
+ * or today, so a year in progress does not trail off through months that have
+ * not happened.
+ */
+export async function collectionsByMonth(
+  context: AuthContext,
+): Promise<{ label: string; value: number }[]> {
+  const yearId = context.currentSchoolYear?.id;
+  const schoolId = context.currentSchool?.id;
+  if (!yearId || !schoolId) return [];
+
+  const year = await db.schoolYear.findUnique({
+    where: { id: yearId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!year) return [];
+
+  const payments = await db.payment.findMany({
+    where: {
+      schoolId,
+      schoolYearId: yearId,
+      status: { not: "CANCELLED" },
+    },
+    select: { paidAt: true, totalCentimes: true },
+  });
+
+  const totals = new Map<string, number>();
+  for (const payment of payments) {
+    const key = `${payment.paidAt.getFullYear()}-${payment.paidAt.getMonth()}`;
+    totals.set(key, (totals.get(key) ?? 0) + payment.totalCentimes);
+  }
+
+  const last = year.endDate < new Date() ? year.endDate : new Date();
+  const series: { label: string; value: number }[] = [];
+
+  const cursor = new Date(
+    year.startDate.getFullYear(),
+    year.startDate.getMonth(),
+    1,
+  );
+  // A guard rather than a bare `while`: a year entered as spanning a decade
+  // would otherwise build a series nobody could read.
+  for (let step = 0; step < 24 && cursor <= last; step += 1) {
+    const key = `${cursor.getFullYear()}-${cursor.getMonth()}`;
+    series.push({
+      // `YYYY-MM` — the caller formats it, because only it knows the locale.
+      label: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`,
+      value: totals.get(key) ?? 0,
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return series;
+}
+
+/**
+ * The school's whole year, split into what has been paid and what has not.
+ *
+ * Two segments and not three: "overdue" is a slice of outstanding, and showing
+ * all three would make the parts sum to more than the whole. The overdue figure
+ * is carried alongside instead, for the caller to state in words.
+ */
+export async function schoolCollectionStanding(context: AuthContext): Promise<{
+  chargedCentimes: number;
+  paidCentimes: number;
+  outstandingCentimes: number;
+  overdueCentimes: number;
+}> {
+  const yearId = context.currentSchoolYear?.id;
+  const schoolId = context.currentSchool?.id;
+  if (!yearId || !schoolId) {
+    return {
+      chargedCentimes: 0,
+      paidCentimes: 0,
+      outstandingCentimes: 0,
+      overdueCentimes: 0,
+    };
+  }
+
+  const lines = await db.enrollmentFee.findMany({
+    where: {
+      enrollment: {
+        schoolYearId: yearId,
+        student: { schoolId },
+      },
+    },
+    select: {
+      amountCentimes: true,
+      dueDate: true,
+      allocations: {
+        where: { payment: { status: { not: "CANCELLED" } } },
+        select: { amountCentimes: true },
+      },
+    },
+  });
+
+  const today = new Date();
+  let charged = 0;
+  let paid = 0;
+  let overdue = 0;
+
+  for (const line of lines) {
+    const settled = line.allocations.reduce(
+      (total, allocation) => total + allocation.amountCentimes,
+      0,
+    );
+    charged += line.amountCentimes;
+    paid += settled;
+
+    const owing = line.amountCentimes - settled;
+    if (owing > 0 && line.dueDate < today) overdue += owing;
+  }
+
+  return {
+    chargedCentimes: charged,
+    paidCentimes: paid,
+    outstandingCentimes: Math.max(0, charged - paid),
+    overdueCentimes: overdue,
   };
 }

@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { schoolSchema } from "@/modules/schools/validation";
 
@@ -42,7 +43,11 @@ export async function createSchoolAction(
 
     const parsed = schoolSchema(t).safeParse(readSchoolForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.school.findUnique({
@@ -80,7 +85,11 @@ export async function updateSchoolAction(
 
     const parsed = schoolSchema(t).safeParse(readSchoolForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.school.findFirst({
@@ -108,7 +117,9 @@ export async function updateSchoolAction(
   });
 }
 
-export async function deleteSchoolAction(schoolId: string): Promise<ActionState> {
+export async function deleteSchoolAction(
+  schoolId: string,
+): Promise<ActionState> {
   return withActionErrors(async () => {
     const t = await getDictionary();
     const context = await authorizeOrg(PERMISSIONS.SCHOOL_DELETE);

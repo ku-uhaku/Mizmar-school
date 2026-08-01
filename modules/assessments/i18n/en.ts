@@ -55,6 +55,10 @@ const en = {
     allSubjects: "All",
     noneSubjects: "None",
     nothingToGenerate: "Every subject already has this paper.",
+    noTeacherAssigned:
+      "Nothing was set for {subjects} \u2014 no teacher is assigned to it in this class.",
+    unstaffedSubjects:
+      "{count} subject(s) cannot be generated until a teacher is assigned to them.",
     noProgramme:
       "This class has no marked subject in its programme — set one up under Configuration first.",
     termClosed: "This term is closed; no assessment can be added to it.",

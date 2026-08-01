@@ -99,7 +99,11 @@ export function ProfileDetailsForm({ profile }: { profile: ProfileValues }) {
           </FormField>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField name="phone" label={t.profile.phone} error={errors.phone}>
+            <FormField
+              name="phone"
+              label={t.profile.phone}
+              error={errors.phone}
+            >
               <Input
                 {...controlProps("phone", errors.phone)}
                 type="tel"
@@ -164,9 +168,14 @@ export function PasswordChangeForm() {
   return (
     <Card>
       {/* `key` clears the password inputs after a successful change. */}
-      <form key={state.status === "success" ? state.key : "form"} action={formAction}>
+      <form
+        key={state.status === "success" ? state.key : "form"}
+        action={formAction}
+      >
         <CardHeader>
-          <CardTitle className="text-base">{t.profile.changePassword}</CardTitle>
+          <CardTitle className="text-base">
+            {t.profile.changePassword}
+          </CardTitle>
           <CardDescription>{t.profile.security}</CardDescription>
         </CardHeader>
 

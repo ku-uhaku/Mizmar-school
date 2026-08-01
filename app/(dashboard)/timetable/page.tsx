@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PrinterIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/shell/empty-state";
 import { PageHeader } from "@/components/shell/page-header";
@@ -11,18 +12,22 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClassPicker } from "@/modules/timetable/components/class-picker";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
+import { WeekPicker } from "@/modules/timetable/components/week-picker";
 import {
   listTimetableClasses,
   loadClassTimetable,
   loadTimetableChoices,
+  loadWeekContext,
+  loadWeekOverlay,
 } from "@/modules/timetable/queries";
+import { holidaysByWeekday } from "@/modules/timetable/holidays";
 
 export const metadata: Metadata = { title: "Emploi du temps" };
 
 export default async function TimetablePage({
   searchParams,
 }: {
-  searchParams: Promise<{ classId?: string; schedule?: string }>;
+  searchParams: Promise<{ classId?: string; schedule?: string; week?: string }>;
 }) {
   const context = await requireAuth();
   const t = await getDictionary();
@@ -31,7 +36,7 @@ export default async function TimetablePage({
     return <ForbiddenState />;
   }
 
-  const { classId, schedule } = await searchParams;
+  const { classId, schedule, week } = await searchParams;
   const classes = await listTimetableClasses(context);
 
   if (classes.length === 0) {
@@ -64,14 +69,38 @@ export default async function TimetablePage({
     classes.find((schoolClass) => schoolClass.id === classId) ?? classes[0];
   const scheduleKind = schedule === "RAMADAN" ? "RAMADAN" : "STANDARD";
 
-  const [grid, choices] = await Promise.all([
+  const [grid, choices, weekContext] = await Promise.all([
     loadClassTimetable(context, selected.id, scheduleKind),
     loadTimetableChoices(context, selected.id),
+    // Resolved server-side so a `?week=` outside the year falls back to a real
+    // one before anything is drawn — see modules/timetable/weeks.ts.
+    loadWeekContext(context, week),
   ]);
+
+  const holidays = holidaysByWeekday(weekContext);
+  // The week's own changes, loaded after it is resolved — the overlay is keyed
+  // on the Monday, and that is only known once `loadWeekContext` has clamped it.
+  const overlay = await loadWeekOverlay(
+    context,
+    selected.id,
+    weekContext.current?.start ?? null,
+  );
 
   return (
     <>
       <PageHeader title={t.timetable.title} description={t.timetable.subtitle}>
+        <Button asChild variant="outline" size="sm">
+          {/* Carries the bell schedule through, so printing the Ramadan grid
+            does not silently hand back the standard one. */}
+          <Link
+            href={`/print/class/${selected.id}/timetable?schedule=${scheduleKind}${
+              weekContext.current ? `&week=${weekContext.current.index}` : ""
+            }`}
+          >
+            <PrinterIcon />
+            {t.print.timetable}
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link href={`/classes/${selected.id}`}>{t.timetable.openClass}</Link>
         </Button>
@@ -83,12 +112,18 @@ export default async function TimetablePage({
         scheduleKind={scheduleKind}
       />
 
+      <WeekPicker context={weekContext} />
+
       {grid && choices ? (
         <TimetableGrid
           grid={grid}
           schoolClassId={selected.id}
           choices={choices}
           canManage={context.can(PERMISSIONS.TIMETABLE_MANAGE)}
+          holidaysByDay={holidays}
+          overlay={overlay}
+          weekStart={weekContext.current?.start ?? null}
+          weekNumber={weekContext.current?.index ?? null}
         />
       ) : (
         <Card>

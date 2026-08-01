@@ -5,6 +5,7 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { defaultDateWithin } from "@/lib/school-year";
 import {
   listAssessmentTypes,
   listAssessments,
@@ -51,6 +52,7 @@ export default async function TeacherDevoirsPage() {
       />
 
       <DevoirsManager
+        defaultDate={defaultDateWithin(context.currentSchoolYear)}
         devoirs={devoirs}
         teaching={teaching}
         terms={terms}

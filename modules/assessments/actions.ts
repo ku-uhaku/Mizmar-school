@@ -9,6 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   generateAssessments,
@@ -85,7 +86,11 @@ export async function generateAssessmentsAction(
       scheduledOn: field(formData, "scheduledOn"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The class and the term are both re-derived against the working context,
@@ -129,10 +134,14 @@ export async function generateAssessmentsAction(
         return {
           subjectId,
           scheduledOn:
-            date && !Number.isNaN(date.getTime()) ? date : parsed.data.scheduledOn,
+            date && !Number.isNaN(date.getTime())
+              ? date
+              : parsed.data.scheduledOn,
         };
       })
-      .filter((target): target is NonNullable<typeof target> => target !== null);
+      .filter(
+        (target): target is NonNullable<typeof target> => target !== null,
+      );
 
     if (targets.length === 0) return failure(t.assessment.noSubjectsChosen);
 
@@ -147,17 +156,39 @@ export async function generateAssessmentsAction(
 
     refresh();
 
+    /*
+      Three outcomes worth telling apart, because they need three different
+      next actions: nothing was wanted (already generated), something was
+      wanted but nobody teaches it (go and fill the post), or papers were
+      written. The unstaffed list is named rather than counted — "Maths, SVT"
+      is actionable and "2 subjects" is a second question.
+    */
+    const unstaffed = result.unstaffed.join(", ");
+
     if (result.created === 0) {
+      if (result.unstaffed.length > 0) {
+        return failure(
+          interpolate(t.assessment.noTeacherAssigned, { subjects: unstaffed }),
+        );
+      }
       return result.skipped > 0
         ? success(t.assessment.nothingToGenerate)
         : failure(t.assessment.noProgramme);
     }
 
+    const message = interpolate(t.assessment.generated, {
+      count: result.created,
+      skipped: result.skipped,
+    });
+
+    // Partial success is still a success — the papers that could be written
+    // were — but it must not look clean when a subject was left out.
     return success(
-      interpolate(t.assessment.generated, {
-        count: result.created,
-        skipped: result.skipped,
-      }),
+      result.unstaffed.length > 0
+        ? `${message} ${interpolate(t.assessment.noTeacherAssigned, {
+            subjects: unstaffed,
+          })}`
+        : message,
     );
   });
 }
@@ -186,14 +217,21 @@ export async function saveAssessmentAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // Lowering the denominator under a mark already entered would leave a pupil
     // scoring 18/15, so the change is refused rather than silently clamped.
     if (parsed.data.maxScore < existing.maxScore) {
       const above = await db.assessmentGrade.count({
-        where: { assessmentId: existing.id, score: { gt: parsed.data.maxScore } },
+        where: {
+          assessmentId: existing.id,
+          score: { gt: parsed.data.maxScore },
+        },
       });
       if (above > 0) return failure(t.assessment.maxScoreBelowMarks);
     }
@@ -242,7 +280,11 @@ export async function setAssessmentStatusAction(
       status: field(formData, "status"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const result = await setAssessmentStatus(existing.id, parsed.data.status);
@@ -382,6 +424,8 @@ export async function createDevoirAction(
 
     await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_GRADE);
 
+    const actsForSchool = context.can(PERMISSIONS.ASSESSMENT_MANAGE);
+
     const parsed = devoirSchema(t).safeParse({
       schoolClassId: field(formData, "schoolClassId"),
       subjectId: field(formData, "subjectId"),
@@ -393,7 +437,11 @@ export async function createDevoirAction(
       coefficient: field(formData, "coefficient"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The teacher's own assignment is the authority for both the class and the
@@ -401,7 +449,12 @@ export async function createDevoirAction(
     // somebody else teaches.
     const assignment = await db.teachingAssignment.findFirst({
       where: {
-        teacherId: context.user.id,
+        // A head of studies may set work for any class of the school; a teacher
+        // only for their own. Anything a teacher can do, the office can do too —
+        // and covering for an absent colleague is exactly when it is needed.
+        // ASSESSMENT_MANAGE is the office half of the pair whose teacher half
+        // (ASSESSMENT_GRADE) gates this action.
+        ...(actsForSchool ? {} : { teacherId: context.user.id }),
         schoolClassId: parsed.data.schoolClassId,
         subjectId: parsed.data.subjectId,
         schoolClass: {
@@ -409,7 +462,11 @@ export async function createDevoirAction(
           levelOffering: { schoolYearId: context.currentSchoolYear.id },
         },
       },
-      select: { classGroupId: true, schoolClass: { select: { id: true } } },
+      select: {
+        classGroupId: true,
+        teacherId: true,
+        schoolClass: { select: { id: true } },
+      },
     });
     if (!assignment) return failure(t.classroom.notYourClass);
 
@@ -465,7 +522,10 @@ export async function createDevoirAction(
         maxScore: parsed.data.maxScore,
         coefficient: parsed.data.coefficient,
         status: "PUBLISHED",
-        teacherId: context.user.id,
+        // Answerable to whoever holds the class, not to whoever typed it in:
+        // an office user setting work for a colleague must not end up owning
+        // the mark sheet. Falls back to the author when the post is vacant.
+        teacherId: assignment.teacherId ?? context.user.id,
         createdById: context.user.id,
         scopeKey: assessmentScopeKey(assignment.classGroupId),
       },

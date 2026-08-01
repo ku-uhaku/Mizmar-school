@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
-import { cn, toDateInputValue } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { createDevoirAction } from "@/modules/assessments/actions";
 import type {
   AssessmentRow,
@@ -48,12 +48,18 @@ import type { TeachingSlot } from "@/modules/classroom/queries";
  * the picker, and the action re-checks that on the way in.
  */
 export function DevoirsManager({
+  defaultDate,
   devoirs,
   teaching,
   terms,
   types,
   canCreate,
 }: {
+  /**
+   * What the date box starts at, already clamped into the school year —
+   * today is outside it for two months a year. See lib/school-year.ts.
+   */
+  defaultDate: string;
   devoirs: AssessmentRow[];
   teaching: TeachingSlot[];
   terms: TermOption[];
@@ -76,7 +82,10 @@ export function DevoirsManager({
   const selectedType = types.find((type) => type.id === typeId);
 
   const canOpen =
-    canCreate && teaching.length > 0 && openTerms.length > 0 && types.length > 0;
+    canCreate &&
+    teaching.length > 0 &&
+    openTerms.length > 0 &&
+    types.length > 0;
 
   const newButton = canOpen ? (
     <Button onClick={() => setOpen(true)}>
@@ -113,7 +122,8 @@ export function DevoirsManager({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {devoirs.map((devoir) => {
               const accounted = devoir.markedCount + devoir.absentCount;
-              const done = devoir.rosterCount > 0 && accounted >= devoir.rosterCount;
+              const done =
+                devoir.rosterCount > 0 && accounted >= devoir.rosterCount;
 
               return (
                 <Link
@@ -169,7 +179,8 @@ export function DevoirsManager({
                       {devoir.average !== null ? (
                         <p className="text-muted-foreground mt-1 text-xs tabular-nums">
                           {t.assessment.average}:{" "}
-                          {formatNumber(devoir.average, locale)}/{devoir.maxScore}
+                          {formatNumber(devoir.average, locale)}/
+                          {devoir.maxScore}
                         </p>
                       ) : null}
                     </CardContent>
@@ -275,7 +286,7 @@ export function DevoirsManager({
                       state.fieldErrors?.scheduledOn,
                     )}
                     type="date"
-                    defaultValue={toDateInputValue(new Date())}
+                    defaultValue={defaultDate}
                     dir="ltr"
                   />
                 </FormField>

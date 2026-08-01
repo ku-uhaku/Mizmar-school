@@ -55,7 +55,11 @@ const fr = {
       programme: "Programme",
       assessmentTypes: "Types de contrôle",
       rooms: "Salles",
+      cities: "Villes",
+      neighbourhoods: "Quartiers",
       terms: "Semestres",
+      holidays: "Vacances et fériés",
+      teacherAbsences: "Absences enseignants",
       timeSlots: "Créneaux horaires",
       levelOfferings: "Niveaux ouverts",
       schoolClasses: "Classes",
@@ -66,6 +70,9 @@ const fr = {
     },
 
     fields: {
+      region: "Région",
+      city: "Ville",
+      landmark: "Rue ou repère",
       agency: "Agence",
       accountNumber: "Numéro de compte",
       categoryKind: "Sens",
@@ -114,6 +121,9 @@ const fr = {
       notes: "Notes",
       termNumber: "Numéro",
       startDate: "Date de début",
+      holidayKind: "Type",
+      absenceKind: "Motif",
+      substitute: "Remplacé par",
       endDate: "Date de fin",
       status: "Statut",
       dayOfWeek: "Jour",
@@ -142,6 +152,10 @@ const fr = {
     },
 
     hints: {
+      region: "Facultatif — utile seulement pour regrouper une longue liste.",
+      holidayEnd: "Inclus — pour un seul jour, répétez la date de début.",
+      substitute: "Laisser vide si personne ne remplace.",
+      landmark: "Ce qui le situe quand le nom seul ne suffit pas.",
       agency: "L'agence où l'école tient effectivement son compte.",
       accountNumber: "Le compte de l'école, pour les virements qu'elle émet.",
       categoryKind:
@@ -225,6 +239,18 @@ const fr = {
       PRIMARY: "Primaire",
       SECONDARY_COLLEGE: "Secondaire collégial",
       SECONDARY_QUALIFYING: "Secondaire qualifiant",
+    },
+    absenceKinds: {
+      SICK: "Congé maladie",
+      LEAVE: "Congé",
+      TRAINING: "Formation",
+      OTHER: "Autre",
+    },
+    holidayKinds: {
+      SCHOOL_HOLIDAY: "Vacances scolaires",
+      PUBLIC_HOLIDAY: "Jour férié",
+      EXAM_PERIOD: "Période d'examens",
+      CLOSURE: "Fermeture",
     },
     roomKinds: {
       CLASSROOM: "Salle de classe",

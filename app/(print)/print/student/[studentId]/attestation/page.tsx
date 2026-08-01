@@ -72,8 +72,11 @@ export default async function AttestationPage({
                 label={t.student.birthDate}
                 value={formatDate(student.birthDate, locale)}
               />
-              {student.birthPlace ? (
-                <Line label={t.student.birthPlace} value={student.birthPlace} />
+              {student.birthCityName ? (
+                <Line
+                  label={t.student.birthPlace}
+                  value={student.birthCityName}
+                />
               ) : null}
               {student.massarCode ? (
                 <Line label={t.student.massarCode} value={student.massarCode} />

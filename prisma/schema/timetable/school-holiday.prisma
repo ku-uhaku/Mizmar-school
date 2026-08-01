@@ -1,0 +1,44 @@
+/// A stretch of the year the school does not teach: vacances scolaires, jours
+/// fériés, and the odd closure a school declares for itself.
+///
+/// One table with a date range rather than one row per day. Moroccan school
+/// holidays are announced as ranges — "vacances de mi-année, du 27 janvier au
+/// 4 février" — and storing the days individually would mean nine rows to say
+/// one thing, none of which carries the name the calendar is known by.
+///
+/// Owned by the school *year*, not the school: the dates move every year, and
+/// last year's calendar has to stay readable after this year's is entered. A
+/// jour férié whose date is fixed still gets a row per year, because that is
+/// what makes "which weeks did we actually teach in 2025-2026" answerable.
+///
+/// Only the timetable reads it, which is why it lives here rather than in
+/// school-years: the year owns its own dates, and this is a fact *about the
+/// week*, used to grey out days on a grid and to say why a week is empty.
+model SchoolHoliday {
+  id           String     @id @default(cuid())
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  name   String
+  nameAr String?
+
+  /// Inclusive on both ends. A single-day férié has `startDate == endDate`,
+  /// which is the degenerate case and not a special one.
+  startDate DateTime
+  endDate   DateTime
+
+  /// "SCHOOL_HOLIDAY" | "PUBLIC_HOLIDAY" | "EXAM_PERIOD" | "CLOSURE"
+  /// see modules/timetable/enums.ts. Kept because they are not the same thing
+  /// to a reader: an exam period has no ordinary lessons but the school is very
+  /// much open, and a closure is worth telling apart from a planned holiday.
+  kind String @default("SCHOOL_HOLIDAY")
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolYearId])
+  @@index([schoolYearId, startDate])
+  @@map("school_holidays")
+}

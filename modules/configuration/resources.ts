@@ -12,7 +12,13 @@ import { GROUP_PURPOSES } from "@/modules/classes/enums";
 import { CATEGORY_KINDS } from "@/modules/treasury/enums";
 import { ROOM_KINDS } from "@/modules/facilities/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
-import { DAY_SESSIONS, SCHEDULE_KINDS, TEACHING_DAYS } from "@/modules/timetable/enums";
+import {
+  ABSENCE_KINDS,
+  DAY_SESSIONS,
+  HOLIDAY_KINDS,
+  SCHEDULE_KINDS,
+  TEACHING_DAYS,
+} from "@/modules/timetable/enums";
 import type { ResourceDef, SectionDef } from "@/modules/configuration/types";
 
 /**
@@ -517,7 +523,214 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
 
+  /*
+    Towns, under Établissement rather than a geography section of its own: one
+    list does not earn a tab, and the place a school looks for "how we spell
+    Casablanca" is the same place it sets its own address.
+  */
+  {
+    id: "cities",
+    section: "school",
+    labelKey: "cities",
+    scope: "SCHOOL",
+    labelFields: ["name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "CASA",
+        inTable: true,
+      },
+      {
+        name: "name",
+        type: "text",
+        labelKey: "name",
+        required: true,
+        maxLength: 120,
+        inTable: true,
+      },
+      NAME_AR,
+      {
+        name: "region",
+        type: "text",
+        labelKey: "region",
+        hintKey: "region",
+        maxLength: 120,
+        inTable: true,
+      },
+      IS_ACTIVE,
+    ],
+  },
+
+  /*
+    Quartiers. Under Établissement beside the towns they belong to rather than
+    under a transport section: a quartier is an address, and the bus is only the
+    first thing to need one. See the note on Neighbourhood about why it is not
+    the same thing as a TransportZone.
+  */
+  {
+    id: "neighbourhoods",
+    section: "school",
+    labelKey: "neighbourhoods",
+    scope: "SCHOOL",
+    labelFields: ["name"],
+    fields: [
+      {
+        name: "cityId",
+        type: "reference",
+        labelKey: "city",
+        referenceTo: "cities",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "MAARIF",
+        inTable: true,
+      },
+      {
+        name: "name",
+        type: "text",
+        labelKey: "name",
+        required: true,
+        maxLength: 120,
+        inTable: true,
+      },
+      NAME_AR,
+      {
+        name: "landmark",
+        type: "text",
+        labelKey: "landmark",
+        hintKey: "landmark",
+        maxLength: 160,
+        inTable: true,
+      },
+      IS_ACTIVE,
+    ],
+  },
+
   // ── Année scolaire ────────────────────────────────────────────────────────
+  /*
+    Vacances and jours fériés. Under the year rather than the school because the
+    dates move every year, and last year's calendar has to stay readable after
+    this year's is entered — see prisma/schema/timetable/school-holiday.prisma.
+  */
+  {
+    id: "holidays",
+    section: "year",
+    labelKey: "holidays",
+    scope: "YEAR",
+    labelFields: ["name"],
+    fields: [
+      {
+        name: "name",
+        type: "text",
+        labelKey: "name",
+        required: true,
+        maxLength: 120,
+        inTable: true,
+      },
+      NAME_AR,
+      {
+        name: "kind",
+        type: "select",
+        labelKey: "holidayKind",
+        options: HOLIDAY_KINDS,
+        optionsKey: "holidayKinds",
+        defaultValue: "SCHOOL_HOLIDAY",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "startDate",
+        type: "date",
+        labelKey: "startDate",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "endDate",
+        type: "date",
+        labelKey: "endDate",
+        hintKey: "holidayEnd",
+        required: true,
+        inTable: true,
+      },
+      { name: "notes", type: "textarea", labelKey: "notes", maxLength: 500, wide: true },
+    ],
+  },
+
+  /*
+    Teacher absences. A list rather than a screen of its own because it is the
+    same four fields every time — who, from when, to when, and who is covering —
+    and the generic CRUD renders that better than a bespoke page would.
+
+    School-scoped, not year-scoped: an absence is a date, and which year it
+    falls in follows from the date. See prisma/schema/timetable/teacher-absence.prisma
+    for why it is one row rather than one per uncovered lesson.
+  */
+  {
+    id: "teacher-absences",
+    section: "year",
+    labelKey: "teacherAbsences",
+    scope: "SCHOOL",
+    labelFields: ["startDate"],
+    fields: [
+      {
+        name: "teacherId",
+        type: "reference",
+        labelKey: "teacher",
+        referenceTo: "@teachers",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "startDate",
+        type: "date",
+        labelKey: "startDate",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "endDate",
+        type: "date",
+        labelKey: "endDate",
+        hintKey: "holidayEnd",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "kind",
+        type: "select",
+        labelKey: "absenceKind",
+        options: ABSENCE_KINDS,
+        optionsKey: "absenceKinds",
+        defaultValue: "OTHER",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "substituteId",
+        type: "reference",
+        labelKey: "substitute",
+        hintKey: "substitute",
+        referenceTo: "@teachers",
+        nullable: true,
+        inTable: true,
+      },
+      { name: "notes", type: "textarea", labelKey: "notes", maxLength: 500, wide: true },
+    ],
+  },
+
   {
     id: "terms",
     section: "year",

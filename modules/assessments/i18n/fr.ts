@@ -56,6 +56,10 @@ const fr = {
     allSubjects: "Tout",
     noneSubjects: "Aucune",
     nothingToGenerate: "Toutes les matières ont déjà ce contrôle.",
+    noTeacherAssigned:
+      "Rien n'a été créé pour {subjects} — aucun enseignant n'y est affecté dans cette classe.",
+    unstaffedSubjects:
+      "{count} matière(s) ne peuvent pas être générées tant qu'aucun enseignant n'y est affecté.",
     noProgramme:
       "Cette classe n'a aucune matière notée à son programme — configurez-le d'abord.",
     termClosed:

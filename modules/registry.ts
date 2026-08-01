@@ -19,6 +19,7 @@ import { dashboardModule } from "@/modules/dashboard/module";
 import { enrolmentModule } from "@/modules/enrolment/module";
 import { ENROLMENT_PERMISSIONS } from "@/modules/enrolment/permissions";
 import { facilitiesModule } from "@/modules/facilities/module";
+import { geographyModule } from "@/modules/geography/module";
 import { hrModule } from "@/modules/hr/module";
 import { HR_PERMISSIONS } from "@/modules/hr/permissions";
 import { familiesModule } from "@/modules/families/module";
@@ -33,6 +34,8 @@ import { SCHOOL_YEAR_PERMISSIONS } from "@/modules/school-years/permissions";
 import { schoolsModule } from "@/modules/schools/module";
 import { SCHOOL_PERMISSIONS } from "@/modules/schools/permissions";
 import { studentsModule } from "@/modules/students/module";
+import { suppliesModule } from "@/modules/supplies/module";
+import { SUPPLY_PERMISSIONS } from "@/modules/supplies/permissions";
 import { STUDENT_PERMISSIONS } from "@/modules/students/permissions";
 import { timetableModule } from "@/modules/timetable/module";
 import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
@@ -95,6 +98,7 @@ export const MODULES: readonly AppModule[] = [
   assessmentsModule,
   classroomModule,
   timetableModule,
+  suppliesModule,
 
   // ── Caisse ────────────────────────────────────────────────────────────────
   // The money side of the year: the tills, the receipts that settle the fee
@@ -112,6 +116,7 @@ export const MODULES: readonly AppModule[] = [
   // configuration screens, so they contribute no nav entry and no permissions.
   academicsModule,
   facilitiesModule,
+  geographyModule,
   billingModule,
 
   // No nav, no tables — registered so the registry is a complete inventory.
@@ -144,6 +149,7 @@ export const PERMISSIONS = {
   ...ASSESSMENT_PERMISSIONS,
   ...CLASSROOM_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
+  ...SUPPLY_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
   ...TRANSPORT_PERMISSIONS,
 } as const;

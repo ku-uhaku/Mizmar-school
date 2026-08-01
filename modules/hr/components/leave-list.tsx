@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { formatDate, interpolate } from "@/lib/i18n/format";
 import {
   decideLeaveAction,
@@ -326,7 +327,9 @@ function LeaveDialog({
   const [startsOn, setStartsOn] = React.useState(
     dateValue(request?.startsOn ?? null),
   );
-  const [endsOn, setEndsOn] = React.useState(dateValue(request?.endsOn ?? null));
+  const [endsOn, setEndsOn] = React.useState(
+    dateValue(request?.endsOn ?? null),
+  );
   const [dayCount, setDayCount] = React.useState(
     String(request?.dayCount ?? 1),
   );
@@ -353,10 +356,15 @@ function LeaveDialog({
             <DialogDescription>{t.hr.dayCountHint}</DialogDescription>
           </DialogHeader>
 
-          {request ? <input type="hidden" name="id" value={request.id} /> : null}
+          {request ? (
+            <input type="hidden" name="id" value={request.id} />
+          ) : null}
 
           <Field label={t.hr.employee} name="staffId" error={errors.staffId}>
-            <Select name="staffId" defaultValue={request?.staffId ?? ""}>
+            <Select
+              name="staffId"
+              defaultValue={valueOf(state, "staffId", request?.staffId)}
+            >
               <SelectTrigger id="staffId" className="w-full">
                 <SelectValue placeholder={t.hr.employee} />
               </SelectTrigger>
@@ -371,7 +379,10 @@ function LeaveDialog({
           </Field>
 
           <Field label={t.hr.leaveKind} name="kind">
-            <Select name="kind" defaultValue={request?.kind ?? "ANNUAL"}>
+            <Select
+              name="kind"
+              defaultValue={valueOf(state, "kind", request?.kind) || "ANNUAL"}
+            >
               <SelectTrigger id="kind" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -386,7 +397,11 @@ function LeaveDialog({
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={t.hr.startsOn} name="startsOn" error={errors.startsOn}>
+            <Field
+              label={t.hr.startsOn}
+              name="startsOn"
+              error={errors.startsOn}
+            >
               <Input
                 id="startsOn"
                 name="startsOn"
@@ -414,7 +429,11 @@ function LeaveDialog({
                 }}
               />
             </Field>
-            <Field label={t.hr.dayCount} name="dayCount" error={errors.dayCount}>
+            <Field
+              label={t.hr.dayCount}
+              name="dayCount"
+              error={errors.dayCount}
+            >
               <Input
                 id="dayCount"
                 name="dayCount"
@@ -432,7 +451,7 @@ function LeaveDialog({
               id="reason"
               name="reason"
               rows={2}
-              defaultValue={request?.reason ?? ""}
+              defaultValue={valueOf(state, "reason", request?.reason)}
             />
           </Field>
 

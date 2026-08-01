@@ -1,12 +1,11 @@
 "use client";
 
-import { PlusIcon, TrashIcon, WalletIcon } from "lucide-react";
+import { Loader2Icon, PlusIcon, TrashIcon, WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
-import { FormField, controlProps } from "@/components/form/form-field";
-import { FormActions, FormSection } from "@/components/form/form-page";
-import { SubmitButton } from "@/components/form/submit-button";
+import { FormField } from "@/components/form/form-field";
+import { FormSection } from "@/components/form/form-page";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { useSettings } from "@/components/providers/settings-provider";
@@ -20,6 +19,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,7 +39,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { formatAmount, formatMonth, toDateInputValue } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatMonth,
+  interpolate,
+  toDateInputValue,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { recordPaymentAction } from "@/modules/treasury/actions";
 import {
@@ -159,15 +171,38 @@ export function PaymentConsole({
   const locale = useLocale();
   const router = useRouter();
 
-  const [state, formAction] = React.useActionState(recordPaymentAction, IDLE);
+  const [state, formAction, isPending] = React.useActionState(
+    recordPaymentAction,
+    IDLE,
+  );
   useActionFeedback(state, {
     onSuccess: () => {
       setSelection({});
       setTenders([emptyTender()]);
+      setPaying(false);
       router.refresh();
       onDone?.();
     },
   });
+
+  /*
+    Two steps: choose the charges on the page, settle them in a sheet.
+
+    They were one long form, and the two halves compete — the charges are a list
+    you scan and tick, the tenders are a form you fill in, and under one Save
+    you scrolled past twenty lines to discover the amounts did not balance.
+    Splitting them also matches the desk: the parent says what they are paying,
+    *then* hands over the money.
+
+    Radix portals the sheet outside the <form>, so everything the action reads
+    is rendered as hidden inputs inside it and the sheet only edits state. That
+    is also why the confirm button carries `form={formId}` and takes its pending
+    flag from `useActionState` — `useFormStatus` only sees an enclosing form.
+  */
+  const formId = React.useId();
+  const [paying, setPaying] = React.useState(false);
+  const [paidAt, setPaidAt] = React.useState(toDateInputValue(new Date()));
+  const [notes, setNotes] = React.useState("");
 
   /** Fee line id → the amount being paid against it, in dirhams. */
   const [selection, setSelection] = React.useState<Record<string, string>>({});
@@ -197,6 +232,8 @@ export function PaymentConsole({
       }, 0),
     [tenders],
   );
+
+  const selectedCount = Object.keys(selection).length;
 
   const takesCash = tenders.some(
     (tender) => tender.method === "CASH" && Number(tender.amount) > 0,
@@ -252,7 +289,7 @@ export function PaymentConsole({
   }
 
   return (
-    <form action={formAction} className="grid gap-4 sm:gap-5">
+    <form id={formId} action={formAction} className="grid gap-4 sm:gap-5">
       {embedded ? (
         <input type="hidden" name="familyId" value={family?.familyId ?? ""} />
       ) : (
@@ -377,131 +414,327 @@ export function PaymentConsole({
             />
           ))}
 
-          <TenderSection
-            embedded={embedded}
-            title={t.treasury.tenders}
-            description={t.treasury.tendersHint}
-          >
-            <div className="grid gap-4">
-              {tenders.map((tender, index) => (
-                <TenderRow
-                  key={tender.key}
-                  tender={tender}
-                  banks={banks}
-                  index={index}
-                  canRemove={tenders.length > 1}
-                  onChange={updateTender}
-                  onRemove={(key) =>
-                    setTenders((current) =>
-                      current.filter((entry) => entry.key !== key),
-                    )
-                  }
-                  t={t}
-                />
-              ))}
+          {/*
+            Everything the action reads, rendered inside the form from state —
+            the sheet below is portaled out of it by Radix and its fields would
+            otherwise never be submitted. See the note at the top.
+          */}
+          {tenders.map((tender) => (
+            <TenderFields key={tender.key} tender={tender} />
+          ))}
+          <input type="hidden" name="paidAt" value={paidAt} />
+          <input type="hidden" name="notes" value={notes} />
+
+          {/*
+            The bar that closes step one. Sticky in both modes now, not only the
+            embedded one: the charges run past a screenful for any household
+            with two children, and a total you have to scroll to find is a total
+            nobody checks.
+          */}
+          <div className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 backdrop-blur">
+            <div className="grid gap-0.5">
+              <span className="text-muted-foreground text-xs">
+                {t.treasury.selected}
+              </span>
+              <span
+                className={cn(
+                  "text-lg font-semibold tabular-nums",
+                  selectedTotalCentimes > 0 && "text-primary",
+                )}
+              >
+                {money(selectedTotalCentimes)} {currency}
+              </span>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              {selectedCount > 0 ? (
+                <Badge variant="secondary" className="tabular-nums">
+                  {interpolate(t.treasury.linesChosen, {
+                    count: selectedCount,
+                  })}
+                </Badge>
+              ) : null}
               <Button
                 type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setTenders((current) => [...current, emptyTender("CHEQUE")])
-                }
-              >
-                <PlusIcon className="size-4" />
-                {t.treasury.addTender}
-              </Button>
-              {selectedTotalCentimes !== tenderTotalCentimes ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={matchSelection}
-                >
-                  {t.treasury.payFull}
-                </Button>
-              ) : null}
-            </div>
-
-            <Separator />
-
-            <FormField name="paidAt" label={t.treasury.paidAt}>
-              <Input
-                {...controlProps("paidAt", state.fieldErrors?.paidAt)}
-                type="date"
-                defaultValue={toDateInputValue(new Date())}
-                dir="ltr"
-              />
-            </FormField>
-
-            <FormField name="notes" label={t.treasury.notes}>
-              <Textarea {...controlProps("notes")} rows={2} />
-            </FormField>
-          </TenderSection>
-
-          <div
-            className={cn(
-              embedded &&
-                // Sticky rather than merely last: with twenty charges above it,
-                // the figure a secretary is reconciling and the button that
-                // commits it have to stay on screen while they scroll.
-                "bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky bottom-0 z-10 grid gap-3 rounded-lg border p-3 backdrop-blur",
-            )}
-          >
-            <Card
-              className={cn(embedded && "border-0 bg-transparent shadow-none")}
-            >
-              <CardContent
-                className={cn("grid gap-2 py-4 text-sm", embedded && "p-0")}
-              >
-                <Row
-                  label={t.treasury.selected}
-                  value={`${money(selectedTotalCentimes)} ${currency}`}
-                />
-                <Row
-                  label={t.treasury.tenders}
-                  value={`${money(tenderTotalCentimes)} ${currency}`}
-                  tone={balanced ? "ok" : "warn"}
-                />
-                {!balanced && selectedTotalCentimes > 0 ? (
-                  <p className="text-destructive text-xs">
-                    {t.treasury.tendersMustMatch}
-                  </p>
-                ) : null}
-                {takesCash && !hasOpenSession ? (
-                  <p className="text-destructive text-xs">
-                    {t.treasury.noOpenSession}
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            {embedded ? (
-              <SubmitButton
                 size="lg"
-                className="w-full"
-                disabled={!balanced || (takesCash && !hasOpenSession)}
+                disabled={selectedTotalCentimes <= 0}
+                onClick={() => {
+                  // Paying the whole of what was ticked is the commonest case
+                  // by far, so the sheet opens already balanced. Overtyping it
+                  // is the exception, not the rule.
+                  if (tenderTotalCentimes === 0) matchSelection();
+                  setPaying(true);
+                }}
               >
                 <WalletIcon className="size-4" />
-                {t.treasury.recordPayment}
-              </SubmitButton>
-            ) : (
-              <FormActions>
-                <SubmitButton
-                  size="lg"
-                  disabled={!balanced || (takesCash && !hasOpenSession)}
-                >
-                  <WalletIcon className="size-4" />
-                  {t.treasury.recordPayment}
-                </SubmitButton>
-              </FormActions>
-            )}
+                {t.treasury.collect}
+              </Button>
+            </div>
           </div>
+
+          <PaymentSheet
+            open={paying}
+            onOpenChange={setPaying}
+            formId={formId}
+            isPending={isPending}
+            tenders={tenders}
+            banks={banks}
+            onChangeTender={updateTender}
+            onAddTender={() =>
+              setTenders((current) => [...current, emptyTender("CHEQUE")])
+            }
+            onRemoveTender={(key) =>
+              setTenders((current) =>
+                current.filter((entry) => entry.key !== key),
+              )
+            }
+            onMatch={matchSelection}
+            paidAt={paidAt}
+            onPaidAtChange={setPaidAt}
+            notes={notes}
+            onNotesChange={setNotes}
+            selectedTotalCentimes={selectedTotalCentimes}
+            tenderTotalCentimes={tenderTotalCentimes}
+            balanced={balanced}
+            takesCash={takesCash}
+            hasOpenSession={hasOpenSession}
+            money={money}
+            currency={currency}
+            t={t}
+          />
         </>
       )}
     </form>
+  );
+}
+
+/**
+ * The submitted half of a tender, rendered inside the form.
+ *
+ * Separate from `TenderRow` because the editor lives in a portaled sheet: the
+ * fields the action reads have to sit in the form's own DOM, and one component
+ * cannot be in two places at once.
+ */
+function TenderFields({ tender }: { tender: Tender }) {
+  return (
+    <>
+      <input type="hidden" name="tenderMethod" value={tender.method} />
+      <input type="hidden" name="tenderAmount" value={tender.amount} />
+      <input type="hidden" name="tenderReference" value={tender.reference} />
+      <input type="hidden" name="tenderBankId" value={tender.bankId} />
+      <input type="hidden" name="tenderBank" value={tender.bankName} />
+      <input
+        type="hidden"
+        name="tenderChequeNumber"
+        value={tender.chequeNumber}
+      />
+      <input
+        type="hidden"
+        name="tenderChequeDueOn"
+        value={tender.chequeDueOn}
+      />
+      <input type="hidden" name="tenderDrawer" value={tender.drawerName} />
+    </>
+  );
+}
+
+/**
+ * Step two: how the money arrives, and the confirmation.
+ *
+ * A sheet rather than the foot of the page because it is a different question
+ * from "what are we paying", and because a cashier who has ticked the wrong
+ * month wants to go *back* — which a modal makes obvious and a scroll position
+ * does not.
+ *
+ * The reconciliation is the loudest thing in it. A receipt whose tenders do not
+ * add up to what it settles cannot be corrected later without cancelling the
+ * receipt, so the difference is stated in words as well as colour and the
+ * confirm button stays disabled until it is nil.
+ */
+function PaymentSheet({
+  open,
+  onOpenChange,
+  formId,
+  isPending,
+  tenders,
+  banks,
+  onChangeTender,
+  onAddTender,
+  onRemoveTender,
+  onMatch,
+  paidAt,
+  onPaidAtChange,
+  notes,
+  onNotesChange,
+  selectedTotalCentimes,
+  tenderTotalCentimes,
+  balanced,
+  takesCash,
+  hasOpenSession,
+  money,
+  currency,
+  t,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  formId: string;
+  isPending: boolean;
+  tenders: Tender[];
+  banks: BankOption[];
+  onChangeTender: (key: string, patch: Partial<Tender>) => void;
+  onAddTender: () => void;
+  onRemoveTender: (key: string) => void;
+  onMatch: () => void;
+  paidAt: string;
+  onPaidAtChange: (value: string) => void;
+  notes: string;
+  onNotesChange: (value: string) => void;
+  selectedTotalCentimes: number;
+  tenderTotalCentimes: number;
+  balanced: boolean;
+  takesCash: boolean;
+  hasOpenSession: boolean;
+  money: (centimes: number) => string;
+  currency: string;
+  t: ReturnType<typeof useT>;
+}) {
+  const difference = selectedTotalCentimes - tenderTotalCentimes;
+  const blocked = !balanced || (takesCash && !hasOpenSession);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t.treasury.collect}</DialogTitle>
+          <DialogDescription>{t.treasury.tendersHint}</DialogDescription>
+        </DialogHeader>
+
+        {/* What is being settled, restated: the sheet covers the list, and
+          confirming an amount you can no longer see is how the wrong one gets
+          taken. */}
+        <div className="bg-muted/50 flex items-center justify-between gap-4 rounded-lg px-4 py-3">
+          <span className="text-muted-foreground text-sm">
+            {t.treasury.selected}
+          </span>
+          <span className="text-lg font-semibold tabular-nums">
+            {money(selectedTotalCentimes)} {currency}
+          </span>
+        </div>
+
+        <div className="grid gap-4">
+          {tenders.map((tender, index) => (
+            <TenderRow
+              key={tender.key}
+              tender={tender}
+              banks={banks}
+              index={index}
+              canRemove={tenders.length > 1}
+              onChange={onChangeTender}
+              onRemove={onRemoveTender}
+              t={t}
+            />
+          ))}
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onAddTender}
+            >
+              <PlusIcon className="size-4" />
+              {t.treasury.addTender}
+            </Button>
+            {difference !== 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onMatch}>
+                {t.treasury.payFull}
+              </Button>
+            ) : null}
+          </div>
+
+          <Separator />
+
+          <FormField name="paidAtDisplay" label={t.treasury.paidAt}>
+            <Input
+              id="paidAtDisplay"
+              type="date"
+              value={paidAt}
+              onChange={(event) => onPaidAtChange(event.target.value)}
+              dir="ltr"
+            />
+          </FormField>
+
+          <FormField name="notesDisplay" label={t.treasury.notes}>
+            <Textarea
+              id="notesDisplay"
+              rows={2}
+              value={notes}
+              onChange={(event) => onNotesChange(event.target.value)}
+            />
+          </FormField>
+
+          {/* Green when it balances, red when it does not — and never colour
+            alone, so each state says what it is. */}
+          <div
+            className={cn(
+              "grid gap-2 rounded-lg border p-3 text-sm",
+              balanced
+                ? "border-success/40 bg-success/5"
+                : "border-destructive/40 bg-destructive/5",
+            )}
+          >
+            <Row
+              label={t.treasury.tenders}
+              value={`${money(tenderTotalCentimes)} ${currency}`}
+              tone={balanced ? "ok" : "warn"}
+            />
+            {difference !== 0 ? (
+              <Row
+                label={
+                  difference > 0 ? t.treasury.stillToCover : t.treasury.overPaid
+                }
+                value={`${money(Math.abs(difference))} ${currency}`}
+                tone="warn"
+              />
+            ) : null}
+            {!balanced ? (
+              <p className="text-destructive text-xs">
+                {t.treasury.tendersMustMatch}
+              </p>
+            ) : null}
+            {takesCash && !hasOpenSession ? (
+              <p className="text-destructive text-xs">
+                {t.treasury.noOpenSession}
+              </p>
+            ) : null}
+          </div>
+        </div>
+
+        <DialogFooter className="sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            {t.treasury.backToCharges}
+          </Button>
+          {/* `form` rather than nesting: the sheet is portaled out of it. */}
+          <Button
+            type="submit"
+            form={formId}
+            size="lg"
+            disabled={blocked || isPending}
+          >
+            {isPending ? (
+              <Loader2Icon className="size-4 animate-spin" />
+            ) : (
+              <WalletIcon className="size-4" />
+            )}
+            {t.treasury.recordPayment}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -904,45 +1137,5 @@ function TenderBank({
         />
       ) : null}
     </div>
-  );
-}
-
-/**
- * The tenders block: a card on the caisse page, a plain titled section in a
- * sheet.
- *
- * A `FormSection` is a Card, and a Card inside a sheet that already has its own
- * surface reads as three nested boxes for one thing. The content is identical
- * either way — only the chrome around it changes.
- */
-function TenderSection({
-  embedded,
-  title,
-  description,
-  children,
-}: {
-  embedded: boolean;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  if (!embedded) {
-    return (
-      <FormSection title={title} description={description}>
-        {children}
-      </FormSection>
-    );
-  }
-
-  return (
-    <section className="grid gap-4">
-      <div className="border-b pb-2">
-        <h3 className="text-sm font-medium">{title}</h3>
-        {description ? (
-          <p className="text-muted-foreground text-xs">{description}</p>
-        ) : null}
-      </div>
-      {children}
-    </section>
   );
 }

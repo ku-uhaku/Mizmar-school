@@ -128,6 +128,16 @@ export type GenerateResult = {
   /** Subjects that already had this paper — the run is idempotent. */
   skipped: number;
   subjects: string[];
+  /**
+   * Subjects refused because no teacher holds them in this class, by name.
+   *
+   * A paper nobody answers for is not a plan, it is a gap: it appears on the
+   * class's calendar, no mark sheet ever opens against it, and the subject's
+   * average is quietly short one component at the end of term. Refusing is
+   * louder than a null `teacherId`, and the fix — assign the post — is
+   * something a head of studies can do in the next screen along.
+   */
+  unstaffed: string[];
 };
 
 /**
@@ -141,8 +151,8 @@ export type GenerateResult = {
  * `maxScore` and `coefficient` are copied off the type rather than referenced
  * through it, so re-weighting the type next year cannot rescore marks already
  * entered. The teacher is resolved from the primary TeachingAssignment at
- * generation time and left null when the subject has none — a programme
- * routinely exists before every post is filled.
+ * generation time, and a subject with no holder is **refused** rather than
+ * written unattributed — see `unstaffed` on the result.
  *
  * Papers are created as DRAFT. Generating is planning; announcing them to the
  * classes is a separate, deliberate act — see `publishAssessments`.
@@ -154,7 +164,7 @@ export async function generateAssessments(
     where: { id: input.schoolClassId },
     select: { id: true, schoolId: true },
   });
-  if (!schoolClass) return { created: 0, skipped: 0, subjects: [] };
+  if (!schoolClass) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   const type = await db.assessmentType.findFirst({
     // Confined to the class's own school: the type and the class must belong
@@ -167,10 +177,10 @@ export async function generateAssessments(
       defaultMaxScore: true,
     },
   });
-  if (!type) return { created: 0, skipped: 0, subjects: [] };
+  if (!type) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   const programme = await resolveProgramme(input.schoolClassId);
-  if (programme.length === 0) return { created: 0, skipped: 0, subjects: [] };
+  if (programme.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   // Only subjects that are genuinely on this class's programme. A subject id
   // from the request that is not on it is dropped rather than written: the
@@ -181,7 +191,7 @@ export async function generateAssessments(
   const requested = input.targets.filter((target) =>
     onProgramme.has(target.subjectId),
   );
-  if (requested.length === 0) return { created: 0, skipped: 0, subjects: [] };
+  if (requested.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   const [existing, assignments] = await Promise.all([
     db.assessment.findMany({
@@ -226,8 +236,26 @@ export async function generateAssessments(
       ? (teacherBySubject.get(subject.parentSubjectId) ?? null)
       : null);
 
-  const missing = requested.filter(
-    (target) => !alreadySet.has(target.subjectId),
+  /*
+    No teacher, no paper.
+
+    A contrôle with a null `teacherId` looks planned and behaves like a hole:
+    it shows on the class's calendar, no mark sheet ever opens against it, and
+    the subject comes up short at moyenne time. So an unstaffed subject is
+    refused and named back to the caller, rather than written and forgotten.
+
+    Checked against what is *about* to be written, not against the whole
+    programme: a subject already generated in an earlier run keeps its paper
+    even if the post has since been vacated — undoing that is a deletion, and
+    deletions are somebody's explicit decision.
+  */
+  const wanted = requested.filter((target) => !alreadySet.has(target.subjectId));
+
+  const unstaffed = wanted.filter(
+    (target) => teacherFor(onProgramme.get(target.subjectId)!) === null,
+  );
+  const missing = wanted.filter(
+    (target) => teacherFor(onProgramme.get(target.subjectId)!) !== null,
   );
 
   if (missing.length > 0) {
@@ -251,6 +279,7 @@ export async function generateAssessments(
           maxScore: type.defaultMaxScore,
           coefficient: type.defaultCoefficient,
           status: "DRAFT",
+          // Non-null: `missing` is exactly the targets that resolved a teacher.
           teacherId: teacherFor(subject),
           createdById: input.createdById,
           scopeKey: wholeClassKey,
@@ -261,8 +290,13 @@ export async function generateAssessments(
 
   return {
     created: missing.length,
-    skipped: requested.length - missing.length,
+    // Already had this paper. An unstaffed subject is *not* skipped — it was
+    // refused, and it is reported separately so the message can say why.
+    skipped: requested.length - wanted.length,
     subjects: missing.map(
+      (target) => onProgramme.get(target.subjectId)!.subjectName,
+    ),
+    unstaffed: unstaffed.map(
       (target) => onProgramme.get(target.subjectId)!.subjectName,
     ),
   };

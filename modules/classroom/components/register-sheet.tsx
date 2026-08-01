@@ -65,7 +65,10 @@ export function RegisterSheet({
   useActionFeedback(state);
 
   const [marks, setMarks] = React.useState<
-    Record<string, { status: AttendanceStatus; minutesLate: string; reason: string }>
+    Record<
+      string,
+      { status: AttendanceStatus; minutesLate: string; reason: string }
+    >
   >(() =>
     Object.fromEntries(
       register.pupils.map((pupil) => [
@@ -129,9 +132,17 @@ export function RegisterSheet({
 
   return (
     <form action={formAction} className="grid gap-4">
-      <input type="hidden" name="schoolClassId" value={register.schoolClassId} />
+      <input
+        type="hidden"
+        name="schoolClassId"
+        value={register.schoolClassId}
+      />
       <input type="hidden" name="subjectId" value={register.subjectId ?? ""} />
-      <input type="hidden" name="timeSlotId" value={register.timeSlotId ?? ""} />
+      <input
+        type="hidden"
+        name="timeSlotId"
+        value={register.timeSlotId ?? ""}
+      />
       <input type="hidden" name="date" value={register.date} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -162,7 +173,9 @@ export function RegisterSheet({
           <span className="text-muted-foreground text-xs tabular-nums">
             {register.classCode}
             {register.groupLabel ? ` · ${register.groupLabel}` : ""}
-            {register.slotLabel ? ` · ${register.slotLabel}` : ` · ${t.classroom.wholeDay}`}
+            {register.slotLabel
+              ? ` · ${register.slotLabel}`
+              : ` · ${t.classroom.wholeDay}`}
           </span>
           {canMark ? (
             <Button
@@ -264,7 +277,9 @@ function PupilRow({
       <TableCell>
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-8 shrink-0">
-            {pupil.photoUrl ? <AvatarImage src={pupil.photoUrl} alt="" /> : null}
+            {pupil.photoUrl ? (
+              <AvatarImage src={pupil.photoUrl} alt="" />
+            ) : null}
             <AvatarFallback className="text-[10px]">
               {initials || "?"}
             </AvatarFallback>

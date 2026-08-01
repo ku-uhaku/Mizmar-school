@@ -109,7 +109,9 @@ export function PermissionMatrix({
                         id={id}
                         checked={checked}
                         disabled={disabled}
-                        onCheckedChange={(value) => toggle(code, value === true)}
+                        onCheckedChange={(value) =>
+                          toggle(code, value === true)
+                        }
                         className="mt-0.5"
                       />
                       <Label

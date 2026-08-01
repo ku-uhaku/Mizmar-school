@@ -4,6 +4,14 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { displayName } from "@/lib/dal";
 import { teachingDaysOf } from "@/lib/school-settings";
+import {
+  addDays,
+  isWithin,
+  resolveWeek,
+  schoolWeeks,
+  toDateKey,
+  type SchoolWeek,
+} from "@/modules/timetable/weeks";
 
 /**
  * Reads for the timetable module.
@@ -557,4 +565,222 @@ export async function loadTeacherTimetable(
     lessonCount: entries.length,
     classCount: new Set(entries.map((entry) => entry.schoolClass.id)).size,
   };
+}
+
+/** A holiday as the grid and the picker read it. Primitives only. */
+export type HolidayRow = {
+  id: string;
+  name: string;
+  kind: string;
+  /** `YYYY-MM-DD`, inclusive on both ends. */
+  startDate: string;
+  endDate: string;
+};
+
+/**
+ * The year's weeks, the one to show, and the holidays that fall in it.
+ *
+ * One query rather than three because the three answers are one question — "what
+ * am I looking at" — and the week cannot be resolved without the year's dates
+ * anyway. The weeks themselves are computed by `weeks.ts`, which is pure, so the
+ * picker in the browser and this agree by construction.
+ */
+export type WeekContext = {
+  weeks: { index: number; start: string; end: string }[];
+  /** Null only when the year has no dates worth drawing. */
+  current: { index: number; start: string; end: string } | null;
+  /** Every holiday of the year, so the picker can mark the weeks it covers. */
+  holidays: HolidayRow[];
+  yearName: string | null;
+};
+
+export async function loadWeekContext(
+  context: AuthContext,
+  weekParam?: string,
+): Promise<WeekContext> {
+  const yearId = context.currentSchoolYear?.id;
+  if (!yearId) {
+    return { weeks: [], current: null, holidays: [], yearName: null };
+  }
+
+  const [year, holidays] = await Promise.all([
+    db.schoolYear.findUnique({
+      where: { id: yearId },
+      select: { name: true, startDate: true, endDate: true },
+    }),
+    db.schoolHoliday.findMany({
+      where: { schoolYearId: yearId },
+      orderBy: [{ startDate: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        startDate: true,
+        endDate: true,
+      },
+    }),
+  ]);
+
+  if (!year) return { weeks: [], current: null, holidays: [], yearName: null };
+
+  const weeks = schoolWeeks(year.startDate, year.endDate);
+  const current = resolveWeek(weeks, weekParam);
+
+  const serialise = (week: SchoolWeek) => ({
+    index: week.index,
+    start: toDateKey(week.start),
+    end: toDateKey(week.end),
+  });
+
+  return {
+    weeks: weeks.map(serialise),
+    current: current ? serialise(current) : null,
+    holidays: holidays.map((holiday) => ({
+      id: holiday.id,
+      name: holiday.name,
+      kind: holiday.kind,
+      startDate: toDateKey(holiday.startDate),
+      endDate: toDateKey(holiday.endDate),
+    })),
+    yearName: year.name,
+  };
+}
+
+/** What a one-off change says about one period of one week. */
+export type ExceptionView = {
+  id: string;
+  kind: string;
+  subjectName: string | null;
+  teacherName: string | null;
+  roomCode: string | null;
+  note: string | null;
+};
+
+/** A teacher away on a given day, and who is covering if anyone is. */
+export type AbsenceView = {
+  teacherId: string;
+  teacherName: string;
+  substituteName: string | null;
+  kind: string;
+};
+
+/**
+ * What differs about one class's week: the one-off changes, and who is away.
+ *
+ * Kept apart from `loadClassTimetable` rather than folded into it, because the
+ * recurring grid is read on screens that have no week at all — the pupil's file
+ * shows "their class's week", not a dated one — and those must not pay for a
+ * lookup they cannot use.
+ *
+ * Absences are returned per weekday rather than per lesson: one absence row
+ * covers every lesson its teacher holds that day, and expanding it here would
+ * be the duplication the table exists to avoid. The grid intersects it with
+ * whichever cells name that teacher.
+ */
+export type WeekOverlay = {
+  /** Keyed by `timeSlotId` — exactly what a cell knows about itself. */
+  exceptions: Record<string, ExceptionView>;
+  /** ISO weekday (1 = Monday) → the teachers away that day. */
+  absencesByDay: Record<number, AbsenceView[]>;
+};
+
+export async function loadWeekOverlay(
+  context: AuthContext,
+  schoolClassId: string,
+  /** Monday of the week, `YYYY-MM-DD`. */
+  weekStartKey: string | null,
+): Promise<WeekOverlay> {
+  const empty: WeekOverlay = { exceptions: {}, absencesByDay: {} };
+  const schoolId = context.currentSchool?.id;
+  if (!weekStartKey || !schoolId) return empty;
+
+  const weekStart = new Date(`${weekStartKey}T00:00:00`);
+  if (Number.isNaN(weekStart.getTime())) return empty;
+  const weekEnd = addDays(weekStart, 6);
+
+  const [exceptions, absences] = await Promise.all([
+    db.timetableException.findMany({
+      // Scoped through the class, which the caller has already resolved against
+      // the school and year — an exception cannot be read for a class the
+      // viewer could not have opened.
+      where: {
+        schoolClassId,
+        weekStart,
+        schoolClass: { schoolId },
+      },
+      select: {
+        id: true,
+        kind: true,
+        timeSlotId: true,
+        note: true,
+        subject: { select: { name: true } },
+        room: { select: { code: true } },
+        teacher: {
+          select: {
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+    // Any absence overlapping the week at all: one that started last Thursday
+    // and runs to Tuesday still covers Monday of this one.
+    db.teacherAbsence.findMany({
+      where: {
+        schoolId,
+        startDate: { lte: weekEnd },
+        endDate: { gte: weekStart },
+      },
+      select: {
+        teacherId: true,
+        kind: true,
+        startDate: true,
+        endDate: true,
+        teacher: {
+          select: {
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+        substitute: {
+          select: {
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const bySlot: Record<string, ExceptionView> = {};
+  for (const exception of exceptions) {
+    bySlot[exception.timeSlotId] = {
+      id: exception.id,
+      kind: exception.kind,
+      subjectName: exception.subject?.name ?? null,
+      teacherName: exception.teacher ? displayName(exception.teacher) : null,
+      roomCode: exception.room?.code ?? null,
+      note: exception.note,
+    };
+  }
+
+  const absencesByDay: Record<number, AbsenceView[]> = {};
+  for (let offset = 0; offset < 7; offset += 1) {
+    const day = addDays(weekStart, offset);
+    const away = absences.filter((absence) =>
+      isWithin(day, absence.startDate, absence.endDate),
+    );
+    if (away.length === 0) continue;
+
+    absencesByDay[offset + 1] = away.map((absence) => ({
+      teacherId: absence.teacherId,
+      teacherName: displayName(absence.teacher),
+      substituteName: absence.substitute
+        ? displayName(absence.substitute)
+        : null,
+      kind: absence.kind,
+    }));
+  }
+
+  return { exceptions: bySlot, absencesByDay };
 }

@@ -76,6 +76,8 @@ const core = {
       "The undersigned certifies that the pupil named below is enrolled at this school for the {year} school year, in the class shown.",
     schedule: "Fee schedule",
     classList: "Class list",
+    timetable: "Timetable",
+    teacherTimetable: "Teacher's timetable",
     pupilCount: "{count} pupils",
     total: "Total",
     dueOn: "Due",

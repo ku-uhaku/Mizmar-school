@@ -105,6 +105,7 @@ export function ResourceDialog({
                 key={field.name}
                 field={field}
                 row={row}
+                submitted={state.values}
                 choices={choices[field.name] ?? []}
                 error={errors[field.name]}
                 label={labels[field.labelKey] ?? field.labelKey}
@@ -135,6 +136,7 @@ export function ResourceDialog({
 export function ResourceField({
   field,
   row,
+  submitted,
   choices,
   error,
   label,
@@ -143,6 +145,13 @@ export function ResourceField({
 }: {
   field: FieldDef;
   row?: ResourceRow;
+  /**
+   * What the last, rejected submission sent. React empties an uncontrolled form
+   * the moment its action returns, so without this a validation error would
+   * hand the user back the *stored* row and silently discard their edit — see
+   * the note on `ActionState.values`.
+   */
+  submitted?: Record<string, string>;
   choices: Choice[];
   error?: string;
   label: string;
@@ -150,13 +159,20 @@ export function ResourceField({
   noneLabel: string;
 }) {
   const t = useT();
-  const current = row?.[field.name];
+  // The rejected submission wins over the stored row; `undefined` rather than
+  // `""` is the test, so a field the user deliberately cleared stays cleared.
+  const current = submitted?.[field.name] ?? row?.[field.name];
   const span = field.wide || field.type === "textarea" ? "sm:col-span-2" : "";
 
   // A switch reads better as a bordered row with its label than as a form field.
   if (field.type === "boolean") {
-    const checked =
-      current === null || current === undefined
+    const checked = submitted
+      ? // An unticked switch posts nothing at all, so its absence from a
+        // submission that did happen means false — not "fall back to the row".
+        submitted[field.name] === "on" ||
+        submitted[field.name] === "true" ||
+        submitted[field.name] === "1"
+      : current === null || current === undefined
         ? Boolean(field.defaultValue)
         : Boolean(current);
 

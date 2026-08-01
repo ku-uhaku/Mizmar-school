@@ -324,11 +324,7 @@ function PayslipDialog({
     },
   );
 
-  const money = (
-    key: keyof typeof amounts,
-    label: string,
-    error?: string,
-  ) => (
+  const money = (key: keyof typeof amounts, label: string, error?: string) => (
     <Field label={label} name={key} error={error}>
       <Input
         id={key}
@@ -431,7 +427,12 @@ function PayslipDialog({
               </Select>
             </Field>
             <Field label={t.hr.notes} name="notes">
-              <Textarea id="notes" name="notes" rows={2} defaultValue={line.notes ?? ""} />
+              <Textarea
+                id="notes"
+                name="notes"
+                rows={2}
+                defaultValue={line.notes ?? ""}
+              />
             </Field>
           </div>
 

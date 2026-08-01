@@ -15,7 +15,9 @@ import { defaultSchoolYearFor } from "@/modules/school-years/queries";
  * devices. Both actions re-derive what the user may reach from the session.
  */
 
-export async function switchSchoolAction(schoolId: string): Promise<ActionState> {
+export async function switchSchoolAction(
+  schoolId: string,
+): Promise<ActionState> {
   return withActionErrors(async () => {
     const t = await getDictionary();
     const context = await requireAuth();

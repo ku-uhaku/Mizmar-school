@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   clearOtherDefaultYears,
@@ -42,7 +43,11 @@ export async function createSchoolYearAction(
 
     const parsed = schoolYearSchema(t).safeParse(readYearForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.schoolYear.findUnique({
@@ -81,7 +86,11 @@ export async function updateSchoolYearAction(
 
     const parsed = schoolYearSchema(t).safeParse(readYearForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.schoolYear.findFirst({

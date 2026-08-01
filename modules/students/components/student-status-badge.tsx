@@ -10,13 +10,14 @@ import { Badge } from "@/components/ui/badge";
  * and a status that reads as neutral in one place and alarming in another is a
  * status nobody trusts.
  */
-const VARIANTS: Record<string, React.ComponentProps<typeof Badge>["variant"]> = {
-  ENROLLED: "default",
-  PRE_REGISTERED: "secondary",
-  GRADUATED: "secondary",
-  TRANSFERRED: "outline",
-  WITHDRAWN: "outline",
-};
+const VARIANTS: Record<string, React.ComponentProps<typeof Badge>["variant"]> =
+  {
+    ENROLLED: "default",
+    PRE_REGISTERED: "secondary",
+    GRADUATED: "secondary",
+    TRANSFERRED: "outline",
+    WITHDRAWN: "outline",
+  };
 
 export function StudentStatusBadge({ status }: { status: string }) {
   const t = useT();

@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { formatAmount, interpolate } from "@/lib/i18n/format";
 import { deleteStaffAction, saveStaffAction } from "@/modules/hr/actions";
 import { Field } from "@/modules/hr/components/field";
@@ -326,29 +327,35 @@ function StaffDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <form action={formAction} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>
-              {person ? t.hr.editStaff : t.hr.newStaff}
-            </DialogTitle>
+            <DialogTitle>{person ? t.hr.editStaff : t.hr.newStaff}</DialogTitle>
             <DialogDescription>{t.hr.codeHint}</DialogDescription>
           </DialogHeader>
 
           {person ? <input type="hidden" name="id" value={person.id} /> : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.firstName} name="firstName" error={errors.firstName}>
+            <Field
+              label={t.hr.firstName}
+              name="firstName"
+              error={errors.firstName}
+            >
               <Input
                 id="firstName"
                 name="firstName"
                 required
-                defaultValue={person?.firstName ?? ""}
+                defaultValue={valueOf(state, "firstName", person?.firstName)}
               />
             </Field>
-            <Field label={t.hr.lastName} name="lastName" error={errors.lastName}>
+            <Field
+              label={t.hr.lastName}
+              name="lastName"
+              error={errors.lastName}
+            >
               <Input
                 id="lastName"
                 name="lastName"
                 required
-                defaultValue={person?.lastName ?? ""}
+                defaultValue={valueOf(state, "lastName", person?.lastName)}
               />
             </Field>
           </div>
@@ -364,10 +371,19 @@ function StaffDialog({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label={t.hr.code} name="code" error={errors.code}>
-              <Input id="code" name="code" defaultValue={person?.code ?? ""} />
+              <Input
+                id="code"
+                name="code"
+                defaultValue={valueOf(state, "code", person?.code)}
+              />
             </Field>
             <Field label={t.hr.jobRole} name="jobRole">
-              <Select name="jobRole" defaultValue={person?.jobRole ?? "TEACHER"}>
+              <Select
+                name="jobRole"
+                defaultValue={
+                  valueOf(state, "jobRole", person?.jobRole) || "TEACHER"
+                }
+              >
                 <SelectTrigger id="jobRole" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -381,7 +397,12 @@ function StaffDialog({
               </Select>
             </Field>
             <Field label={t.hr.staffStatus} name="status">
-              <Select name="status" defaultValue={person?.status ?? "ACTIVE"}>
+              <Select
+                name="status"
+                defaultValue={
+                  valueOf(state, "status", person?.status) || "ACTIVE"
+                }
+              >
                 <SelectTrigger id="status" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -400,7 +421,7 @@ function StaffDialog({
             <Input
               id="jobTitle"
               name="jobTitle"
-              defaultValue={person?.jobTitle ?? ""}
+              defaultValue={valueOf(state, "jobTitle", person?.jobTitle)}
             />
           </Field>
 
@@ -445,7 +466,7 @@ function StaffDialog({
                 id="phone"
                 name="phone"
                 dir="ltr"
-                defaultValue={person?.phone ?? ""}
+                defaultValue={valueOf(state, "phone", person?.phone)}
               />
             </Field>
             <Field label={t.hr.email} name="email" error={errors.email}>
@@ -454,7 +475,7 @@ function StaffDialog({
                 name="email"
                 type="email"
                 dir="ltr"
-                defaultValue={person?.email ?? ""}
+                defaultValue={valueOf(state, "email", person?.email)}
               />
             </Field>
           </div>
@@ -475,7 +496,12 @@ function StaffDialog({
           {linkableUsers.length > 0 ? (
             <div className="grid gap-1.5">
               <Field label={t.hr.account} name="userId">
-                <Select name="userId" defaultValue={person?.userId ?? "__none__"}>
+                <Select
+                  name="userId"
+                  defaultValue={
+                    valueOf(state, "userId", person?.userId) || "__none__"
+                  }
+                >
                   <SelectTrigger id="userId" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -489,7 +515,9 @@ function StaffDialog({
                   </SelectContent>
                 </Select>
               </Field>
-              <p className="text-muted-foreground text-xs">{t.hr.accountHint}</p>
+              <p className="text-muted-foreground text-xs">
+                {t.hr.accountHint}
+              </p>
             </div>
           ) : null}
 

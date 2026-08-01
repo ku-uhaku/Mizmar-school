@@ -56,7 +56,10 @@ export function TeacherWeek({ week }: { week: TeacherWeekData }) {
                   <span className="tabular-nums" dir="ltr">
                     {column.startTime}
                   </span>
-                  <span className="text-muted-foreground block text-[10px] tabular-nums" dir="ltr">
+                  <span
+                    className="text-muted-foreground block text-[10px] tabular-nums"
+                    dir="ltr"
+                  >
                     {column.endTime}
                   </span>
                 </th>

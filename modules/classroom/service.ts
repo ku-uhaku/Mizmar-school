@@ -14,6 +14,20 @@ import {
  * a roster they actually teach. Every function here re-derives that from the
  * `TeachingAssignment` rows rather than trusting the ids it was handed, so a
  * crafted enrolment id reaches nothing.
+ *
+ * ── `actsForSchool`, and why it is not a hole ────────────────────────────────
+ * Anything a teacher may do, the office may do too — a director covering an
+ * absent colleague still has to take the register, and telling them to go and
+ * assign themselves to the class first is ceremony that ends with a fake
+ * assignment left behind. So each write takes `actsForSchool`, decided in the
+ * action from the *office-side* permission of its pair
+ * (`classroom.attendanceJustify`, `classroom.remarkPublish`) — codes whose doc
+ * comments already say they are an office decision and not a teacher's.
+ *
+ * It relaxes *which roster*, never *which school*: with it set, the class is
+ * re-derived from `schoolId` instead of from an assignment, and `schoolId` is
+ * always the working context, never the request. A user without the office code
+ * is confined to their own classes exactly as before.
  */
 
 export type AttendanceMark = {
@@ -41,25 +55,45 @@ export type SaveRegisterResult =
 export async function saveRegister(
   input: {
     teacherId: string;
+    schoolId: string;
     schoolClassId: string;
     subjectId: string | null;
     timeSlotId: string | null;
     date: Date;
     marks: AttendanceMark[];
+    /** See the note at the top of this file. */
+    actsForSchool: boolean;
   },
 ): Promise<SaveRegisterResult> {
   const day = startOfDay(input.date);
 
-  // The assignment is the authority: no assignment, no register.
-  const assignment = await db.teachingAssignment.findFirst({
-    where: {
-      teacherId: input.teacherId,
-      schoolClassId: input.schoolClassId,
-      ...(input.subjectId ? { subjectId: input.subjectId } : {}),
-    },
-    select: { classGroupId: true },
-  });
-  if (!assignment) return { ok: false, reason: "not-teaching" };
+  let classGroupId: string | null = null;
+
+  if (input.actsForSchool) {
+    // The school is the authority instead of the assignment — but it *is* an
+    // authority: a class in another school still reaches nothing.
+    const schoolClass = await db.schoolClass.findFirst({
+      where: { id: input.schoolClassId, schoolId: input.schoolId },
+      select: { id: true },
+    });
+    if (!schoolClass) return { ok: false, reason: "not-teaching" };
+    // Whole class, not a half: somebody standing in has no group of their own,
+    // and guessing one would silently leave half the register unmarked.
+    classGroupId = null;
+  } else {
+    // The assignment is the authority: no assignment, no register.
+    const assignment = await db.teachingAssignment.findFirst({
+      where: {
+        teacherId: input.teacherId,
+        schoolClassId: input.schoolClassId,
+        schoolClass: { schoolId: input.schoolId },
+        ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+      },
+      select: { classGroupId: true },
+    });
+    if (!assignment) return { ok: false, reason: "not-teaching" };
+    classGroupId = assignment.classGroupId;
+  }
 
   for (const mark of input.marks) {
     if (mark.minutesLate === null) continue;
@@ -75,9 +109,7 @@ export async function saveRegister(
   const roster = await db.enrollment.findMany({
     where: {
       schoolClassId: input.schoolClassId,
-      ...(assignment.classGroupId
-        ? { classGroupId: assignment.classGroupId }
-        : {}),
+      ...(classGroupId ? { classGroupId } : {}),
     },
     select: { id: true },
   });
@@ -125,6 +157,9 @@ export async function saveRegister(
 
 export type RemarkInput = {
   authorId: string;
+  schoolId: string;
+  /** See the note at the top of this file. */
+  actsForSchool: boolean;
   enrollmentId: string;
   subjectId: string | null;
   kind: string;
@@ -147,7 +182,12 @@ export async function writeRemark(
     where: {
       id: input.enrollmentId,
       schoolClass: {
-        assignments: { some: { teacherId: input.authorId } },
+        schoolId: input.schoolId,
+        // The office writes about any pupil of the school; a teacher only about
+        // the ones they teach.
+        ...(input.actsForSchool
+          ? {}
+          : { assignments: { some: { teacherId: input.authorId } } }),
       },
     },
     select: { id: true },

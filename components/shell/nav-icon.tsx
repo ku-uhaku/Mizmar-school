@@ -1,5 +1,6 @@
 import {
   ArrowLeftRightIcon,
+  BackpackIcon,
   BanknoteArrowDownIcon,
   BanknoteArrowUpIcon,
   BusIcon,
@@ -59,6 +60,7 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   families: HomeIcon,
   classes: LayersIcon,
   assessments: ClipboardCheckIcon,
+  supplies: BackpackIcon,
   timetable: CalendarClockIcon,
   cashRegister: WalletIcon,
   encaissement: BanknoteArrowDownIcon,

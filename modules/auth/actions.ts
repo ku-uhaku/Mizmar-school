@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import * as z from "zod";
 
 import { failure, type ActionState } from "@/lib/action-state";
-import { serializeUiPrefs, UI_PREFS_COOKIE, normalizeUiPrefs } from "@/modules/appearance/prefs";
+import {
+  serializeUiPrefs,
+  UI_PREFS_COOKIE,
+  normalizeUiPrefs,
+} from "@/modules/appearance/prefs";
 import { checkCredentials, signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
@@ -73,7 +77,10 @@ export async function loginAction(
   }
 
   const result = await withActionErrors(async () => {
-    const check = await checkCredentials(parsed.data.email, parsed.data.password);
+    const check = await checkCredentials(
+      parsed.data.email,
+      parsed.data.password,
+    );
 
     if (!check.ok) {
       return failure(

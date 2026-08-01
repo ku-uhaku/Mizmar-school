@@ -36,7 +36,13 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { formatAmount, formatDate, formatMonth, interpolate } from "@/lib/i18n/format";
+import { valueOf } from "@/lib/form-values";
+import {
+  formatAmount,
+  formatDate,
+  formatMonth,
+  interpolate,
+} from "@/lib/i18n/format";
 import { endContractAction, saveContractAction } from "@/modules/hr/actions";
 import {
   CONTRACT_KINDS,
@@ -106,13 +112,13 @@ export function StaffPanel({
             label={t.hr.leftOn}
             value={person.leftOn ? formatDate(person.leftOn, locale) : "—"}
           />
-          <Fact label={t.hr.account} value={person.userEmail ?? t.hr.noAccount} ltr />
+          <Fact
+            label={t.hr.account}
+            value={person.userEmail ?? t.hr.noAccount}
+            ltr
+          />
           {canPayroll ? (
-            <Fact
-              label={t.hr.bankRib}
-              value={person.bankRib ?? "—"}
-              ltr
-            />
+            <Fact label={t.hr.bankRib} value={person.bankRib ?? "—"} ltr />
           ) : null}
         </CardContent>
       </Card>
@@ -150,7 +156,9 @@ export function StaffPanel({
                         <TableHead>{t.hr.contractKind}</TableHead>
                         <TableHead>{t.hr.startsOn}</TableHead>
                         <TableHead>{t.hr.endsOn}</TableHead>
-                        <TableHead className="text-end">{t.hr.baseSalary}</TableHead>
+                        <TableHead className="text-end">
+                          {t.hr.baseSalary}
+                        </TableHead>
                         <TableHead>{t.hr.contractStatus}</TableHead>
                         {canManage ? (
                           <TableHead className="text-end">
@@ -277,7 +285,9 @@ export function StaffPanel({
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {salary.paidOn ? formatDate(salary.paidOn, locale) : "—"}
+                          {salary.paidOn
+                            ? formatDate(salary.paidOn, locale)
+                            : "—"}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -429,7 +439,10 @@ function ContractDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t.hr.contractKind} name="kind">
-              <Select name="kind" defaultValue={contract?.kind ?? "CDI"}>
+              <Select
+                name="kind"
+                defaultValue={valueOf(state, "kind", contract?.kind) || "CDI"}
+              >
                 <SelectTrigger id="kind" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -443,7 +456,12 @@ function ContractDialog({
               </Select>
             </Field>
             <Field label={t.hr.contractStatus} name="status">
-              <Select name="status" defaultValue={contract?.status ?? "ACTIVE"}>
+              <Select
+                name="status"
+                defaultValue={
+                  valueOf(state, "status", contract?.status) || "ACTIVE"
+                }
+              >
                 <SelectTrigger id="status" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -459,7 +477,11 @@ function ContractDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={t.hr.startsOn} name="startsOn" error={errors.startsOn}>
+            <Field
+              label={t.hr.startsOn}
+              name="startsOn"
+              error={errors.startsOn}
+            >
               <Input
                 id="startsOn"
                 name="startsOn"
@@ -515,7 +537,14 @@ function ContractDialog({
                 type="number"
                 min="0"
                 dir="ltr"
-                defaultValue={contract?.weeklyHours ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "weeklyHours",
+                  contract?.weeklyHours === null ||
+                    contract?.weeklyHours === undefined
+                    ? ""
+                    : String(contract.weeklyHours),
+                )}
               />
             </Field>
           </div>
@@ -526,7 +555,7 @@ function ContractDialog({
               id="notes"
               name="notes"
               rows={2}
-              defaultValue={contract?.notes ?? ""}
+              defaultValue={valueOf(state, "notes", contract?.notes)}
             />
           </Field>
 

@@ -1,0 +1,54 @@
+/// A town, as the school writes it on paperwork.
+///
+/// A lookup table rather than a free-text column because the same place was
+/// being typed four different ways — "Casa", "Casablanca", "الدار البيضاء" — and
+/// none of them sorted, grouped or matched the others. A certificat de scolarité
+/// has to print the town in French and in Arabic, so both spellings are agreed
+/// once here instead of being retyped per pupil.
+///
+/// School-scoped like everything else reachable from the working context. A
+/// groupe scolaire therefore keeps a list per school; that is the same trade
+/// `Family` already makes, and it lets one school of the group serve a town the
+/// others never see.
+///
+/// Not restricted to Morocco: a pupil born in Paris or Dakar needs a row too, so
+/// `region` is nullable and nothing here assumes a Moroccan préfecture.
+model City {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short reference, e.g. "CASA". What a printed list and an import file key
+  /// the town on, since two schools may spell the name differently.
+  code String
+
+  name String
+  /// The Arabic spelling, printed on the Arabic half of the paperwork. Agreed
+  /// once per town, which is the whole reason this table exists.
+  nameAr String?
+
+  /// Région or province, for grouping a long list. Free text: the Moroccan
+  /// découpage has been redrawn twice in twenty years and a school's list is
+  /// not the place to model it.
+  region String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Restrict on both: a town with pupils born in it cannot be deleted out from
+  /// under them. Deactivate it instead — `isActive` is what keeps a merged or
+  /// misspelt entry out of the pickers without rewriting history.
+  studentsBornHere      Student[] @relation("StudentBirthCity")
+  studentsSchooledHere  Student[] @relation("StudentPreviousSchoolCity")
+
+  /// Its quartiers — see prisma/schema/geography/neighbourhood.prisma.
+  neighbourhoods Neighbourhood[]
+
+  @@unique([schoolId, code])
+  /// Two rows for the same town defeat the point of the list.
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("cities")
+}

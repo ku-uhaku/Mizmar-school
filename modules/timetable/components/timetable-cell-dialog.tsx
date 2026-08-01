@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
-import { Trash2Icon } from "lucide-react";
+import { CalendarClockIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/form/form-field";
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -26,14 +27,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   deleteTimetableEntryAction,
+  deleteTimetableExceptionAction,
   saveTimetableEntryAction,
+  saveTimetableExceptionAction,
 } from "@/modules/timetable/actions";
 import type { TimetableChoices } from "@/modules/timetable/components/timetable-grid";
-import type { TimetableCell } from "@/modules/timetable/queries";
+import type { ExceptionView, TimetableCell } from "@/modules/timetable/queries";
 
 /**
  * What goes in one cell of the grid.
@@ -52,6 +56,9 @@ export function TimetableCellDialog({
   choices,
   maxSpan,
   repeatableDays,
+  weekStart,
+  weekNumber,
+  exception,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,6 +72,11 @@ export function TimetableCellDialog({
   maxSpan: number;
   /** Days whose bell schedule runs this same period. */
   repeatableDays: number[];
+  /** Monday of the week on screen. Null on grids drawn without a week. */
+  weekStart: string | null;
+  weekNumber: number | null;
+  /** The one-off change already on this period, if any. */
+  exception: ExceptionView | null;
 }) {
   const t = useT();
   const [state, formAction] = useActionState(saveTimetableEntryAction, IDLE);
@@ -80,6 +92,26 @@ export function TimetableCellDialog({
   // block, is just the one clicked; repeating is always an addition.
   const [days, setDays] = React.useState<number[]>([dayOfWeek]);
   const [clearing, startClearing] = React.useTransition();
+
+  const [weekState, weekAction] = useActionState(
+    saveTimetableExceptionAction,
+    IDLE,
+  );
+  useActionFeedback(weekState, { onSuccess: () => onOpenChange(false) });
+  const [restoring, startRestoring] = React.useTransition();
+
+  function restoreWeek() {
+    if (!exception) return;
+    startRestoring(async () => {
+      const result = await deleteTimetableExceptionAction(exception.id);
+      if (result.status === "success") {
+        toast.success(result.message ?? t.timetable.exceptionCleared);
+        onOpenChange(false);
+      } else {
+        toast.error(result.message ?? t.errors.unexpected);
+      }
+    });
+  }
 
   const errors = state.fieldErrors ?? {};
   const otherDays = repeatableDays.filter((day) => day !== dayOfWeek);
@@ -179,7 +211,12 @@ export function TimetableCellDialog({
                 hint={t.timetable.roomHint}
                 error={errors.roomId}
               >
-                <Select name="roomId" defaultValue={entry?.roomId ?? "__none__"}>
+                <Select
+                  name="roomId"
+                  defaultValue={
+                    valueOf(state, "roomId", entry?.roomId) || "__none__"
+                  }
+                >
                   <SelectTrigger id="roomId" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -203,7 +240,10 @@ export function TimetableCellDialog({
               >
                 <Select
                   name="classGroupId"
-                  defaultValue={entry?.classGroupId ?? "__none__"}
+                  defaultValue={
+                    valueOf(state, "classGroupId", entry?.classGroupId) ||
+                    "__none__"
+                  }
                   disabled={choices.groups.length === 0}
                 >
                   <SelectTrigger id="classGroupId" className="w-full">
@@ -254,7 +294,12 @@ export function TimetableCellDialog({
                 hint={t.timetable.termHint}
                 error={errors.termId}
               >
-                <Select name="termId" defaultValue={entry?.termId ?? "__none__"}>
+                <Select
+                  name="termId"
+                  defaultValue={
+                    valueOf(state, "termId", entry?.termId) || "__none__"
+                  }
+                >
                   <SelectTrigger id="termId" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -358,6 +403,98 @@ export function TimetableCellDialog({
             </div>
           </DialogFooter>
         </form>
+
+        {/*
+          "This week only", kept apart from the form above and posting to its
+          own action. The two are different decisions — the form changes the
+          recurring grid from now on, this changes week N and nothing else — and
+          putting them behind one Save is how somebody moves a lesson for the
+          whole year meaning to move it once. Absent when the grid is drawn
+          without a week behind it, since there is no week to change.
+        */}
+        {weekStart && weekNumber !== null ? (
+          <div className="mt-2 rounded-lg border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarClockIcon className="text-muted-foreground size-4" />
+              <h3 className="text-sm font-medium">
+                {t.timetable.thisWeekOnly}
+              </h3>
+            </div>
+            <p className="text-muted-foreground mb-3 text-xs text-pretty">
+              {interpolate(t.timetable.thisWeekOnlyHint, {
+                number: weekNumber,
+              })}
+            </p>
+
+            {exception ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm">
+                  {exception.kind === "CANCELLED"
+                    ? t.timetable.cancelledThisWeek
+                    : (exception.subjectName ?? t.timetable.replaceLesson)}
+                  {exception.note ? (
+                    <span className="text-muted-foreground ms-1.5 text-xs">
+                      {exception.note}
+                    </span>
+                  ) : null}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={restoreWeek}
+                  disabled={restoring}
+                >
+                  {t.timetable.backToUsual}
+                </Button>
+              </div>
+            ) : (
+              <form action={weekAction} className="grid gap-3">
+                <input
+                  type="hidden"
+                  name="schoolClassId"
+                  value={schoolClassId}
+                />
+                <input type="hidden" name="timeSlotId" value={timeSlotId} />
+                <input type="hidden" name="weekStart" value={weekStart} />
+                {entry?.classGroupId ? (
+                  <input
+                    type="hidden"
+                    name="classGroupId"
+                    value={entry.classGroupId}
+                  />
+                ) : null}
+
+                <FormField
+                  name="note"
+                  label={t.timetable.reason}
+                  error={weekState.fieldErrors?.note}
+                >
+                  <Input
+                    id="note"
+                    name="note"
+                    placeholder={t.timetable.reasonPlaceholder}
+                  />
+                </FormField>
+
+                {/* Only cancelling is offered here for now, so the kind is
+                  fixed rather than chosen — a select with one option is a
+                  question with one answer. */}
+                <input type="hidden" name="kind" value="CANCELLED" />
+
+                <div className="flex flex-wrap gap-2">
+                  <SubmitButton
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive"
+                  >
+                    {t.timetable.cancelLesson}
+                  </SubmitButton>
+                </div>
+              </form>
+            )}
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

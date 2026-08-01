@@ -31,6 +31,7 @@ model ClassGroup {
   assignments      TeachingAssignment[]
   assessments      Assessment[]
   timetableEntries TimetableEntry[]
+  timetableExceptions TimetableException[]
   enrollments      Enrollment[]
 
   @@unique([schoolClassId, code])

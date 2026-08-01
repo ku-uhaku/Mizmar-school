@@ -58,7 +58,11 @@ const en = {
       programme: "Programme",
       assessmentTypes: "Assessment kinds",
       rooms: "Rooms",
+      cities: "Towns",
+      neighbourhoods: "Districts",
       terms: "Terms",
+      holidays: "Holidays",
+      teacherAbsences: "Teacher absences",
       timeSlots: "Time slots",
       levelOfferings: "Levels offered",
       schoolClasses: "Classes",
@@ -69,6 +73,9 @@ const en = {
     },
 
     fields: {
+      region: "Region",
+      city: "Town",
+      landmark: "Street or landmark",
       agency: "Branch",
       accountNumber: "Account number",
       categoryKind: "Side",
@@ -117,6 +124,9 @@ const en = {
       notes: "Notes",
       termNumber: "Number",
       startDate: "Start date",
+      holidayKind: "Kind",
+      absenceKind: "Reason",
+      substitute: "Covered by",
       endDate: "End date",
       status: "Status",
       dayOfWeek: "Day",
@@ -145,6 +155,10 @@ const en = {
     },
 
     hints: {
+      region: "Optional — only useful for grouping a long list.",
+      holidayEnd: "Inclusive — a single day repeats the start date.",
+      substitute: "Leave blank if nobody is covering.",
+      landmark: "What pins it down where the name alone is ambiguous.",
       agency: "The branch the school actually banks with.",
       accountNumber: "The school's own account, for the transfers it makes.",
       categoryKind:
@@ -220,6 +234,18 @@ const en = {
       PRIMARY: "Primary",
       SECONDARY_COLLEGE: "Lower secondary",
       SECONDARY_QUALIFYING: "Upper secondary",
+    },
+    absenceKinds: {
+      SICK: "Sick leave",
+      LEAVE: "Leave",
+      TRAINING: "Training",
+      OTHER: "Other",
+    },
+    holidayKinds: {
+      SCHOOL_HOLIDAY: "School holiday",
+      PUBLIC_HOLIDAY: "Public holiday",
+      EXAM_PERIOD: "Exam period",
+      CLOSURE: "Closure",
     },
     roomKinds: {
       CLASSROOM: "Classroom",

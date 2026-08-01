@@ -12,6 +12,24 @@ const fr = {
 
     // ── Les quatre sections de travail ──────────────────────────────────────
     sections: "Vos sections",
+
+    charts: "L'année en un coup d'œil",
+    pupilsPerLevel: "Élèves par niveau",
+    pupilsPerLevelHint:
+      "Comment l'effectif de cette année se répartit sur les niveaux ouverts.",
+    pupilsUnit: "élèves",
+    levelLabel: "Niveau",
+    collectionTrend: "Encaissé chaque mois",
+    collectionTrendHint:
+      "Les reçus établis, mois par mois. Les reçus annulés sont exclus.",
+    collectionSplit: "Les frais de l'année",
+    collectionSplitHint: "Ce qui est réglé face à ce qui reste dû.",
+    paidLabel: "Réglé",
+    outstandingLabel: "Restant dû",
+    collectionRate: "Taux de recouvrement",
+    overdueNote: "{amount} sont déjà échus.",
+    monthLabel: "Mois",
+    noChartData: "Rien à représenter pour l'instant.",
     vieScolaireHint: "Les familles, les enfants et l'année qu'ils suivent.",
     financeHint: "Ce qui entre, ce qui sort, et ce que les caisses contiennent.",
     logistiqueHint: "Le parc, les lignes qu'il dessert et qui les emprunte.",

@@ -94,6 +94,7 @@ export function stopSchema(t: Dictionary) {
     name: requiredText(v, { max: 120 }),
     nameAr: optionalText(120),
     landmark: optionalText(160),
+    neighbourhoodId: optionalText(40),
     zoneId: optionalText(40),
     position: z.coerce.number({ error: v.invalidNumber }).int().min(0).max(999),
     pickupTime: timeField(t),

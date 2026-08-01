@@ -51,6 +51,10 @@ model School {
   levels          Level[]
   subjects        Subject[]
   rooms           Room[]
+  /// Towns the school writes on paperwork — birthplaces, previous schools —
+  /// and the quartiers within them.
+  cities          City[]
+  neighbourhoods  Neighbourhood[]
   /// Denormalised back-reference; a class always belongs to one of this school's
   /// years. See the invariant note on SchoolClass.schoolId.
   classes         SchoolClass[]
@@ -70,6 +74,11 @@ model School {
   /// The fleet. Year-independent: what each bus does in a given year is a
   /// TransportRoute. See prisma/schema/transport/.
   vehicles Vehicle[]
+
+  /// Days its teachers are away — see prisma/schema/timetable/teacher-absence.prisma.
+  teacherAbsences TeacherAbsence[]
+  /// Listes de fournitures, once approved — see prisma/schema/supplies/.
+  supplyLists     SupplyList[]
 
   // ── RH ────────────────────────────────────────────────────────────────────
   /// Everybody on the payroll. Year-independent, like the fleet: an employee is

@@ -92,6 +92,7 @@ const ar = {
     editStop: "تعديل المحطة",
     stopName: "المحطة",
     landmark: "المَعْلَمة",
+    neighbourhood: "الحي",
     landmarkHint: "ما يُستدل به: «أمام الصيدلية».",
     position: "الترتيب",
     pickupTime: "وقت الأخذ",

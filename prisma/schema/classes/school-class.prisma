@@ -49,6 +49,8 @@ model SchoolClass {
   groups           ClassGroup[]
   assignments      TeachingAssignment[]
   timetableEntries TimetableEntry[]
+  supplyLists      SupplyList[]
+  timetableExceptions TimetableException[]
   assessments      Assessment[]
   /// The roster: enrolments seated in this class.
   enrollments      Enrollment[]

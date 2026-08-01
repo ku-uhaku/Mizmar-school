@@ -1,10 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { CalendarDaysIcon, CheckIcon, ChevronsUpDownIcon, SchoolIcon } from "lucide-react";
+import {
+  CalendarDaysIcon,
+  CheckIcon,
+  ChevronsUpDownIcon,
+  SchoolIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import { switchSchoolAction, switchSchoolYearAction } from "@/modules/context/actions";
+import {
+  switchSchoolAction,
+  switchSchoolYearAction,
+} from "@/modules/context/actions";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +24,11 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { isDisplayableImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +39,12 @@ export type SchoolOption = {
   city: string | null;
   logoUrl: string | null;
 };
-export type YearOption = { id: string; name: string; status: string; isDefault: boolean };
+export type YearOption = {
+  id: string;
+  name: string;
+  status: string;
+  isDefault: boolean;
+};
 
 /**
  * Switches the school / school year the whole dashboard is scoped to. The
@@ -56,7 +73,8 @@ export function ContextSwitcher({
   function run(action: () => Promise<{ status: string; message?: string }>) {
     startTransition(async () => {
       const result = await action();
-      if (result.status === "error" && result.message) toast.error(result.message);
+      if (result.status === "error" && result.message)
+        toast.error(result.message);
     });
   }
 
@@ -116,7 +134,9 @@ export function ContextSwitcher({
                     <CheckIcon
                       className={cn(
                         "ms-auto size-4",
-                        school.id === currentSchoolId ? "opacity-100" : "opacity-0",
+                        school.id === currentSchoolId
+                          ? "opacity-100"
+                          : "opacity-0",
                       )}
                     />
                   </CommandItem>

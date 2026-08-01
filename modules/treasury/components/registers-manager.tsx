@@ -42,6 +42,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
@@ -358,7 +359,7 @@ function RegisterDialog({
               >
                 <Input
                   {...controlProps("code", errors.code)}
-                  defaultValue={register?.code ?? ""}
+                  defaultValue={valueOf(state, "code", register?.code)}
                   maxLength={32}
                   dir="ltr"
                   placeholder="PRINCIPALE"
@@ -389,7 +390,7 @@ function RegisterDialog({
             >
               <Input
                 {...controlProps("name", errors.name)}
-                defaultValue={register?.name ?? ""}
+                defaultValue={valueOf(state, "name", register?.name)}
                 maxLength={120}
               />
             </FormField>
@@ -401,7 +402,7 @@ function RegisterDialog({
             >
               <Input
                 {...controlProps("nameAr", errors.nameAr)}
-                defaultValue={register?.nameAr ?? ""}
+                defaultValue={valueOf(state, "nameAr", register?.nameAr)}
                 maxLength={120}
                 dir="rtl"
               />
@@ -414,7 +415,7 @@ function RegisterDialog({
             >
               <Textarea
                 {...controlProps("notes", errors.notes)}
-                defaultValue={register?.notes ?? ""}
+                defaultValue={valueOf(state, "notes", register?.notes)}
                 rows={2}
               />
             </FormField>

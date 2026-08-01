@@ -7,7 +7,10 @@ import { toast } from "sonner";
 
 import { useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
-import { TransferList, type TransferItem } from "@/components/shared/transfer-list";
+import {
+  TransferList,
+  type TransferItem,
+} from "@/components/shared/transfer-list";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,7 +87,9 @@ export function ClassRoster({
         ),
       );
 
-      const moved = results.filter((result) => result.status === "success").length;
+      const moved = results.filter(
+        (result) => result.status === "success",
+      ).length;
       const failed = results.length - moved;
 
       if (moved > 0) {
@@ -102,14 +107,17 @@ export function ClassRoster({
   }
 
   const over =
-    schoolClass.capacity !== null && schoolClass.enrolled > schoolClass.capacity;
+    schoolClass.capacity !== null &&
+    schoolClass.enrolled > schoolClass.capacity;
 
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>{t.schoolClass.roster}</CardTitle>
         <CardDescription>
-          {canManage ? t.schoolClass.rosterAssignHint : t.schoolClass.rosterHint}
+          {canManage
+            ? t.schoolClass.rosterAssignHint
+            : t.schoolClass.rosterHint}
         </CardDescription>
       </CardHeader>
 
@@ -150,7 +158,9 @@ export function ClassRoster({
                   <p
                     className={cn(
                       "text-xs",
-                      over ? "text-destructive font-medium" : "text-muted-foreground",
+                      over
+                        ? "text-destructive font-medium"
+                        : "text-muted-foreground",
                     )}
                   >
                     {schoolClass.capacity === null

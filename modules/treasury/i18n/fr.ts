@@ -121,6 +121,11 @@ const fr = {
     drawerName: "Tireur",
     bankName: "Banque",
     paidAt: "Réglé le",
+    collect: "Encaisser",
+    linesChosen: "{count} échéances",
+    stillToCover: "Reste à couvrir",
+    overPaid: "Excédent de",
+    backToCharges: "Retour aux échéances",
     recordPayment: "Enregistrer l'encaissement",
     paymentRecorded: "Reçu {code} enregistré.",
     lineAlreadySettled:

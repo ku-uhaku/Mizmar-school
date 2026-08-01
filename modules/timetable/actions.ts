@@ -3,12 +3,13 @@
 import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
-import { authorizeSchool } from "@/lib/dal";
+import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { isTeachingDayIn } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
@@ -17,7 +18,12 @@ import {
   findClash,
   saveLessonBlock,
 } from "@/modules/timetable/service";
-import { timetableEntrySchema } from "@/modules/timetable/validation";
+import {
+  timetableEntrySchema,
+  timetableExceptionSchema,
+} from "@/modules/timetable/validation";
+import { bookingKeyOf } from "@/modules/timetable/enums";
+import { schoolWeeks, startOfWeek } from "@/modules/timetable/weeks";
 
 /**
  * Actions for the timetable module.
@@ -58,7 +64,11 @@ export async function saveTimetableEntryAction(
       spanSlots: field(formData, "spanSlots") || "1",
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const entryId = field(formData, "id");
@@ -300,4 +310,188 @@ function orderedPeriods(
   return [...seen.values()].sort((a, b) =>
     a.startTime.localeCompare(b.startTime),
   );
+}
+
+/**
+ * Changes one period of one week, without touching the recurring grid.
+ *
+ * The counterpart to `saveTimetableEntryAction`: that one edits the template
+ * and so changes every week from now on, this one changes exactly the week on
+ * screen. Keeping them as two actions is what makes "this week only" versus
+ * "from now on" an explicit choice rather than a guess about intent — see
+ * prisma/schema/timetable/timetable-exception.prisma.
+ *
+ * Same permission as editing the template: moving a lesson for one week is the
+ * same kind of decision as moving it for good.
+ */
+export async function saveTimetableExceptionAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const parsed = timetableExceptionSchema(t).safeParse({
+      schoolClassId: field(formData, "schoolClassId"),
+      timeSlotId: field(formData, "timeSlotId"),
+      weekStart: field(formData, "weekStart"),
+      kind: field(formData, "kind"),
+      subjectId: optionalId(formData, "subjectId"),
+      teacherId: optionalId(formData, "teacherId"),
+      roomId: optionalId(formData, "roomId"),
+      classGroupId: optionalId(formData, "classGroupId"),
+      note: field(formData, "note"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    // The class decides the school and the year, exactly as when editing the
+    // template — the ids that follow are checked against those, never against
+    // the working context alone.
+    const schoolClass = await db.schoolClass.findUnique({
+      where: { id: parsed.data.schoolClassId },
+      select: {
+        id: true,
+        schoolId: true,
+        levelOffering: { select: { schoolYearId: true } },
+      },
+    });
+    if (!schoolClass) return failure(t.errors.notFound);
+
+    await authorizeSchool(schoolClass.schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    const schoolYearId = schoolClass.levelOffering.schoolYearId;
+
+    const slot = await db.timeSlot.findFirst({
+      where: { id: parsed.data.timeSlotId, schoolYearId },
+      select: { id: true, isBreak: true },
+    });
+    if (!slot) return failure(t.timetable.slotUnavailable);
+    if (slot.isBreak) return failure(t.timetable.slotIsBreak);
+
+    // The week must be one the year actually has. A `weekStart` from a stale
+    // tab would otherwise write an override for a week nothing will ever read.
+    const year = await db.schoolYear.findUnique({
+      where: { id: schoolYearId },
+      select: { startDate: true, endDate: true },
+    });
+    if (!year) return failure(t.errors.notFound);
+
+    const weekStart = startOfWeek(
+      new Date(`${parsed.data.weekStart}T00:00:00`),
+    );
+    const weeks = schoolWeeks(year.startDate, year.endDate);
+    const known = weeks.some(
+      (week) => week.start.getTime() === weekStart.getTime(),
+    );
+    if (!known) return failure(t.timetable.weekOutsideYear);
+
+    // Every reference re-read against the class's own school and year.
+    const [subject, teacher, room, group] = await Promise.all([
+      parsed.data.subjectId
+        ? db.subject.findFirst({
+            where: {
+              id: parsed.data.subjectId,
+              schoolId: schoolClass.schoolId,
+            },
+            select: { id: true },
+          })
+        : null,
+      parsed.data.teacherId
+        ? db.user.findFirst({
+            where: {
+              id: parsed.data.teacherId,
+              memberships: { some: { schoolId: schoolClass.schoolId } },
+            },
+            select: { id: true },
+          })
+        : null,
+      parsed.data.roomId
+        ? db.room.findFirst({
+            where: { id: parsed.data.roomId, schoolId: schoolClass.schoolId },
+            select: { id: true },
+          })
+        : null,
+      parsed.data.classGroupId
+        ? db.classGroup.findFirst({
+            where: {
+              id: parsed.data.classGroupId,
+              schoolClassId: schoolClass.id,
+            },
+            select: { id: true },
+          })
+        : null,
+    ]);
+
+    const classGroupId = group?.id ?? null;
+    // Mirrors the nullable group so the unique index fires — see the note on
+    // TimetableException.scopeKey.
+    const scopeKey = bookingKeyOf(classGroupId, null);
+
+    await db.timetableException.upsert({
+      where: {
+        schoolClassId_timeSlotId_weekStart_scopeKey: {
+          schoolClassId: schoolClass.id,
+          timeSlotId: slot.id,
+          weekStart,
+          scopeKey,
+        },
+      },
+      create: {
+        schoolClassId: schoolClass.id,
+        timeSlotId: slot.id,
+        weekStart,
+        scopeKey,
+        classGroupId,
+        kind: parsed.data.kind,
+        subjectId: subject?.id ?? null,
+        teacherId: teacher?.id ?? null,
+        roomId: room?.id ?? null,
+        note: parsed.data.note,
+        createdById: context.user.id,
+      },
+      update: {
+        classGroupId,
+        kind: parsed.data.kind,
+        subjectId: subject?.id ?? null,
+        teacherId: teacher?.id ?? null,
+        roomId: room?.id ?? null,
+        note: parsed.data.note,
+      },
+    });
+
+    refresh();
+    return success(t.timetable.exceptionSaved);
+  });
+}
+
+/** Drops a one-off change, so the week goes back to the recurring grid. */
+export async function deleteTimetableExceptionAction(
+  exceptionId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+
+    const exception = await db.timetableException.findUnique({
+      where: { id: exceptionId },
+      select: { id: true, schoolClass: { select: { schoolId: true } } },
+    });
+    if (!exception) return failure(t.errors.notFound);
+
+    await authorizeSchool(
+      exception.schoolClass.schoolId,
+      PERMISSIONS.TIMETABLE_MANAGE,
+    );
+
+    await db.timetableException.delete({ where: { id: exception.id } });
+
+    refresh();
+    return success(t.timetable.exceptionCleared);
+  });
 }

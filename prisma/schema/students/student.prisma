@@ -49,9 +49,15 @@ model Student {
 
   /// Required, unlike a staff member's. Age decides which level a child may be
   /// admitted to, so a file cannot be opened without it.
-  birthDate    DateTime
-  birthPlace   String?
-  birthPlaceAr String?
+  birthDate DateTime
+
+  /// Where the child was born, picked from the school's list of towns rather
+  /// than typed — see prisma/schema/geography/city.prisma. Both spellings come
+  /// from the City row, so the Arabic half of a certificat de scolarité prints
+  /// the same name every time. Restrict: a town cannot be deleted out from
+  /// under the pupils born in it.
+  birthCityId String?
+  birthCity   City?   @relation("StudentBirthCity", fields: [birthCityId], references: [id], onDelete: Restrict)
 
   /// ISO 3166-1 alpha-2.
   nationality String @default("MA")
@@ -75,10 +81,90 @@ model Student {
   entryDate DateTime?
   exitDate  DateTime?
 
+  /// ── Santé ──────────────────────────────────────────────────────────────
+  ///
+  /// Structured only where the infirmary reads the field on its own: a blood
+  /// group is looked up in an emergency and a doctor's number is dialled, so
+  /// neither may be buried in a paragraph. Everything nuanced stays in
+  /// `medicalNotes` — a half-structured medical record is worse than prose.
+
+  /// "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-"
+  /// see modules/students/enums.ts.
+  bloodType String?
+
+  /// What the child reacts to, and what happens. Kept apart from
+  /// `medicalNotes` because it is the one line a supervising teacher is asked
+  /// for before a trip or a canteen sitting.
+  allergies String?
+
+  /// Asthma, diabetes, epilepsy — a standing condition, as opposed to an
+  /// allergy that is triggered.
+  chronicCondition String?
+
+  /// Treatment taken during school hours, with its dosage.
+  medications String?
+
+  /// The family's own doctor, called before the emergency services when there
+  /// is time to choose.
+  doctorName  String?
+  doctorPhone String?
+
+  /// Mutuelle, CNSS, AMO, private insurer — who is billed for a hospital visit.
+  insurer String?
+
+  /// Whether the child needs an accommodation (seating, extra time, access).
+  /// A flag rather than free text because class lists and exam arrangements
+  /// filter on it; the detail goes in `medicalNotes`.
+  hasDisability Boolean @default(false)
+
   /// Allergies, treatments, anything the infirmary must know before an
   /// incident. Free text on purpose — a structured medical record is a
   /// different product, and a half-structured one is worse than a paragraph.
   medicalNotes String?
+
+  /// ── Scolarité antérieure ───────────────────────────────────────────────
+  ///
+  /// Where the child was before this school, as declared at admission. Not an
+  /// `Enrollment` — those are this school's years, and a transfer file records
+  /// a history the school never kept. Free text because a certificat de
+  /// scolarité from another établissement names a level this school may not
+  /// even offer.
+  previousSchool String?
+  previousLevel  String?
+
+  /// The town the previous school stood in — the same list as `birthCityId`.
+  previousSchoolCityId String?
+  previousSchoolCity   City?   @relation("StudentPreviousSchoolCity", fields: [previousSchoolCityId], references: [id], onDelete: Restrict)
+
+  /// "PUBLIC" | "PRIVATE" | "MISSION" | "HOMESCHOOL" | "OTHER"
+  /// see modules/students/enums.ts. Null for a child who has never been to
+  /// school, which is the normal case in petite section.
+  schoolingType String?
+
+  /// Why the family moved the child. Asked at admission and read again when a
+  /// pattern of transfers matters.
+  transferReason String?
+
+  /// ── Fratrie et foyer ───────────────────────────────────────────────────
+  ///
+  /// Held on the pupil rather than on `Family` so a file opened before its
+  /// dossier familial still carries the answers, and a half-sibling's counts
+  /// are not forced to match. The total is derived from the two, never stored.
+  brotherCount Int?
+  sisterCount  Int?
+
+  /// Rang dans la fratrie — 1 for the eldest. Recorded because it is asked on
+  /// every admission form and cannot be worked out from the counts.
+  birthRank Int?
+
+  /// "BOTH_PARENTS" | "MOTHER" | "FATHER" | "GUARDIAN" | "BOARDING" | "OTHER"
+  /// see modules/students/enums.ts. Distinct from `Family.situation`: parents
+  /// may be married and the child still boards with an aunt in term time.
+  livesWith String?
+
+  /// Pupille de la Nation and equivalents. A flag because it decides fee
+  /// exemptions and paperwork, and because asking it as prose gets it missed.
+  isOrphan Boolean @default(false)
 
   notes    String?
   isActive Boolean @default(true)
@@ -93,6 +179,8 @@ model Student {
   @@unique([schoolId, massarCode])
   @@index([schoolId])
   @@index([familyId])
+  @@index([birthCityId])
+  @@index([previousSchoolCityId])
   @@index([schoolId, lastName])
   @@index([schoolId, status])
   @@map("students")

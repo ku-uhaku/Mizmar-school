@@ -1,0 +1,88 @@
+/// A change to one class's timetable, for one week only.
+///
+/// ── Template plus exceptions ─────────────────────────────────────────────────
+/// `TimetableEntry` is the recurring week: what normally happens, every week of
+/// the year. This is what differs in a *particular* week — the swap a head of
+/// studies plans on the Thursday for the week after, the lesson cancelled
+/// because the class is on a trip.
+///
+/// The alternative was to materialise every week of the year as its own set of
+/// rows. That was rejected: forty weeks × every class × every period is a large
+/// table whose rows are almost all identical, and it breaks the thing schools
+/// rely on most — editing the template and having the change apply from now on.
+/// With exceptions, an untouched week costs nothing at all, and "this week only"
+/// versus "from now on" stays an explicit choice rather than a guess.
+///
+/// ── Keyed on the slot, not the entry ─────────────────────────────────────────
+/// It points at `timeSlotId` rather than at a `TimetableEntry`, so a week can be
+/// changed even where the template has *no* lesson — putting a one-off revision
+/// session into a free period is a normal thing to want, and an override that
+/// could only modify an existing row could not express it.
+model TimetableException {
+  id String @id @default(cuid())
+
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Mirrors the template entry's group, so a change to one half of a split
+  /// class leaves the other half alone.
+  classGroupId String?
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
+
+  timeSlotId String
+  timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
+
+  /// The Monday of the week this applies to, at local midnight. One key per
+  /// week rather than a date range: an exception is a change to *a week's* grid,
+  /// and a range spanning two weeks is two decisions.
+  weekStart DateTime
+
+  /// "CANCELLED" | "REPLACED" — see modules/timetable/enums.ts.
+  ///
+  /// CANCELLED leaves the period empty for the week. REPLACED puts the subject,
+  /// teacher and room below in it — which is also how a one-off lesson lands in
+  /// a period the template leaves free.
+  kind String
+
+  /// The replacement, for a REPLACED row. All three are independent: swapping
+  /// only the room is as ordinary as swapping the subject, and a null means
+  /// "whatever the template said".
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  teacherId String?
+  teacher   User?   @relation("TeacherTimetableExceptions", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  roomId String?
+  room   Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  /// Why — "sortie scolaire", "rattrapage du 12 mars". Printed on the week's
+  /// grid, because a cancelled period with no reason invites the question.
+  note String?
+
+  createdById String?
+  createdBy   User?   @relation("TimetableExceptionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Mirrors the nullable `classGroupId` so the unique index below actually
+  /// fires — SQLite treats NULLs as distinct, so without it two "whole class"
+  /// exceptions for the same slot and week would both be accepted. Same trick,
+  /// and same reason, as `TimetableEntry.bookingKey`. See lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `bookingKeyOf(classGroupId, null)` from
+  /// modules/timetable/enums.ts.
+  scopeKey String
+
+  /// One override per class (or group) per slot per week.
+  @@unique([schoolClassId, timeSlotId, weekStart, scopeKey])
+  @@index([schoolClassId])
+  @@index([classGroupId])
+  @@index([timeSlotId])
+  @@index([teacherId])
+  @@index([roomId])
+  @@index([subjectId])
+  @@index([schoolClassId, weekStart])
+  @@map("timetable_exceptions")
+}

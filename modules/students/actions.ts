@@ -9,8 +9,12 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
-import { allocateStudentCode, attachToFamily } from "@/modules/students/service";
+import {
+  allocateStudentCode,
+  attachToFamily,
+} from "@/modules/students/service";
 import { studentSchema } from "@/modules/students/validation";
 
 /**
@@ -44,14 +48,39 @@ function readStudentForm(formData: FormData) {
     lastNameAr: field(formData, "lastNameAr"),
     gender: field(formData, "gender"),
     birthDate: field(formData, "birthDate"),
-    birthPlace: field(formData, "birthPlace"),
-    birthPlaceAr: field(formData, "birthPlaceAr"),
+    birthCityId: optionalId(formData, "birthCityId"),
     nationality: field(formData, "nationality"),
     nationalId: field(formData, "nationalId"),
     photoUrl: field(formData, "photoUrl"),
     familyId: optionalId(formData, "familyId"),
     entryDate: field(formData, "entryDate"),
+
+    // Santé. The selects carry the same "none" sentinel as familyId — Radix
+    // cannot hold an empty string as an item value.
+    bloodType: optionalId(formData, "bloodType"),
+    allergies: field(formData, "allergies"),
+    chronicCondition: field(formData, "chronicCondition"),
+    medications: field(formData, "medications"),
+    doctorName: field(formData, "doctorName"),
+    doctorPhone: field(formData, "doctorPhone"),
+    insurer: field(formData, "insurer"),
+    hasDisability: boolField(formData, "hasDisability"),
     medicalNotes: field(formData, "medicalNotes"),
+
+    // Scolarité antérieure.
+    previousSchool: field(formData, "previousSchool"),
+    previousSchoolCityId: optionalId(formData, "previousSchoolCityId"),
+    previousLevel: field(formData, "previousLevel"),
+    schoolingType: optionalId(formData, "schoolingType"),
+    transferReason: field(formData, "transferReason"),
+
+    // Fratrie et foyer.
+    brotherCount: field(formData, "brotherCount"),
+    sisterCount: field(formData, "sisterCount"),
+    birthRank: field(formData, "birthRank"),
+    livesWith: optionalId(formData, "livesWith"),
+    isOrphan: boolField(formData, "isOrphan"),
+
     notes: field(formData, "notes"),
     isActive: boolField(formData, "isActive"),
   };
@@ -60,8 +89,7 @@ function readStudentForm(formData: FormData) {
 async function authorizeStudent(
   studentId: string,
   permission:
-    | typeof PERMISSIONS.STUDENT_UPDATE
-    | typeof PERMISSIONS.STUDENT_DELETE,
+    typeof PERMISSIONS.STUDENT_UPDATE | typeof PERMISSIONS.STUDENT_DELETE,
 ) {
   const student = await db.student.findUnique({
     where: { id: studentId },
@@ -76,26 +104,44 @@ async function authorizeStudent(
 /**
  * Turns the parsed form into columns.
  *
- * `familyId` and `entryDate` arrive as strings and mean "unset" when blank; the
- * family is re-checked against the school so a dossier id from elsewhere is
- * dropped rather than linked across the tenant boundary.
+ * `familyId`, the two city ids and `entryDate` arrive as strings and mean
+ * "unset" when blank. Each reference is re-read against the school before it is
+ * written, so an id belonging to another tenant is dropped rather than linked
+ * across the boundary — the ids come from the request and are never trusted.
  */
 async function toColumns(
   parsed: ReturnType<ReturnType<typeof studentSchema>["parse"]>,
   schoolId: string,
 ) {
-  const { familyId, entryDate, ...rest } = parsed;
+  const { familyId, birthCityId, previousSchoolCityId, entryDate, ...rest } =
+    parsed;
 
-  const family = familyId
-    ? await db.family.findFirst({
-        where: { id: familyId, schoolId },
-        select: { id: true },
-      })
-    : null;
+  const cityInSchool = async (cityId: string | null) =>
+    cityId
+      ? ((
+          await db.city.findFirst({
+            where: { id: cityId, schoolId },
+            select: { id: true },
+          })
+        )?.id ?? null)
+      : null;
+
+  const [family, birthCity, previousSchoolCity] = await Promise.all([
+    familyId
+      ? db.family.findFirst({
+          where: { id: familyId, schoolId },
+          select: { id: true },
+        })
+      : null,
+    cityInSchool(birthCityId),
+    cityInSchool(previousSchoolCityId),
+  ]);
 
   return {
     ...rest,
     familyId: family?.id ?? null,
+    birthCityId: birthCity,
+    previousSchoolCityId: previousSchoolCity,
     entryDate: entryDate ? new Date(entryDate) : null,
   };
 }
@@ -115,7 +161,11 @@ export async function createStudentAction(
 
     const parsed = studentSchema(t).safeParse(readStudentForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const code = parsed.data.code ?? (await allocateStudentCode(schoolId));
@@ -170,7 +220,11 @@ export async function updateStudentAction(
 
     const parsed = studentSchema(t).safeParse(readStudentForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const code =

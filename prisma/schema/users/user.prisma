@@ -34,6 +34,16 @@ model User {
   mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
   teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
   timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
+  /// Days away, and the lessons somebody else covers — see
+  /// prisma/schema/timetable/teacher-absence.prisma.
+  absences            TeacherAbsence[]     @relation("TeacherAbsences")
+  substitutions       TeacherAbsence[]     @relation("TeacherSubstitutions")
+  /// One-off changes to a week's grid.
+  timetableExceptions   TimetableException[] @relation("TeacherTimetableExceptions")
+  authoredExceptions    TimetableException[] @relation("TimetableExceptionAuthor")
+  /// Listes de fournitures written, and reviewed.
+  supplyListsAuthored   SupplyList[]         @relation("SupplyListAuthor")
+  supplyListsReviewed   SupplyList[]         @relation("SupplyListReviewer")
   /// Contrôles this user is answerable for, set, and has marked. SetNull on all
   /// three — a paper outlives the account that created it.
   assessmentsTeaching Assessment[]         @relation("TeacherAssessments")

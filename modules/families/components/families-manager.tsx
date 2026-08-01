@@ -74,7 +74,8 @@ export function FamiliesManager({
           <Badge variant="secondary">
             {
               t.familyOptions.situations[
-                row.original.situation as keyof typeof t.familyOptions.situations
+                row.original
+                  .situation as keyof typeof t.familyOptions.situations
               ]
             }
           </Badge>
@@ -88,7 +89,9 @@ export function FamiliesManager({
           const family = row.original;
           if (!family.primaryContactName) {
             return (
-              <span className="text-muted-foreground">{t.family.noContact}</span>
+              <span className="text-muted-foreground">
+                {t.family.noContact}
+              </span>
             );
           }
           return (
@@ -252,7 +255,9 @@ export function FamiliesManager({
           open={Boolean(deleting)}
           onOpenChange={(open) => !open && setDeleting(null)}
           title={t.family.deleteTitle}
-          description={interpolate(t.family.deleteBody, { name: deleting.name })}
+          description={interpolate(t.family.deleteBody, {
+            name: deleting.name,
+          })}
           action={() => deleteFamilyAction(deleting.id)}
           onDeleted={() => setDeleting(null)}
         />

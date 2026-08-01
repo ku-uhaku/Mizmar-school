@@ -5,6 +5,7 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { defaultDateWithin } from "@/lib/school-year";
 import { RemarksManager } from "@/modules/classroom/components/remarks-manager";
 import {
   listMyPupils,
@@ -39,6 +40,7 @@ export default async function TeacherRemarksPage() {
       />
 
       <RemarksManager
+        defaultDate={defaultDateWithin(context.currentSchoolYear)}
         remarks={remarks}
         pupils={pupils}
         teaching={teaching}

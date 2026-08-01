@@ -92,7 +92,8 @@ export function PupilAttendancePanel({
             <Badge
               variant="outline"
               className={cn(
-                !row.original.isJustified && "text-destructive border-destructive/40",
+                !row.original.isJustified &&
+                  "text-destructive border-destructive/40",
               )}
             >
               {row.original.isJustified ? t.common.yes : t.common.no}

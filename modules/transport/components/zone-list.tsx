@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { formatAmount } from "@/lib/i18n/format";
 import { saveZoneAction } from "@/modules/transport/actions";
 import { centimesToDirhams } from "@/modules/treasury/enums";
@@ -182,7 +183,7 @@ function ZoneDialog({
               <Input
                 id="code"
                 name="code"
-                defaultValue={zone?.code ?? ""}
+                defaultValue={valueOf(state, "code", zone?.code)}
                 required
               />
             </Field>
@@ -195,7 +196,7 @@ function ZoneDialog({
               <Input
                 id="name"
                 name="name"
-                defaultValue={zone?.name ?? ""}
+                defaultValue={valueOf(state, "name", zone?.name)}
                 required
               />
             </Field>
@@ -238,7 +239,11 @@ function ZoneDialog({
             <Switch
               id="isActive"
               name="isActive"
-              defaultChecked={zone?.isActive ?? true}
+              defaultChecked={checkedOf(
+                state,
+                "isActive",
+                zone?.isActive ?? true,
+              )}
             />
           </div>
 

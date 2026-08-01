@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   allocateFamilyCode,
@@ -16,10 +17,7 @@ import {
   makePrimaryContact,
   relationshipTaken,
 } from "@/modules/families/service";
-import {
-  familySchema,
-  guardianSchema,
-} from "@/modules/families/validation";
+import { familySchema, guardianSchema } from "@/modules/families/validation";
 
 /**
  * Actions for the families module.
@@ -107,7 +105,11 @@ export async function createFamilyAction(
 
     const parsed = familySchema(t).safeParse(readFamilyForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const code = parsed.data.code ?? (await allocateFamilyCode(schoolId));
@@ -140,7 +142,11 @@ export async function updateFamilyAction(
 
     const parsed = familySchema(t).safeParse(readFamilyForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const code =
@@ -201,7 +207,11 @@ export async function saveGuardianAction(
 
     const parsed = guardianSchema(t).safeParse(readGuardianForm(formData));
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // At most one father and one mother — see SINGULAR_RELATIONSHIPS.
@@ -236,7 +246,9 @@ export async function saveGuardianAction(
     await ensurePrimaryContact(familyId);
 
     refresh();
-    return success(guardianId ? t.family.guardianUpdated : t.family.guardianAdded);
+    return success(
+      guardianId ? t.family.guardianUpdated : t.family.guardianAdded,
+    );
   });
 }
 
@@ -248,7 +260,11 @@ export async function deleteGuardianAction(
 
     const guardian = await db.guardian.findUnique({
       where: { id: guardianId },
-      select: { id: true, familyId: true, family: { select: { schoolId: true } } },
+      select: {
+        id: true,
+        familyId: true,
+        family: { select: { schoolId: true } },
+      },
     });
     if (!guardian) return failure(t.errors.notFound);
 
@@ -271,7 +287,11 @@ export async function setPrimaryContactAction(
 
     const guardian = await db.guardian.findUnique({
       where: { id: guardianId },
-      select: { id: true, familyId: true, family: { select: { schoolId: true } } },
+      select: {
+        id: true,
+        familyId: true,
+        family: { select: { schoolId: true } },
+      },
     });
     if (!guardian) return failure(t.errors.notFound);
 

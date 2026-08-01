@@ -42,6 +42,7 @@ export function PrintDocument({
   locale,
   t,
   signature,
+  orientation = "portrait",
   children,
 }: {
   letterhead: PrintLetterhead;
@@ -54,6 +55,12 @@ export function PrintDocument({
   t: Dictionary;
   /** Who signs it. Omitted on documents nobody signs, like a class list. */
   signature?: string;
+  /**
+   * Landscape for documents wider than they are tall — a timetable week. Sets
+   * the named `@page landscape` (see globals.css) rather than a second global
+   * `@page`, which would turn every other document sideways with it.
+   */
+  orientation?: "portrait" | "landscape";
   children: React.ReactNode;
 }) {
   const contact = [
@@ -66,7 +73,7 @@ export function PrintDocument({
     .join(" · ");
 
   return (
-    <>
+    <div className={orientation === "landscape" ? "print-landscape" : undefined}>
       {/* Screen only — never printed. See `.print-toolbar` in globals.css. */}
       <div className="print-toolbar">
         <Button asChild variant="ghost" size="sm">
@@ -147,6 +154,6 @@ export function PrintDocument({
           </div>
         </footer>
       </article>
-    </>
+    </div>
   );
 }

@@ -121,6 +121,27 @@ export type ProgrammeEntry = {
   subjectCode: string;
   subjectName: string;
   coefficient: number;
+  /**
+   * The matière this row is a component of — القراءة under اللغة العربية — or
+   * null when it is a subject in its own right.
+   *
+   * Carried so the picker can group the components under their parent. A flat
+   * list of leaf names is unreadable on a primary programme: half a dozen rows
+   * called "القراءة", "التعبير الكتابي", "الإملاء" with nothing saying which
+   * matière they belong to is exactly how the wrong paper gets ticked.
+   */
+  parentSubjectId: string | null;
+  parentSubjectName: string | null;
+  /**
+   * Who would answer for the marks, resolved the same way the generator
+   * resolves it — the primary TeachingAssignment for the subject, falling back
+   * to the parent's for a component.
+   *
+   * Null means no post is filled, and the generator refuses the subject. Shown
+   * in the picker so that refusal is visible *before* pressing Generate rather
+   * than reported afterwards.
+   */
+  teacherName: string | null;
 };
 
 /**
@@ -146,6 +167,33 @@ export async function loadProgrammesByClass(
     },
   });
   if (classes.length === 0) return {};
+
+  // Who holds each subject in each class. Only the primary holder: a co-taught
+  // subject still produces one paper, answerable to one person — the same rule
+  // `generateAssessments` applies when it writes them.
+  const assignments = await db.teachingAssignment.findMany({
+    where: {
+      schoolClassId: { in: classes.map((schoolClass) => schoolClass.id) },
+      isPrimary: true,
+    },
+    select: {
+      schoolClassId: true,
+      subjectId: true,
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  const teacherByClassSubject = new Map(
+    assignments.map((assignment) => [
+      `${assignment.schoolClassId}:${assignment.subjectId}`,
+      displayName(assignment.teacher),
+    ]),
+  );
 
   const rows = await db.levelSubject.findMany({
     where: {
@@ -183,14 +231,34 @@ export async function loadProgrammesByClass(
         .filter((parentId): parentId is string => parentId !== null),
     );
 
+    // Parent names, for the component rows to be grouped under. Read off the
+    // programme itself rather than fetched: a component's parent is on it by
+    // construction — that is what rule 2 tests.
+    const nameById = new Map(
+      forClass.map((row) => [row.subject.id, row.subject.name]),
+    );
+
     result[schoolClass.id] = forClass
       .filter((row) => !parentsCoveredByComponents.has(row.subject.id))
-      .map((row) => ({
-        subjectId: row.subject.id,
-        subjectCode: row.subject.code,
-        subjectName: row.subject.name,
-        coefficient: row.coefficient,
-      }));
+      .map((row) => {
+        const parentId = row.subject.parentId;
+        return {
+          subjectId: row.subject.id,
+          subjectCode: row.subject.code,
+          subjectName: row.subject.name,
+          coefficient: row.coefficient,
+          parentSubjectId: parentId,
+          parentSubjectName: parentId ? (nameById.get(parentId) ?? null) : null,
+          // Same fallback as the generator's `teacherFor`: assignments are made
+          // against the matière as taught, while the papers are per component.
+          teacherName:
+            teacherByClassSubject.get(`${schoolClass.id}:${row.subject.id}`) ??
+            (parentId
+              ? (teacherByClassSubject.get(`${schoolClass.id}:${parentId}`) ??
+                null)
+              : null),
+        };
+      });
   }
 
   return result;

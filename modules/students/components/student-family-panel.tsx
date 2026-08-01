@@ -43,7 +43,13 @@ export function StudentFamilyPanel({
   canManage,
 }: {
   studentId: string;
-  family: { id: string; name: string; code: string; situation: string; phone: string | null } | null;
+  family: {
+    id: string;
+    name: string;
+    code: string;
+    situation: string;
+    phone: string | null;
+  } | null;
   guardians: GuardianRow[];
   /** Dossiers to attach to, when the pupil has none. */
   families: { id: string; label: string }[];

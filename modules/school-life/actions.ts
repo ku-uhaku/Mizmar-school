@@ -29,9 +29,7 @@ export type SearchResults = {
 
 const EMPTY: SearchResults = { students: [], families: [], classes: [] };
 
-export async function globalSearchAction(
-  term: string,
-): Promise<SearchResults> {
+export async function globalSearchAction(term: string): Promise<SearchResults> {
   const context = await requireAuth();
 
   const trimmed = term.trim();
@@ -42,7 +40,9 @@ export async function globalSearchAction(
     context.can(PERMISSIONS.STUDENT_VIEW)
       ? searchStudents(context, trimmed)
       : [],
-    context.can(PERMISSIONS.FAMILY_VIEW) ? searchFamilies(context, trimmed) : [],
+    context.can(PERMISSIONS.FAMILY_VIEW)
+      ? searchFamilies(context, trimmed)
+      : [],
     context.can(PERMISSIONS.CLASS_VIEW) ? searchClasses(context, trimmed) : [],
   ]);
 

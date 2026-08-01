@@ -122,6 +122,11 @@ const en = {
     drawerName: "Signed by",
     bankName: "Bank",
     paidAt: "Paid on",
+    collect: "Take the payment",
+    linesChosen: "{count} charges",
+    stillToCover: "Still to cover",
+    overPaid: "Over by",
+    backToCharges: "Back to the charges",
     recordPayment: "Record the payment",
     paymentRecorded: "Receipt {code} recorded.",
     lineAlreadySettled:

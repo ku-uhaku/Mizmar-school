@@ -36,6 +36,7 @@ model Room {
 
   classes          SchoolClass[]
   timetableEntries TimetableEntry[]
+  timetableExceptions TimetableException[]
 
   @@unique([schoolId, code])
   @@index([schoolId])

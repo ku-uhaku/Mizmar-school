@@ -4,10 +4,18 @@ import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { createSchoolAction, updateSchoolAction } from "@/modules/schools/actions";
+import {
+  createSchoolAction,
+  updateSchoolAction,
+} from "@/modules/schools/actions";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { ImageField } from "@/components/form/image-field";
-import { FormActions, FormGrid, FormLayout, FormSection } from "@/components/form/form-page";
+import {
+  FormActions,
+  FormGrid,
+  FormLayout,
+  FormSection,
+} from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -31,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { SCHOOL_LEVELS } from "@/modules/schools/enums";
 
 export function SchoolForm({ school }: { school?: SchoolRow }) {
@@ -69,7 +78,11 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
                 <Switch
                   id="isActive"
                   name="isActive"
-                  defaultChecked={school?.isActive ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isActive",
+                    school?.isActive ?? true,
+                  )}
                 />
               </div>
 
@@ -80,7 +93,9 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
                     <dd className="tabular-nums">{school.yearCount}</dd>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-muted-foreground">{t.school.members}</dt>
+                    <dt className="text-muted-foreground">
+                      {t.school.members}
+                    </dt>
                     <dd className="tabular-nums">{school.memberCount}</dd>
                   </div>
                 </dl>
@@ -100,7 +115,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             >
               <Input
                 {...controlProps("code", errors.code, t.school.codeHint)}
-                defaultValue={school?.code ?? ""}
+                defaultValue={valueOf(state, "code", school?.code)}
                 dir="ltr"
                 className="uppercase"
                 placeholder="ALM-CASA"
@@ -117,7 +132,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             >
               <Input
                 {...controlProps("name", errors.name)}
-                defaultValue={school?.name ?? ""}
+                defaultValue={valueOf(state, "name", school?.name)}
                 required
               />
             </FormField>
@@ -125,7 +140,10 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
 
           <FormGrid cols={3}>
             <FormField name="level" label={t.school.level} error={errors.level}>
-              <Select name="level" defaultValue={school?.level ?? "GROUP"}>
+              <Select
+                name="level"
+                defaultValue={valueOf(state, "level", school?.level) || "GROUP"}
+              >
                 <SelectTrigger id="level" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -146,7 +164,11 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             >
               <Input
                 {...controlProps("directorName", errors.directorName)}
-                defaultValue={school?.directorName ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "directorName",
+                  school?.directorName,
+                )}
               />
             </FormField>
 
@@ -159,7 +181,13 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
                 {...controlProps("capacity", errors.capacity)}
                 type="number"
                 min={0}
-                defaultValue={school?.capacity ?? ""}
+                defaultValue={valueOf(
+                  state,
+                  "capacity",
+                  school?.capacity === null || school?.capacity === undefined
+                    ? ""
+                    : String(school.capacity),
+                )}
                 dir="ltr"
               />
             </FormField>
@@ -172,7 +200,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
               <Input
                 {...controlProps("email", errors.email)}
                 type="email"
-                defaultValue={school?.email ?? ""}
+                defaultValue={valueOf(state, "email", school?.email)}
                 dir="ltr"
               />
             </FormField>
@@ -181,7 +209,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
               <Input
                 {...controlProps("phone", errors.phone)}
                 type="tel"
-                defaultValue={school?.phone ?? ""}
+                defaultValue={valueOf(state, "phone", school?.phone)}
                 dir="ltr"
               />
             </FormField>
@@ -194,7 +222,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
               <Input
                 {...controlProps("website", errors.website)}
                 type="url"
-                defaultValue={school?.website ?? ""}
+                defaultValue={valueOf(state, "website", school?.website)}
                 dir="ltr"
                 placeholder="https://…"
               />
@@ -206,9 +234,11 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             label={t.school.logoUrl}
             hint={t.school.logoHint}
             kind="logo"
-            defaultValue={school?.logoUrl ?? ""}
+            defaultValue={valueOf(state, "logoUrl", school?.logoUrl)}
             error={errors.logoUrl}
-            fallback={(school?.code ?? school?.name ?? "?").slice(0, 2).toUpperCase()}
+            fallback={(school?.code ?? school?.name ?? "?")
+              .slice(0, 2)
+              .toUpperCase()}
           />
         </FormSection>
 
@@ -220,7 +250,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
           >
             <Input
               {...controlProps("addressLine", errors.addressLine)}
-              defaultValue={school?.addressLine ?? ""}
+              defaultValue={valueOf(state, "addressLine", school?.addressLine)}
             />
           </FormField>
 
@@ -228,7 +258,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             <FormField name="city" label={t.school.city} error={errors.city}>
               <Input
                 {...controlProps("city", errors.city)}
-                defaultValue={school?.city ?? ""}
+                defaultValue={valueOf(state, "city", school?.city)}
               />
             </FormField>
 
@@ -240,7 +270,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             >
               <Input
                 {...controlProps("region", errors.region)}
-                defaultValue={school?.region ?? ""}
+                defaultValue={valueOf(state, "region", school?.region)}
               />
             </FormField>
 
@@ -251,7 +281,7 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
             >
               <Input
                 {...controlProps("postalCode", errors.postalCode)}
-                defaultValue={school?.postalCode ?? ""}
+                defaultValue={valueOf(state, "postalCode", school?.postalCode)}
                 dir="ltr"
               />
             </FormField>

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { listNeighbourhoodChoices } from "@/modules/geography/queries";
 import { RoutePanel } from "@/modules/transport/components/route-panel";
 import {
   findRoute,
@@ -34,8 +35,9 @@ export default async function RoutePage({
   const route = await findRoute(context, routeId);
   if (!route) notFound();
 
-  const [zones, subscribable] = await Promise.all([
+  const [zones, neighbourhoods, subscribable] = await Promise.all([
     listZones(context),
+    listNeighbourhoodChoices(context),
     listSubscribableStudents(context),
   ]);
 
@@ -53,6 +55,7 @@ export default async function RoutePage({
       <RoutePanel
         route={route}
         zones={zones}
+        neighbourhoods={neighbourhoods}
         subscribable={subscribable}
         permissions={{
           canManage: context.can(PERMISSIONS.TRANSPORT_MANAGE),

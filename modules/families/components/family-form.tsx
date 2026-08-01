@@ -34,7 +34,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { createFamilyAction, updateFamilyAction } from "@/modules/families/actions";
+import { checkedOf, valueOf } from "@/lib/form-values";
+import {
+  createFamilyAction,
+  updateFamilyAction,
+} from "@/modules/families/actions";
 import { FAMILY_SITUATIONS } from "@/modules/families/enums";
 import type { FamilyDetail } from "@/modules/families/queries";
 
@@ -54,7 +58,8 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
     IDLE,
   );
   useActionFeedback(state, {
-    onSuccess: () => router.push(family ? `/families/${family.id}` : "/families"),
+    onSuccess: () =>
+      router.push(family ? `/families/${family.id}` : "/families"),
   });
 
   const errors = state.fieldErrors ?? {};
@@ -82,18 +87,26 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
                 <Switch
                   id="isActive"
                   name="isActive"
-                  defaultChecked={family?.isActive ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isActive",
+                    family?.isActive ?? true,
+                  )}
                 />
               </div>
 
               {family ? (
                 <dl className="grid gap-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-muted-foreground">{t.family.guardians}</dt>
+                    <dt className="text-muted-foreground">
+                      {t.family.guardians}
+                    </dt>
                     <dd className="tabular-nums">{family.guardianCount}</dd>
                   </div>
                   <div className="flex items-center justify-between gap-2">
-                    <dt className="text-muted-foreground">{t.family.children}</dt>
+                    <dt className="text-muted-foreground">
+                      {t.family.children}
+                    </dt>
                     <dd className="tabular-nums">{family.childCount}</dd>
                   </div>
                 </dl>
@@ -112,7 +125,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             >
               <Input
                 {...controlProps("code", errors.code, t.family.codeHint)}
-                defaultValue={family?.code ?? ""}
+                defaultValue={valueOf(state, "code", family?.code)}
                 dir="ltr"
                 placeholder="F-2025-0142"
               />
@@ -127,7 +140,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             >
               <Input
                 {...controlProps("name", errors.name)}
-                defaultValue={family?.name ?? ""}
+                defaultValue={valueOf(state, "name", family?.name)}
                 required
               />
             </FormField>
@@ -141,7 +154,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             >
               <Input
                 {...controlProps("nameAr", errors.nameAr)}
-                defaultValue={family?.nameAr ?? ""}
+                defaultValue={valueOf(state, "nameAr", family?.nameAr)}
                 dir="rtl"
               />
             </FormField>
@@ -153,7 +166,9 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             >
               <Select
                 name="situation"
-                defaultValue={family?.situation ?? "MARRIED"}
+                defaultValue={
+                  valueOf(state, "situation", family?.situation) || "MARRIED"
+                }
               >
                 <SelectTrigger id="situation" className="w-full">
                   <SelectValue />
@@ -176,7 +191,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
               <Input
                 {...controlProps("phone", errors.phone)}
                 type="tel"
-                defaultValue={family?.phone ?? ""}
+                defaultValue={valueOf(state, "phone", family?.phone)}
                 dir="ltr"
                 placeholder="+212 6 12 34 56 78"
               />
@@ -186,7 +201,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
               <Input
                 {...controlProps("email", errors.email)}
                 type="email"
-                defaultValue={family?.email ?? ""}
+                defaultValue={valueOf(state, "email", family?.email)}
                 dir="ltr"
               />
             </FormField>
@@ -201,7 +216,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
           >
             <Input
               {...controlProps("addressLine", errors.addressLine)}
-              defaultValue={family?.addressLine ?? ""}
+              defaultValue={valueOf(state, "addressLine", family?.addressLine)}
             />
           </FormField>
 
@@ -209,7 +224,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             <FormField name="city" label={t.family.city} error={errors.city}>
               <Input
                 {...controlProps("city", errors.city)}
-                defaultValue={family?.city ?? ""}
+                defaultValue={valueOf(state, "city", family?.city)}
               />
             </FormField>
 
@@ -220,7 +235,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             >
               <Input
                 {...controlProps("postalCode", errors.postalCode)}
-                defaultValue={family?.postalCode ?? ""}
+                defaultValue={valueOf(state, "postalCode", family?.postalCode)}
                 dir="ltr"
               />
             </FormField>
@@ -231,7 +246,7 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
           <FormField name="notes" label={t.family.notes} error={errors.notes}>
             <Textarea
               {...controlProps("notes", errors.notes)}
-              defaultValue={family?.notes ?? ""}
+              defaultValue={valueOf(state, "notes", family?.notes)}
               rows={3}
             />
           </FormField>

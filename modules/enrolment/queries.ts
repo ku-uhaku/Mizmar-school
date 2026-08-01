@@ -355,7 +355,7 @@ export async function loadEnrolmentStats(context: AuthContext): Promise<{
 /** How many pupils sit in each level opened this year — the dashboard's chart. */
 export async function countEnrolmentsByLevel(
   context: AuthContext,
-): Promise<{ label: string; value: number }[]> {
+): Promise<{ label: string; levelCode: string; value: number }[]> {
   const offerings = await db.levelOffering.findMany({
     where: { ...yearScope(context), isActive: true },
     orderBy: [{ level: { gradeYear: "asc" } }],
@@ -372,6 +372,10 @@ export async function countEnrolmentsByLevel(
     label: offering.track
       ? `${offering.level.code} ${offering.track.code}`
       : offering.level.code,
+    // The level on its own, so a caller that does not want the filière split —
+    // the dashboard chart, which would otherwise draw eighteen columns — can
+    // fold the tracks back into it without re-parsing the label.
+    levelCode: offering.level.code,
     value: offering._count.enrollments,
   }));
 }

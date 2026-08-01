@@ -5,11 +5,18 @@ import {
   countryField,
   dateField,
   enumField,
+  optionalEnumField,
+  optionalPositiveInt,
   optionalText,
   requiredText,
   optionalImage,
 } from "@/lib/validation";
-import { GENDERS } from "@/modules/students/enums";
+import {
+  BLOOD_TYPES,
+  GENDERS,
+  LIVES_WITH,
+  SCHOOLING_TYPES,
+} from "@/modules/students/enums";
 
 /**
  * Built per-request from the dictionary so messages are localised.
@@ -35,14 +42,43 @@ export function studentSchema(t: Dictionary) {
       // Required, unlike a staff member's: age is what decides which level a
       // child may be admitted to.
       birthDate: dateField(v),
-      birthPlace: optionalText(120),
-      birthPlaceAr: optionalText(120),
+      // Ids, not names: the town is picked from the school's own list — see
+      // modules/geography. Blank means "not recorded", which is ordinary for a
+      // file opened over the phone.
+      birthCityId: optionalText(40),
       nationality: countryField(v),
       nationalId: optionalText(32),
       photoUrl: optionalImage(v),
       familyId: optionalText(40),
       entryDate: optionalText(40),
+
+      // Santé.
+      bloodType: optionalEnumField(BLOOD_TYPES, v),
+      allergies: optionalText(500),
+      chronicCondition: optionalText(500),
+      medications: optionalText(500),
+      doctorName: optionalText(120),
+      doctorPhone: optionalText(40),
+      insurer: optionalText(120),
+      hasDisability: z.boolean(),
       medicalNotes: optionalText(2000),
+
+      // Scolarité antérieure.
+      previousSchool: optionalText(160),
+      previousSchoolCityId: optionalText(40),
+      previousLevel: optionalText(80),
+      schoolingType: optionalEnumField(SCHOOLING_TYPES, v),
+      transferReason: optionalText(500),
+
+      // Fratrie et foyer. The counts are bounded rather than merely positive:
+      // a two-digit sibling count is a typo, and letting one through skews
+      // every social-case report drawn from these columns.
+      brotherCount: optionalPositiveInt(v),
+      sisterCount: optionalPositiveInt(v),
+      birthRank: optionalPositiveInt(v),
+      livesWith: optionalEnumField(LIVES_WITH, v),
+      isOrphan: z.boolean(),
+
       notes: optionalText(1000),
       isActive: z.boolean(),
     })
@@ -53,5 +89,19 @@ export function studentSchema(t: Dictionary) {
     .refine((data) => data.birthDate >= new Date("1950-01-01"), {
       error: v.invalidDate,
       path: ["birthDate"],
-    });
+    })
+    .refine((data) => data.brotherCount === null || data.brotherCount <= 20, {
+      error: v.invalidNumber,
+      path: ["brotherCount"],
+    })
+    .refine((data) => data.sisterCount === null || data.sisterCount <= 20, {
+      error: v.invalidNumber,
+      path: ["sisterCount"],
+    })
+    // 1 is the eldest, so 0 is not a rank; the upper bound matches the counts.
+    .refine(
+      (data) =>
+        data.birthRank === null || (data.birthRank >= 1 && data.birthRank <= 21),
+      { error: v.invalidNumber, path: ["birthRank"] },
+    );
 }

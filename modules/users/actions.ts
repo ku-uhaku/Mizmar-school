@@ -3,17 +3,19 @@
 import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
-import {
-  authorizeAnyScope,
-  ForbiddenError,
-  type AuthContext,
-} from "@/lib/dal";
+import { authorizeAnyScope, ForbiddenError, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { hashPassword } from "@/lib/auth";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { boolField, field, listField, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { userSchema } from "@/modules/users/validation";
 
@@ -144,7 +146,11 @@ export async function createUserAction(
       readUserForm(formData),
     );
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const existing = await db.user.findUnique({
@@ -156,9 +162,14 @@ export async function createUserAction(
     }
 
     // Only an existing super admin may mint another one.
-    const isSuperAdmin = context.isSuperAdmin ? parsed.data.isSuperAdmin : false;
+    const isSuperAdmin = context.isSuperAdmin
+      ? parsed.data.isSuperAdmin
+      : false;
     const orgRoleId = await resolveOrgRoleId(context, parsed.data.orgRoleId);
-    const memberships = await resolveMemberships(context, parsed.data.memberships);
+    const memberships = await resolveMemberships(
+      context,
+      parsed.data.memberships,
+    );
 
     /*
       A new account starts in its own school's language and colour, falling back
@@ -222,7 +233,11 @@ export async function updateUserAction(
       readUserForm(formData),
     );
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const duplicate = await db.user.findFirst({
@@ -247,7 +262,10 @@ export async function updateUserAction(
       : target.isSuperAdmin;
 
     const orgRoleId = await resolveOrgRoleId(context, parsed.data.orgRoleId);
-    const memberships = await resolveMemberships(context, parsed.data.memberships);
+    const memberships = await resolveMemberships(
+      context,
+      parsed.data.memberships,
+    );
     const passwordHash = parsed.data.password
       ? await hashPassword(parsed.data.password)
       : undefined;

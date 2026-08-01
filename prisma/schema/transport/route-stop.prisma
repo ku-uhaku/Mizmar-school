@@ -17,6 +17,14 @@ model RouteStop {
   /// What to look for: "devant la pharmacie", "rond-point".
   landmark String?
 
+  /// The quartier this stop stands in — the *place*, as opposed to `zoneId`
+  /// below, which is the *price band*. Nullable because a line drawn before the
+  /// quartiers were listed still has its stops, and because a stop on a trunk
+  /// road may genuinely be in none of them.
+  /// Restrict: a quartier with stops in it cannot be deleted from under them.
+  neighbourhoodId String?
+  neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id], onDelete: Restrict)
+
   /// Order along the line, from the first pick-up to the school.
   ///
   /// Not unique with `routeId`: reordering stops would otherwise need a
@@ -49,5 +57,6 @@ model RouteStop {
   @@unique([routeId, name])
   @@index([routeId])
   @@index([zoneId])
+  @@index([neighbourhoodId])
   @@map("route_stops")
 }

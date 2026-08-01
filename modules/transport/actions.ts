@@ -9,6 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   repriceZone,
@@ -73,7 +74,11 @@ export async function saveVehicleAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const id = field(formData, "id");
@@ -116,7 +121,9 @@ export async function saveVehicleAction(
     }
 
     refresh();
-    return success(id ? t.transport.vehicleUpdated : t.transport.vehicleCreated);
+    return success(
+      id ? t.transport.vehicleUpdated : t.transport.vehicleCreated,
+    );
   });
 }
 
@@ -170,7 +177,11 @@ export async function saveZoneAction(
       isActive: boolField(formData, "isActive"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const id = field(formData, "id");
@@ -203,7 +214,11 @@ export async function saveZoneAction(
     };
 
     const zone = id
-      ? await db.transportZone.update({ where: { id }, data, select: { id: true } })
+      ? await db.transportZone.update({
+          where: { id },
+          data,
+          select: { id: true },
+        })
       : await db.transportZone.create({ data, select: { id: true } });
 
     // A price change is expected to reach the families riding from it — see
@@ -245,7 +260,11 @@ export async function saveRouteAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const id = field(formData, "id");
@@ -307,13 +326,17 @@ export async function deleteRouteAction(routeId: string): Promise<ActionState> {
     await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_DELETE);
 
     const route = await db.transportRoute.findFirst({
-      where: { id: routeId, schoolYearId: context.currentSchoolYear?.id ?? "__none__" },
+      where: {
+        id: routeId,
+        schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+      },
       select: { id: true, _count: { select: { subscriptions: true } } },
     });
     if (!route) return failure(t.errors.notFound);
 
     // Restrict on the subscription would throw; saying so is better than a 500.
-    if (route._count.subscriptions > 0) return failure(t.transport.routeHasRiders);
+    if (route._count.subscriptions > 0)
+      return failure(t.transport.routeHasRiders);
 
     await db.transportRoute.delete({ where: { id: routeId } });
 
@@ -342,13 +365,18 @@ export async function saveStopAction(
       name: field(formData, "name"),
       nameAr: field(formData, "nameAr"),
       landmark: field(formData, "landmark"),
+      neighbourhoodId: optionalId(formData, "neighbourhoodId"),
       zoneId: optionalId(formData, "zoneId"),
       position: field(formData, "position") || "0",
       pickupTime: field(formData, "pickupTime"),
       dropoffTime: field(formData, "dropoffTime"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The line must be one of this year's.
@@ -365,6 +393,18 @@ export async function saveStopAction(
         })
       : null;
     if (parsed.data.zoneId && !zone) return failure(t.errors.notFound);
+
+    // The quartier is school-scoped rather than year-scoped — a place does not
+    // expire with the tariff — so it is re-read against the school, not the year.
+    const neighbourhood = parsed.data.neighbourhoodId
+      ? await db.neighbourhood.findFirst({
+          where: { id: parsed.data.neighbourhoodId, schoolId },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.neighbourhoodId && !neighbourhood) {
+      return failure(t.errors.notFound);
+    }
 
     const id = field(formData, "id");
     if (id) {
@@ -390,6 +430,7 @@ export async function saveStopAction(
       name: parsed.data.name,
       nameAr: parsed.data.nameAr,
       landmark: parsed.data.landmark,
+      neighbourhoodId: neighbourhood?.id ?? null,
       zoneId: zone?.id ?? null,
       position: parsed.data.position,
       pickupTime: parsed.data.pickupTime,
@@ -423,7 +464,8 @@ export async function deleteStopAction(stopId: string): Promise<ActionState> {
     });
     if (!stop) return failure(t.errors.notFound);
 
-    if (stop._count.subscriptions > 0) return failure(t.transport.stopHasRiders);
+    if (stop._count.subscriptions > 0)
+      return failure(t.transport.stopHasRiders);
 
     await db.routeStop.delete({ where: { id: stopId } });
 
@@ -457,7 +499,11 @@ export async function subscribeRiderAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     // The pupil must be enrolled in this school, this year.
@@ -545,7 +591,11 @@ export async function updateRiderAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const stop = await db.routeStop.findFirst({

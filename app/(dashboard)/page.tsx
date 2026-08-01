@@ -28,7 +28,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { displayName, requireAuth } from "@/lib/dal";
+import { DashboardCharts } from "@/modules/dashboard/components/dashboard-charts";
 import {
+  loadDashboardCharts,
   loadDashboardStats,
   loadSectionHeadlines,
 } from "@/modules/dashboard/queries";
@@ -60,6 +62,10 @@ export default async function DashboardPage() {
     loadDashboardStats(context),
     loadSectionHeadlines(context),
   ]);
+
+  // The charts read the same permission-scoped module queries the counts do, so
+  // a reader who may not open a section is not charted one either.
+  const charts = await loadDashboardCharts(context);
 
   /** A warning label, or undefined when there is nothing to warn about. */
   const attention = (count: number, template: string) =>
@@ -156,6 +162,11 @@ export default async function DashboardPage() {
             attention={attention(headlines.rh.attention, t.hr.unmarkedCount)}
           />
         ) : null}
+      </div>
+
+      {/* ---- The year, charted ------------------------------------------- */}
+      <div className="mt-8">
+        <DashboardCharts charts={charts} />
       </div>
 
       {/* ---- Administration ---------------------------------------------- */}

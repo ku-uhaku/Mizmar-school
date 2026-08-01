@@ -11,9 +11,30 @@ import { interpolate } from "@/lib/i18n/format";
 import { MAX_LESSON_SPAN } from "@/modules/timetable/enums";
 import { TimetableCellDialog } from "@/modules/timetable/components/timetable-cell-dialog";
 import type {
+  AbsenceView,
+  ExceptionView,
   TimetableCell,
   TimetableGrid as TimetableGridData,
+  WeekOverlay,
 } from "@/modules/timetable/queries";
+
+/**
+ * The absence covering this cell, if the teacher named in it is away that day.
+ *
+ * Intersected here rather than stored per lesson: one absence row covers every
+ * lesson its teacher holds that day — see the note on TeacherAbsence.
+ */
+function absenceFor(
+  overlay: WeekOverlay | undefined,
+  dayOfWeek: number,
+  cell: TimetableCell,
+): AbsenceView | undefined {
+  const teacherId = cell.entry?.teacherId;
+  if (!overlay || !teacherId) return undefined;
+  return overlay.absencesByDay[dayOfWeek]?.find(
+    (absence) => absence.teacherId === teacherId,
+  );
+}
 
 export type TimetableChoices = {
   subjects: {
@@ -48,11 +69,31 @@ export function TimetableGrid({
   schoolClassId,
   choices,
   canManage,
+  holidaysByDay,
+  overlay,
+  weekStart,
+  weekNumber,
 }: {
   grid: TimetableGridData;
   schoolClassId: string;
   choices: TimetableChoices;
   canManage: boolean;
+  /**
+   * Holiday name per ISO weekday for the week on screen, when a week is being
+   * shown. Absent on the screens that draw the recurring grid with no week
+   * behind it — the pupil's file, for one, which shows "their class's week"
+   * rather than any dated one.
+   */
+  holidaysByDay?: Record<number, string>;
+  /**
+   * What differs about the week on screen: one-off changes, and who is away.
+   * Absent on the screens that draw the recurring grid with no week behind it.
+   */
+  overlay?: WeekOverlay;
+  /** Monday of the week on screen, `YYYY-MM-DD`. Null on the undated grids. */
+  weekStart?: string | null;
+  /** Its number within the year, for the "this week only" wording. */
+  weekNumber?: number | null;
 }) {
   const { t } = useI18n();
   const [editing, setEditing] = React.useState<{
@@ -140,62 +181,92 @@ export function TimetableGrid({
           </thead>
 
           <tbody>
-            {grid.rows.map((row) => (
-              <tr key={row.dayOfWeek} className="border-b last:border-0">
-                <th
-                  scope="row"
-                  className="bg-card sticky start-0 z-10 px-3 py-2 text-start text-sm font-medium"
+            {grid.rows.map((row) => {
+              // A day the school does not teach: the lessons still exist in the
+              // template, so they are dimmed rather than removed — "this would
+              // have been Maths" is the useful thing to show, and deleting the
+              // row would make the week look mis-timetabled.
+              const holiday = holidaysByDay?.[row.dayOfWeek];
+
+              return (
+                <tr
+                  key={row.dayOfWeek}
+                  className={cn(
+                    "border-b last:border-0",
+                    holiday && "bg-muted/30",
+                  )}
                 >
-                  <span className="hidden lg:inline">
-                    {
-                      t.timetable.days[
-                        String(row.dayOfWeek) as keyof typeof t.timetable.days
-                      ]
-                    }
-                  </span>
-                  <span className="lg:hidden">
-                    {
-                      t.timetable.daysShort[
-                        String(
-                          row.dayOfWeek,
-                        ) as keyof typeof t.timetable.daysShort
-                      ]
-                    }
-                  </span>
-                </th>
+                  <th
+                    scope="row"
+                    className="bg-card sticky start-0 z-10 px-3 py-2 text-start text-sm font-medium"
+                  >
+                    <span className="hidden lg:inline">
+                      {
+                        t.timetable.days[
+                          String(row.dayOfWeek) as keyof typeof t.timetable.days
+                        ]
+                      }
+                    </span>
+                    <span className="lg:hidden">
+                      {
+                        t.timetable.daysShort[
+                          String(
+                            row.dayOfWeek,
+                          ) as keyof typeof t.timetable.daysShort
+                        ]
+                      }
+                    </span>
+                    {holiday ? (
+                      <span className="text-muted-foreground block text-[10px] font-normal">
+                        {holiday}
+                      </span>
+                    ) : null}
+                  </th>
 
-                {grid.columns.map((column, columnIndex) => {
-                  const cell = row.cells[column.key];
+                  {grid.columns.map((column, columnIndex) => {
+                    const cell = row.cells[column.key];
 
-                  // A continuation period is drawn by the block that started
-                  // earlier — its `colSpan` already covers this column.
-                  if (cell.covered) return null;
+                    // A continuation period is drawn by the block that started
+                    // earlier — its `colSpan` already covers this column.
+                    if (cell.covered) return null;
 
-                  return (
-                    <td
-                      key={column.key}
-                      className="p-1 align-top"
-                      colSpan={cell.entry?.span ?? 1}
-                    >
-                      <Cell
-                        cell={cell}
-                        canManage={canManage}
-                        onOpen={() => {
-                          if (!cell.timeSlotId) return;
-                          setEditing({
-                            timeSlotId: cell.timeSlotId,
-                            dayOfWeek: row.dayOfWeek,
-                            cell,
-                            maxSpan: spanRoom(grid, row.dayOfWeek, columnIndex, cell),
-                            repeatableDays: daysRunning(grid, column.key),
-                          });
-                        }}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    return (
+                      <td
+                        key={column.key}
+                        className="p-1 align-top"
+                        colSpan={cell.entry?.span ?? 1}
+                      >
+                        <Cell
+                          cell={cell}
+                          canManage={canManage}
+                          exception={
+                            cell.timeSlotId
+                              ? overlay?.exceptions[cell.timeSlotId]
+                              : undefined
+                          }
+                          absence={absenceFor(overlay, row.dayOfWeek, cell)}
+                          onOpen={() => {
+                            if (!cell.timeSlotId) return;
+                            setEditing({
+                              timeSlotId: cell.timeSlotId,
+                              dayOfWeek: row.dayOfWeek,
+                              cell,
+                              maxSpan: spanRoom(
+                                grid,
+                                row.dayOfWeek,
+                                columnIndex,
+                                cell,
+                              ),
+                              repeatableDays: daysRunning(grid, column.key),
+                            });
+                          }}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -212,6 +283,9 @@ export function TimetableGrid({
           choices={choices}
           maxSpan={editing.maxSpan}
           repeatableDays={editing.repeatableDays}
+          weekStart={weekStart ?? null}
+          weekNumber={weekNumber ?? null}
+          exception={overlay?.exceptions[editing.timeSlotId] ?? null}
         />
       ) : null}
     </div>
@@ -269,10 +343,16 @@ function daysRunning(grid: TimetableGridData, columnKey: string): number[] {
 function Cell({
   cell,
   canManage,
+  exception,
+  absence,
   onOpen,
 }: {
   cell: TimetableCell;
   canManage: boolean;
+  /** A one-off change to this period, this week. */
+  exception?: ExceptionView;
+  /** Set when the teacher named in this cell is away that day. */
+  absence?: AbsenceView;
   onOpen: () => void;
 }) {
   const { t } = useI18n();
@@ -296,35 +376,97 @@ function Cell({
 
   const entry = cell.entry;
 
-  const body = entry ? (
-    <>
-      <span className="block truncate text-xs font-semibold">
-        {entry.subjectShort}
-        {/* A double period says so on its face — the width alone is easy to
+  /*
+    Three layers, in order of how loudly they override what the template says:
+
+      1. an exception cancels or replaces the period, this week only;
+      2. an absence leaves the template's lesson standing but uncovered;
+      3. otherwise the template is simply what happens.
+
+    A cancelled lesson keeps its subject, struck through, rather than emptying
+    the cell: "Maths, cancelled" is the useful thing to read, and a blank cell
+    is indistinguishable from a period nobody has filled in yet.
+  */
+  const cancelled = exception?.kind === "CANCELLED";
+  const replaced = exception?.kind === "REPLACED";
+
+  const body =
+    entry || replaced ? (
+      <>
+        <span
+          className={cn(
+            "block truncate text-xs font-semibold",
+            cancelled && "text-muted-foreground line-through",
+          )}
+        >
+          {replaced && exception?.subjectName
+            ? exception.subjectName
+            : (entry?.subjectShort ?? exception?.subjectName ?? "")}
+          {/* A double period says so on its face — the width alone is easy to
             misread on a grid whose columns are not all the same size. */}
-        {entry.span > 1 ? (
-          <span className="text-muted-foreground ms-1 font-normal">
-            ×{entry.span}
+          {entry && entry.span > 1 ? (
+            <span className="text-muted-foreground ms-1 font-normal">
+              ×{entry.span}
+            </span>
+          ) : null}
+        </span>
+
+        {/* Who is actually taking it: the stand-in named on the exception, then
+        the absent teacher's replacement, then whoever the template says. */}
+        {(exception?.teacherName ??
+        absence?.substituteName ??
+        entry?.teacherName) ? (
+          <span
+            className={cn(
+              "block truncate text-[10px]",
+              absence && !absence.substituteName
+                ? "text-destructive"
+                : "text-muted-foreground",
+            )}
+          >
+            {exception?.teacherName ??
+              absence?.substituteName ??
+              entry?.teacherName}
           </span>
         ) : null}
-      </span>
-      {entry.teacherName ? (
-        <span className="text-muted-foreground block truncate text-[10px]">
-          {entry.teacherName}
+
+        {cancelled ? (
+          <span className="text-destructive block truncate text-[10px] font-medium">
+            {t.timetable.cancelledThisWeek}
+          </span>
+        ) : absence ? (
+          <span
+            className={cn(
+              "block truncate text-[10px] font-medium",
+              absence.substituteName ? "text-warning" : "text-destructive",
+            )}
+          >
+            {absence.substituteName
+              ? interpolate(t.timetable.coveredBy, {
+                  name: absence.substituteName,
+                })
+              : t.timetable.notCovered}
+          </span>
+        ) : null}
+
+        <span className="text-muted-foreground flex items-center justify-center gap-1 text-[10px]">
+          {(exception?.roomCode ?? entry?.roomCode) ? (
+            <span dir="ltr">{exception?.roomCode ?? entry?.roomCode}</span>
+          ) : null}
+          {entry?.groupLabel ? <span>· {entry.groupLabel}</span> : null}
         </span>
-      ) : null}
-      <span className="text-muted-foreground flex items-center justify-center gap-1 text-[10px]">
-        {entry.roomCode ? <span dir="ltr">{entry.roomCode}</span> : null}
-        {entry.groupLabel ? <span>· {entry.groupLabel}</span> : null}
-      </span>
-    </>
-  ) : (
-    <PlusIcon className="text-muted-foreground/40 size-4" />
-  );
+      </>
+    ) : (
+      <PlusIcon className="text-muted-foreground/40 size-4" />
+    );
 
   const className = cn(
     "flex h-16 w-full flex-col items-center justify-center gap-0.5 rounded-md px-1.5 text-center transition-colors",
-    entry ? "bg-muted/60" : "border border-dashed",
+    entry || replaced ? "bg-muted/60" : "border border-dashed",
+    // A ring rather than a fill: the subject colour already owns the
+    // background, and two competing fills make the grid unreadable.
+    exception && "ring-2 ring-primary/40",
+    absence && !absence.substituteName && "ring-2 ring-destructive/40",
   );
 
   if (!canManage) {
@@ -337,7 +479,11 @@ function Cell({
             : undefined
         }
       >
-        {entry ? body : <span className="sr-only">{t.timetable.free}</span>}
+        {entry || replaced ? (
+          body
+        ) : (
+          <span className="sr-only">{t.timetable.free}</span>
+        )}
       </div>
     );
   }
@@ -353,7 +499,9 @@ function Cell({
       style={
         entry?.colorHex ? { backgroundColor: `${entry.colorHex}22` } : undefined
       }
-      aria-label={entry ? t.timetable.editLesson : t.timetable.addLesson}
+      aria-label={
+        entry || replaced ? t.timetable.editLesson : t.timetable.addLesson
+      }
     >
       {body}
     </button>

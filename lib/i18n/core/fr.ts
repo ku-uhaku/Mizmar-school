@@ -75,6 +75,8 @@ const core = {
       "Le soussigné atteste que l'élève désigné ci-dessous est inscrit dans cet établissement au titre de l'année scolaire {year}, dans la classe indiquée.",
     schedule: "Échéancier",
     classList: "Liste de classe",
+    timetable: "Emploi du temps",
+    teacherTimetable: "Emploi du temps de l'enseignant",
     pupilCount: "{count} élèves",
     total: "Total",
     dueOn: "Échéance",

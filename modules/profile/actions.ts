@@ -8,8 +8,12 @@ import { requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { field, withActionErrors } from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
-import { passwordChangeSchema, profileSchema } from "@/modules/profile/validation";
+import {
+  passwordChangeSchema,
+  profileSchema,
+} from "@/modules/profile/validation";
 
 /**
  * Both actions operate on the caller's own account only — the user id comes
@@ -35,7 +39,11 @@ export async function updateOwnProfileAction(
     });
 
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     await db.profile.upsert({

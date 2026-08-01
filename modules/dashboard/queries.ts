@@ -3,12 +3,17 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { PERMISSIONS } from "@/lib/permissions";
 import { countRoles } from "@/modules/access/queries";
+import { countEnrolmentsByLevel } from "@/modules/enrolment/queries";
 import { hrSummary } from "@/modules/hr/queries";
 import { countSchoolYears } from "@/modules/school-years/queries";
 import { countActiveSchools } from "@/modules/schools/queries";
 import { loadSchoolLifeStats } from "@/modules/school-life/queries";
 import { transportSummary } from "@/modules/transport/queries";
-import { treasurySummary } from "@/modules/treasury/queries";
+import {
+  collectionsByMonth,
+  schoolCollectionStanding,
+  treasurySummary,
+} from "@/modules/treasury/queries";
 import { countUsers } from "@/modules/users/queries";
 
 /**
@@ -119,4 +124,81 @@ export async function loadSectionHeadlines(
         }
       : null,
   };
+}
+
+/**
+ * The series the dashboard charts.
+ *
+ * Composed from each owning module's own read, never queried here — the same
+ * rule the counts follow. A section the reader may not open comes back empty
+ * rather than zeroed: an empty chart says "nothing to show", and a zeroed one
+ * makes a claim about the school the reader has not earned.
+ */
+export type DashboardCharts = {
+  /** Pupils per level offered this year. Empty when enrolment is not visible. */
+  enrolmentByLevel: { label: string; value: number }[];
+  /** Collected per month, `YYYY-MM` labels — the caller formats them. */
+  collectionsByMonth: { label: string; value: number }[];
+  /** The year's fees, paid against outstanding. Null when money is hidden. */
+  collection: {
+    chargedCentimes: number;
+    paidCentimes: number;
+    outstandingCentimes: number;
+    overdueCentimes: number;
+  } | null;
+};
+
+export async function loadDashboardCharts(
+  context: AuthContext,
+): Promise<DashboardCharts> {
+  const canSeeEnrolment = context.can(PERMISSIONS.ENROLMENT_VIEW);
+  const canSeeMoney = context.can(PERMISSIONS.TREASURY_VIEW);
+
+  const [enrolmentByLevel, collections, collection] = await Promise.all([
+    canSeeEnrolment ? countEnrolmentsByLevel(context) : [],
+    canSeeMoney ? collectionsByMonth(context) : [],
+    canSeeMoney ? schoolCollectionStanding(context) : null,
+  ]);
+
+  return {
+    enrolmentByLevel: byLevel(enrolmentByLevel),
+    collectionsByMonth: collections,
+    collection,
+  };
+}
+
+/**
+ * Folds each level's filières back into the level.
+ *
+ * The enrolment query splits by *offering*, so a qualifying cycle comes back as
+ * "2BAC 2B-SVT", "2BAC 2B-PC", "2BAC 2B-SM-A", "2BAC 2B-L" — eighteen columns
+ * for twelve levels, on a chart 220 pixels tall whose axis labels then collide
+ * into an unreadable row.
+ *
+ * The dashboard is a glance, and at that altitude the question is "how big is
+ * each level", not "how does 2BAC split across its filières" — which is the
+ * classes screen's question, where there is room to answer it. So the tracks
+ * are summed into their level here rather than upstream, and the full split
+ * stays available to everyone else who calls the query.
+ *
+ * Order is preserved from the source, which is by year of study, so the axis
+ * still reads 1AP through 2BAC rather than alphabetically.
+ */
+function byLevel(
+  rows: { label: string; levelCode: string; value: number }[],
+): { label: string; value: number }[] {
+  const merged: { label: string; value: number }[] = [];
+  const seen = new Map<string, number>();
+
+  for (const row of rows) {
+    const at = seen.get(row.levelCode);
+    if (at === undefined) {
+      seen.set(row.levelCode, merged.length);
+      merged.push({ label: row.levelCode, value: row.value });
+    } else {
+      merged[at].value += row.value;
+    }
+  }
+
+  return merged;
 }

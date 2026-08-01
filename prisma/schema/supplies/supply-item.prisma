@@ -1,0 +1,35 @@
+/// One line of a liste de fournitures: "2 cahiers 96 pages, grands carreaux".
+///
+/// A row per article rather than a paragraph, because a parent reads it as a
+/// shopping list and ticks it off — and because the school wants to know that
+/// three teachers all asked for the same ring binder, which prose cannot be
+/// searched for.
+model SupplyItem {
+  id     String     @id @default(cuid())
+  listId String
+  list   SupplyList @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  /// What to buy: "Cahier 96 pages, grands carreaux".
+  label   String
+  labelAr String?
+
+  /// How many. Nullable because "des crayons de couleur" is a real answer and
+  /// inventing a number would be worse than leaving it open.
+  quantity Int?
+
+  /// Colour, size, brand if it genuinely matters.
+  notes String?
+
+  /// Whether the child must have it. An optional line is a suggestion, and
+  /// telling the two apart is what stops a family buying things it need not.
+  isRequired Boolean @default(true)
+
+  /// Order on the printed list.
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([listId])
+  @@map("supply_items")
+}

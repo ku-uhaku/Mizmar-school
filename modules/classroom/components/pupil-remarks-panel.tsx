@@ -130,7 +130,9 @@ export function PupilRemarksPanel({ remarks }: { remarks: PupilRemarkRow[] }) {
                 <Card className={cn("gap-0 py-0", style.surface)}>
                   <CardContent className="grid gap-2 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("flex items-center gap-1.5", style.text)}>
+                      <span
+                        className={cn("flex items-center gap-1.5", style.text)}
+                      >
                         {style.icon}
                         <span className="text-xs font-medium">
                           {

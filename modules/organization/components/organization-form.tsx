@@ -63,7 +63,9 @@ export function OrganizationForm({
       <fieldset disabled={readOnly} className="contents">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t.organization.general}</CardTitle>
+            <CardTitle className="text-base">
+              {t.organization.general}
+            </CardTitle>
             <CardDescription>{t.organization.subtitle}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">

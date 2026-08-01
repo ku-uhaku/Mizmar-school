@@ -54,7 +54,11 @@ const ar = {
       programme: "المقرر",
       assessmentTypes: "أنواع الفروض",
       rooms: "القاعات",
+      cities: "المدن",
+      neighbourhoods: "الأحياء",
       terms: "الدورات",
+      holidays: "العطل",
+      teacherAbsences: "غيابات الأساتذة",
       timeSlots: "الحصص الزمنية",
       levelOfferings: "المستويات المفتوحة",
       schoolClasses: "الأقسام",
@@ -65,6 +69,9 @@ const ar = {
     },
 
     fields: {
+      region: "الجهة",
+      city: "المدينة",
+      landmark: "شارع أو معلمة",
       agency: "الوكالة",
       accountNumber: "رقم الحساب",
       categoryKind: "الاتجاه",
@@ -113,6 +120,9 @@ const ar = {
       notes: "ملاحظات",
       termNumber: "الرقم",
       startDate: "تاريخ البداية",
+      holidayKind: "النوع",
+      absenceKind: "السبب",
+      substitute: "ينوب عنه",
       endDate: "تاريخ النهاية",
       status: "الحالة",
       dayOfWeek: "اليوم",
@@ -141,6 +151,10 @@ const ar = {
     },
 
     hints: {
+      region: "اختياري — يفيد فقط في تجميع لائحة طويلة.",
+      holidayEnd: "شامل — ليوم واحد، كرّر تاريخ البداية.",
+      substitute: "اتركه فارغًا إذا لم ينب عنه أحد.",
+      landmark: "ما يحدّد موقعه عندما لا يكفي الاسم وحده.",
       agency: "الوكالة التي تحتفظ فيها المدرسة بحسابها فعلًا.",
       accountNumber: "حساب المدرسة، للتحويلات التي تصدرها.",
       categoryKind:
@@ -213,6 +227,18 @@ const ar = {
       PRIMARY: "التعليم الابتدائي",
       SECONDARY_COLLEGE: "الثانوي الإعدادي",
       SECONDARY_QUALIFYING: "الثانوي التأهيلي",
+    },
+    absenceKinds: {
+      SICK: "عطلة مرضية",
+      LEAVE: "رخصة",
+      TRAINING: "تكوين",
+      OTHER: "أخرى",
+    },
+    holidayKinds: {
+      SCHOOL_HOLIDAY: "عطلة مدرسية",
+      PUBLIC_HOLIDAY: "عيد وطني",
+      EXAM_PERIOD: "فترة امتحانات",
+      CLOSURE: "إغلاق",
     },
     roomKinds: {
       CLASSROOM: "قاعة الدرس",

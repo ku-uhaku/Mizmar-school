@@ -208,6 +208,9 @@ export type StopRow = {
   nameAr: string | null;
   landmark: string | null;
   position: number;
+  /** The quartier the stop stands in — the place, not the price band. */
+  neighbourhoodId: string | null;
+  neighbourhoodName: string | null;
   zoneId: string | null;
   zoneName: string | null;
   zoneAmountCentimes: number | null;
@@ -261,6 +264,7 @@ export async function findRoute(
         orderBy: [{ position: "asc" }, { name: "asc" }],
         include: {
           zone: { select: { id: true, name: true, amountCentimes: true } },
+          neighbourhood: { select: { id: true, name: true } },
           _count: {
             select: {
               subscriptions: {
@@ -321,6 +325,8 @@ export async function findRoute(
       nameAr: stop.nameAr,
       landmark: stop.landmark,
       position: stop.position,
+      neighbourhoodId: stop.neighbourhood?.id ?? null,
+      neighbourhoodName: stop.neighbourhood?.name ?? null,
       zoneId: stop.zone?.id ?? null,
       zoneName: stop.zone?.name ?? null,
       zoneAmountCentimes: stop.zone?.amountCentimes ?? null,

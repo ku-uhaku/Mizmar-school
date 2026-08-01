@@ -8,7 +8,12 @@ import { createUserAction, updateUserAction } from "@/modules/users/actions";
 import { ImageField } from "@/components/form/image-field";
 import { BirthDateField } from "@/components/form/birth-date-field";
 import { FormField, controlProps } from "@/components/form/form-field";
-import { FormActions, FormGrid, FormLayout, FormSection } from "@/components/form/form-page";
+import {
+  FormActions,
+  FormGrid,
+  FormLayout,
+  FormSection,
+} from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
@@ -37,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { formatDateTime } from "@/lib/i18n/format";
 
 export function UserForm({
@@ -95,7 +101,12 @@ export function UserForm({
                   label={t.user.orgRole}
                   error={errors.orgRoleId}
                 >
-                  <Select name="orgRoleId" defaultValue={user?.orgRoleId ?? "none"}>
+                  <Select
+                    name="orgRoleId"
+                    defaultValue={
+                      valueOf(state, "orgRoleId", user?.orgRoleId) || "none"
+                    }
+                  >
                     <SelectTrigger id="orgRoleId" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -121,7 +132,11 @@ export function UserForm({
                 <Switch
                   id="isActive"
                   name="isActive"
-                  defaultChecked={user?.isActive ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isActive",
+                    user?.isActive ?? true,
+                  )}
                 />
               </div>
 
@@ -136,7 +151,11 @@ export function UserForm({
                   <Switch
                     id="isSuperAdmin"
                     name="isSuperAdmin"
-                    defaultChecked={user?.isSuperAdmin ?? false}
+                    defaultChecked={checkedOf(
+                      state,
+                      "isSuperAdmin",
+                      user?.isSuperAdmin ?? false,
+                    )}
                   />
                 </div>
               ) : null}
@@ -167,7 +186,7 @@ export function UserForm({
             >
               <Input
                 {...controlProps("firstName", errors.firstName)}
-                defaultValue={user?.firstName ?? ""}
+                defaultValue={valueOf(state, "firstName", user?.firstName)}
                 autoComplete="given-name"
                 required
               />
@@ -181,7 +200,7 @@ export function UserForm({
             >
               <Input
                 {...controlProps("lastName", errors.lastName)}
-                defaultValue={user?.lastName ?? ""}
+                defaultValue={valueOf(state, "lastName", user?.lastName)}
                 autoComplete="family-name"
                 required
               />
@@ -193,7 +212,7 @@ export function UserForm({
               <Input
                 {...controlProps("phone", errors.phone)}
                 type="tel"
-                defaultValue={user?.phone ?? ""}
+                defaultValue={valueOf(state, "phone", user?.phone)}
                 dir="ltr"
               />
             </FormField>
@@ -205,14 +224,14 @@ export function UserForm({
             >
               <Input
                 {...controlProps("jobTitle", errors.jobTitle)}
-                defaultValue={user?.jobTitle ?? ""}
+                defaultValue={valueOf(state, "jobTitle", user?.jobTitle)}
               />
             </FormField>
           </FormGrid>
 
           <FormGrid>
             <BirthDateField
-              defaultValue={user?.birthDate ?? ""}
+              defaultValue={valueOf(state, "birthDate", user?.birthDate)}
               error={errors.birthDate}
             />
 
@@ -220,7 +239,7 @@ export function UserForm({
               name="avatarUrl"
               label={t.profile.avatarUrl}
               kind="avatar"
-              defaultValue={user?.avatarUrl ?? ""}
+              defaultValue={valueOf(state, "avatarUrl", user?.avatarUrl)}
               error={errors.avatarUrl}
               fallback={initials}
             />
@@ -238,7 +257,7 @@ export function UserForm({
               <Input
                 {...controlProps("email", errors.email)}
                 type="email"
-                defaultValue={user?.email ?? ""}
+                defaultValue={valueOf(state, "email", user?.email)}
                 dir="ltr"
                 autoComplete="off"
                 required

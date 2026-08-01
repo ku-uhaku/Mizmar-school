@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { clampToSchoolYear } from "@/lib/school-year";
 import { toDateInputValue } from "@/lib/utils";
 import { LessonPicker } from "@/modules/classroom/components/lesson-picker";
 import { RegisterSheet } from "@/modules/classroom/components/register-sheet";
@@ -46,9 +47,13 @@ export default async function TeacherAttendancePage({
   }
 
   const params = await searchParams;
-  const requested = params.date ? new Date(params.date) : new Date();
+  // A date the user asked for is honoured as typed; only the *default* is
+  // clamped into the year, so the register never opens on a day in August that
+  // the school year does not contain. See lib/school-year.ts.
+  const defaultDay = clampToSchoolYear(new Date(), context.currentSchoolYear);
+  const requested = params.date ? new Date(params.date) : defaultDay;
   const day = Number.isNaN(requested.getTime())
-    ? startOfDay(new Date())
+    ? startOfDay(defaultDay)
     : startOfDay(requested);
 
   const [teaching, lessons] = await Promise.all([

@@ -1,0 +1,73 @@
+/// A liste de fournitures: what a class is asked to bring, proposed by the
+/// teacher and released by the office.
+///
+/// ── Why it needs approving at all ────────────────────────────────────────────
+/// This list reaches families and costs them money. A teacher knows what the
+/// class needs; the school decides what it is willing to ask parents to buy,
+/// and whether four teachers of the same class have each asked for their own
+/// ring binder. So the list is written by whoever teaches and published by
+/// whoever answers for the school — the same split as a remark, which a teacher
+/// writes and the office releases.
+///
+/// Only an APPROVED list is ever shown outside the staffroom. A DRAFT is
+/// somebody thinking, and a REJECTED one is a decision that has to stay
+/// readable — it is kept rather than deleted so the teacher can see why.
+///
+/// Scoped to a class *and* a year: "3AP-A needs these" is only true of one
+/// year, and last year's list has to keep resolving after this year's is
+/// written.
+model SupplyList {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  schoolClassId String
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Set when the list is for one subject — "pour les arts plastiques". Null
+  /// means the class's general list, which is the commonest case.
+  /// Restrict: a subject with lists against it is not deletable out from under
+  /// them.
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  title String
+  /// Anything the items themselves cannot say: where to buy, when to bring it.
+  notes String?
+
+  /// "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
+  /// see modules/supplies/enums.ts.
+  ///
+  /// INVARIANT (service layer): only the office moves a list out of SUBMITTED,
+  /// and only APPROVED is visible to families.
+  status String @default("DRAFT")
+
+  /// The teacher who wrote it. SetNull: a list outlives the account that
+  /// proposed it, and the class still needs its pencils.
+  authorId String?
+  author   User?   @relation("SupplyListAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  /// Who approved or refused it, and when — the audit trail that makes
+  /// "who said we could ask parents for this" answerable.
+  reviewedById String?
+  reviewedBy   User?     @relation("SupplyListReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  /// Why it was refused. Shown to the teacher, never to a family.
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items SupplyItem[]
+
+  @@index([schoolId])
+  @@index([schoolYearId])
+  @@index([schoolClassId])
+  @@index([subjectId])
+  @@index([authorId])
+  @@index([schoolYearId, status])
+  @@map("supply_lists")
+}

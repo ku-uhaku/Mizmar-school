@@ -8,7 +8,13 @@ import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { boolField, field, listField, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
+import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   allocateStaffCode,
@@ -96,7 +102,11 @@ export async function saveStaffAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const id = field(formData, "id");
@@ -215,7 +225,11 @@ export async function saveContractAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const person = await reachableStaff(schoolId, parsed.data.staffId);
@@ -293,7 +307,11 @@ export async function markAttendanceAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const person = await reachableStaff(schoolId, parsed.data.staffId);
@@ -337,7 +355,11 @@ export async function markDayInBulkAction(
       notes: "",
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const requested = listField(formData, "staffIds");
@@ -393,7 +415,11 @@ export async function saveSalaryAction(
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const person = await reachableStaff(schoolId, parsed.data.staffId);
@@ -452,7 +478,11 @@ export async function paySalaryAction(
       paidOn: field(formData, "paidOn"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const salary = await db.salaryPayment.findFirst({
@@ -467,7 +497,9 @@ export async function paySalaryAction(
     if (parsed.data.method === "CASH") {
       const session = await db.cashSession.findFirst({
         where: {
-          ...(parsed.data.cashSessionId ? { id: parsed.data.cashSessionId } : {}),
+          ...(parsed.data.cashSessionId
+            ? { id: parsed.data.cashSessionId }
+            : {}),
           status: "OPEN",
           cashRegister: { schoolId },
         },
@@ -541,7 +573,11 @@ export async function saveLeaveAction(
       decisionNote: field(formData, "decisionNote"),
     });
     if (!parsed.success) {
-      return failure(t.errors.invalid, fieldErrors(parsed.error));
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
     }
 
     const person = await reachableStaff(schoolId, parsed.data.staffId);

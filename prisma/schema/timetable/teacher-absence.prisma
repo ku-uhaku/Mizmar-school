@@ -1,0 +1,50 @@
+/// A teacher is away between two dates.
+///
+/// ── Why this is one row and not one per lesson ───────────────────────────────
+/// When M. Bennis is off on the Tuesday, every lesson he holds that day is
+/// uncovered — six or seven cells across four classes. Recording that per cell
+/// would mean seven rows saying one thing, and seven chances for them to
+/// disagree. So the absence is a fact about the *teacher and the dates*, and
+/// which lessons it leaves uncovered is derived by the timetable from the
+/// entries that point at them. Derive, never duplicate.
+///
+/// Keyed on `User` rather than on `Staff`, because it is `TimetableEntry.teacherId`
+/// that has to match for a lesson to read as uncovered, and that column points
+/// at the account. A school tracking the same absence for payroll is answering
+/// a different question about a different row — see prisma/schema/hr/.
+///
+/// School-scoped, not year-scoped: an absence is a date, and the year it falls
+/// in follows from the date rather than needing to be declared alongside it.
+model TeacherAbsence {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Cascade: an account removed from the school takes its absences with it —
+  /// they describe nothing once the lessons pointing at it are unassigned.
+  teacherId String
+  teacher   User   @relation("TeacherAbsences", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  /// Inclusive on both ends. A single day off has `startDate == endDate`.
+  startDate DateTime
+  endDate   DateTime
+
+  /// "SICK" | "LEAVE" | "TRAINING" | "OTHER" — see modules/timetable/enums.ts.
+  kind String @default("OTHER")
+
+  /// Who is taking the classes instead, when somebody is. Null means the
+  /// lessons are simply uncovered, which is the state worth seeing on the grid.
+  /// SetNull: removing the stand-in's account must not delete the absence.
+  substituteId String?
+  substitute   User?   @relation("TeacherSubstitutions", fields: [substituteId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([schoolId, startDate])
+  @@map("teacher_absences")
+}

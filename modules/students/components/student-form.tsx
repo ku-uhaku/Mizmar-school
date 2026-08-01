@@ -4,7 +4,6 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDownIcon, InfoIcon } from "lucide-react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
 import { ImageField } from "@/components/form/image-field";
@@ -25,11 +24,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -42,13 +36,20 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { ageFrom, cn } from "@/lib/utils";
-import { formatNumber } from "@/lib/i18n/format";
+import { checkedOf, valueOf } from "@/lib/form-values";
+import { ageFrom } from "@/lib/utils";
+import { formatNumber, interpolate } from "@/lib/i18n/format";
 import {
   createStudentAction,
   updateStudentAction,
 } from "@/modules/students/actions";
-import { GENDERS } from "@/modules/students/enums";
+import {
+  BLOOD_TYPES,
+  GENDERS,
+  LIVES_WITH,
+  SCHOOLING_TYPES,
+  siblingCountOf,
+} from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
 
 /**
@@ -56,24 +57,28 @@ import type { StudentDetail } from "@/modules/students/queries";
  * the fees are set by enrolment, which is a different screen because it is a
  * different decision made by a different person at a different time.
  *
- * ── Creating and editing are not the same form ────────────────────────────────
- * Opening a file happens at a desk with a parent waiting, and four facts are
- * genuinely required: a name, a sex, a date of birth, and eventually a family.
- * Everything else — the MASSAR code, the CNIE, the place of birth, the medical
- * note — is filled in later, from paperwork, by somebody else.
+ * ── Everything at once ────────────────────────────────────────────────────────
+ * Creating used to fold all but four fields behind an "add more details"
+ * button. It went, because the fiche d'inscription a parent hands over at the
+ * desk is filled in top to bottom in one sitting — santé, scolarité antérieure,
+ * fratrie and all — and a secretary copying it out cannot see what to type next
+ * when it is hidden behind a disclosure. Only `firstName`, `lastName`, `gender`
+ * and `birthDate` are required; the length of the form is not a demand.
  *
- * So creating shows those four and folds the rest away; editing, on the profile,
- * shows everything open. Same fields, same action, same validation — only the
- * emphasis differs, because a form that asks for fifteen things to record a
- * six-year-old is a form people work around.
+ * Creating and editing therefore render identically — same sections, same
+ * action, same validation — and the only difference left is the wording of the
+ * submit button.
  */
 export function StudentForm({
   student,
   families,
+  cities,
 }: {
   student?: StudentDetail;
   /** Dossiers to attach to. Empty until the school has opened one. */
   families: { id: string; label: string }[];
+  /** The school's towns, for the birthplace — see modules/geography. */
+  cities: { id: string; label: string }[];
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -94,26 +99,22 @@ export function StudentForm({
   const errors = state.fieldErrors ?? {};
   const age = student ? ageFrom(student.birthDate) : null;
 
-  // A field the server complained about must not stay hidden behind a fold.
-  const detailFields = [
-    "code",
-    "massarCode",
-    "nationality",
-    "nationalId",
-    "photoUrl",
-    "birthPlace",
-    "birthPlaceAr",
-    "firstNameAr",
-    "lastNameAr",
-    "entryDate",
-    "medicalNotes",
-    "notes",
-  ];
-  // A validation error the user cannot see is a dead end, so an error on a
-  // folded-away field forces the panel open rather than waiting to be asked.
-  const hasHiddenError = detailFields.some((name) => name in errors);
-  const [expanded, setExpanded] = React.useState(isEdit);
-  const showDetails = expanded || hasHiddenError;
+  // Held in state only so the fratrie total updates as the counts are typed —
+  // the total is never submitted, and never stored. See `siblingCountOf`.
+  const [brotherCount, setBrotherCount] = React.useState(
+    student?.brotherCount === null || student?.brotherCount === undefined
+      ? ""
+      : String(student.brotherCount),
+  );
+  const [sisterCount, setSisterCount] = React.useState(
+    student?.sisterCount === null || student?.sisterCount === undefined
+      ? ""
+      : String(student.sisterCount),
+  );
+  const siblingCount = siblingCountOf({
+    brotherCount: brotherCount === "" ? null : Number(brotherCount),
+    sisterCount: sisterCount === "" ? null : Number(sisterCount),
+  });
 
   const details = (
     <>
@@ -126,7 +127,7 @@ export function StudentForm({
           >
             <Input
               {...controlProps("firstNameAr", errors.firstNameAr)}
-              defaultValue={student?.firstNameAr ?? ""}
+              defaultValue={valueOf(state, "firstNameAr", student?.firstNameAr)}
               dir="rtl"
             />
           </FormField>
@@ -138,36 +139,40 @@ export function StudentForm({
           >
             <Input
               {...controlProps("lastNameAr", errors.lastNameAr)}
-              defaultValue={student?.lastNameAr ?? ""}
+              defaultValue={valueOf(state, "lastNameAr", student?.lastNameAr)}
               dir="rtl"
             />
           </FormField>
         </FormGrid>
 
-        <FormGrid cols={2}>
-          <FormField
-            name="birthPlace"
-            label={t.student.birthPlace}
-            error={errors.birthPlace}
+        {/* One picker, not two boxes: the town's French and Arabic spellings
+          are agreed once under /configuration, so a certificat de scolarité
+          cannot print two different names for the same place. */}
+        <FormField
+          name="birthCityId"
+          label={t.student.birthPlace}
+          hint={cities.length === 0 ? t.student.noCities : undefined}
+          error={errors.birthCityId}
+        >
+          <Select
+            name="birthCityId"
+            defaultValue={
+              valueOf(state, "birthCityId", student?.birthCityId) || "__none__"
+            }
           >
-            <Input
-              {...controlProps("birthPlace", errors.birthPlace)}
-              defaultValue={student?.birthPlace ?? ""}
-            />
-          </FormField>
-
-          <FormField
-            name="birthPlaceAr"
-            label={t.student.birthPlaceAr}
-            error={errors.birthPlaceAr}
-          >
-            <Input
-              {...controlProps("birthPlaceAr", errors.birthPlaceAr)}
-              defaultValue={student?.birthPlaceAr ?? ""}
-              dir="rtl"
-            />
-          </FormField>
-        </FormGrid>
+            <SelectTrigger id="birthCityId" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">{t.common.none}</SelectItem>
+              {cities.map((city) => (
+                <SelectItem key={city.id} value={city.id}>
+                  {city.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
       </FormSection>
 
       <FormSection
@@ -183,7 +188,7 @@ export function StudentForm({
           >
             <Input
               {...controlProps("code", errors.code, t.student.codeHint)}
-              defaultValue={student?.code ?? ""}
+              defaultValue={valueOf(state, "code", student?.code)}
               dir="ltr"
               placeholder="E-2025-0431"
             />
@@ -201,7 +206,7 @@ export function StudentForm({
                 errors.massarCode,
                 t.student.massarCodeHint,
               )}
-              defaultValue={student?.massarCode ?? ""}
+              defaultValue={valueOf(state, "massarCode", student?.massarCode)}
               dir="ltr"
               className="uppercase"
             />
@@ -216,7 +221,9 @@ export function StudentForm({
           >
             <Input
               {...controlProps("nationality", errors.nationality)}
-              defaultValue={student?.nationality ?? "MA"}
+              defaultValue={
+                valueOf(state, "nationality", student?.nationality) || "MA"
+              }
               dir="ltr"
               maxLength={2}
               className="uppercase"
@@ -235,7 +242,7 @@ export function StudentForm({
                 errors.nationalId,
                 t.student.nationalIdHint,
               )}
-              defaultValue={student?.nationalId ?? ""}
+              defaultValue={valueOf(state, "nationalId", student?.nationalId)}
               dir="ltr"
               className="uppercase"
             />
@@ -249,7 +256,7 @@ export function StudentForm({
             <Input
               {...controlProps("entryDate", errors.entryDate)}
               type="date"
-              defaultValue={student?.entryDate ?? ""}
+              defaultValue={valueOf(state, "entryDate", student?.entryDate)}
               dir="ltr"
             />
           </FormField>
@@ -259,13 +266,162 @@ export function StudentForm({
           name="photoUrl"
           label={t.student.photoUrl}
           kind="avatar"
-          defaultValue={student?.photoUrl ?? ""}
+          defaultValue={valueOf(state, "photoUrl", student?.photoUrl)}
           error={errors.photoUrl}
           fallback={`${student?.firstName?.[0] ?? ""}${student?.lastName?.[0] ?? ""}`.toUpperCase()}
         />
       </FormSection>
 
-      <FormSection title={t.student.medical}>
+      <FormSection
+        title={t.student.medical}
+        description={t.student.medicalHint}
+      >
+        <FormGrid cols={3}>
+          <FormField
+            name="bloodType"
+            label={t.student.bloodType}
+            error={errors.bloodType}
+          >
+            <Select
+              name="bloodType"
+              defaultValue={
+                valueOf(state, "bloodType", student?.bloodType) || "__none__"
+              }
+            >
+              <SelectTrigger id="bloodType" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {/* Rendered as written, not through the dictionary — see the
+                  note on BLOOD_TYPES. */}
+                {BLOOD_TYPES.map((bloodType) => (
+                  <SelectItem key={bloodType} value={bloodType} dir="ltr">
+                    {bloodType}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <FormField
+            name="doctorName"
+            label={t.student.doctorName}
+            error={errors.doctorName}
+          >
+            <Input
+              {...controlProps("doctorName", errors.doctorName)}
+              defaultValue={valueOf(state, "doctorName", student?.doctorName)}
+            />
+          </FormField>
+
+          <FormField
+            name="doctorPhone"
+            label={t.student.doctorPhone}
+            error={errors.doctorPhone}
+          >
+            <Input
+              {...controlProps("doctorPhone", errors.doctorPhone)}
+              type="tel"
+              defaultValue={valueOf(state, "doctorPhone", student?.doctorPhone)}
+              dir="ltr"
+            />
+          </FormField>
+        </FormGrid>
+
+        <FormGrid cols={2}>
+          <FormField
+            name="allergies"
+            label={t.student.allergies}
+            hint={t.student.allergiesHint}
+            error={errors.allergies}
+          >
+            <Textarea
+              {...controlProps(
+                "allergies",
+                errors.allergies,
+                t.student.allergiesHint,
+              )}
+              defaultValue={valueOf(state, "allergies", student?.allergies)}
+              rows={2}
+            />
+          </FormField>
+
+          <FormField
+            name="chronicCondition"
+            label={t.student.chronicCondition}
+            hint={t.student.chronicConditionHint}
+            error={errors.chronicCondition}
+          >
+            <Textarea
+              {...controlProps(
+                "chronicCondition",
+                errors.chronicCondition,
+                t.student.chronicConditionHint,
+              )}
+              defaultValue={valueOf(
+                state,
+                "chronicCondition",
+                student?.chronicCondition,
+              )}
+              rows={2}
+            />
+          </FormField>
+        </FormGrid>
+
+        <FormGrid cols={2}>
+          <FormField
+            name="medications"
+            label={t.student.medications}
+            hint={t.student.medicationsHint}
+            error={errors.medications}
+          >
+            <Textarea
+              {...controlProps(
+                "medications",
+                errors.medications,
+                t.student.medicationsHint,
+              )}
+              defaultValue={valueOf(state, "medications", student?.medications)}
+              rows={2}
+            />
+          </FormField>
+
+          <FormField
+            name="insurer"
+            label={t.student.insurer}
+            hint={t.student.insurerHint}
+            error={errors.insurer}
+          >
+            <Input
+              {...controlProps(
+                "insurer",
+                errors.insurer,
+                t.student.insurerHint,
+              )}
+              defaultValue={valueOf(state, "insurer", student?.insurer)}
+            />
+          </FormField>
+        </FormGrid>
+
+        <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+          <div className="space-y-0.5">
+            <Label htmlFor="hasDisability">{t.student.hasDisability}</Label>
+            <p className="text-muted-foreground text-xs text-pretty">
+              {t.student.hasDisabilityHint}
+            </p>
+          </div>
+          <Switch
+            id="hasDisability"
+            name="hasDisability"
+            defaultChecked={checkedOf(
+              state,
+              "hasDisability",
+              student?.hasDisability ?? false,
+            )}
+          />
+        </div>
+
         <FormField
           name="medicalNotes"
           label={t.student.medicalNotes}
@@ -278,15 +434,256 @@ export function StudentForm({
               errors.medicalNotes,
               t.student.medicalNotesHint,
             )}
-            defaultValue={student?.medicalNotes ?? ""}
+            defaultValue={valueOf(state, "medicalNotes", student?.medicalNotes)}
             rows={3}
           />
         </FormField>
+      </FormSection>
 
+      <FormSection
+        title={t.student.schooling}
+        description={t.student.schoolingHint}
+      >
+        <FormGrid cols={2}>
+          <FormField
+            name="previousSchool"
+            label={t.student.previousSchool}
+            error={errors.previousSchool}
+          >
+            <Input
+              {...controlProps("previousSchool", errors.previousSchool)}
+              defaultValue={valueOf(
+                state,
+                "previousSchool",
+                student?.previousSchool,
+              )}
+            />
+          </FormField>
+
+          <FormField
+            name="previousSchoolCityId"
+            label={t.student.previousSchoolCity}
+            error={errors.previousSchoolCityId}
+          >
+            <Select
+              name="previousSchoolCityId"
+              defaultValue={
+                valueOf(
+                  state,
+                  "previousSchoolCityId",
+                  student?.previousSchoolCityId,
+                ) || "__none__"
+              }
+            >
+              <SelectTrigger id="previousSchoolCityId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {cities.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </FormGrid>
+
+        <FormGrid cols={2}>
+          <FormField
+            name="previousLevel"
+            label={t.student.previousLevel}
+            hint={t.student.previousLevelHint}
+            error={errors.previousLevel}
+          >
+            <Input
+              {...controlProps(
+                "previousLevel",
+                errors.previousLevel,
+                t.student.previousLevelHint,
+              )}
+              defaultValue={valueOf(
+                state,
+                "previousLevel",
+                student?.previousLevel,
+              )}
+            />
+          </FormField>
+
+          <FormField
+            name="schoolingType"
+            label={t.student.schoolingType}
+            error={errors.schoolingType}
+          >
+            <Select
+              name="schoolingType"
+              defaultValue={
+                valueOf(state, "schoolingType", student?.schoolingType) ||
+                "__none__"
+              }
+            >
+              <SelectTrigger id="schoolingType" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {SCHOOLING_TYPES.map((kind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {t.studentOptions.schoolingTypes[kind]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </FormGrid>
+
+        <FormField
+          name="transferReason"
+          label={t.student.transferReason}
+          error={errors.transferReason}
+        >
+          <Textarea
+            {...controlProps("transferReason", errors.transferReason)}
+            defaultValue={valueOf(
+              state,
+              "transferReason",
+              student?.transferReason,
+            )}
+            rows={2}
+          />
+        </FormField>
+      </FormSection>
+
+      <FormSection
+        title={t.student.household}
+        description={t.student.householdHint}
+      >
+        <FormGrid cols={3}>
+          <FormField
+            name="brotherCount"
+            label={t.student.brotherCount}
+            error={errors.brotherCount}
+          >
+            <Input
+              {...controlProps("brotherCount", errors.brotherCount)}
+              type="number"
+              min={0}
+              max={20}
+              inputMode="numeric"
+              value={brotherCount}
+              onChange={(event) => setBrotherCount(event.target.value)}
+              dir="ltr"
+            />
+          </FormField>
+
+          <FormField
+            name="sisterCount"
+            label={t.student.sisterCount}
+            error={errors.sisterCount}
+          >
+            <Input
+              {...controlProps("sisterCount", errors.sisterCount)}
+              type="number"
+              min={0}
+              max={20}
+              inputMode="numeric"
+              value={sisterCount}
+              onChange={(event) => setSisterCount(event.target.value)}
+              dir="ltr"
+            />
+          </FormField>
+
+          <FormField
+            name="birthRank"
+            label={t.student.birthRank}
+            hint={t.student.birthRankHint}
+            error={errors.birthRank}
+          >
+            <Input
+              {...controlProps(
+                "birthRank",
+                errors.birthRank,
+                t.student.birthRankHint,
+              )}
+              type="number"
+              min={1}
+              max={21}
+              inputMode="numeric"
+              defaultValue={valueOf(
+                state,
+                "birthRank",
+                student?.birthRank === null || student?.birthRank === undefined
+                  ? ""
+                  : String(student.birthRank),
+              )}
+              dir="ltr"
+            />
+          </FormField>
+        </FormGrid>
+
+        {/* Summed here rather than stored: a third column that can disagree
+          with the two it adds up is a bug waiting to be filed. */}
+        {siblingCount !== null ? (
+          <p className="text-muted-foreground text-xs">
+            {interpolate(t.student.siblingTotal, {
+              count: formatNumber(siblingCount, locale),
+            })}
+          </p>
+        ) : null}
+
+        <FormGrid cols={2}>
+          <FormField
+            name="livesWith"
+            label={t.student.livesWith}
+            hint={t.student.livesWithHint}
+            error={errors.livesWith}
+          >
+            <Select
+              name="livesWith"
+              defaultValue={
+                valueOf(state, "livesWith", student?.livesWith) || "__none__"
+              }
+            >
+              <SelectTrigger id="livesWith" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {LIVES_WITH.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {t.studentOptions.livesWith[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="isOrphan">{t.student.isOrphan}</Label>
+              <p className="text-muted-foreground text-xs text-pretty">
+                {t.student.isOrphanHint}
+              </p>
+            </div>
+            <Switch
+              id="isOrphan"
+              name="isOrphan"
+              defaultChecked={checkedOf(
+                state,
+                "isOrphan",
+                student?.isOrphan ?? false,
+              )}
+            />
+          </div>
+        </FormGrid>
+      </FormSection>
+
+      <FormSection title={t.student.notes}>
         <FormField name="notes" label={t.student.notes} error={errors.notes}>
           <Textarea
             {...controlProps("notes", errors.notes)}
-            defaultValue={student?.notes ?? ""}
+            defaultValue={valueOf(state, "notes", student?.notes)}
             rows={3}
           />
         </FormField>
@@ -313,7 +710,9 @@ export function StudentForm({
               >
                 <Select
                   name="familyId"
-                  defaultValue={student?.familyId ?? "__none__"}
+                  defaultValue={
+                    valueOf(state, "familyId", student?.familyId) || "__none__"
+                  }
                 >
                   <SelectTrigger id="familyId" className="w-full">
                     <SelectValue />
@@ -345,7 +744,11 @@ export function StudentForm({
                 <Switch
                   id="isActive"
                   name="isActive"
-                  defaultChecked={student?.isActive ?? true}
+                  defaultChecked={checkedOf(
+                    state,
+                    "isActive",
+                    student?.isActive ?? true,
+                  )}
                 />
               </div>
 
@@ -353,7 +756,9 @@ export function StudentForm({
                 <dl className="grid gap-2 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-muted-foreground">{t.student.age}</dt>
-                    <dd className="tabular-nums">{formatNumber(age, locale)}</dd>
+                    <dd className="tabular-nums">
+                      {formatNumber(age, locale)}
+                    </dd>
                   </div>
                 </dl>
               ) : null}
@@ -374,7 +779,7 @@ export function StudentForm({
             >
               <Input
                 {...controlProps("firstName", errors.firstName)}
-                defaultValue={student?.firstName ?? ""}
+                defaultValue={valueOf(state, "firstName", student?.firstName)}
                 autoFocus={!isEdit}
                 required
               />
@@ -388,7 +793,7 @@ export function StudentForm({
             >
               <Input
                 {...controlProps("lastName", errors.lastName)}
-                defaultValue={student?.lastName ?? ""}
+                defaultValue={valueOf(state, "lastName", student?.lastName)}
                 required
               />
             </FormField>
@@ -401,7 +806,12 @@ export function StudentForm({
               error={errors.gender}
               required
             >
-              <Select name="gender" defaultValue={student?.gender ?? "MALE"}>
+              <Select
+                name="gender"
+                defaultValue={
+                  valueOf(state, "gender", student?.gender) || "MALE"
+                }
+              >
                 <SelectTrigger id="gender" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -429,7 +839,7 @@ export function StudentForm({
                   t.student.birthDateHint,
                 )}
                 type="date"
-                defaultValue={student?.birthDate ?? ""}
+                defaultValue={valueOf(state, "birthDate", student?.birthDate)}
                 dir="ltr"
                 required
               />
@@ -437,37 +847,8 @@ export function StudentForm({
           </FormGrid>
         </FormSection>
 
-        {/* Editing shows everything; creating folds it away until asked for. */}
-        {isEdit ? (
-          details
-        ) : (
-          <Collapsible open={showDetails} onOpenChange={setExpanded}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between"
-              >
-                <span className="flex items-center gap-2">
-                  <InfoIcon className="size-4" />
-                  {t.student.moreDetails}
-                </span>
-                <ChevronDownIcon
-                  className={cn(
-                    "size-4 transition-transform",
-                    showDetails && "rotate-180",
-                  )}
-                />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="grid gap-5 pt-5">
-              <p className="text-muted-foreground text-xs text-pretty">
-                {t.student.moreDetailsHint}
-              </p>
-              {details}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
+        {/* Creating and editing render the same sections — see the note above. */}
+        {details}
       </FormLayout>
 
       <FormActions hint={isEdit ? undefined : t.student.createHint}>

@@ -96,6 +96,7 @@ const en = {
     editStop: "Edit stop",
     stopName: "Stop",
     landmark: "Landmark",
+    neighbourhood: "District",
     landmarkHint: "What to look for: “outside the pharmacy”.",
     position: "Order",
     pickupTime: "Pick-up",

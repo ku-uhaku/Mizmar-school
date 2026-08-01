@@ -57,6 +57,10 @@ import schoolLife, {
   nav as schoolLifeNav,
   permissions as schoolLifePermissions,
 } from "@/modules/school-life/i18n/fr";
+import supplies, {
+  nav as suppliesNav,
+  permissions as suppliesPermissions,
+} from "@/modules/supplies/i18n/fr";
 import students, {
   nav as studentsNav,
   permissions as studentsPermissions,
@@ -98,6 +102,7 @@ const fr: Dictionary = {
   ...schoolLife,
   ...families,
   ...students,
+  ...supplies,
   ...enrolment,
   ...classes,
   ...assessments,
@@ -125,6 +130,7 @@ const fr: Dictionary = {
     ...schoolLifeNav,
     ...familiesNav,
     ...studentsNav,
+    ...suppliesNav,
     ...classesNav,
     ...assessmentsNav,
     ...classroomNav,
@@ -144,6 +150,7 @@ const fr: Dictionary = {
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
+      ...suppliesPermissions.groups,
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
@@ -163,6 +170,7 @@ const fr: Dictionary = {
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,
+      ...suppliesPermissions.codes,
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,

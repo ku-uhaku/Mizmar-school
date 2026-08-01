@@ -486,6 +486,49 @@ html.dark[data-accent="teal"] {
   margin: 14mm;
 }
 
+/*
+  Landscape, for the documents that are wider than they are tall — a week has
+  six days across and a dozen periods, and portrait squeezes it to the point of
+  being unreadable. A *named* page rather than a second `@page` rule, because
+  `@page` is global: without the name, opting one document into landscape would
+  turn every receipt sideways too.
+*/
+@page landscape {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+.print-landscape {
+  page: landscape;
+}
+
+/* The on-screen preview has to match the paper it claims to be. */
+.print-landscape .print-page {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+.print-week {
+  table-layout: fixed;
+  font-size: 9pt;
+}
+
+.print-week th,
+.print-week td {
+  padding: 3px 4px;
+  vertical-align: middle;
+}
+
+/* The day column carries a word, the period columns share what is left. */
+.print-week-day {
+  width: 22mm;
+  font-weight: 600;
+}
+
+.print-week-break {
+  background: #f4f4f4;
+}
+
 @media print {
   /* Nothing of the application chrome survives — only the document. */
   .print-toolbar,

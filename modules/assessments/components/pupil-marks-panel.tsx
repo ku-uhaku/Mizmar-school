@@ -20,7 +20,10 @@ import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
 import { passMarkOf } from "@/lib/school-settings";
 import { cn } from "@/lib/utils";
 import { isPassing } from "@/modules/assessments/enums";
-import type { PupilMarks, PupilSubjectMarks } from "@/modules/assessments/queries";
+import type {
+  PupilMarks,
+  PupilSubjectMarks,
+} from "@/modules/assessments/queries";
 
 /**
  * Les notes: what this pupil has scored, by subject.
@@ -68,7 +71,9 @@ export function PupilMarksPanel({ marks }: { marks: PupilMarks }) {
             className={cn(
               "mt-1 text-3xl font-semibold tabular-nums",
               marks.overall !== null &&
-                (marks.overall >= passMark ? "text-success" : "text-destructive"),
+                (marks.overall >= passMark
+                  ? "text-success"
+                  : "text-destructive"),
             )}
           >
             {marks.overall === null

@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { interpolate } from "@/lib/i18n/format";
 import {
   deleteTeachingAssignmentAction,
@@ -130,8 +131,10 @@ export function TeachingPanel({
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{assignment.subjectName}</span>
-                    <Badge variant="outline" className="text-xs" >
+                    <span className="font-medium">
+                      {assignment.subjectName}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
                       {assignment.subjectCode}
                     </Badge>
                     {assignment.isPrimary ? (
@@ -251,11 +254,7 @@ function AssignmentDialog({
         </DialogHeader>
 
         <form action={formAction} key={assignment?.id ?? "new"}>
-          <input
-            type="hidden"
-            name="schoolClassId"
-            value={schoolClass.id}
-          />
+          <input type="hidden" name="schoolClassId" value={schoolClass.id} />
           {assignment ? (
             <input type="hidden" name="id" value={assignment.id} />
           ) : null}
@@ -315,7 +314,10 @@ function AssignmentDialog({
               >
                 <Select
                   name="classGroupId"
-                  defaultValue={assignment?.classGroupId ?? "__none__"}
+                  defaultValue={
+                    valueOf(state, "classGroupId", assignment?.classGroupId) ||
+                    "__none__"
+                  }
                   disabled={schoolClass.groups.length === 0}
                 >
                   <SelectTrigger id="classGroupId" className="w-full">
@@ -349,7 +351,14 @@ function AssignmentDialog({
                   type="number"
                   min={0}
                   max={3000}
-                  defaultValue={assignment?.weeklyMinutes ?? ""}
+                  defaultValue={valueOf(
+                    state,
+                    "weeklyMinutes",
+                    assignment?.weeklyMinutes === null ||
+                      assignment?.weeklyMinutes === undefined
+                      ? ""
+                      : String(assignment.weeklyMinutes),
+                  )}
                   dir="ltr"
                 />
               </FormField>
@@ -365,7 +374,11 @@ function AssignmentDialog({
               <Switch
                 id="isPrimary"
                 name="isPrimary"
-                defaultChecked={assignment?.isPrimary ?? true}
+                defaultChecked={checkedOf(
+                  state,
+                  "isPrimary",
+                  assignment?.isPrimary ?? true,
+                )}
               />
             </div>
           </div>

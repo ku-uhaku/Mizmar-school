@@ -7,7 +7,11 @@ import { LockIcon } from "lucide-react";
 
 import { createRoleAction, updateRoleAction } from "@/modules/access/actions";
 import { FormField, controlProps } from "@/components/form/form-field";
-import { FormActions, FormLayout, FormSection } from "@/components/form/form-page";
+import {
+  FormActions,
+  FormLayout,
+  FormSection,
+} from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -31,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { ROLE_SCOPES } from "@/modules/access/enums";
 import { interpolate } from "@/lib/i18n/format";
 
@@ -80,12 +85,18 @@ export function RoleForm({
                       readOnly
                       disabled
                     />
-                    <input type="hidden" name="scope" value={systemRole.scope} />
+                    <input
+                      type="hidden"
+                      name="scope"
+                      value={systemRole.scope}
+                    />
                   </>
                 ) : (
                   <Select
                     name="scope"
-                    defaultValue={role?.scope ?? "SCHOOL"}
+                    defaultValue={
+                      valueOf(state, "scope", role?.scope) || "SCHOOL"
+                    }
                     disabled={readOnly}
                   >
                     <SelectTrigger id="scope" className="w-full">
@@ -132,7 +143,7 @@ export function RoleForm({
           >
             <Input
               {...controlProps("name", errors.name)}
-              defaultValue={role?.name ?? ""}
+              defaultValue={valueOf(state, "name", role?.name)}
               // A system role's name is part of its identity — the seed looks it
               // up by name to repair permissions.
               readOnly={Boolean(systemRole)}
@@ -148,7 +159,7 @@ export function RoleForm({
           >
             <Textarea
               {...controlProps("description", errors.description)}
-              defaultValue={role?.description ?? ""}
+              defaultValue={valueOf(state, "description", role?.description)}
               rows={3}
               disabled={readOnly}
             />
@@ -169,7 +180,9 @@ export function RoleForm({
 
       <FormActions>
         <Button asChild type="button" variant="outline" size="lg">
-          <Link href="/roles">{readOnly ? t.common.back : t.common.cancel}</Link>
+          <Link href="/roles">
+            {readOnly ? t.common.back : t.common.cancel}
+          </Link>
         </Button>
         {!readOnly ? (
           <SubmitButton size="lg">

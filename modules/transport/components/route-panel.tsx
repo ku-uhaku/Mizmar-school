@@ -48,6 +48,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
+import { valueOf } from "@/lib/form-values";
 import { formatAmount, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
@@ -79,11 +80,14 @@ import { Field } from "@/modules/transport/components/field";
 export function RoutePanel({
   route,
   zones,
+  neighbourhoods,
   subscribable,
   permissions,
 }: {
   route: RouteDetail;
   zones: ZoneRow[];
+  /** The school's quartiers, for the stop dialog — see modules/geography. */
+  neighbourhoods: { id: string; label: string }[];
   subscribable: SubscribableStudent[];
   permissions: { canManage: boolean; canSubscribe: boolean };
 }) {
@@ -93,9 +97,11 @@ export function RoutePanel({
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Summary label={t.transport.assignedVehicle}
+        <Summary
+          label={t.transport.assignedVehicle}
           value={route.vehicleRegistration ?? t.transport.noVehicleAssigned}
-          hint={route.driverName ?? undefined} />
+          hint={route.driverName ?? undefined}
+        />
         <Summary
           label={t.transport.seats}
           value={`${route.taken} / ${route.seats}`}
@@ -129,7 +135,12 @@ export function RoutePanel({
         </TabsList>
 
         <TabsContent value="stops">
-          <StopsTab route={route} zones={zones} canManage={permissions.canManage} />
+          <StopsTab
+            route={route}
+            zones={zones}
+            neighbourhoods={neighbourhoods}
+            canManage={permissions.canManage}
+          />
         </TabsContent>
 
         <TabsContent value="riders">
@@ -160,7 +171,9 @@ function Summary({
     <Card>
       <CardContent className="grid gap-1 py-4">
         <p className="text-muted-foreground text-xs">{label}</p>
-        <p className={cn("font-semibold", tone === "bad" && "text-destructive")}>
+        <p
+          className={cn("font-semibold", tone === "bad" && "text-destructive")}
+        >
           {value}
         </p>
         {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
@@ -174,10 +187,13 @@ function Summary({
 function StopsTab({
   route,
   zones,
+  neighbourhoods,
   canManage,
 }: {
   route: RouteDetail;
   zones: ZoneRow[];
+  /** The school's quartiers, for the stop dialog — see modules/geography. */
+  neighbourhoods: { id: string; label: string }[];
   canManage: boolean;
 }) {
   const t = useT();
@@ -227,7 +243,9 @@ function StopsTab({
                   <TableHead>{t.transport.stopName}</TableHead>
                   <TableHead>{t.transport.zone}</TableHead>
                   <TableHead>{t.transport.pickupTime}</TableHead>
-                  <TableHead className="text-end">{t.transport.riders}</TableHead>
+                  <TableHead className="text-end">
+                    {t.transport.riders}
+                  </TableHead>
                   {canManage ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
@@ -239,9 +257,13 @@ function StopsTab({
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{stop.name}</span>
-                      {stop.landmark ? (
+                      {/* Quartier and landmark on one line — together they are
+                        "where is this stop", which is one question. */}
+                      {stop.neighbourhoodName || stop.landmark ? (
                         <span className="text-muted-foreground block text-xs">
-                          {stop.landmark}
+                          {[stop.neighbourhoodName, stop.landmark]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       ) : null}
                     </TableCell>
@@ -269,7 +291,11 @@ function StopsTab({
                     </TableCell>
                     {canManage ? (
                       <TableCell className="text-end">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(stop)}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditing(stop)}
+                        >
                           {t.common.edit}
                         </Button>
                         <Button
@@ -295,6 +321,7 @@ function StopsTab({
           routeId={route.id}
           stop={editing}
           zones={zones}
+          neighbourhoods={neighbourhoods}
           nextPosition={route.stops.length}
           onClose={() => {
             setCreating(false);
@@ -334,12 +361,15 @@ function StopDialog({
   routeId,
   stop,
   zones,
+  neighbourhoods,
   nextPosition,
   onClose,
 }: {
   routeId: string;
   stop: StopRow | null;
   zones: ZoneRow[];
+  /** The school's quartiers, for the stop dialog — see modules/geography. */
+  neighbourhoods: { id: string; label: string }[];
   nextPosition: number;
   onClose: () => void;
 }) {
@@ -353,24 +383,70 @@ function StopDialog({
       <DialogContent>
         <form action={formAction} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>{stop ? t.transport.editStop : t.transport.newStop}</DialogTitle>
+            <DialogTitle>
+              {stop ? t.transport.editStop : t.transport.newStop}
+            </DialogTitle>
             <DialogDescription>{t.transport.landmarkHint}</DialogDescription>
           </DialogHeader>
 
           <input type="hidden" name="routeId" value={routeId} />
           {stop ? <input type="hidden" name="id" value={stop.id} /> : null}
 
-          <Field label={t.transport.stopName} name="name" error={errors.name} required>
-            <Input id="name" name="name" defaultValue={stop?.name ?? ""} required />
+          <Field
+            label={t.transport.stopName}
+            name="name"
+            error={errors.name}
+            required
+          >
+            <Input
+              id="name"
+              name="name"
+              defaultValue={valueOf(state, "name", stop?.name)}
+              required
+            />
           </Field>
 
           <Field label={t.transport.landmark} name="landmark">
-            <Input id="landmark" name="landmark" defaultValue={stop?.landmark ?? ""} />
+            <Input
+              id="landmark"
+              name="landmark"
+              defaultValue={valueOf(state, "landmark", stop?.landmark)}
+            />
+          </Field>
+
+          {/* The quartier is where the stop *is*; the zone below is what riding
+            from it costs. Two separate questions — see the note on
+            prisma/schema/geography/neighbourhood.prisma. */}
+          <Field label={t.transport.neighbourhood} name="neighbourhoodId">
+            <Select
+              name="neighbourhoodId"
+              defaultValue={
+                valueOf(state, "neighbourhoodId", stop?.neighbourhoodId) ||
+                "__none__"
+              }
+            >
+              <SelectTrigger id="neighbourhoodId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {neighbourhoods.map((neighbourhood) => (
+                  <SelectItem key={neighbourhood.id} value={neighbourhood.id}>
+                    {neighbourhood.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t.transport.zone} name="zoneId">
-              <Select name="zoneId" defaultValue={stop?.zoneId ?? "__none__"}>
+              <Select
+                name="zoneId"
+                defaultValue={
+                  valueOf(state, "zoneId", stop?.zoneId) || "__none__"
+                }
+              >
                 <SelectTrigger id="zoneId" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -398,13 +474,17 @@ function StopDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.transport.pickupTime} name="pickupTime" error={errors.pickupTime}>
+            <Field
+              label={t.transport.pickupTime}
+              name="pickupTime"
+              error={errors.pickupTime}
+            >
               <Input
                 id="pickupTime"
                 name="pickupTime"
                 dir="ltr"
                 placeholder="07:30"
-                defaultValue={stop?.pickupTime ?? ""}
+                defaultValue={valueOf(state, "pickupTime", stop?.pickupTime)}
               />
             </Field>
             <Field
@@ -417,7 +497,7 @@ function StopDialog({
                 name="dropoffTime"
                 dir="ltr"
                 placeholder="17:00"
-                defaultValue={stop?.dropoffTime ?? ""}
+                defaultValue={valueOf(state, "dropoffTime", stop?.dropoffTime)}
               />
             </Field>
           </div>
@@ -468,12 +548,17 @@ function RidersTab({
   }
 
   const canAdd =
-    canSubscribe && route.stops.length > 0 && route.remaining > 0 && subscribable.length > 0;
+    canSubscribe &&
+    route.stops.length > 0 &&
+    route.remaining > 0 &&
+    subscribable.length > 0;
 
   return (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">{t.transport.billingNote}</p>
+        <p className="text-muted-foreground text-sm">
+          {t.transport.billingNote}
+        </p>
         {canSubscribe ? (
           <Button size="sm" disabled={!canAdd} onClick={() => setAdding(true)}>
             <PlusIcon className="size-4" />
@@ -513,7 +598,9 @@ function RidersTab({
                   <TableHead>{t.transport.stop}</TableHead>
                   <TableHead>{t.transport.direction}</TableHead>
                   <TableHead>{t.transport.zone}</TableHead>
-                  <TableHead className="text-end">{t.transport.pricePerYear}</TableHead>
+                  <TableHead className="text-end">
+                    {t.transport.pricePerYear}
+                  </TableHead>
                   {canSubscribe ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
@@ -659,7 +746,10 @@ function RiderDialog({
               </SelectTrigger>
               <SelectContent>
                 {subscribable.map((option) => (
-                  <SelectItem key={option.enrollmentId} value={option.enrollmentId}>
+                  <SelectItem
+                    key={option.enrollmentId}
+                    value={option.enrollmentId}
+                  >
                     {option.label}
                   </SelectItem>
                 ))}
@@ -667,7 +757,12 @@ function RiderDialog({
             </Select>
           </Field>
 
-          <Field label={t.transport.stop} name="stopId" error={errors.stopId} required>
+          <Field
+            label={t.transport.stop}
+            name="stopId"
+            error={errors.stopId}
+            required
+          >
             <Select name="stopId" required>
               <SelectTrigger id="stopId" className="w-full">
                 <SelectValue placeholder={t.transport.stop} />
@@ -768,7 +863,12 @@ function EditRiderDialog({
 
           <input type="hidden" name="id" value={rider.subscriptionId} />
 
-          <Field label={t.transport.stop} name="stopId" error={errors.stopId} required>
+          <Field
+            label={t.transport.stop}
+            name="stopId"
+            error={errors.stopId}
+            required
+          >
             <Select name="stopId" defaultValue={rider.stopId} required>
               <SelectTrigger id="stopId" className="w-full">
                 <SelectValue />

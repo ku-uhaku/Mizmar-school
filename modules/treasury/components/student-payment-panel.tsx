@@ -7,6 +7,7 @@ import {
   BanknoteArrowDownIcon,
   CheckCircle2Icon,
   ClockIcon,
+  ReceiptTextIcon,
   TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { PaymentConsole } from "@/modules/treasury/components/payment-console";
+import { ReceiptsTable } from "@/modules/treasury/components/operations-table";
 import {
   PAYMENT_STATE_STYLES,
   standingStateOf,
@@ -29,6 +31,7 @@ import type {
   BankOption,
   FamilyStanding,
   PayableFamily,
+  PaymentRow,
   PaymentStanding,
 } from "@/modules/treasury/queries";
 
@@ -50,12 +53,18 @@ import type {
  * `overdue` is called out separately from `outstanding` on purpose — see the
  * note on `PaymentStanding.overdueCentimes`. Most of the year's fees are
  * outstanding in October and none of them are late.
+ *
+ * The receipts already taken are listed underneath, the same table the caisse
+ * ledger draws — so a duplicate can be reprinted, or a receipt written in error
+ * cancelled, without leaving the child's file to hunt for it in /caisse.
  */
 export function StudentPaymentPanel({
   standing,
   family,
   familyId,
   canCollect,
+  canCancel,
+  payments,
   payable,
   banks,
   hasOpenSession,
@@ -66,6 +75,9 @@ export function StudentPaymentPanel({
   /** Null when the child has no dossier familial — there is nobody to bill. */
   familyId: string | null;
   canCollect: boolean;
+  canCancel: boolean;
+  /** Receipts that settled this pupil's lines — see `listStudentPayments`. */
+  payments: PaymentRow[];
   /**
    * The household's payable schedule, when the reader may collect. Loaded with
    * the file rather than on demand: a sheet that fetched on open was one more
@@ -233,6 +245,26 @@ export function StudentPaymentPanel({
           ) : null}
         </CardContent>
       </Card>
+
+      {/*
+      What has already been collected against this child, above the till rather
+      than below it: the question at the desk is as often "we paid in October,
+      can I have the receipt again" as it is "here is the money". Print works on
+      cancelled receipts too, and cancelling is gated on TREASURY_CANCEL — a
+      secretary who may take money may not unwrite it.
+    */}
+      <div className="grid gap-2">
+        <div className="flex items-center gap-2">
+          <ReceiptTextIcon className="text-muted-foreground size-4" />
+          <h3 className="text-sm font-medium">{t.treasury.receipts}</h3>
+          {payments.length > 0 ? (
+            <Badge variant="secondary" className="tabular-nums">
+              {payments.length}
+            </Badge>
+          ) : null}
+        </div>
+        <ReceiptsTable payments={payments} canCancel={canCancel} />
+      </div>
 
       {/*
       The till itself, on the pupil's file rather than behind a link to
