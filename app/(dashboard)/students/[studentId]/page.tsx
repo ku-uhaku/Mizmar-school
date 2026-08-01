@@ -162,12 +162,15 @@ export default async function StudentPage({
         }
         meta={
           <>
+            {/* Status keeps its own colours — it means something. The level and
+              the class say *where* the child sits, which is exactly what the
+              section hue is for. */}
             <StudentStatusBadge status={student.status} />
             {student.levelName ? (
-              <Badge variant="secondary">{student.levelName}</Badge>
+              <Badge variant="section">{student.levelName}</Badge>
             ) : null}
             {student.className ? (
-              <Badge variant="outline">{student.className}</Badge>
+              <Badge variant="section">{student.className}</Badge>
             ) : null}
           </>
         }

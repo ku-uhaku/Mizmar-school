@@ -89,7 +89,11 @@ export function AppSidebar({
                     onError={() => setLogoBroken(true)}
                   />
                 ) : (
-                  <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                  // Inverted against the rail rather than painted with
+                  // --primary: the rail is dark in both themes, and --primary
+                  // is near-black in light mode, which would have put a black
+                  // mark on a black panel.
+                  <div className="bg-sidebar-foreground text-sidebar flex aspect-square size-8 items-center justify-center rounded-lg">
                     <GraduationCapIcon className="size-4" />
                   </div>
                 )}
@@ -97,7 +101,10 @@ export function AppSidebar({
                   <span className="truncate font-semibold">
                     {organizationName}
                   </span>
-                  <span className="text-muted-foreground truncate text-xs">
+                  {/* Off the rail's own foreground, not --muted-foreground:
+                    that token is a dark grey in light mode and would disappear
+                    here. */}
+                  <span className="text-sidebar-foreground/70 truncate text-xs">
                     {subtitle ?? t.nav.administration}
                   </span>
                 </div>
@@ -108,9 +115,18 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
+        {/*
+          The sidebar is where the colour mapping is taught: every section is on
+          screen at once here, and nowhere else. The tint is on the label and the
+          icons rather than on the row text — a full row of coloured labels would
+          fight the active state, which is the only thing in the list that has to
+          win.
+        */}
         {sections.map((group) => (
-          <SidebarGroup key={group.section}>
-            <SidebarGroupLabel>{t.nav[group.titleKey]}</SidebarGroupLabel>
+          <SidebarGroup key={group.section} data-section={group.section}>
+            <SidebarGroupLabel className="text-section/90">
+              {t.nav[group.titleKey]}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
@@ -122,6 +138,19 @@ export function AppSidebar({
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
+                        // The active row and its start bar wear the section's
+                        // hue instead of the app accent, so "where am I" and
+                        // "which part of the app is this" are one signal rather
+                        // than two competing ones. Idle icons are held back to
+                        // 70% so thirty of them down the rail stay quieter than
+                        // the one row that is actually active.
+                        //
+                        // The `dark:` pair is not redundant: the base component
+                        // carries its own `dark:data-active:bg-sidebar-primary`
+                        // rules, and tailwind-merge keys those separately from
+                        // the unprefixed ones, so they survive unless matched
+                        // variant for variant.
+                        className="data-active:bg-section/15 data-active:text-section data-active:before:bg-section data-active:hover:bg-section/20 data-active:hover:text-section dark:data-active:bg-section/15 dark:data-active:hover:bg-section/20 [&_svg]:text-section/70 data-active:[&_svg]:text-section"
                         // Four sections open on an entry labelled "Overview",
                         // and collapsed to icons the label is all there is —
                         // so the tooltip names the section instead.
@@ -132,6 +161,9 @@ export function AppSidebar({
                         }
                       >
                         <Link href={item.href}>
+                          {/* The icon carries the hue (tinted from the button
+                            above); collapsed to icons it is the only thing left,
+                            and it still says which section the row belongs to. */}
                           <Icon />
                           <span>{t.nav[item.labelKey]}</span>
                         </Link>

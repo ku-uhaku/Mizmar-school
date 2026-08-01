@@ -62,6 +62,41 @@ const ALL_ENTRIES: NavEntry[] = MODULES.flatMap((module) =>
 ).sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
 
 /**
+ * Every nav href with the section it belongs to, longest first.
+ *
+ * Sorted once at module load so the lookup below is a scan for the first match
+ * rather than a scan for the best one.
+ */
+const SECTION_BY_HREF: { href: string; section: NavSection }[] =
+  ALL_ENTRIES.map((entry) => ({
+    href: entry.href,
+    section: entry.section,
+  })).sort((a, b) => b.href.length - a.href.length);
+
+/**
+ * Which section a URL belongs to, for the section colour (see globals.css).
+ *
+ * Longest match wins, by the same rule the sidebar highlights with — otherwise
+ * `/transport` and `/transport/routes` would both claim `/transport/routes`.
+ * Routes with no nav entry of their own inherit their parent's: `/students/new`
+ * has no sidebar row, and is still vie scolaire.
+ *
+ * Unfiltered by permission on purpose. This decides a hue, not access, and the
+ * page behind it has already made the real check — running the permission
+ * filter here would mean threading an AuthContext into a client component to
+ * choose a colour.
+ */
+export function sectionForPath(pathname: string): NavSection | null {
+  for (const entry of SECTION_BY_HREF) {
+    if (entry.href === "/") continue;
+    if (pathname === entry.href || pathname.startsWith(`${entry.href}/`)) {
+      return entry.section;
+    }
+  }
+  return pathname === "/" ? "main" : null;
+}
+
+/**
  * Keeps only the sections and entries the given user may reach.
  *
  * `canOrg` is the org-wide check and `can` the current-school one; an org-wide
@@ -77,7 +112,10 @@ export function visibleSections(
     titleKey: section,
     items: ALL_ENTRIES.filter((entry) => {
       if (entry.section !== section) return false;
-      if (entry.orgPermission && !canOrg(entry.orgPermission as PermissionCode)) {
+      if (
+        entry.orgPermission &&
+        !canOrg(entry.orgPermission as PermissionCode)
+      ) {
         return false;
       }
       if (

@@ -3,6 +3,7 @@ import { SettingsProvider } from "@/components/providers/settings-provider";
 import { ContextSwitcher } from "@/modules/context/components/context-switcher";
 import { GlobalSearch } from "@/modules/school-life/components/global-search";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
+import { SectionScope } from "@/components/shell/section-scope";
 import { visibleSections } from "@/lib/nav";
 import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
 import { UserMenu } from "@/components/shell/user-menu";
@@ -89,9 +90,11 @@ export default async function DashboardLayout({
             </div>
           </header>
 
-          <div className="mx-auto w-full min-w-0 max-w-[100rem] flex-1 p-4 md:p-6">
+          {/* Binds the section colour for everything on the page — see
+            components/shell/section-scope.tsx. */}
+          <SectionScope className="mx-auto w-full min-w-0 max-w-[100rem] flex-1 p-4 md:p-6">
             {children}
-          </div>
+          </SectionScope>
         </SidebarInset>
       </SidebarProvider>
     </SettingsProvider>

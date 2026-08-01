@@ -51,20 +51,35 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         {avatar ? <div className="shrink-0">{avatar}</div> : null}
-        <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
-            {title}
-          </h1>
-          {description ? (
-            <p className="text-muted-foreground text-sm text-pretty">
-              {description}
-            </p>
-          ) : null}
-          {meta ? (
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              {meta}
-            </div>
-          ) : null}
+        {/*
+          The section's colour, on the one element every screen has. It is a
+          rule beside the title rather than coloured type: the title is the
+          thing being read, and tinting it would trade legibility for a signal
+          the rule carries just as well. `--section` is bound by the layout —
+          see components/shell/section-scope.tsx.
+        */}
+        <div className="flex min-w-0 flex-1 gap-3">
+          {/* A bar rather than a `border-s`, so the shape matches the sidebar's
+            own active indicator — the two are the same signal in two places. */}
+          <span
+            aria-hidden
+            className="bg-section mt-1 w-[3px] shrink-0 self-stretch rounded-full"
+          />
+          <div className="min-w-0 flex-1 space-y-1">
+            <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
+              {title}
+            </h1>
+            {description ? (
+              <p className="text-muted-foreground text-sm text-pretty">
+                {description}
+              </p>
+            ) : null}
+            {meta ? (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                {meta}
+              </div>
+            ) : null}
+          </div>
         </div>
         {children ? (
           <div className="flex shrink-0 items-center gap-2">{children}</div>

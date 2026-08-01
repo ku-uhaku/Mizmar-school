@@ -29,6 +29,10 @@
   --color-grid: var(--grid);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  /* Inline on purpose: the utility resolves to `var(--section)` at use time, so
+     it picks up whatever [data-section] is in scope rather than being frozen to
+     the root value at build time. That indirection is the whole mechanism. */
+  --color-section: var(--section);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -54,8 +58,41 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Light mode.
+
+   Stock shadcn light is a white page carrying white cards separated by a
+   1.26:1 border — no surface step at all, so every screen reads as one flat
+   sheet and the structure has to be inferred from spacing. Dark mode never had
+   that problem (its card sits a real step above its background), which is why
+   the two modes did not look like the same app. Measured against sRGB
+   luminance, all ratios below:
+
+     page ← card            1.00  →  1.08   cards now lift off the page
+     muted-foreground       4.73  →  6.00 on card, 5.11 on muted surfaces
+                                    (it was *failing* 4.5:1 on every tinted
+                                     surface, and it is the app's most-used
+                                     token — every hint, caption and column
+                                     header wears it)
+     ring                   2.59  →  4.85   was under the 3:1 non-text bar,
+                                    i.e. the focus indicator was not visible
+                                    enough to qualify as one
+     destructive on muted   4.01  →  4.64   red text on a secondary chip was
+                                    failing; darkened a step to clear it
+     border                 1.26  →  1.41
+     input                  1.26  →  1.56
+
+   `--card` and `--popover` stay pure white deliberately. The chart series and
+   the section hues are both documented as validated against a #ffffff card,
+   and moving that surface would silently invalidate both sets of numbers —
+   it is the page that lifts away from the card, not the card that darkens.
+
+   Borders and inputs are still short of the 3:1 that WCAG 1.4.11 asks of a
+   control boundary. Taking them there means roughly #767676 on every input,
+   which reads as an error state. They are stronger here, and the card lift
+   above means the border is no longer the only thing separating a card from
+   the page — it is not carrying that weight alone any more. */
 :root {
-  --background: oklch(1 0 0);
+  --background: oklch(0.972 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -63,30 +100,36 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(0.941 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --muted: oklch(0.941 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.941 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --destructive: oklch(0.545 0.225 27.325);
+  --border: oklch(0.878 0 0);
+  --input: oklch(0.842 0 0);
+  --ring: oklch(0.55 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* The rail is dark in light mode too — the same values dark mode uses.
+     Navigation is chrome, not content: giving it its own permanent surface
+     puts the working area unambiguously forward, and the edge where a dark
+     rail meets a light page needs no border to be legible. It also means the
+     shell barely moves when the theme is toggled; the content flips and the
+     furniture stays put. */
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .dark {
@@ -154,28 +197,32 @@
    renders correctly under every font choice without a special case. */
 :root {
   --font-arabic-stack: var(--font-noto-arabic), "Segoe UI", Tahoma, sans-serif;
-  --font-sans: var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans:
+    var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 html[data-font="geist"] {
-  --font-sans: var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans:
+    var(--font-geist-sans), var(--font-arabic-stack), ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 html[data-font="inter"] {
-  --font-sans: var(--font-inter), var(--font-arabic-stack), ui-sans-serif,
-    system-ui, sans-serif;
+  --font-sans:
+    var(--font-inter), var(--font-arabic-stack), ui-sans-serif, system-ui,
+    sans-serif;
 }
 
 html[data-font="system"] {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     var(--font-arabic-stack), sans-serif;
 }
 
 html[data-font="mono"] {
-  --font-sans: var(--font-geist-mono), var(--font-arabic-stack), ui-monospace,
-    monospace;
+  --font-sans:
+    var(--font-geist-mono), var(--font-arabic-stack), ui-monospace, monospace;
 }
 
 /* --- Text size -----------------------------------------------------------
@@ -214,7 +261,24 @@ html[data-radius="xl"] {
 /* --- Accent colours ------------------------------------------------------
    Each accent redefines the primary/ring/sidebar-primary trio plus the chart
    ramp. Light and dark get separate values so contrast stays comfortable in
-   both. `neutral` deliberately keeps the stock shadcn greyscale. */
+   both. `neutral` deliberately keeps the stock shadcn greyscale.
+
+   The light values are picked for --primary worn as *ink*, not only as a fill.
+   `text-primary` is a link, a hovered figure, the current step of a parcours;
+   an accent that only works behind white text is an accent half the app cannot
+   use. Four of the six were failing that on the page surface and have been
+   darkened to clear 4.5:1 (measured on the page, the darkest of the three
+   surfaces they land on):
+
+     amber    2.73 → 5.08   the worst number in the app
+     teal     4.01 → 5.05
+     emerald  4.05 → 5.04
+     rose     4.68 → 5.21
+
+   Amber changed most, and changed kind: it was the one accent pairing a light
+   fill with dark ink, which is why it could not also be read as text. At its
+   new depth it takes white like the other five. Each ramp was re-spaced evenly
+   from its new chart-1 so the sequential scale stays monotonic. */
 html[data-accent="blue"] {
   --primary: oklch(0.546 0.198 258.3);
   --primary-foreground: oklch(0.985 0.005 258);
@@ -238,16 +302,16 @@ html.dark[data-accent="blue"] {
 }
 
 html[data-accent="emerald"] {
-  --primary: oklch(0.575 0.132 163.2);
+  --primary: oklch(0.52 0.13 163.2);
   --primary-foreground: oklch(0.985 0.01 163);
-  --ring: oklch(0.575 0.132 163.2);
-  --sidebar-primary: oklch(0.575 0.132 163.2);
+  --ring: oklch(0.52 0.13 163.2);
+  --sidebar-primary: oklch(0.52 0.13 163.2);
   --sidebar-primary-foreground: oklch(0.985 0.01 163);
-  --sidebar-ring: oklch(0.575 0.132 163.2);
-  --chart-1: oklch(0.575 0.132 163.2);
-  --chart-2: oklch(0.66 0.115 168);
-  --chart-3: oklch(0.74 0.09 173);
-  --chart-4: oklch(0.81 0.07 178);
+  --sidebar-ring: oklch(0.52 0.13 163.2);
+  --chart-1: oklch(0.52 0.13 163.2);
+  --chart-2: oklch(0.61 0.113 168);
+  --chart-3: oklch(0.7 0.095 173);
+  --chart-4: oklch(0.79 0.073 178);
   --chart-5: oklch(0.88 0.05 183);
 }
 html.dark[data-accent="emerald"] {
@@ -282,16 +346,16 @@ html.dark[data-accent="violet"] {
 }
 
 html[data-accent="amber"] {
-  --primary: oklch(0.702 0.161 70.7);
-  --primary-foreground: oklch(0.23 0.05 70);
-  --ring: oklch(0.702 0.161 70.7);
-  --sidebar-primary: oklch(0.702 0.161 70.7);
-  --sidebar-primary-foreground: oklch(0.23 0.05 70);
-  --sidebar-ring: oklch(0.702 0.161 70.7);
-  --chart-1: oklch(0.702 0.161 70.7);
-  --chart-2: oklch(0.762 0.135 77);
-  --chart-3: oklch(0.82 0.11 83);
-  --chart-4: oklch(0.87 0.085 89);
+  --primary: oklch(0.545 0.125 70.7);
+  --primary-foreground: oklch(0.985 0.01 70);
+  --ring: oklch(0.545 0.125 70.7);
+  --sidebar-primary: oklch(0.545 0.125 70.7);
+  --sidebar-primary-foreground: oklch(0.985 0.01 70);
+  --sidebar-ring: oklch(0.545 0.125 70.7);
+  --chart-1: oklch(0.545 0.125 70.7);
+  --chart-2: oklch(0.639 0.119 77);
+  --chart-3: oklch(0.733 0.106 83);
+  --chart-4: oklch(0.827 0.086 89);
   --chart-5: oklch(0.92 0.06 95);
 }
 html.dark[data-accent="amber"] {
@@ -304,16 +368,16 @@ html.dark[data-accent="amber"] {
 }
 
 html[data-accent="rose"] {
-  --primary: oklch(0.586 0.215 16.2);
+  --primary: oklch(0.56 0.21 16.2);
   --primary-foreground: oklch(0.985 0.008 16);
-  --ring: oklch(0.586 0.215 16.2);
-  --sidebar-primary: oklch(0.586 0.215 16.2);
+  --ring: oklch(0.56 0.21 16.2);
+  --sidebar-primary: oklch(0.56 0.21 16.2);
   --sidebar-primary-foreground: oklch(0.985 0.008 16);
-  --sidebar-ring: oklch(0.586 0.215 16.2);
-  --chart-1: oklch(0.586 0.215 16.2);
-  --chart-2: oklch(0.668 0.175 12);
-  --chart-3: oklch(0.745 0.135 8);
-  --chart-4: oklch(0.82 0.095 4);
+  --sidebar-ring: oklch(0.56 0.21 16.2);
+  --chart-1: oklch(0.56 0.21 16.2);
+  --chart-2: oklch(0.641 0.173 12);
+  --chart-3: oklch(0.722 0.135 8);
+  --chart-4: oklch(0.804 0.097 4);
   --chart-5: oklch(0.885 0.06 0);
 }
 html.dark[data-accent="rose"] {
@@ -326,16 +390,16 @@ html.dark[data-accent="rose"] {
 }
 
 html[data-accent="teal"] {
-  --primary: oklch(0.577 0.115 195.4);
+  --primary: oklch(0.52 0.11 195.4);
   --primary-foreground: oklch(0.985 0.01 195);
-  --ring: oklch(0.577 0.115 195.4);
-  --sidebar-primary: oklch(0.577 0.115 195.4);
+  --ring: oklch(0.52 0.11 195.4);
+  --sidebar-primary: oklch(0.52 0.11 195.4);
   --sidebar-primary-foreground: oklch(0.985 0.01 195);
-  --sidebar-ring: oklch(0.577 0.115 195.4);
-  --chart-1: oklch(0.577 0.115 195.4);
-  --chart-2: oklch(0.662 0.1 199);
-  --chart-3: oklch(0.742 0.082 203);
-  --chart-4: oklch(0.815 0.062 207);
+  --sidebar-ring: oklch(0.52 0.11 195.4);
+  --chart-1: oklch(0.52 0.11 195.4);
+  --chart-2: oklch(0.61 0.094 199);
+  --chart-3: oklch(0.7 0.078 203);
+  --chart-4: oklch(0.791 0.06 207);
   --chart-5: oklch(0.882 0.042 211);
 }
 html.dark[data-accent="teal"] {
@@ -387,6 +451,102 @@ html.dark[data-accent="teal"] {
   --warning: #e0a12a;
 }
 
+/* --- Section colours ------------------------------------------------------
+   One hue per nav section (see NAV_SECTIONS in lib/module.ts), so that where
+   you are is legible before a single word is read. Every screen inside a
+   section wears its section's colour: /students, /families and /classes all
+   read as vie scolaire.
+
+   Sections, not modules. Past roughly ten hues the eye stops telling them
+   apart and the colour becomes decoration; eight sections — two of which stay
+   neutral — is inside that budget, and "la caisse" is how people already name
+   where they are.
+
+   The mechanism is one variable. `[data-section]` rebinds `--section`, and
+   `--color-section` in @theme inline resolves through it, so `text-section`,
+   `bg-section/10` and `border-section` work anywhere under a scoped ancestor
+   without a single component knowing which section it is in. Two elements set
+   the attribute: the sidebar group (components/shell/app-sidebar.tsx) and the
+   page body (components/shell/section-scope.tsx).
+
+   These are chrome colours — sidebar, page header, section badges. They are
+   deliberately kept off content state, which already has --success,
+   --warning and --destructive and must not have to compete. Logistique's
+   orange is the one near-collision (with --warning); it is tolerable because
+   the two never appear on the same element, and moving logistique any further
+   round the wheel would collide with something worse.
+
+   Contrast on the page and sidebar surfaces, both modes: 5.5–6.7:1 light,
+   6.5–7.4:1 dark. All clear the 4.5:1 bar for text and small marks. */
+:root {
+  /* The shell's own two sections keep the app accent rather than taking a hue
+     of their own: they are not a domain you work inside, and spending two of
+     the eight distinguishable colours on them would crowd the four that are. */
+  --section-main: var(--primary);
+  --section-account: var(--primary);
+  --section-vieScolaire: #1b5fc1;
+  --section-finance: #0a726c;
+  --section-logistique: #a94f0c;
+  --section-rh: #6d3fc4;
+  --section-enseignant: #0f6f95;
+  --section-administration: #b53156;
+  /* Fallback for anything rendered outside a scoped ancestor. */
+  --section: var(--primary);
+}
+
+.dark {
+  --section-vieScolaire: #6ba6f7;
+  --section-finance: #34b8ab;
+  --section-logistique: #e08a3c;
+  --section-rh: #a98cf5;
+  --section-enseignant: #4fb2d8;
+  --section-administration: #f0748f;
+}
+
+/* The rail is a dark surface in *both* modes, so it always wants the
+   dark-surface hues. Without this the light values — which are dark inks
+   chosen for a white card — would be navy on near-black, and the section
+   colour would vanish exactly where it is doing the most work. Rebinding the
+   `--section-*` inputs rather than `--section` itself means the per-section
+   rules below keep working untouched. */
+[data-slot="sidebar"] {
+  --section-vieScolaire: #6ba6f7;
+  --section-finance: #34b8ab;
+  --section-logistique: #e08a3c;
+  --section-rh: #a98cf5;
+  --section-enseignant: #4fb2d8;
+  --section-administration: #f0748f;
+  /* The two neutral sections track --primary, which is near-black in light
+     mode. On the rail they take its foreground instead. */
+  --section-main: var(--sidebar-foreground);
+  --section-account: var(--sidebar-foreground);
+}
+
+[data-section="main"] {
+  --section: var(--section-main);
+}
+[data-section="vieScolaire"] {
+  --section: var(--section-vieScolaire);
+}
+[data-section="finance"] {
+  --section: var(--section-finance);
+}
+[data-section="logistique"] {
+  --section: var(--section-logistique);
+}
+[data-section="rh"] {
+  --section: var(--section-rh);
+}
+[data-section="enseignant"] {
+  --section: var(--section-enseignant);
+}
+[data-section="administration"] {
+  --section: var(--section-administration);
+}
+[data-section="account"] {
+  --section: var(--section-account);
+}
+
 /* --- RTL -----------------------------------------------------------------
    shadcn's own components already handle [dir="rtl"]; these cover the few
    places we hand-roll direction-sensitive layout. */
@@ -435,7 +595,9 @@ html.dark[data-accent="teal"] {
   padding: 14mm;
   background: #ffffff;
   color: #111111;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 12%), 0 8px 24px rgb(0 0 0 / 8%);
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 12%),
+    0 8px 24px rgb(0 0 0 / 8%);
 }
 
 /* Documents are printed on white paper whatever theme the user is in. Pinning
