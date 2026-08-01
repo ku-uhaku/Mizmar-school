@@ -3,6 +3,11 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
 import { db } from "@/lib/db";
+import {
+  checkLoginThrottle,
+  clearLoginAttempts,
+  recordFailedLogin,
+} from "@/lib/login-throttle";
 
 /**
  * Auth.js v5. Sessions are JWT-based: the token carries only the user id, and
@@ -30,6 +35,11 @@ export async function verifyPassword(
  * Verifies an email/password pair.
  * Returns the user id on success, or a reason the caller can turn into a
  * localised message.
+ *
+ * Rate-limited per address (see lib/login-throttle.ts). The limit is enforced
+ * here rather than in the login action because Auth.js's own credentials
+ * callback comes through this same function — a guard on the action alone
+ * would leave `/api/auth/callback/credentials` unthrottled.
  */
 export async function checkCredentials(
   email: string,
@@ -37,19 +47,41 @@ export async function checkCredentials(
 ): Promise<
   | { ok: true; userId: string }
   | { ok: false; reason: "invalid" | "disabled" }
+  | { ok: false; reason: "throttled"; retryAfterSeconds: number }
 > {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Before the hash comparison, so a locked address costs no bcrypt work.
+  const throttle = await checkLoginThrottle(normalizedEmail);
+  if (throttle.locked) {
+    return {
+      ok: false,
+      reason: "throttled",
+      retryAfterSeconds: throttle.retryAfterSeconds,
+    };
+  }
+
   const user = await db.user.findUnique({
-    where: { email: email.trim().toLowerCase() },
+    where: { email: normalizedEmail },
     select: { id: true, passwordHash: true, isActive: true },
   });
 
   if (!user) {
     await bcrypt.compare(plainPassword, DUMMY_HASH);
+    await recordFailedLogin(normalizedEmail);
     return { ok: false, reason: "invalid" };
   }
 
   const matches = await verifyPassword(plainPassword, user.passwordHash);
-  if (!matches) return { ok: false, reason: "invalid" };
+  if (!matches) {
+    await recordFailedLogin(normalizedEmail);
+    return { ok: false, reason: "invalid" };
+  }
+
+  // The password was right, so this is not the grind the counter guards
+  // against — clear it even when the account turns out to be deactivated.
+  await clearLoginAttempts(normalizedEmail);
+
   if (!user.isActive) return { ok: false, reason: "disabled" };
 
   return { ok: true, userId: user.id };

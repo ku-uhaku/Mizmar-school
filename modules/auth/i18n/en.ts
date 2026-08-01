@@ -16,6 +16,8 @@ const en = {
     signOut: "Sign out",
     invalidCredentials: "Incorrect email or password.",
     accountDisabled: "This account has been deactivated.",
+    tooManyAttempts:
+      "Too many failed sign-in attempts. Try again in {minutes} minutes.",
     brandTagline: "Multi-school administration, one organisation.",
   },
 } as const;

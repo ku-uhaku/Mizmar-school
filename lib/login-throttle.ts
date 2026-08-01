@@ -1,0 +1,133 @@
+import "server-only";
+
+import { db } from "@/lib/db";
+
+/**
+ * Brute-force protection for the sign-in form.
+ *
+ * ── Why this is in `lib/` ────────────────────────────────────────────────────
+ * It has to wrap `checkCredentials`, and `checkCredentials` is reached by two
+ * separate paths: the login Server Function, and Auth.js's own
+ * `/api/auth/callback/credentials`. Guarding only the action would leave the
+ * second one wide open, so the throttle lives beside `lib/auth.ts` and is
+ * applied inside the credential check itself — the same reasoning that puts
+ * authorization in the action rather than on the page.
+ *
+ * ── The shape of the defence ────────────────────────────────────────────────
+ * Counted per email address, not per IP. A school shares one connection: half
+ * the staff room sits behind a single address, so locking by IP would take the
+ * whole office out because one person forgot which password they used. Counting
+ * per address means an attacker grinding one account only ever locks that
+ * account, which is the loss we are willing to accept.
+ *
+ * Addresses that match no user are counted too. If only real accounts were
+ * throttled, the slowdown itself would answer "does this person work here?" —
+ * the same enumeration leak `DUMMY_HASH` exists to close on the timing side.
+ *
+ * Lockouts escalate rather than being fixed, so an honest mistype costs a
+ * minute and a sustained grind costs an hour. They are never permanent: a
+ * locked-out bursar at 8am on a Monday must not need an administrator.
+ */
+
+/** Failures on one address before it is locked. */
+export const MAX_FAILED_ATTEMPTS = 5;
+
+/**
+ * How long a run of failures stays "consecutive". Two wrong passwords in March
+ * and three in June are not an attack, and should not add up to one.
+ */
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Lock durations, stepped through as an address keeps failing after it has
+ * already been locked once. The last entry repeats for good.
+ */
+const LOCK_DURATIONS_MS = [
+  1 * 60 * 1000,
+  5 * 60 * 1000,
+  15 * 60 * 1000,
+  60 * 60 * 1000,
+] as const;
+
+export type ThrottleVerdict =
+  | { locked: false }
+  | { locked: true; retryAfterSeconds: number };
+
+/** How long the caller must wait, given how many times it has been locked. */
+function lockDurationFor(failedCount: number): number {
+  // 5 failures is the first lock, 10 the second, and so on.
+  const step = Math.floor(failedCount / MAX_FAILED_ATTEMPTS) - 1;
+  const index = Math.min(Math.max(step, 0), LOCK_DURATIONS_MS.length - 1);
+  return LOCK_DURATIONS_MS[index];
+}
+
+/**
+ * Whether this address may attempt a password right now.
+ *
+ * Called before the hash is compared, so a locked address costs no bcrypt work
+ * — which is also what stops the throttle being turned into a way to burn the
+ * server's CPU.
+ */
+export async function checkLoginThrottle(
+  email: string,
+): Promise<ThrottleVerdict> {
+  const row = await db.loginAttempt.findUnique({
+    where: { email },
+    select: { lockedUntil: true },
+  });
+
+  if (!row?.lockedUntil) return { locked: false };
+
+  const remainingMs = row.lockedUntil.getTime() - Date.now();
+  if (remainingMs <= 0) return { locked: false };
+
+  return {
+    locked: true,
+    // Rounded up: telling somebody to wait "0 minutes" is worse than useless.
+    retryAfterSeconds: Math.ceil(remainingMs / 1000),
+  };
+}
+
+/** Records one failed attempt, locking the address once it crosses the line. */
+export async function recordFailedLogin(email: string): Promise<void> {
+  const now = new Date();
+
+  const existing = await db.loginAttempt.findUnique({
+    where: { email },
+    select: { failedCount: true, lastFailedAt: true, lockedUntil: true },
+  });
+
+  // A stale run starts over, so an honest user is never a couple of typos away
+  // from a lockout months later. A run that is still locked keeps counting, so
+  // waiting out a lock and carrying on escalates rather than resets.
+  const stillLocked =
+    existing?.lockedUntil !== null &&
+    existing?.lockedUntil !== undefined &&
+    existing.lockedUntil.getTime() > now.getTime();
+  const withinWindow =
+    existing?.lastFailedAt != null &&
+    now.getTime() - existing.lastFailedAt.getTime() < ATTEMPT_WINDOW_MS;
+
+  const failedCount =
+    existing && (withinWindow || stillLocked) ? existing.failedCount + 1 : 1;
+
+  const lockedUntil =
+    failedCount >= MAX_FAILED_ATTEMPTS && failedCount % MAX_FAILED_ATTEMPTS === 0
+      ? new Date(now.getTime() + lockDurationFor(failedCount))
+      : (existing?.lockedUntil ?? null);
+
+  await db.loginAttempt.upsert({
+    where: { email },
+    create: { email, failedCount, lastFailedAt: now, lockedUntil },
+    update: { failedCount, lastFailedAt: now, lockedUntil },
+  });
+}
+
+/**
+ * Forgets an address's failures. Called on a correct password — including for
+ * a deactivated account, because knowing the password proves this is not the
+ * grind the counter is here to stop.
+ */
+export async function clearLoginAttempts(email: string): Promise<void> {
+  await db.loginAttempt.deleteMany({ where: { email } });
+}

@@ -1,0 +1,32 @@
+/// Failed sign-in attempts, per email address.
+///
+/// The one table in the schema with no `organizationId`, and deliberately so:
+/// it is written *before* anybody is authenticated, when there is no tenant to
+/// scope to yet. Nothing here is readable through the app — it exists only for
+/// lib/login-throttle.ts to decide whether the next attempt is answered.
+///
+/// Keyed on the email as typed rather than on a User relation, because an
+/// address that matches no account has to be counted too. Counting only real
+/// accounts would make the throttle itself an oracle: "this one slowed down,
+/// therefore it exists".
+model LoginAttempt {
+  id String @id @default(cuid())
+
+  /// Lowercased and trimmed, exactly as `checkCredentials` normalises it.
+  email String @unique
+
+  /// Consecutive failures. Reset to zero by a correct password, and forgotten
+  /// once they go stale — see ATTEMPT_WINDOW_MS.
+  failedCount Int @default(0)
+
+  /// Null until the threshold is crossed. While this is in the future, every
+  /// attempt on the address is refused without the password being checked.
+  lockedUntil DateTime?
+
+  lastFailedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("login_attempts")
+}

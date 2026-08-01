@@ -75,18 +75,25 @@ async function resolveMemberships(
  *
  * Granting an organisation-wide role is itself an organisation-wide act: a
  * school-scoped administrator must not be able to mint a user with reach across
- * every school, so anyone without org-wide grant authority gets null.
+ * every school.
+ *
+ * Revoking one is the same act, which is why an actor without that authority
+ * gets `current` back rather than null. Returning null would have let anyone
+ * holding plain USER_UPDATE strip an organisation administrator's role just by
+ * saving the edit form — the field is not rendered for them, so the browser
+ * submits nothing and "nothing" would have read as "clear it".
  */
 async function resolveOrgRoleId(
   context: AuthContext,
-  orgRoleId: string | null,
+  requested: string | null,
+  current: string | null = null,
 ): Promise<string | null> {
-  if (!orgRoleId) return null;
-  if (!context.canOrg(PERMISSIONS.USER_ASSIGN_ROLE)) return null;
+  if (!context.canOrg(PERMISSIONS.USER_ASSIGN_ROLE)) return current;
+  if (!requested) return null;
 
   const role = await db.role.findFirst({
     where: {
-      id: orgRoleId,
+      id: requested,
       organizationId: context.organization.id,
       scope: "ORG",
     },
@@ -111,7 +118,7 @@ async function assertCanActOnUser(context: AuthContext, targetUserId: string) {
   ) {
     const target = await db.user.findFirst({
       where: { id: targetUserId, organizationId: context.organization.id },
-      select: { id: true, isSuperAdmin: true },
+      select: { id: true, isSuperAdmin: true, orgRoleId: true },
     });
     if (!target) throw new ForbiddenError();
     return target;
@@ -128,7 +135,7 @@ async function assertCanActOnUser(context: AuthContext, targetUserId: string) {
       isSuperAdmin: false,
       orgRoleId: null,
     },
-    select: { id: true, isSuperAdmin: true },
+    select: { id: true, isSuperAdmin: true, orgRoleId: true },
   });
   if (!target) throw new ForbiddenError();
   return target;
@@ -261,7 +268,11 @@ export async function updateUserAction(
       ? parsed.data.isSuperAdmin
       : target.isSuperAdmin;
 
-    const orgRoleId = await resolveOrgRoleId(context, parsed.data.orgRoleId);
+    const orgRoleId = await resolveOrgRoleId(
+      context,
+      parsed.data.orgRoleId,
+      target.orgRoleId,
+    );
     const memberships = await resolveMemberships(
       context,
       parsed.data.memberships,

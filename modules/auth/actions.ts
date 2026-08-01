@@ -13,7 +13,9 @@ import {
 import { checkCredentials, signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
+import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
+import { safeCallbackPath } from "@/lib/safe-redirect";
 import { fieldErrors } from "@/lib/validation";
 import { field, withActionErrors } from "@/lib/server-action";
 
@@ -83,6 +85,14 @@ export async function loginAction(
     );
 
     if (!check.ok) {
+      if (check.reason === "throttled") {
+        // Rounded up so the message never reads "try again in 0 minutes".
+        return failure(
+          interpolate(t.auth.tooManyAttempts, {
+            minutes: Math.ceil(check.retryAfterSeconds / 60),
+          }),
+        );
+      }
       return failure(
         check.reason === "disabled"
           ? t.auth.accountDisabled
@@ -105,8 +115,11 @@ export async function loginAction(
   if (result.status !== "success") return result;
 
   // Outside the try/catch above: redirect works by throwing.
-  const callbackUrl = field(formData, "callbackUrl");
-  redirect(callbackUrl.startsWith("/") ? callbackUrl : "/");
+  //
+  // The callback comes from the query string, so it is only ever a path inside
+  // this app — see lib/safe-redirect.ts for why a leading slash is not enough
+  // to establish that.
+  redirect(safeCallbackPath(field(formData, "callbackUrl")));
 }
 
 export async function logoutAction(): Promise<void> {

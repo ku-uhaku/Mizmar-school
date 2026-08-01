@@ -16,6 +16,8 @@ const fr = {
     signOut: "Se déconnecter",
     invalidCredentials: "E-mail ou mot de passe incorrect.",
     accountDisabled: "Ce compte a été désactivé.",
+    tooManyAttempts:
+      "Trop de tentatives de connexion échouées. Réessayez dans {minutes} minutes.",
     brandTagline: "L'administration multi-écoles, une seule organisation.",
   },
 };
