@@ -153,6 +153,36 @@ export const BANK_SEEDS = [
   { code: "CDM", name: "Crédit du Maroc", nameAr: "قرض المغرب", position: 8 },
 ];
 
+/**
+ * Les fournisseurs a Moroccan school actually pays every month.
+ *
+ * `categoryCode` and `subcategoryCode` are what make the factures screen one
+ * select: picking Lydec files the payment under "Eau, électricité, télécom →
+ * Eau" without anybody choosing. The account numbers are placeholders in the
+ * right shape — replace them with the school's real contract numbers.
+ */
+export const SUPPLIER_SEEDS: {
+  code: string;
+  name: string;
+  nameAr: string;
+  kind: string;
+  categoryCode?: string;
+  subcategoryCode?: string;
+  accountRef?: string;
+  position: number;
+}[] = [
+  { code: "LYDEC-EAU", name: "Lydec — Eau", nameAr: "ليديك — الماء", kind: "UTILITY", categoryCode: "CHARGES", subcategoryCode: "EAU", accountRef: "P-0000000", position: 1 },
+  { code: "LYDEC-ELEC", name: "Lydec — Électricité", nameAr: "ليديك — الكهرباء", kind: "UTILITY", categoryCode: "CHARGES", subcategoryCode: "ELECTRICITE", accountRef: "P-0000001", position: 2 },
+  { code: "IAM", name: "Maroc Telecom", nameAr: "اتصالات المغرب", kind: "UTILITY", categoryCode: "CHARGES", subcategoryCode: "TELECOM", accountRef: "0522000000", position: 3 },
+  { code: "BAILLEUR", name: "Bailleur", nameAr: "المكري", kind: "LANDLORD", categoryCode: "LOYER", position: 4 },
+  { code: "NETTOYAGE", name: "Société de nettoyage", nameAr: "شركة التنظيف", kind: "SERVICE", categoryCode: "ENTRETIEN", subcategoryCode: "BATIMENT", position: 5 },
+  { code: "PAPETERIE", name: "Papeterie", nameAr: "المكتبة", kind: "VENDOR", categoryCode: "FOURNITURES", subcategoryCode: "PAPETERIE", position: 10 },
+  { code: "LIBRAIRIE", name: "Librairie scolaire", nameAr: "المكتبة المدرسية", kind: "VENDOR", categoryCode: "FOURNITURES", subcategoryCode: "MANUELS", position: 11 },
+  { code: "INFORMATIQUE", name: "Fournisseur informatique", nameAr: "مزوّد المعلوميات", kind: "VENDOR", categoryCode: "FOURNITURES", subcategoryCode: "INFORMATIQUE", position: 12 },
+  { code: "DROGUERIE", name: "Droguerie", nameAr: "الدروغري", kind: "VENDOR", categoryCode: "FOURNITURES", subcategoryCode: "PRODUITS", position: 13 },
+  { code: "GARAGE", name: "Garage", nameAr: "الميكانيكي", kind: "VENDOR", categoryCode: "ENTRETIEN", subcategoryCode: "VEHICULES", position: 14 },
+];
+
 export async function seedTreasury(
   db: SeedDb,
   schoolId: string,
@@ -234,6 +264,8 @@ export async function seedTreasury(
   // the old expense categories used, so a re-seed after the data migration
   // updates those rows rather than adding a second set beside them.
   const categoryIdByCode: Record<string, string> = {};
+  /** Keyed `RUBRIQUE:SOUS-RUBRIQUE` — sub-codes are only unique within a parent. */
+  const subcategoryIdByCode: Record<string, string> = {};
 
   for (const category of CATEGORY_SEEDS) {
     const row = await db.operationCategory.upsert({
@@ -257,7 +289,7 @@ export async function seedTreasury(
     categoryIdByCode[category.code] = row.id;
 
     for (const [index, sub] of (category.subcategories ?? []).entries()) {
-      await db.operationSubcategory.upsert({
+      const subRow = await db.operationSubcategory.upsert({
         where: {
           categoryId_code: { categoryId: row.id, code: sub.code },
         },
@@ -269,8 +301,44 @@ export async function seedTreasury(
           nameAr: sub.nameAr,
           position: index + 1,
         },
+        select: { id: true },
       });
+      subcategoryIdByCode[`${category.code}:${sub.code}`] = subRow.id;
     }
+  }
+
+  /*
+    Les fournisseurs, each pointing at the rubrique its payments post under.
+
+    That link is the whole reason the factures and achats screens are one
+    select: without it the manager would still be choosing a rubrique for the
+    water bill every single month.
+  */
+  for (const supplier of SUPPLIER_SEEDS) {
+    const data = {
+      name: supplier.name,
+      nameAr: supplier.nameAr,
+      kind: supplier.kind,
+      defaultCategoryId: supplier.categoryCode
+        ? (categoryIdByCode[supplier.categoryCode] ?? null)
+        : null,
+      defaultSubcategoryId:
+        supplier.categoryCode && supplier.subcategoryCode
+          ? (subcategoryIdByCode[
+              `${supplier.categoryCode}:${supplier.subcategoryCode}`
+            ] ?? null)
+          : null,
+      accountRef: supplier.accountRef ?? null,
+      position: supplier.position,
+    };
+
+    await db.supplier.upsert({
+      where: { schoolId_code: { schoolId, code: supplier.code } },
+      // `isActive` is deliberately absent: a supplier the school stopped using
+      // stays retired through a re-seed.
+      update: data,
+      create: { schoolId, code: supplier.code, ...data },
+    });
   }
 
   for (const motif of MOTIF_SEEDS) {
@@ -313,7 +381,7 @@ export async function seedTreasury(
   log(
     "caisse",
     `${allRegisters.length} tills (${perHolder.length} held), ` +
-      `${CATEGORY_SEEDS.length} rubriques, ` +
+      `${CATEGORY_SEEDS.length} rubriques, ${SUPPLIER_SEEDS.length} fournisseurs, ` +
       `${MOTIF_SEEDS.length} motifs, ${BANK_SEEDS.length} banks`,
   );
 

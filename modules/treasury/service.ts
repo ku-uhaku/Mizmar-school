@@ -607,6 +607,8 @@ export type DisbursementInput = {
    * required either way, so the ledger reads the same for both.
    */
   beneficiaryStaffId?: string | null;
+  /** The supplier this went to, where it was one — see Supplier. */
+  supplierId?: string | null;
   beneficiaryName: string;
   label: string;
   method: TenderMethod;
@@ -663,6 +665,7 @@ export async function recordDisbursement(
         motifId: input.motifId,
         bankId: input.bankId,
         beneficiaryStaffId: input.beneficiaryStaffId ?? null,
+        supplierId: input.supplierId ?? null,
         beneficiaryName: input.beneficiaryName,
         chequeId: cheque?.id ?? null,
         createdById: input.createdById,

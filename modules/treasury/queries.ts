@@ -1328,3 +1328,53 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
     overdueCentimes: overdue,
   };
 }
+
+// ── Fournisseurs ─────────────────────────────────────────────────────────────
+
+export type SupplierOption = {
+  id: string;
+  code: string;
+  label: string;
+  kind: string;
+  /** The rubrique its payments post under, so the screen never asks. */
+  defaultCategoryId: string | null;
+  defaultSubcategoryId: string | null;
+  /** The contract or police number, shown so a bill can be checked against it. */
+  accountRef: string | null;
+};
+
+/**
+ * The suppliers a screen may offer, narrowed to the kinds that belong on it.
+ *
+ * `kinds` rather than one kind: the factures screen wants everything billed for
+ * a period — utilities, the landlord, the cleaning contract — and listing them
+ * as three separate reads would be three round trips for one dropdown.
+ */
+export async function listSuppliers(
+  context: AuthContext,
+  kinds: readonly string[],
+): Promise<SupplierOption[]> {
+  const suppliers = await db.supplier.findMany({
+    where: { ...schoolScope(context), isActive: true, kind: { in: [...kinds] } },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      kind: true,
+      defaultCategoryId: true,
+      defaultSubcategoryId: true,
+      accountRef: true,
+    },
+  });
+
+  return suppliers.map((supplier) => ({
+    id: supplier.id,
+    code: supplier.code,
+    label: supplier.name,
+    kind: supplier.kind,
+    defaultCategoryId: supplier.defaultCategoryId,
+    defaultSubcategoryId: supplier.defaultSubcategoryId,
+    accountRef: supplier.accountRef,
+  }));
+}

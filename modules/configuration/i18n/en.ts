@@ -53,6 +53,7 @@ const en = {
       transportSchedules: "Transport timetables",
       supplyArticles: "Supply catalogue",
       documentTypes: "Dossier documents",
+      suppliers: "Suppliers",
       banks: "Banks",
       operationCategories: "Rubrics",
       operationSubcategories: "Sub-rubrics",
@@ -138,6 +139,9 @@ const en = {
       supplyCategory: "Family",
       defaultQuantity: "Usual quantity",
       supplyArticleNotes: "Detail",
+      supplierKind: "Kind",
+      defaultCategory: "Posts under",
+      accountRef: "Account no.",
       isRequiredDocument: "Required",
       copies: "Copies",
       documentNotes: "Note",
@@ -186,6 +190,12 @@ const en = {
     },
 
     hints: {
+      supplierKind:
+        "Utilities, the landlord and service contracts appear on the Bills screen; vendors on the Purchases one.",
+      defaultCategory:
+        "The rubrique this supplier\u2019s payments are filed under. Filled in automatically, so nobody has to choose it each time.",
+      accountRef:
+        "The contract or police number the school is billed under \u2014 shown beside the amount so a facture can be checked against it.",
       cnssRate:
         "Suggested on a bulletin, never applied. 4.48% is the ordinary employee share.",
       cnssCeiling:

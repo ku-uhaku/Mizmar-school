@@ -25,6 +25,7 @@ model OperationSubcategory {
   updatedAt DateTime @updatedAt
 
   operations CashOperation[]
+  suppliers  Supplier[]
 
   /// Unique within its parent, not across the school: "Divers" under Fournitures
   /// and "Divers" under Entretien are two different lines on a statement.

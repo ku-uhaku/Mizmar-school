@@ -14,6 +14,7 @@ import { ROOM_KINDS } from "@/modules/facilities/enums";
 import { SCHEDULE_DIRECTIONS } from "@/modules/transport/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
 import { SUPPLY_CATEGORIES } from "@/modules/supplies/enums";
+import { SUPPLIER_KINDS } from "@/modules/treasury/enums";
 import { SCHOOL_WEEK_PARITIES } from "@/modules/timetable/enums";
 import {
   ABSENCE_KINDS,
@@ -1513,6 +1514,63 @@ export const RESOURCES: ResourceDef[] = [
         maxLength: 200,
         wide: true,
       },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  /*
+    Les fournisseurs. Declared once so the factures and achats screens are a
+    single select rather than three free-text boxes — the rubrique each one
+    posts under travels with it. See prisma/schema/treasury/supplier.prisma.
+  */
+  {
+    id: "suppliers",
+    section: "treasury",
+    labelKey: "suppliers",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "LYDEC",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 160, inTable: true },
+      NAME_AR,
+      {
+        name: "kind",
+        type: "select",
+        labelKey: "supplierKind",
+        hintKey: "supplierKind",
+        options: SUPPLIER_KINDS,
+        optionsKey: "supplierKinds",
+        defaultValue: "VENDOR",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "defaultCategoryId",
+        type: "reference",
+        labelKey: "defaultCategory",
+        hintKey: "defaultCategory",
+        referenceTo: "operation-categories",
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "accountRef",
+        type: "text",
+        labelKey: "accountRef",
+        hintKey: "accountRef",
+        maxLength: 60,
+        dir: "ltr",
+      },
+      { name: "phone", type: "text", labelKey: "phone", maxLength: 40, dir: "ltr" },
       POSITION,
       IS_ACTIVE,
     ],

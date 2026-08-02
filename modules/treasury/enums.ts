@@ -138,6 +138,40 @@ export type OperationStatus = (typeof OPERATION_STATUSES)[number];
 export const PAYMENT_STATUSES = ["POSTED", "CANCELLED"] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/**
+ * What kind of thing the school buys from a supplier.
+ *
+ * The only reason it exists is to split the pickers: a UTILITY is billed for a
+ * *period* and belongs on the factures screen, a VENDOR is bought from on a
+ * *day* and belongs on the achats one. Everything else is a supplier like any
+ * other and appears on whichever screen fits.
+ */
+export const SUPPLIER_KINDS = [
+  /** Lydec, Amendis, Maroc Telecom — billed monthly against a contract. */
+  "UTILITY",
+  /** The papeterie, the computer shop — bought from on the day. */
+  "VENDOR",
+  /** The landlord. Billed for a period, like a utility. */
+  "LANDLORD",
+  /** Cleaning, security, the accountant — a service billed for a period. */
+  "SERVICE",
+  "OTHER",
+] as const;
+export type SupplierKind = (typeof SUPPLIER_KINDS)[number];
+
+/** The kinds the factures screen offers: everything billed for a period. */
+export const BILLED_SUPPLIER_KINDS: readonly SupplierKind[] = [
+  "UTILITY",
+  "LANDLORD",
+  "SERVICE",
+];
+
+/** The kinds the achats screen offers: everything bought on a day. */
+export const PURCHASE_SUPPLIER_KINDS: readonly SupplierKind[] = [
+  "VENDOR",
+  "OTHER",
+];
+
 /** A cheque the school holds, or one it has written. */
 export const CHEQUE_DIRECTIONS = ["INCOMING", "OUTGOING"] as const;
 export type ChequeDirection = (typeof CHEQUE_DIRECTIONS)[number];

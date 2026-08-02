@@ -1,0 +1,67 @@
+/// Somebody the school pays regularly: Lydec, Maroc Telecom, the landlord, the
+/// papeterie on the corner.
+///
+/// ── Why a table, and why it makes the screens simple ────────────────────────
+/// Every payment out used to be typed: the beneficiary's name, the rubrique, the
+/// label. That is twelve fields on the décaissement form, three of which are
+/// free text, and it is why the same water bill arrived as "Lydec", "LYDEC eau"
+/// and "facture eau" in one term — unsearchable, unreportable, and slow.
+///
+/// Declaring the supplier once turns all of that into one select. The rubrique
+/// it is normally posted under travels with it, so picking "Lydec" fills in
+/// "Eau, électricité, télécom → Eau" without anybody choosing; the label writes
+/// itself from the name and the period. What is left for the manager to type is
+/// the amount, which is the only thing that genuinely changes.
+model Supplier {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "LYDEC", "IAM". What the catalogue is keyed on.
+  code   String
+  name   String
+  nameAr String?
+
+  /// "UTILITY" | "VENDOR" | "LANDLORD" | "SERVICE" | "OTHER"
+  /// see modules/treasury/enums.ts.
+  ///
+  /// What separates the two screens: a UTILITY is billed every month for a
+  /// period and belongs on the factures screen, a VENDOR is bought from on a
+  /// given day and belongs on the achats one. Same table because they are the
+  /// same thing — somebody the school owes money to — and two would mean
+  /// deciding twice which one the plumber is.
+  kind String @default("VENDOR")
+
+  /// The rubrique this supplier's payments are normally posted under, so the
+  /// screen does not ask. Restrict: a rubrique named as a default by a supplier
+  /// is not deletable out from under it.
+  defaultCategoryId String?
+  defaultCategory   OperationCategory? @relation(fields: [defaultCategoryId], references: [id], onDelete: Restrict)
+
+  /// And the sub-rubrique, where the school keeps one — "Eau" under "Eau,
+  /// électricité, télécom".
+  defaultSubcategoryId String?
+  defaultSubcategory   OperationSubcategory? @relation(fields: [defaultSubcategoryId], references: [id], onDelete: Restrict)
+
+  /// The account number the school is billed under — a numéro de police for
+  /// Lydec, a contract number for the telecom. Printed on every bill and the
+  /// first thing anybody checks a facture against.
+  accountRef String?
+
+  phone String?
+  notes String?
+
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  operations CashOperation[] @relation("OperationSupplier")
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  /// The pickers' own query: this school's live suppliers, by kind.
+  @@index([schoolId, kind, isActive])
+  @@map("suppliers")
+}

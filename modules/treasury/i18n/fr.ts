@@ -57,6 +57,18 @@ const fr = {
     statusClosed: "Fermée",
     noOpenSession: "Aucune caisse ouverte. Ouvrez-en une avant d'encaisser.",
     holderTaken: "Ce caissier tient d\u00e9j\u00e0 une autre caisse.",
+    spendRecorded: "Paiement enregistr\u00e9.",
+    bills: "Factures et charges",
+    billsHint: "Eau, \u00e9lectricit\u00e9, t\u00e9l\u00e9phone, loyer \u2014 choisissez le fournisseur et le mois.",
+    purchases: "Achats",
+    purchasesHint: "Ce que l\u2019\u00e9cole a achet\u00e9, et aupr\u00e8s de qui.",
+    staffPayments: "Payer un membre du personnel",
+    staffPaymentsHint: "Un remboursement ou un versement ponctuel. Les salaires et les avances ont leurs propres \u00e9crans.",
+    supplier: "Fournisseur",
+    billPeriod: "Mois factur\u00e9",
+    accountRef: "N\u00b0 de contrat",
+    noSuppliers: "Aucun fournisseur d\u00e9clar\u00e9. Ajoutez-les dans Configuration \u2192 Finance.",
+    payNow: "Enregistrer le paiement",
     notYourTill:
       "Cette caisse est celle d\u2019un autre caissier. Ouvrez la v\u00f4tre pour encaisser.",
     sessionStaleClosed:
@@ -247,6 +259,13 @@ const fr = {
       DECAISSEMENT: "Décaissement",
       TRANSFERT: "Transfert",
     },
+    supplierKinds: {
+      UTILITY: "R\u00e9gie / abonnement",
+      VENDOR: "Fournisseur",
+      LANDLORD: "Bailleur",
+      SERVICE: "Prestataire",
+      OTHER: "Autre",
+    },
     methods: {
       CASH: "Espèces",
       CHEQUE: "Chèque",
@@ -284,6 +303,8 @@ export const nav = {
   registers: "Caisses",
   encaissement: "Encaissement",
   decaissement: "Décaissement",
+  bills: "Factures",
+  purchases: "Achats",
   transfert: "Transfert",
   cheques: "Suivi chèques",
 };

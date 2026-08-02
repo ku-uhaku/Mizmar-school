@@ -57,6 +57,18 @@ const en = {
     statusClosed: "Closed",
     noOpenSession: "No till is open. Open one before taking cash.",
     holderTaken: "That cashier already holds another till.",
+    spendRecorded: "Payment recorded.",
+    bills: "Bills and charges",
+    billsHint: "Water, electricity, telephone, rent \u2014 pick the supplier and the month.",
+    purchases: "Purchases",
+    purchasesHint: "What the school bought, and from whom.",
+    staffPayments: "Pay a member of staff",
+    staffPaymentsHint: "A reimbursement or a one-off. Salaries and advances have their own screens.",
+    supplier: "Supplier",
+    billPeriod: "Month billed",
+    accountRef: "Account no.",
+    noSuppliers: "No supplier declared. Add them under Configuration \u2192 Finance first.",
+    payNow: "Record the payment",
     notYourTill:
       "That till belongs to another cashier. Open your own to take money.",
     sessionStaleClosed:
@@ -247,6 +259,13 @@ const en = {
       DECAISSEMENT: "Disbursement",
       TRANSFERT: "Transfer",
     },
+    supplierKinds: {
+      UTILITY: "Utility",
+      VENDOR: "Vendor",
+      LANDLORD: "Landlord",
+      SERVICE: "Service",
+      OTHER: "Other",
+    },
     methods: {
       CASH: "Cash",
       CHEQUE: "Cheque",
@@ -285,6 +304,8 @@ export const nav = {
   registers: "Tills",
   encaissement: "Collection",
   decaissement: "Disbursement",
+  bills: "Bills",
+  purchases: "Purchases",
   transfert: "Transfer",
   cheques: "Cheques",
 } as const;

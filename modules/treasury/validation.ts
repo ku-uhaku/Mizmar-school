@@ -245,3 +245,41 @@ export function cashRegisterSchema(t: Dictionary) {
     notes: optionalText(500),
   });
 }
+
+/**
+ * A dépense saisie sur l'un des trois écrans simplifiés: la paie du personnel,
+ * une facture, un achat.
+ *
+ * Far smaller than `disbursementSchema` on purpose. The beneficiary, the
+ * rubrique and the label are all *derived* server-side from the one thing the
+ * manager picked — an employee or a supplier — so none of them is accepted from
+ * the form. What is left is the amount, the method and the date, which are the
+ * only things that genuinely change from one payment to the next.
+ */
+export function quickSpendSchema(t: Dictionary) {
+  const v = t.validation;
+  return z
+    .object({
+      /** Exactly one of these two is set; the action decides which it wants. */
+      staffId: optionalText(40),
+      supplierId: optionalText(40),
+      /** The month a facture covers, `YYYY-MM`. Empty for a purchase. */
+      period: optionalText(7),
+      /** Free only where the catalogue cannot say it: a meter reading, an invoice no. */
+      reference: optionalText(80),
+      method: enumField(TENDER_METHODS, v),
+      amount: moneyField(v, { min: 0.01 }),
+      occurredAt: optionalDate(v),
+      chequeNumber: optionalText(40),
+      bankName: optionalText(120),
+      notes: optionalText(500),
+    })
+    .transform((data) => ({
+      ...data,
+      amountCentimes: Math.round(data.amount * 100),
+    }))
+    .refine((data) => data.method !== "CHEQUE" || Boolean(data.chequeNumber), {
+      error: t.treasury.chequeNumberRequired,
+      path: ["chequeNumber"],
+    });
+}

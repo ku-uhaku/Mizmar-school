@@ -109,6 +109,12 @@ model CashOperation {
   /// them.
   beneficiaryName String?
 
+  /// The supplier this went to, where it was one. SetNull: retiring a supplier
+  /// must not erase what the school paid them, and `beneficiaryName` above is
+  /// the copy that keeps the ledger readable either way.
+  supplierId String?
+  supplier   Supplier? @relation("OperationSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
+
   /// The bulletin this décaissement settled, when it was a salary. Written by
   /// `payStaffSalary` in modules/hr/service.ts — see the note there on why the
   /// payroll is never summed from the ledger, nor the ledger from the payroll.
@@ -154,6 +160,7 @@ model CashOperation {
 
   @@index([schoolId])
   @@index([beneficiaryStaffId])
+  @@index([supplierId])
   @@index([cashSessionId])
   @@index([categoryId])
   @@index([subcategoryId])

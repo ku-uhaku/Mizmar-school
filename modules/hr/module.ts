@@ -67,6 +67,14 @@ export const hrModule = defineModule({
       schoolPermission: HR_PERMISSIONS.HR_PAYROLL,
     },
     {
+      href: "/hr/paiements",
+      icon: "payroll",
+      section: "rh",
+      labelKey: "hrStaffPayments",
+      order: 47,
+      schoolPermission: HR_PERMISSIONS.HR_VIEW,
+    },
+    {
       href: "/hr/leave",
       icon: "leave",
       section: "rh",

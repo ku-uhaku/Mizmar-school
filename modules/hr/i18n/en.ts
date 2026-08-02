@@ -314,6 +314,7 @@ export const nav = {
   hrAttendance: "Attendance",
   hrPayroll: "Payroll",
   hrAdvances: "Advances",
+  hrStaffPayments: "Staff payments",
   hrLeave: "Leave",
 } as const;
 

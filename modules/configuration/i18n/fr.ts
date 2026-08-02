@@ -50,6 +50,7 @@ const fr = {
       transportSchedules: "Horaires de transport",
       supplyArticles: "Catalogue de fournitures",
       documentTypes: "Pi\u00e8ces du dossier",
+      suppliers: "Fournisseurs",
       banks: "Banques",
       operationCategories: "Rubriques",
       operationSubcategories: "Sous-rubriques",
@@ -135,6 +136,9 @@ const fr = {
       supplyCategory: "Famille",
       defaultQuantity: "Quantit\u00e9 habituelle",
       supplyArticleNotes: "D\u00e9tail",
+      supplierKind: "Type",
+      defaultCategory: "Impute sur",
+      accountRef: "N\u00b0 de contrat",
       isRequiredDocument: "Obligatoire",
       copies: "Exemplaires",
       documentNotes: "Pr\u00e9cision",
@@ -183,6 +187,12 @@ const fr = {
     },
 
     hints: {
+      supplierKind:
+        "Les r\u00e9gies, le bailleur et les prestataires apparaissent sur l\u2019\u00e9cran Factures ; les fournisseurs sur Achats.",
+      defaultCategory:
+        "La rubrique sur laquelle ses paiements sont imput\u00e9s. Pr\u00e9-remplie, pour n\u2019avoir plus \u00e0 la choisir.",
+      accountRef:
+        "Le num\u00e9ro de contrat ou de police \u2014 affich\u00e9 \u00e0 c\u00f4t\u00e9 du montant pour v\u00e9rifier la facture.",
       cnssRate:
         "Sugg\u00e9r\u00e9e sur le bulletin, jamais appliqu\u00e9e d\u2019office. 4,48 % est la part salariale usuelle.",
       cnssCeiling:

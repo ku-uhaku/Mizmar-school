@@ -35,6 +35,8 @@ model OperationCategory {
   subcategories OperationSubcategory[]
   motifs        OperationMotif[]
   operations    CashOperation[]
+  /// Suppliers that post here by default — see Supplier.defaultCategoryId.
+  suppliers     Supplier[]
 
   @@unique([schoolId, code])
   @@index([schoolId])

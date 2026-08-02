@@ -151,6 +151,15 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ direction: "asc" }, { departureTime: "asc" }],
   },
 
+  suppliers: {
+    table: () => db.supplier as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // Grouped by kind, then the school's own order — the order the two
+    // simplified screens show them in.
+    orderBy: [{ kind: "asc" }, { position: "asc" }, { name: "asc" }],
+  },
+
   "document-types": {
     table: () => db.documentType as unknown as Delegate,
     where: bySchool,
