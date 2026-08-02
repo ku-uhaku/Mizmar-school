@@ -35,6 +35,8 @@ const core = {
     imageChosen: "تم اختيار صورة",
     imageHint: "اختر ملفًا، أو الصق رابطًا.",
     noResults: "لا توجد نتائج.",
+    select: "\u0627\u062e\u062a\u0631\u2026",
+    searchPlaceholder: "\u0628\u062d\u062b\u2026",
     reset: "إعادة التعيين",
     columns: "الأعمدة",
     clearFilter: "مسح عامل التصفية",

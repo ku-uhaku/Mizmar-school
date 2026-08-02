@@ -1532,3 +1532,54 @@ export async function listFamilyPayments(
     };
   });
 }
+
+/**
+ * Every receipt written for one household, this year.
+ *
+ * Matched on the receipt's own `familyId` rather than through the allocations,
+ * which is the opposite of `listStudentPayments` and deliberately so: that one
+ * answers "what settled *this child's* schedule", and a household's tab wants
+ * everything the family ever paid, including a receipt spread across three
+ * children. The per-pupil breakdown is on each child's own file.
+ *
+ * Cancelled receipts are kept, like the caisse ledger, so a voided receipt is
+ * still reachable from where it was taken and its number is still explicable.
+ */
+export async function listFamilyReceipts(
+  context: AuthContext,
+  familyId: string,
+  limit = 100,
+): Promise<PaymentRow[]> {
+  const payments = await db.payment.findMany({
+    // Scoped to the school *and* the year in context, so a dossier id from
+    // another tenant reaches nothing and last year's receipts do not appear
+    // under this year's total.
+    where: {
+      ...schoolScope(context),
+      schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+      familyId,
+    },
+    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+    include: {
+      family: { select: { name: true } },
+      createdBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      tenders: { select: { method: true } },
+      _count: { select: { allocations: true } },
+    },
+  });
+
+  return payments.map((payment) => ({
+    id: payment.id,
+    code: payment.code,
+    familyName: payment.family?.name ?? null,
+    paidAt: payment.paidAt.toISOString(),
+    totalCentimes: payment.totalCentimes,
+    status: payment.status,
+    methods: Array.from(new Set(payment.tenders.map((tender) => tender.method))),
+    createdByName: displayName(payment.createdBy),
+    allocationCount: payment._count.allocations,
+  }));
+}

@@ -6,6 +6,8 @@ import {
   LandmarkIcon,
   MoreHorizontalIcon,
   ReceiptTextIcon,
+  Trash2Icon,
+  UndoDotIcon,
   WalletIcon,
 } from "lucide-react";
 import * as React from "react";
@@ -42,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { setChequeStatusAction } from "@/modules/treasury/actions";
 import {
   CHEQUE_STATUSES,
+  CHEQUE_TRANSITIONS,
   FAILED_CHEQUE_STATUSES,
   type ChequeStatus,
 } from "@/modules/treasury/enums";
@@ -55,6 +58,30 @@ import type { ChequeRow } from "@/modules/treasury/queries";
  * sitting in the safe. A cheque banked before the date written on it comes back
  * unpaid, so the ones not yet due are marked rather than hidden.
  */
+/**
+ * How each move is offered: its icon, its label and whether it is a red one.
+ *
+ * Keyed on the status moved *to*, so `CHEQUE_TRANSITIONS` stays the single
+ * declaration of what is legal and this only says how to draw it. A status
+ * added to the table without an entry here is a compile error rather than a
+ * blank menu row.
+ */
+const CHEQUE_MOVES: Record<
+  string,
+  {
+    icon: typeof WalletIcon;
+    labelKey: "markDeposited" | "markCashed" | "markBounced" | "markReturned" | "markCancelled";
+    destructive?: boolean;
+  }
+> = {
+  DEPOSITED: { icon: LandmarkIcon, labelKey: "markDeposited" },
+  CASHED: { icon: WalletIcon, labelKey: "markCashed" },
+  BOUNCED: { icon: BanknoteXIcon, labelKey: "markBounced", destructive: true },
+  // Handed back to the family — the paper leaves, and no money ever arrived.
+  RETURNED: { icon: UndoDotIcon, labelKey: "markReturned" },
+  CANCELLED: { icon: Trash2Icon, labelKey: "markCancelled", destructive: true },
+};
+
 export function ChequeTable({
   cheques,
   canManage,
@@ -185,11 +212,18 @@ export function ChequeTable({
         enableSorting: false,
         cell: ({ row }) => {
           const cheque = row.original;
-          // Only two transitions are ever legal from a given state, and a
-          // cheque that is cashed or bounced has none — no menu for it.
-          if (cheque.status !== "PENDING" && cheque.status !== "DEPOSITED") {
-            return null;
-          }
+
+          /*
+            The menu *is* the transition table.
+
+            It used to offer three moves out of six statuses and nothing at all
+            from BOUNCED, which left a re-presented cheque stranded. Generating
+            it from `CHEQUE_TRANSITIONS` means the screen and `setChequeStatus`
+            can never disagree about what is legal — and adding a status to the
+            table puts it on the menu without touching this file.
+          */
+          const moves = CHEQUE_TRANSITIONS[cheque.status] ?? [];
+          if (moves.length === 0) return null;
 
           return (
             <div className="flex justify-end">
@@ -204,36 +238,20 @@ export function ChequeTable({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {cheque.status === "PENDING" ? (
-                    <DropdownMenuItem
-                      onSelect={() =>
-                        setPending({ cheque, status: "DEPOSITED" })
-                      }
-                    >
-                      <LandmarkIcon />
-                      {t.treasury.markDeposited}
-                    </DropdownMenuItem>
-                  ) : (
-                    <>
+                  {moves.map((next) => {
+                    const move = CHEQUE_MOVES[next];
+                    const Icon = move.icon;
+                    return (
                       <DropdownMenuItem
-                        onSelect={() =>
-                          setPending({ cheque, status: "CASHED" })
-                        }
+                        key={next}
+                        variant={move.destructive ? "destructive" : undefined}
+                        onSelect={() => setPending({ cheque, status: next })}
                       >
-                        <WalletIcon />
-                        {t.treasury.markCashed}
+                        <Icon />
+                        {t.treasury[move.labelKey]}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() =>
-                          setPending({ cheque, status: "BOUNCED" })
-                        }
-                      >
-                        <BanknoteXIcon />
-                        {t.treasury.markBounced}
-                      </DropdownMenuItem>
-                    </>
-                  )}
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

@@ -44,6 +44,11 @@ const fr = {
       "Inscription mise à jour · {added} échéances ajoutées, {removed} retirées.",
     deleted: "Inscription supprimée.",
     alreadyEnrolled: "Cet élève est déjà inscrit pour cette année.",
+    levelLockedByPayment:
+      "Le niveau de cet \u00e9l\u00e8ve ne peut plus \u00eatre modifi\u00e9 : {count} re\u00e7u(s) totalisant {amount} DH sont d\u00e9j\u00e0 imput\u00e9s sur son \u00e9ch\u00e9ancier. Annulez-les, ou proc\u00e9dez \u00e0 une r\u00e9inscription.",
+    levelLocked: "Bloqu\u00e9 par un r\u00e8glement",
+    levelChangedRepriced:
+      "Niveau modifi\u00e9 et \u00e9ch\u00e9ancier recalcul\u00e9 \u2014 {count} lignes.",
     offeringUnavailable: "Ce niveau n'est pas ouvert cette année.",
     classUnavailable: "Cette classe n'appartient pas à cette année.",
     classAssigned: "Classe affectée.",

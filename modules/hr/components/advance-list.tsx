@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Combobox } from "@/components/form/combobox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -351,21 +352,16 @@ function AdvanceDialog({
 
           <div className="grid gap-4 py-4">
             <Field name="staffId" label={t.hr.employee} error={errors.staffId}>
-              <Select
+              <Combobox
+                id="staffId"
                 name="staffId"
                 defaultValue={advance?.staffId ?? staff[0]?.id}
-              >
-                <SelectTrigger id="staffId" className="w-full">
-                  <SelectValue placeholder={t.hr.employee} />
-                </SelectTrigger>
-                <SelectContent>
-                  {staff.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>
-                      {person.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={t.hr.employee}
+                options={staff.map((person) => ({
+                  value: person.id,
+                  label: person.label,
+                }))}
+              />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">

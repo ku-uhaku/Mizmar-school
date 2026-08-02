@@ -12,6 +12,7 @@ import {
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
+import { Combobox } from "@/components/form/combobox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -30,27 +31,37 @@ import type {
   BankOption,
   CategoryOption,
   MotifOption,
+  SupplierOption,
 } from "@/modules/treasury/queries";
 
-const NO_STAFF = "__none__";
+const NO_SUPPLIER = "__none__";
 /** Blank for a Select, which cannot hold "". */
 const NONE = "__none__";
 
 /**
  * Décaissement: money out.
  *
- * The beneficiary is *both* a picker and free text, and deliberately so. Paying
- * a salary or an advance should name the employee's row, so the ledger and the
- * payroll refer to the same person; but a school also pays landlords, hauliers
- * and casual staff who have no row anywhere in this database, and forcing them
- * through a table would mean inventing one for every one-off payment. Picking an
- * employee fills the name, so the ledger reads the same either way.
+ * ── What this screen is *not* for any more ──────────────────────────────────
+ * Paying staff has moved out entirely — a salary is a bulletin (`/hr/payroll`),
+ * an avance is an avance (`/hr/advances`), and anything else owed to somebody on
+ * the payroll is `/hr/paiements`. All three name the employee's row and all
+ * three write a décaissement through the same service, so the ledger is
+ * unchanged; what has gone is the staff picker, which made this form ask a
+ * question that now has a better answer three screens away.
+ *
+ * ── The supplier is the shortcut ────────────────────────────────────────────
+ * Picking a declared fournisseur fills in the beneficiary, the rubrique and the
+ * sub-rubrique from its own row, which is what turns the ordinary case — the
+ * Lydec bill, a box of pens — into two fields. A school still pays landlords,
+ * hauliers and casual workers who are in no table at all, so the free-text
+ * beneficiary stays: forcing them through a catalogue would mean inventing a row
+ * for every one-off payment.
  */
 export function DisbursementForm({
   categories,
   motifs,
   banks,
-  staffOptions,
+  suppliers,
   hasOpenSession,
 }: {
   /** Rubriques postable on the way out, each carrying its sub-rubriques. */
@@ -58,10 +69,10 @@ export function DisbursementForm({
   motifs: MotifOption[];
   banks: BankOption[];
   /**
-   * The school's employees, lent by the RH module. Empty when the reader may
-   * not see the staff list, which is why the name field stands on its own.
+   * The declared fournisseurs. Picking one fills the beneficiary and the
+   * rubrique; leaving it on "autre" is how a one-off is paid.
    */
-  staffOptions: { id: string; label: string }[];
+  suppliers: SupplierOption[];
   hasOpenSession: boolean;
 }) {
   const t = useT();
@@ -70,7 +81,7 @@ export function DisbursementForm({
     IDLE,
   );
   const [method, setMethod] = React.useState<TenderMethod>("CASH");
-  const [staffId, setStaffId] = React.useState(NO_STAFF);
+  const [supplierId, setSupplierId] = React.useState(NO_SUPPLIER);
   const [beneficiaryName, setBeneficiaryName] = React.useState("");
   const [categoryId, setCategoryId] = React.useState(NONE);
   const [subcategoryId, setSubcategoryId] = React.useState(NONE);
@@ -82,7 +93,7 @@ export function DisbursementForm({
     onSuccess: () => {
       formRef.current?.reset();
       setMethod("CASH");
-      setStaffId(NO_STAFF);
+      setSupplierId(NO_SUPPLIER);
       setBeneficiaryName("");
       setCategoryId(NONE);
       setSubcategoryId(NONE);
@@ -98,11 +109,31 @@ export function DisbursementForm({
    * hiding it. The ledger's `beneficiaryName` is always set — see the note on
    * the column — and showing what will be written beats writing it invisibly.
    */
-  function chooseStaff(value: string) {
-    setStaffId(value);
-    const chosen = staffOptions.find((option) => option.id === value);
-    // The label carries the matricule after a "·"; the ledger wants the name.
-    if (chosen) setBeneficiaryName(chosen.label.split(" · ")[0]);
+  /**
+   * Picking a fournisseur fills in everything its row already knows.
+   *
+   * The beneficiary, the rubrique and the sub-rubrique all come off the
+   * supplier, which is what leaves the amount as the only thing that genuinely
+   * has to be typed. Choosing "autre" clears them again rather than leaving the
+   * last supplier's rubrique attached to a payment that is not theirs.
+   */
+  function chooseSupplier(value: string) {
+    setSupplierId(value);
+
+    if (value === NO_SUPPLIER) {
+      setBeneficiaryName("");
+      setCategoryId(NONE);
+      setSubcategoryId(NONE);
+      return;
+    }
+
+    const chosen = suppliers.find((option) => option.id === value);
+    if (!chosen) return;
+
+    setBeneficiaryName(chosen.label);
+    setCategoryId(chosen.defaultCategoryId ?? NONE);
+    setSubcategoryId(chosen.defaultSubcategoryId ?? NONE);
+    if (label.trim() === "") setLabel(chosen.label);
   }
 
   const category =
@@ -147,31 +178,29 @@ export function DisbursementForm({
         title={t.treasury.decaissement}
         description={t.treasury.decaissementSubtitle}
       >
-        {staffOptions.length > 0 ? (
+        {suppliers.length > 0 ? (
           <FormField
-            name="beneficiaryStaffId"
-            label={t.treasury.beneficiaryStaff}
-            hint={t.treasury.beneficiaryStaffHint}
+            name="supplierId"
+            label={t.treasury.supplier}
+            hint={t.treasury.supplierHint}
           >
-            <Select
-              name="beneficiaryStaffId"
-              value={staffId}
-              onValueChange={chooseStaff}
-            >
-              <SelectTrigger id="beneficiaryStaffId" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_STAFF}>
-                  {t.treasury.beneficiaryExternal}
-                </SelectItem>
-                {staffOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="supplierId"
+              name="supplierId"
+              value={supplierId}
+              onValueChange={chooseSupplier}
+              emptyOption={{
+                value: NO_SUPPLIER,
+                label: t.treasury.beneficiaryExternal,
+              }}
+              options={suppliers.map((option) => ({
+                value: option.id,
+                label: option.label,
+                // Searchable by the account number too — a bursar holding the
+                // facture has the police number in front of them, not the name.
+                keywords: `${option.code} ${option.accountRef ?? ""}`,
+              }))}
+            />
           </FormField>
         ) : null}
 

@@ -110,6 +110,7 @@ const en = {
     deleteRemarkBody: "Your remark about {name} will be removed.",
     notYourRemark: "You can only delete your own remarks.",
     notYourPupil: "You do not teach this pupil.",
+    sharedWithFamily: "{count} shared with the family",
     noRemarks: "No remark written yet.",
     noRemarksHint:
       "A remark is the sentence you would otherwise keep in your own notebook.",

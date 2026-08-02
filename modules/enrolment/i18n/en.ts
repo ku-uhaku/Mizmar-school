@@ -46,6 +46,11 @@ const en = {
       "Enrolment updated · {added} fee lines added, {removed} withdrawn.",
     deleted: "Enrolment deleted.",
     alreadyEnrolled: "This pupil is already enrolled for this year.",
+    levelLockedByPayment:
+      "This pupil's level cannot be changed: {count} receipt(s) totalling {amount} DH have already been allocated against their fee schedule. Cancel them, or re-enrol the pupil.",
+    levelLocked: "Locked by a payment",
+    levelChangedRepriced:
+      "Level changed and the fee schedule re-priced \u2014 {count} lines.",
     offeringUnavailable: "That level is not open this year.",
     classUnavailable: "That class does not belong to this year.",
     classAssigned: "Class assigned.",

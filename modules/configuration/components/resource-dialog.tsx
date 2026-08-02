@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Combobox } from "@/components/form/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -281,26 +282,24 @@ function FieldControl({
       );
     }
 
+    /*
+      A reference is a row out of another table, and those lists are long: the
+      teachers, the levels, the rubriques, the quartiers. So it is a combobox
+      rather than a select — it posts the same hidden value, and grows a search
+      box once the list is long enough to need one. See `Combobox`.
+    */
     case "reference":
       return (
-        <Select
+        <Combobox
+          id={field.name}
           name={field.name}
           defaultValue={current ? String(current) : nullable ? NONE : ""}
-        >
-          <SelectTrigger id={field.name} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {nullable ? (
-              <SelectItem value={NONE}>{noneLabel}</SelectItem>
-            ) : null}
-            {choices.map((choice) => (
-              <SelectItem key={choice.id} value={choice.id}>
-                {choice.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          emptyOption={nullable ? { value: NONE, label: noneLabel } : undefined}
+          options={choices.map((choice) => ({
+            value: choice.id,
+            label: choice.label,
+          }))}
+        />
       );
 
     case "multiselect": {

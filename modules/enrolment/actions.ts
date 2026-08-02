@@ -12,6 +12,8 @@ import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { interpolate } from "@/lib/i18n/format";
 import {
+  canChangeLevel,
+  repriceForLevel,
   assignClass,
   generateFeeSchedule,
   repriceFeeLine,
@@ -100,6 +102,8 @@ async function authorizeEnrolment(
       id: true,
       studentId: true,
       schoolYearId: true,
+      /** Read so an update can tell whether the level is actually changing. */
+      levelOfferingId: true,
       student: { select: { schoolId: true } },
     },
   });
@@ -234,6 +238,32 @@ export async function updateEnrolmentAction(
     });
     if (!offering) return failure(t.enrolment.offeringUnavailable);
 
+    /*
+      The level prices the whole échéancier, so it cannot be edited like a note.
+
+      Unchanged, nothing happens. Changed with nothing collected, the schedule is
+      re-priced against the new level in the same save — leaving it would bill a
+      2BAC pupil at 1AP rates, silently, which is exactly what used to happen.
+      Changed once a receipt has settled anything, it is refused: an allocation
+      points at a particular line, and moving the child would either orphan money
+      the school has taken or restate what a family was told after they paid part
+      of it. That is a re-inscription, not a form edit. See `canChangeLevel`.
+    */
+    const levelChanged = offering.id !== existing.levelOfferingId;
+    if (levelChanged) {
+      const guard = await canChangeLevel(enrollmentId);
+      if (!guard.ok) {
+        return failure(
+          interpolate(t.enrolment.levelLockedByPayment, {
+            amount: (guard.paidCentimes / 100).toFixed(2),
+            count: guard.receipts,
+          }),
+          { levelOfferingId: t.enrolment.levelLocked },
+          formValues(formData),
+        );
+      }
+    }
+
     await db.enrollment.update({
       where: { id: enrollmentId },
       data: {
@@ -262,6 +292,16 @@ export async function updateEnrolmentAction(
     // canteen cost, so the échéancier has to follow them in the same save —
     // leaving it to a second button is how a family ends up billed for a
     // service they cancelled in front of the secretary.
+    // A new level means new prices, and the guard above has already proved
+    // nothing is allocated — so the schedule is rebuilt rather than patched.
+    if (levelChanged) {
+      const lines = await repriceForLevel(enrollmentId);
+      refresh();
+      return success(
+        interpolate(t.enrolment.levelChangedRepriced, { count: lines }),
+      );
+    }
+
     const { added, removed } = await resyncOptionalCharges(enrollmentId);
 
     refresh();

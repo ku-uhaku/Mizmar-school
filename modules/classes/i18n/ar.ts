@@ -41,6 +41,8 @@ const ar = {
     studentsAdded: "تمت إضافة {count} تلاميذ.",
     group: "الفوج",
     noGroup: "لا يوجد فوج",
+    viewList: "\u0639\u0631\u0636 \u0644\u0627\u0626\u062d\u064a",
+    viewCards: "\u0639\u0631\u0636 \u0628\u0637\u0627\u0642\u0627\u062a",
     setGroup: "تغيير الفوج",
 
     teaching: "الإسنادات التربوية",

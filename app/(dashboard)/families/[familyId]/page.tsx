@@ -8,6 +8,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { FamilyDetail } from "@/modules/families/components/family-detail";
+import { listFamilyReceipts } from "@/modules/treasury/queries";
 import { findFamily } from "@/modules/families/queries";
 
 export const metadata: Metadata = { title: "Famille" };
@@ -30,6 +31,12 @@ export default async function FamilyPage({
   const family = await findFamily(context, familyId);
   if (!family) notFound();
 
+  // Money is gated separately from the dossier: a secretary may fix a phone
+  // number without learning what the household has paid.
+  const receipts = context.can(PERMISSIONS.TREASURY_VIEW)
+    ? await listFamilyReceipts(context, family.id)
+    : null;
+
   return (
     <>
       <PageHeader
@@ -45,6 +52,7 @@ export default async function FamilyPage({
 
       <FamilyDetail
         family={family}
+        receipts={receipts}
         canManage={context.can(PERMISSIONS.FAMILY_UPDATE)}
       />
     </>

@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import {
+  canMoveCheque,
   cashImpactOf,
   documentCode,
   isStaleSession,
@@ -784,11 +785,22 @@ export async function setChequeStatus(
     where: { id: chequeId },
     select: {
       id: true,
+      status: true,
       direction: true,
       tender: { select: { paymentId: true } },
     },
   });
   if (!cheque) return false;
+
+  /*
+    The transition table is consulted rather than trusted from the request.
+
+    A Server Function is reachable by direct POST, and without this a crafted
+    one could take a CASHED cheque back to PENDING — money that has arrived
+    un-arriving, with the receipt it settled left standing. Refusing is the
+    whole reason `CHEQUE_TRANSITIONS` is a declaration and not a set of buttons.
+  */
+  if (!canMoveCheque(cheque.status, status)) return false;
 
   const now = options.settledOn ?? new Date();
 
@@ -801,7 +813,9 @@ export async function setChequeStatus(
         status === "CASHED" || status === "BOUNCED" || status === "RETURNED"
           ? now
           : undefined,
-      bounceReason: status === "BOUNCED" ? options.bounceReason ?? null : null,
+      // Cleared on the way out of BOUNCED as well: a cheque re-presented and
+      // cleared must not still carry the reason it failed the first time.
+      bounceReason: status === "BOUNCED" ? (options.bounceReason ?? null) : null,
     },
   });
 

@@ -107,6 +107,7 @@ const ar = {
     deleteRemarkBody: "سيتم حذف ملاحظتك بخصوص {name}.",
     notYourRemark: "لا يمكنك حذف سوى ملاحظاتك أنت.",
     notYourPupil: "أنت لا تدرّس هذا التلميذ.",
+    sharedWithFamily: "{count} \u0623\u064f\u0628\u0644\u0650\u063a\u062a \u0644\u0644\u0623\u0633\u0631\u0629",
     noRemarks: "لا توجد ملاحظة بعد.",
     noRemarksHint: "الملاحظة هي الجملة التي كنت ستحتفظ بها في دفترك الخاص.",
     mineOnly: "ملاحظاتي فقط",

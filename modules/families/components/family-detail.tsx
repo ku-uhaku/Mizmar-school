@@ -18,20 +18,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/i18n/format";
 import { FamilyForm } from "@/modules/families/components/family-form";
 import { GuardiansPanel } from "@/modules/families/components/guardians-panel";
+import { FamilyReceipts } from "@/modules/treasury/components/family-receipts";
+import type { PaymentRow } from "@/modules/treasury/queries";
 import type { FamilyDetail as FamilyDetailData } from "@/modules/families/queries";
 import { ageFrom } from "@/lib/utils";
 
 /**
- * One dossier, in three tabs: the household's own details, the adults on it and
- * the children attached to it. Tabs rather than one long page because the three
- * are edited by different people at different times — a secretary fixes a phone
- * number, a director checks who may collect a child.
+ * One dossier, in four tabs: the household's own details, the adults on it, the
+ * children attached to it, and what it has paid. Tabs rather than one long page
+ * because they are read by different people at different times — a secretary
+ * fixes a phone number, a director checks who may collect a child, a bursar
+ * answers "j'ai payé en novembre" with the receipt in front of them.
  */
 export function FamilyDetail({
   family,
+  receipts,
   canManage,
 }: {
   family: FamilyDetailData;
+  /**
+   * The household's receipts for the year. Null when the reader may not see
+   * money — the tab is absent rather than empty, like the pupil's own.
+   */
+  receipts: PaymentRow[] | null;
   canManage: boolean;
 }) {
   const { t, locale } = useI18n();
@@ -52,11 +61,25 @@ export function FamilyDetail({
             {family.childCount}
           </Badge>
         </TabsTrigger>
+        {receipts ? (
+          <TabsTrigger value="payments">
+            {t.treasury.payments}
+            <Badge variant="secondary" className="ms-1.5 tabular-nums">
+              {receipts.length}
+            </Badge>
+          </TabsTrigger>
+        ) : null}
       </TabsList>
 
       <TabsContent value="details">
         <FamilyForm family={family} />
       </TabsContent>
+
+      {receipts ? (
+        <TabsContent value="payments">
+          <FamilyReceipts receipts={receipts} />
+        </TabsContent>
+      ) : null}
 
       <TabsContent value="guardians">
         <GuardiansPanel

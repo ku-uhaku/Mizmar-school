@@ -113,6 +113,7 @@ const fr = {
     deleteRemarkBody: "Votre remarque sur {name} sera supprimée.",
     notYourRemark: "Vous ne pouvez supprimer que vos propres remarques.",
     notYourPupil: "Vous n'enseignez pas à cet élève.",
+    sharedWithFamily: "{count} transmises \u00e0 la famille",
     noRemarks: "Aucune remarque pour le moment.",
     noRemarksHint:
       "Une remarque, c'est la phrase que vous garderiez sinon dans votre carnet.",

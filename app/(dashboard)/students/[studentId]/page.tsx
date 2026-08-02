@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PrinterIcon } from "lucide-react";
+import { ChartPieIcon, PrinterIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -206,6 +206,16 @@ export default async function StudentPage({
           </>
         }
       >
+        {/* The overview sits on its own page rather than as a tab: it is read
+          rather than worked in, and a chart squeezed between eleven tabs is a
+          chart nobody looks at. */}
+        <Button asChild size="sm">
+          <Link href={`/students/${student.id}/dashboard`}>
+            <ChartPieIcon />
+            {t.student.tabDashboard}
+          </Link>
+        </Button>
+
         <Button asChild variant="outline" size="sm">
           <Link href={`/print/student/${student.id}/attestation`}>
             <PrinterIcon />

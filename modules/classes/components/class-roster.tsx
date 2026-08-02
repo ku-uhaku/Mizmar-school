@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeftRightIcon, ListIcon, UsersIcon } from "lucide-react";
+import {
+  ArrowLeftRightIcon,
+  LayoutGridIcon,
+  ListIcon,
+  UsersIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { useT } from "@/components/providers/i18n-provider";
@@ -196,7 +201,52 @@ export function ClassRoster({
   );
 }
 
-/** The roster as a numbered list — how a class list is actually read out. */
+type RosterView = "LIST" | "CARDS";
+
+const ROSTER_VIEW_KEY = "roster-view";
+
+/**
+ * The remembered choice of list or cards.
+ *
+ * `useSyncExternalStore` rather than state seeded in an effect: localStorage is
+ * a store outside React, the server has no access to it, and reading it in an
+ * effect means one render as a list before it flips — which is a visible jump
+ * and the thing the lint rule is there to prevent. The server snapshot is the
+ * list, so the markup matches on hydration and only then follows the store.
+ */
+function useRosterView(): RosterView {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      // `storage` covers the other tabs; the custom event covers this one.
+      window.addEventListener("storage", onChange);
+      window.addEventListener(ROSTER_VIEW_KEY, onChange);
+      return () => {
+        window.removeEventListener("storage", onChange);
+        window.removeEventListener(ROSTER_VIEW_KEY, onChange);
+      };
+    },
+    () =>
+      window.localStorage.getItem(ROSTER_VIEW_KEY) === "CARDS"
+        ? "CARDS"
+        : "LIST",
+    // Rendered on the server, where there is no preference to read.
+    () => "LIST",
+  );
+}
+
+/**
+ * The roster, as a list or as cards.
+ *
+ * ── Why both, rather than one or the other ──────────────────────────────────
+ * They answer different questions. The numbered list is a *class list*: it is
+ * read out at the rentrée, printed, counted down — which is why it is numbered
+ * and why every pupil is one line. The cards are for *recognising* somebody:
+ * the photograph is large enough to match a face at the counter, which is what
+ * a secretary handed a name actually needs.
+ *
+ * The choice is remembered per browser rather than per class, because it is a
+ * preference about how somebody reads and not a fact about 3AP-B.
+ */
 function RosterList({
   roster,
   groups,
@@ -209,6 +259,14 @@ function RosterList({
   canManage: boolean;
 }) {
   const t = useT();
+  const view = useRosterView();
+
+  function choose(next: RosterView) {
+    window.localStorage.setItem(ROSTER_VIEW_KEY, next);
+    // Same-document writes do not raise `storage`, so the subscribers are
+    // nudged by hand — that is what keeps two rosters on one page in step.
+    window.dispatchEvent(new Event(ROSTER_VIEW_KEY));
+  }
 
   if (roster.length === 0) {
     return (
@@ -221,18 +279,176 @@ function RosterList({
   }
 
   return (
-    <ul className="divide-y">
-      {roster.map((pupil, index) => (
-        <RosterRow
-          key={pupil.enrollmentId}
-          pupil={pupil}
-          index={index + 1}
-          groups={groups}
-          schoolClassId={schoolClassId}
-          canManage={canManage}
-        />
-      ))}
-    </ul>
+    <div className="grid gap-3">
+      <div className="flex justify-end gap-1">
+        <Button
+          type="button"
+          variant={view === "LIST" ? "secondary" : "ghost"}
+          size="icon-sm"
+          aria-label={t.schoolClass.viewList}
+          aria-pressed={view === "LIST"}
+          onClick={() => choose("LIST")}
+        >
+          <ListIcon />
+        </Button>
+        <Button
+          type="button"
+          variant={view === "CARDS" ? "secondary" : "ghost"}
+          size="icon-sm"
+          aria-label={t.schoolClass.viewCards}
+          aria-pressed={view === "CARDS"}
+          onClick={() => choose("CARDS")}
+        >
+          <LayoutGridIcon />
+        </Button>
+      </div>
+
+      {view === "CARDS" ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {roster.map((pupil, index) => (
+            <RosterCard
+              key={pupil.enrollmentId}
+              pupil={pupil}
+              index={index + 1}
+              groups={groups}
+              schoolClassId={schoolClassId}
+              canManage={canManage}
+            />
+          ))}
+        </div>
+      ) : (
+        <ul className="divide-y">
+          {roster.map((pupil, index) => (
+            <RosterRow
+              key={pupil.enrollmentId}
+              pupil={pupil}
+              index={index + 1}
+              groups={groups}
+              schoolClassId={schoolClassId}
+              canManage={canManage}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One pupil, big enough to recognise.
+ *
+ * The photograph leads and the name sits under it, which is the opposite of the
+ * list and deliberately so — a card is looked *at*, a list is read *down*. The
+ * group control is the same one the row carries, so a class can be split from
+ * either view without learning two interfaces.
+ */
+function RosterCard({
+  pupil,
+  index,
+  groups,
+  schoolClassId,
+  canManage,
+}: {
+  pupil: RosterEntry;
+  index: number;
+  groups: { id: string; label: string }[];
+  schoolClassId: string;
+  canManage: boolean;
+}) {
+  const t = useT();
+  const [pending, startTransition] = React.useTransition();
+
+  const age = ageFrom(pupil.birthDate);
+  const initials = `${pupil.firstName[0] ?? ""}${pupil.lastName[0] ?? ""}`
+    .toUpperCase()
+    .trim();
+
+  function moveToGroup(groupId: string) {
+    startTransition(async () => {
+      const result = await assignClassAction(
+        pupil.enrollmentId,
+        schoolClassId,
+        groupId === "__none__" ? null : groupId,
+      );
+      if (result.status === "success") {
+        toast.success(result.message ?? t.enrolment.classAssigned);
+      } else {
+        toast.error(result.message ?? t.errors.unexpected);
+      }
+    });
+  }
+
+  return (
+    <div className="bg-card ring-foreground/10 relative flex flex-col items-center gap-2 rounded-xl p-4 text-center ring-1">
+      {/* The number is kept: a card view still has to agree with the printed
+        class list somebody is holding. */}
+      <span className="text-muted-foreground absolute start-2 top-2 text-[10px] tabular-nums">
+        {index}
+      </span>
+      {pupil.isRepeating ? (
+        <Badge variant="outline" className="absolute end-2 top-2 text-[10px]">
+          {t.enrolment.isRepeating}
+        </Badge>
+      ) : null}
+
+      <Avatar className="size-16">
+        {pupil.photoUrl ? <AvatarImage src={pupil.photoUrl} alt="" /> : null}
+        <AvatarFallback className="text-sm">{initials || "?"}</AvatarFallback>
+      </Avatar>
+
+      <div className="min-w-0 w-full">
+        <Link
+          href={`/students/${pupil.studentId}`}
+          className="block truncate text-sm font-medium hover:underline"
+        >
+          {pupil.lastName} {pupil.firstName}
+        </Link>
+        <p className="text-muted-foreground truncate text-xs" dir="ltr">
+          {pupil.code}
+        </p>
+        <p className="text-muted-foreground text-xs">
+          {
+            t.studentOptions.genders[
+              pupil.gender as keyof typeof t.studentOptions.genders
+            ]
+          }
+          {age === null ? null : ` · ${age}`}
+        </p>
+      </div>
+
+      {canManage && groups.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              className="w-full"
+            >
+              {pupil.groupLabel ?? t.schoolClass.noGroup}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center">
+            <DropdownMenuLabel>{t.schoolClass.setGroup}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={pupil.classGroupId ?? "__none__"}
+              onValueChange={moveToGroup}
+            >
+              <DropdownMenuRadioItem value="__none__">
+                {t.schoolClass.noGroup}
+              </DropdownMenuRadioItem>
+              {groups.map((group) => (
+                <DropdownMenuRadioItem key={group.id} value={group.id}>
+                  {group.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : pupil.groupLabel ? (
+        <Badge variant="secondary">{pupil.groupLabel}</Badge>
+      ) : null}
+    </div>
   );
 }
 

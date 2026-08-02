@@ -44,6 +44,8 @@ const fr = {
     studentsAdded: "{count} élèves ajoutés.",
     group: "Groupe",
     noGroup: "Aucun groupe",
+    viewList: "Vue liste",
+    viewCards: "Vue cartes",
     setGroup: "Changer de groupe",
 
     teaching: "Affectations pédagogiques",

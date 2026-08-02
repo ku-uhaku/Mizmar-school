@@ -415,7 +415,7 @@ export async function recordDisbursementAction(
       subcategoryId: optionalId(formData, "subcategoryId"),
       motifId: optionalId(formData, "motifId"),
       bankId: optionalId(formData, "bankId"),
-      beneficiaryStaffId: optionalId(formData, "beneficiaryStaffId"),
+      supplierId: optionalId(formData, "supplierId"),
       beneficiaryName: field(formData, "beneficiaryName"),
       label: field(formData, "label"),
       method: field(formData, "method"),
@@ -478,13 +478,16 @@ export async function recordDisbursementAction(
 
     // The beneficiary must be one of this school's employees — a staff id from
     // the request must never reach another school's payroll.
-    const beneficiary = parsed.data.beneficiaryStaffId
-      ? await db.staff.findFirst({
-          where: { id: parsed.data.beneficiaryStaffId, schoolId },
+    // Re-derived against this school, like every other reference the form
+    // sends: a supplier id from another tenant would file the payment under a
+    // row this school cannot see.
+    const supplier = parsed.data.supplierId
+      ? await db.supplier.findFirst({
+          where: { id: parsed.data.supplierId, schoolId },
           select: { id: true },
         })
       : null;
-    if (parsed.data.beneficiaryStaffId && !beneficiary) {
+    if (parsed.data.supplierId && !supplier) {
       return failure(t.errors.notFound);
     }
 
@@ -531,7 +534,9 @@ export async function recordDisbursementAction(
       subcategoryId: subcategory?.id ?? null,
       motifId: motif?.id ?? null,
       bankId: bank?.id ?? null,
-      beneficiaryStaffId: beneficiary?.id ?? null,
+      // Staff are paid through the RH screens now — see the note on the form.
+      beneficiaryStaffId: null,
+      supplierId: supplier?.id ?? null,
       beneficiaryName: parsed.data.beneficiaryName,
       label: parsed.data.label,
       method: parsed.data.method,
@@ -920,104 +925,7 @@ export async function deleteCashRegisterAction(
   });
 }
 
-// ── Les trois écrans simplifiés ──────────────────────────────────────────────
-
-/**
- * Pays a supplier — a facture or an achat — from one picker and an amount.
- *
- * ── Why this exists beside `recordDisbursementAction` ───────────────────────
- * The full décaissement form asks twelve questions, three of them free text,
- * because it has to cope with paying anybody for anything. A manager settling
- * the Lydec bill is not doing anything that open-ended: the beneficiary, the
- * rubrique and the label all follow from *which supplier*, and asking for them
- * again is how the same water bill ends up filed three different ways.
- *
- * So everything derivable is derived here, from the supplier's own row, and
- * nothing but the amount, the method and the date is taken from the form. The
- * ledger entry is identical either way — it goes through `recordDisbursement`
- * like every other movement, and inherits the till gate, the cheque and the
- * audit trail.
- */
-export async function paySupplierAction(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
-    if (!schoolId) return failure(t.errors.noSchoolContext);
-
-    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
-
-    const parsed = quickSpendSchema(t).safeParse({
-      supplierId: optionalId(formData, "supplierId"),
-      period: field(formData, "period"),
-      reference: field(formData, "reference"),
-      method: field(formData, "method"),
-      amount: field(formData, "amount"),
-      occurredAt: field(formData, "occurredAt"),
-      chequeNumber: field(formData, "chequeNumber"),
-      bankName: field(formData, "bankName"),
-      notes: field(formData, "notes"),
-    });
-    if (!parsed.success) {
-      return failure(
-        t.errors.invalid,
-        fieldErrors(parsed.error),
-        formValues(formData),
-      );
-    }
-
-    // The supplier is re-derived against this school, and everything the ledger
-    // will say about the payment comes off that row rather than off the form.
-    const supplier = parsed.data.supplierId
-      ? await db.supplier.findFirst({
-          where: { id: parsed.data.supplierId, schoolId, isActive: true },
-          select: {
-            id: true,
-            name: true,
-            defaultCategoryId: true,
-            defaultSubcategoryId: true,
-          },
-        })
-      : null;
-    if (!supplier) return failure(t.errors.notFound);
-
-    const drawer =
-      parsed.data.method === "CASH"
-        ? await requireDrawer(t, schoolId, context.user.id)
-        : null;
-    if (drawer && !drawer.ok) return failure(drawer.message);
-
-    // "Lydec — 03/2026", or just the name for a one-off purchase. Written here
-    // so every payment to one supplier reads the same on the ledger.
-    const label = parsed.data.period
-      ? `${supplier.name} — ${parsed.data.period}`
-      : supplier.name;
-
-    await recordDisbursement({
-      schoolId,
-      createdById: context.user.id,
-      cashSessionId: drawer?.ok ? drawer.sessionId : null,
-      categoryId: supplier.defaultCategoryId,
-      subcategoryId: supplier.defaultSubcategoryId,
-      motifId: null,
-      bankId: null,
-      beneficiaryStaffId: null,
-      supplierId: supplier.id,
-      beneficiaryName: supplier.name,
-      label,
-      method: parsed.data.method,
-      amountCentimes: parsed.data.amountCentimes,
-      reference: parsed.data.reference,
-      chequeNumber: parsed.data.chequeNumber,
-      bankName: parsed.data.bankName,
-      occurredAt: parsed.data.occurredAt ?? new Date(),
-    });
-
-    refresh();
-    return success(t.treasury.spendRecorded);
-  });
-}
+// ── Le paiement du personnel ─────────────────────────────────────────────────
 
 /**
  * Pays a member of staff something that is not a bulletin — a reimbursement, a

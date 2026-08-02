@@ -116,6 +116,8 @@ const fr = {
     placement: "Affectation",
     notPlaced: "Non affecté",
     notEnrolled: "Non inscrit",
+    tabDashboard: "Tableau de bord",
+    situationSheet: "Fiche de situation de l\u2019\u00e9l\u00e8ve",
     tabInformation: "Informations",
     tabFamily: "Famille",
     tabEnrolment: "Inscription",

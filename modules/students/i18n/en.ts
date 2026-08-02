@@ -111,6 +111,8 @@ const en = {
     placement: "Placement",
     notPlaced: "Not placed",
     notEnrolled: "Not enrolled",
+    tabDashboard: "Overview",
+    situationSheet: "Pupil situation sheet",
     tabInformation: "Information",
     tabFamily: "Family",
     tabEnrolment: "Enrolment",

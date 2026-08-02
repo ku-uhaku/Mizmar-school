@@ -6,7 +6,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { listStaffOptions } from "@/modules/hr/queries";
-import { QuickSpendForm } from "@/modules/treasury/components/quick-spend-form";
+import { StaffPaymentForm } from "@/modules/treasury/components/staff-payment-form";
 import {
   findOpenSession,
   listOperationCategories,
@@ -45,9 +45,7 @@ export default async function StaffPaymentsPage() {
         backLabel={t.hr.title}
       />
 
-      <QuickSpendForm
-        mode="STAFF"
-        suppliers={[]}
+      <StaffPaymentForm
         staffOptions={staffOptions}
         categories={categories.map((category) => ({
           id: category.id,

@@ -199,6 +199,42 @@ export const CHEQUE_STATUSES = [
 ] as const;
 export type ChequeStatus = (typeof CHEQUE_STATUSES)[number];
 
+/**
+ * Where a cheque may go from where it is.
+ *
+ * ── Why this is a table and not a chain of `if`s ────────────────────────────
+ * The menu on the suivi des chèques and the guard in `setChequeStatus` are
+ * generated from this one declaration, so a screen cannot offer a move the
+ * service refuses — nor, which was the real problem, quietly hide moves the
+ * service would happily have made. Same pattern as `REVIEW_TRANSITIONS` in
+ * modules/supplies/enums.ts.
+ *
+ * ── The moves a school actually makes ──────────────────────────────────────
+ * A cheque in the drawer can be banked, cashed over the counter, handed back to
+ * the family, or struck out if it was typed in error. A banked one clears or
+ * comes back. **A bounced one is very often re-presented** — the family says
+ * "représentez-le le 5", and until now the screen had no way to say that, which
+ * left the cheque stranded in a terminal state it had not really reached.
+ *
+ * CASHED, RETURNED and CANCELLED are the genuine ends: the money arrived, the
+ * paper went back, or the row should never have existed. Reversing any of those
+ * is a correction of the *receipt*, not of the cheque — see `cancelPayment`.
+ */
+export const CHEQUE_TRANSITIONS: Record<string, readonly ChequeStatus[]> = {
+  PENDING: ["DEPOSITED", "CASHED", "RETURNED", "CANCELLED"],
+  DEPOSITED: ["CASHED", "BOUNCED", "RETURNED"],
+  // Re-presented, given back, or written off.
+  BOUNCED: ["DEPOSITED", "RETURNED", "CANCELLED"],
+  CASHED: [],
+  RETURNED: [],
+  CANCELLED: [],
+};
+
+/** Whether a cheque may move to `next` from where it is now. */
+export function canMoveCheque(from: string, next: string): boolean {
+  return (CHEQUE_TRANSITIONS[from] ?? []).includes(next as ChequeStatus);
+}
+
 /** Cheques still expected to turn into money — what "en attente" counts. */
 export const OPEN_CHEQUE_STATUSES: readonly ChequeStatus[] = [
   "PENDING",

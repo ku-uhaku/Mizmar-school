@@ -54,25 +54,6 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
     },
     {
-      href: "/caisse/factures",
-      icon: "decaissement",
-      section: "finance",
-      labelKey: "bills",
-      // Before the raw décaissement: settling the month's bills is the
-      // commonest money-out a manager does, and it should not require the
-      // twelve-field form to do it.
-      order: 32,
-      schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
-    },
-    {
-      href: "/caisse/achats",
-      icon: "decaissement",
-      section: "finance",
-      labelKey: "purchases",
-      order: 34,
-      schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
-    },
-    {
       href: "/caisse/transfert",
       icon: "transfert",
       section: "finance",

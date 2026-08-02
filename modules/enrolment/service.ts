@@ -467,3 +467,74 @@ export async function setEnrolmentStatus(
 
   await refreshStudentStatus(enrolment.studentId);
 }
+
+// ── Changing the level after the fact ────────────────────────────────────────
+
+export type LevelChangeGuard =
+  /** Nothing has been collected — the schedule may be re-priced freely. */
+  | { ok: true }
+  /** Money has been taken against this schedule; the level is now frozen. */
+  | { ok: false; paidCentimes: number; receipts: number };
+
+/**
+ * Whether a pupil's level may still be changed.
+ *
+ * ── Why the level is not just another field ─────────────────────────────────
+ * The whole échéancier is priced *from* the level: `buildScheduleLines` reads
+ * the FeeRate for the level admitted to, and writes one row per charge per
+ * instalment. Moving a child from 1AP to 2BAC after that leaves fifteen
+ * thousand dirhams of tuition on a file the school now charges twenty-five
+ * thousand for — silently, because nothing recomputes it. That was the bug this
+ * exists to close.
+ *
+ * ── Why paid means frozen rather than re-priced ─────────────────────────────
+ * Where nothing has been collected, re-pricing is safe and correct: no
+ * allocation points at the old lines, so they can be torn down and rebuilt.
+ *
+ * Once a receipt has settled even one instalment, they cannot. A
+ * `PaymentAllocation` points at a *particular* schedule line; deleting it would
+ * orphan money the school has taken, and restating its amount would change what
+ * a family was told they owed after they had paid part of it. That is a
+ * re-inscription — a decision with an avoir behind it — and not something a form
+ * may do quietly. So the level is refused and the change is left to somebody who
+ * will do it deliberately.
+ */
+export async function canChangeLevel(
+  enrollmentId: string,
+): Promise<LevelChangeGuard> {
+  const allocations = await db.paymentAllocation.findMany({
+    where: {
+      enrollmentFee: { enrollmentId },
+      // Only money that still counts: a cancelled receipt put its money back,
+      // so it must not freeze a level it no longer pays for.
+      payment: { status: "POSTED" },
+    },
+    select: { amountCentimes: true, paymentId: true },
+  });
+
+  if (allocations.length === 0) return { ok: true };
+
+  return {
+    ok: false,
+    paidCentimes: allocations.reduce(
+      (total, allocation) => total + allocation.amountCentimes,
+      0,
+    ),
+    receipts: new Set(allocations.map((allocation) => allocation.paymentId)).size,
+  };
+}
+
+/**
+ * Re-prices a whole schedule against the level the pupil is now admitted to.
+ *
+ * Only ever called once `canChangeLevel` has said yes, which is what makes the
+ * `replace` safe: with no allocation pointing at any line, tearing the schedule
+ * down and rebuilding it loses nothing and leaves the file priced for the level
+ * it is actually at.
+ *
+ * Returns how many lines the new level produced, so the screen can say what it
+ * did rather than claiming a silent success.
+ */
+export async function repriceForLevel(enrollmentId: string): Promise<number> {
+  return generateFeeSchedule(enrollmentId, { replace: true });
+}

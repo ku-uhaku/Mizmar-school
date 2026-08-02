@@ -44,6 +44,8 @@ const en = {
     studentsAdded: "{count} students added.",
     group: "Group",
     noGroup: "No group",
+    viewList: "List view",
+    viewCards: "Card view",
     setGroup: "Move to group",
 
     teaching: "Teaching assignments",

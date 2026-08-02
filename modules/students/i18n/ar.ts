@@ -106,6 +106,8 @@ const ar = {
     placement: "الإسناد",
     notPlaced: "غير مسند",
     notEnrolled: "غير مسجّل",
+    tabDashboard: "لوحة المتابعة",
+    situationSheet: "\u0628\u0637\u0627\u0642\u0629 \u0648\u0636\u0639\u064a\u0629 \u0627\u0644\u062a\u0644\u0645\u064a\u0630",
     tabInformation: "المعلومات",
     tabFamily: "الأسرة",
     tabEnrolment: "التسجيل",

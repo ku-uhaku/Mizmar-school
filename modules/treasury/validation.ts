@@ -152,8 +152,11 @@ export function disbursementSchema(t: Dictionary) {
       subcategoryId: optionalText(40),
       motifId: optionalText(40),
       bankId: optionalText(40),
-      /** The employee paid, when there is one. The name is required regardless. */
-      beneficiaryStaffId: optionalText(40),
+      /**
+       * The fournisseur paid, when it is a declared one. The name is required
+       * regardless — a one-off goes to somebody who has no row at all.
+       */
+      supplierId: optionalText(40),
       beneficiaryName: requiredText(v, { max: 160 }),
       label: requiredText(v, { max: 200 }),
       method: enumField(TENDER_METHODS, v),

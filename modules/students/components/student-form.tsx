@@ -26,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Combobox } from "@/components/form/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -821,25 +822,18 @@ export function StudentForm({
                   label={t.student.family}
                   error={errors.familyId}
                 >
-                  <Select
+                  <Combobox
+                    id="familyId"
                     name="familyId"
                     defaultValue={
-                      valueOf(state, "familyId", student?.familyId) ||
-                      "__none__"
+                      valueOf(state, "familyId", student?.familyId) || "__none__"
                     }
-                  >
-                    <SelectTrigger id="familyId" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t.common.none}</SelectItem>
-                      {families.map((family) => (
-                        <SelectItem key={family.id} value={family.id}>
-                          {family.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    emptyOption={{ value: "__none__", label: t.common.none }}
+                    options={families.map((family) => ({
+                      value: family.id,
+                      label: family.label,
+                    }))}
+                  />
                 </FormField>
 
                 {!isEdit ? (

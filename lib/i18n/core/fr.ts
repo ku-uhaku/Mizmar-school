@@ -35,6 +35,8 @@ const core = {
     imageChosen: "Image choisie",
     imageHint: "Choisissez un fichier, ou collez un lien.",
     noResults: "Aucun résultat.",
+    select: "Choisir\u2026",
+    searchPlaceholder: "Rechercher\u2026",
     reset: "Réinitialiser",
     columns: "Colonnes",
     clearFilter: "Effacer le filtre",
