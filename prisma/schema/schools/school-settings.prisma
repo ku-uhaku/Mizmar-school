@@ -44,6 +44,22 @@ model SchoolSettings {
   /// hand-edited row must not be able to put an eighth column on a timetable.
   teachingDays String @default("1,2,3,4,5,6")
 
+  /// The standard weekly teaching load, in minutes — 22h, the usual Moroccan
+  /// secondary service. `Staff.maxWeeklyMinutes` overrides it per employee.
+  ///
+  /// Only the generator reads it, and only to stop itself piling hours on the
+  /// first teacher it finds. Nothing in the app refuses a manual booking over
+  /// the line.
+  teacherWeeklyMinutes Int @default(1320)
+
+  /// Most minutes of lessons a class may be given in a week — 30h.
+  ///
+  /// Distinct from the bell schedule, which says how many periods *exist*: a
+  /// school running 8 periods a day over 6 days offers 44, and does not put 44
+  /// on a class of seven-year-olds. Without this the generator will fill every
+  /// slot it is allowed to, because from its side an empty period is a failure.
+  classWeeklyMinutes Int @default(1800)
+
   // ── Monnaie et langue ─────────────────────────────────────────────────────
   /// ISO 4217. Amounts are stored in the currency's minor unit throughout
   /// (centimes for MAD), so changing this changes the label, never the maths.

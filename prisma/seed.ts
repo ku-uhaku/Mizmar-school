@@ -17,7 +17,7 @@ import {
 } from "@/modules/billing/seed";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments } from "@/modules/enrolment/seed";
-import { seedHr } from "@/modules/hr/seed";
+import { seedHr, seedTeacherSubjects } from "@/modules/hr/seed";
 import { seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport } from "@/modules/transport/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
@@ -331,6 +331,11 @@ async function main() {
         });
       }
     }
+
+    // Who may teach what, read off the assignments the years above just wrote.
+    // After the loop because it is a fact about the school rather than a year,
+    // and it needs the classes to exist — see seedTeacherSubjects.
+    await seedTeacherSubjects(db, school.id);
   }
 
   console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);

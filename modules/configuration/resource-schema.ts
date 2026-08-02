@@ -120,6 +120,13 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ position: "asc" }],
   },
 
+  "teacher-subjects": {
+    table: () => db.teacherSubject as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    orderBy: [{ preferenceRank: "asc" }],
+  },
+
   rooms: {
     table: () => db.room as unknown as Delegate,
     where: bySchool,

@@ -12,6 +12,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClassPicker } from "@/modules/timetable/components/class-picker";
 import { GenerateWeeksButton } from "@/modules/timetable/components/generate-weeks-button";
+import { TimetableGenerator } from "@/modules/timetable/components/timetable-generator";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import { WeekPicker } from "@/modules/timetable/components/week-picker";
 import {
@@ -109,7 +110,19 @@ export default async function TimetablePage({
         </Button>
         {/* The weeks are the spine the grid hangs on, so the button that lays
           them out belongs here rather than three screens away. */}
-        {context.can(PERMISSIONS.TIMETABLE_MANAGE) ? <GenerateWeeksButton /> : null}
+        {context.can(PERMISSIONS.TIMETABLE_MANAGE) ? (
+          <>
+            <GenerateWeeksButton />
+            {/* Beside the grid it fills in, and carrying the bell schedule the
+              page is showing — generating the standard week from the Ramadan
+              view would write into the wrong set of slots. */}
+            <TimetableGenerator
+              classCount={classes.length}
+              currentClassId={selected.id}
+              scheduleKind={scheduleKind}
+            />
+          </>
+        ) : null}
       </PageHeader>
 
       <ClassPicker

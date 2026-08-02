@@ -102,6 +102,10 @@ const fr = {
       staffCodeFormat: "Matricule personnel",
       defaultInstalmentCount: "Échéances par an",
       feeDueDayOfMonth: "Exigible le",
+      teacherWeeklyMinutes: "Service par enseignant (minutes/semaine)",
+      classWeeklyMinutes: "Volume horaire par classe (minutes/semaine)",
+      teacherSubjects: "Qui enseigne quoi",
+      preferenceRank: "Priorité",
       payrollWorkingDays: "Jours ouvrables par mois",
       name: "Nom",
       nameAr: "Nom (arabe)",
@@ -205,6 +209,12 @@ const fr = {
       defaultInstalmentCount:
         "Utilisé lorsque un tarif du barème n'en fixe pas lui-même.",
       feeDueDayOfMonth: "Jour du mois où tombe une échéance. Plafonné au 28.",
+      teacherWeeklyMinutes:
+        "Le service standard. Un contrat peut en décider autrement pour un employé. Seul le générateur d'emploi du temps le lit — rien ne refuse une affectation au-delà.",
+      classWeeklyMinutes:
+        "Le volume réellement donné à une classe, inférieur aux séances qu'offre la grille horaire. Sans lui, le générateur remplit toutes les cases libres.",
+      preferenceRank:
+        "Le plus bas passe en premier quand plusieurs enseignants peuvent prendre la matière. 0 pour un spécialiste, plus haut pour un remplaçant.",
       payrollWorkingDays:
         "Divise le salaire mensuel pour suggérer un taux journalier. Jamais appliqué d'office.",
       allowTeacherCreate:

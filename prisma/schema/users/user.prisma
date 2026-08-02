@@ -33,6 +33,9 @@ model User {
   /// Classes this user is professeur principal of.
   mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
   teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
+  /// What this teacher may be given, as opposed to what they have been —
+  /// see prisma/schema/hr/teacher-subject.prisma.
+  subjectsQualified   TeacherSubject[]     @relation("TeacherSubjects")
   timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
   /// Periods of the week this teacher does not work. A hard constraint on the
   /// grid — see prisma/schema/timetable/teacher-unavailability.prisma.

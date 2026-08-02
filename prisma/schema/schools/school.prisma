@@ -89,6 +89,9 @@ model School {
   /// a SalaryPayment. See prisma/schema/hr/.
   staff Staff[]
 
+  /// Who may teach what here — see prisma/schema/hr/teacher-subject.prisma.
+  teacherSubjects TeacherSubject[]
+
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// The tills the school collects at, what it spends under, and every movement
   /// of money either way. See prisma/schema/treasury/.

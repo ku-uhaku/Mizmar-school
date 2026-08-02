@@ -82,6 +82,39 @@ const ar = {
     nextWeek: "الأسبوع الموالي",
     holidayWeek: "لا دروس هذا الأسبوع — {name}.",
     holidayDay: "{name}",
+    generateGrid: "توليد استعمال الزمن",
+    generateGridHint:
+      "يبني الأسبوع انطلاقًا من الغلاف الزمني الأسبوعي، مع مراعاة ارتباطات الأساتذة والقاعات. لا يُحفظ شيء قبل المصادقة.",
+    generateDraw: "اقتراح استعمال زمن",
+    reroll: "اقتراح آخر",
+    applyGrid: "اعتماد هذا الاستعمال",
+    gridApplied:
+      "تم تسجيل {written} حصة عبر {classes} قسم، وعُوّضت {cleared}.",
+    gridAppliedAssigned:
+      "تم تسجيل {written} حصة عبر {classes} قسم، وعُوّضت {cleared}، وأُسنِد {assigned} أستاذ.",
+    teachersAssigned: "سُيسنَد {count} أستاذ",
+    generateScope: "النطاق",
+    scopeThisClass: "هذا القسم فقط",
+    scopeAllClasses: "جميع الأقسام ({count})",
+    maxPerDay: "المادة نفسها في اليوم",
+    periodsPerDay: "{count} حصة على الأكثر",
+    replaceExisting: "الانطلاق من أسبوع فارغ",
+    replaceExistingHint:
+      "تُمسح حصص القسم الحالية ويُعاد رسم الأسبوع كاملاً.",
+    fillGapsHint:
+      "تُحفظ الحصص الحالية، وتُوضع فقط الساعات الناقصة من البرنامج.",
+    allowDoubles: "السماح بالحصص المزدوجة",
+    allowDoublesHint:
+      "يضع ساعتين متتاليتين من المادة عند الإمكان، ولا يتجاوز الاستراحة أبدًا.",
+    periodsPlaced: "تم وضع {placed} حصة من أصل {requested}",
+    classesCovered: "{count} أقسام",
+    understaffed: "الموارد البشرية لا تكفي هذا البرنامج",
+    understaffedHint:
+      "يتطلب البرنامج {demand} ساعة أسبوعيًا، والأساتذة المتاحون يقدرون على {available} ساعة. {missing} ساعة لا يمكن تغطيتها مهما كان ترتيب الأسبوع.",
+    shortfalls: "تعذّر وضعها",
+    periodsMissing: "نقص {count} حصة",
+    noWeeklyHours: "لا غلاف زمني مصرّح به، فأُقصيت",
+    noTeacherAssigned: "وُضعت دون أستاذ مُسنَد",
     days: {
       "1": "الاثنين",
       "2": "الثلاثاء",

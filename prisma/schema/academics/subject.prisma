@@ -60,6 +60,8 @@ model Subject {
   levels           LevelSubject[]
   classGroups      ClassGroup[]
   assignments      TeachingAssignment[]
+  /// Teachers qualified to take it — see TeacherSubject.
+  qualifiedTeachers TeacherSubject[]
   timetableEntries TimetableEntry[]
   timetableExceptions TimetableException[]
   supplyLists         SupplyList[]

@@ -85,6 +85,39 @@ const en = {
     nextWeek: "Next week",
     holidayWeek: "No lessons this week — {name}.",
     holidayDay: "{name}",
+    generateGrid: "Generate the timetable",
+    generateGridHint:
+      "Lays out the week from the weekly hours in the programme, around what each teacher and room is already doing. Nothing is written until you keep it.",
+    generateDraw: "Draw a timetable",
+    reroll: "Draw another",
+    applyGrid: "Keep this timetable",
+    gridApplied:
+      "{written} periods written across {classes} class(es); {cleared} replaced.",
+    gridAppliedAssigned:
+      "{written} periods written across {classes} class(es); {cleared} replaced, {assigned} teacher(s) assigned.",
+    teachersAssigned: "{count} teacher(s) will be assigned",
+    generateScope: "Lay out",
+    scopeThisClass: "This class only",
+    scopeAllClasses: "Every class ({count})",
+    maxPerDay: "Same subject per day",
+    periodsPerDay: "{count} period(s) at most",
+    replaceExisting: "Start from an empty week",
+    replaceExistingHint:
+      "The class's current lessons are cleared and the whole week is drawn again.",
+    fillGapsHint:
+      "Current lessons are kept, and only the hours still missing from the programme are placed.",
+    allowDoubles: "Allow double periods",
+    allowDoublesHint:
+      "Puts two consecutive hours of a subject together where the day allows it. Never across a break.",
+    periodsPlaced: "{placed} of {requested} periods placed",
+    classesCovered: "{count} classes",
+    understaffed: "Not enough teachers for this programme",
+    understaffedHint:
+      "The programme asks for {demand}h of teaching a week and the available teachers can give {available}h. {missing}h cannot be staffed however the week is arranged — the grid below is what does fit.",
+    shortfalls: "Could not be fitted",
+    periodsMissing: "{count} period(s) short",
+    noWeeklyHours: "No weekly hours declared, so left out",
+    noTeacherAssigned: "Placed, but nobody is assigned to teach them",
     days: {
       "1": "Monday",
       "2": "Tuesday",

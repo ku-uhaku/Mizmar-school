@@ -304,3 +304,51 @@ export async function seedHr(
 
   return driverIdByName;
 }
+
+/**
+ * Qualifications, materialised from the assignments that already exist.
+ *
+ * Called after the classes are seeded rather than inside `seedHr`, because it
+ * reads `TeachingAssignment` and on a fresh database those do not exist yet
+ * when the payroll is written. Year-independent like the rest of this module,
+ * so it runs once per school after the year loop.
+ *
+ * Not invented: seeding a *narrower* pool than the school really has would be
+ * worse than none at all, because a declared list overrides the one the
+ * generator infers from who already teaches what — so two hand-picked names per
+ * subject would quietly shrink the staff the timetable can draw on. Taking the
+ * distinct (subject, teacher) pairs reproduces exactly the pool the generator
+ * would have inferred, and gives the configuration screen real rows to edit.
+ *
+ * Idempotent on (teacherId, subjectId), like everything else here.
+ */
+export async function seedTeacherSubjects(
+  db: SeedDb,
+  schoolId: string,
+): Promise<number> {
+  const taught = await db.teachingAssignment.findMany({
+    where: { schoolClass: { schoolId } },
+    select: { subjectId: true, teacherId: true },
+    distinct: ["subjectId", "teacherId"],
+  });
+
+  for (const pair of taught) {
+    await db.teacherSubject.upsert({
+      where: {
+        teacherId_subjectId: {
+          teacherId: pair.teacherId,
+          subjectId: pair.subjectId,
+        },
+      },
+      update: {},
+      create: {
+        schoolId,
+        teacherId: pair.teacherId,
+        subjectId: pair.subjectId,
+      },
+    });
+  }
+
+  log("hr", `${taught.length} teaching qualifications`);
+  return taught.length;
+}

@@ -1,0 +1,69 @@
+/// What a teacher is qualified — and willing — to teach.
+///
+/// ── Why this is not TeachingAssignment ──────────────────────────────────────
+/// `TeachingAssignment` says *who teaches what to which class this year*. This
+/// says *who could*. The difference is the whole reason the timetable generator
+/// can fill a gap: a class with no maths teacher named is not a class nobody in
+/// the building can teach maths to, and until this table existed the generator
+/// had no way to tell the two apart. It drew grids with the teacher column
+/// empty and left a head of studies to fill in two hundred cells by hand.
+///
+/// So the generator reads this to *make* the assignments, and writes the
+/// `TeachingAssignment` rows it settles on. This is the input; that is the
+/// decision.
+///
+/// ── Why it hangs off User and not Staff ─────────────────────────────────────
+/// Everything that books a teacher — TeachingAssignment, TimetableEntry,
+/// TeacherUnavailability, TeacherAbsence — keys on `User`, because the grid is
+/// about accounts that sign in and take a register. `Staff` is the payroll
+/// identity and is deliberately optional on both sides: a vacataire who takes
+/// four hours of Tamazight a week may have an account and no contract, and a
+/// caretaker has a contract and teaches nothing. Keying this on Staff would put
+/// the qualification on the half of the pair the timetable never looks at.
+///
+/// The workload cap lives on `Staff.maxWeeklyMinutes` for the opposite reason:
+/// how many hours somebody may be given is a term of their employment, and it
+/// falls back to `SchoolSettings.teacherWeeklyMinutes` for anybody without a
+/// contract row.
+model TeacherSubject {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Cascade: the qualification is a fact about the account, and means nothing
+  /// once it is gone.
+  teacherId String
+  teacher   User   @relation("TeacherSubjects", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  /// Cascade for the same reason — a subject the school has retired has no
+  /// qualified teachers, it has no lessons.
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  /// Which subject this teacher should be given first when several will do.
+  ///
+  /// Lower is preferred. A professeur de physique who can cover maths in a
+  /// pinch is rank 0 for physics and rank 2 for maths, and the generator will
+  /// exhaust the maths specialists before reaching for them. Zero for
+  /// everything is a perfectly good answer and the default, which is what makes
+  /// the column optional in practice without being nullable.
+  preferenceRank Int @default(0)
+
+  /// Deactivated rather than deleted when a teacher stops covering a subject:
+  /// the grids that already booked them stay readable, which a delete would
+  /// not change but a reader looking for "why was he on this?" needs.
+  isActive Boolean @default(true)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per teacher per subject. Said twice is said once.
+  @@unique([teacherId, subjectId])
+  @@index([schoolId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([schoolId, subjectId])
+  @@map("teacher_subjects")
+}

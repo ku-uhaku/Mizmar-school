@@ -86,6 +86,39 @@ const fr = {
     nextWeek: "Semaine suivante",
     holidayWeek: "Pas de cours cette semaine — {name}.",
     holidayDay: "{name}",
+    generateGrid: "Générer l'emploi du temps",
+    generateGridHint:
+      "Construit la semaine à partir des heures hebdomadaires du programme, en tenant compte de ce que chaque enseignant et chaque salle font déjà. Rien n'est enregistré tant que vous ne validez pas.",
+    generateDraw: "Proposer un emploi du temps",
+    reroll: "En proposer un autre",
+    applyGrid: "Valider cet emploi du temps",
+    gridApplied:
+      "{written} séances écrites sur {classes} classe(s) ; {cleared} remplacées.",
+    gridAppliedAssigned:
+      "{written} séances écrites sur {classes} classe(s) ; {cleared} remplacées, {assigned} enseignant(s) affecté(s).",
+    teachersAssigned: "{count} enseignant(s) seront affectés",
+    generateScope: "Portée",
+    scopeThisClass: "Cette classe uniquement",
+    scopeAllClasses: "Toutes les classes ({count})",
+    maxPerDay: "Même matière par jour",
+    periodsPerDay: "{count} séance(s) au maximum",
+    replaceExisting: "Repartir d'une semaine vide",
+    replaceExistingHint:
+      "Les séances actuelles de la classe sont effacées et toute la semaine est retracée.",
+    fillGapsHint:
+      "Les séances actuelles sont conservées ; seules les heures manquantes du programme sont placées.",
+    allowDoubles: "Autoriser les séances doubles",
+    allowDoublesHint:
+      "Place deux heures consécutives d'une matière quand la journée le permet. Jamais à cheval sur une récréation.",
+    periodsPlaced: "{placed} séances placées sur {requested}",
+    classesCovered: "{count} classes",
+    understaffed: "Effectif enseignant insuffisant pour ce programme",
+    understaffedHint:
+      "Le programme demande {demand}h de cours par semaine et les enseignants disponibles peuvent en assurer {available}h. {missing}h ne peuvent être couvertes quelle que soit l'organisation de la semaine — la grille ci-dessous est ce qui tient.",
+    shortfalls: "N'ont pas pu être placées",
+    periodsMissing: "{count} séance(s) manquante(s)",
+    noWeeklyHours: "Aucun volume horaire déclaré, donc écartées",
+    noTeacherAssigned: "Placées, mais sans enseignant affecté",
     days: {
       "1": "Lundi",
       "2": "Mardi",

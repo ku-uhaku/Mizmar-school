@@ -139,6 +139,28 @@ export const RESOURCES: ResourceDef[] = [
         wide: true,
       },
       {
+        name: "teacherWeeklyMinutes",
+        type: "number",
+        labelKey: "teacherWeeklyMinutes",
+        hintKey: "teacherWeeklyMinutes",
+        groupKey: "calendar",
+        required: true,
+        min: 60,
+        max: 3000,
+        defaultValue: 1320,
+      },
+      {
+        name: "classWeeklyMinutes",
+        type: "number",
+        labelKey: "classWeeklyMinutes",
+        hintKey: "classWeeklyMinutes",
+        groupKey: "calendar",
+        required: true,
+        min: 60,
+        max: 3000,
+        defaultValue: 1800,
+      },
+      {
         name: "currencyCode",
         type: "select",
         labelKey: "currencyCode",
@@ -488,6 +510,53 @@ export const RESOURCES: ResourceDef[] = [
       { name: "isGraded", type: "boolean", labelKey: "isGraded", defaultValue: true },
       { name: "isEliminatory", type: "boolean", labelKey: "isEliminatory" },
       POSITION,
+    ],
+  },
+
+  /*
+    Who may teach what.
+
+    Under Structure pédagogique rather than beside the staff file, because the
+    question it answers is "is there anybody in this building who can take 4AP
+    maths" — a curriculum question the head of studies asks while looking at the
+    subjects, not a payroll one. The hours somebody may be given *are* payroll,
+    and live on their contract; see Staff.maxWeeklyMinutes.
+  */
+  {
+    id: "teacher-subjects",
+    section: "academics",
+    labelKey: "teacherSubjects",
+    scope: "SCHOOL",
+    labelFields: ["subjectId"],
+    fields: [
+      {
+        name: "teacherId",
+        type: "reference",
+        labelKey: "teacher",
+        referenceTo: "@teachers",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "subjectId",
+        type: "reference",
+        labelKey: "subject",
+        referenceTo: "subjects",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "preferenceRank",
+        type: "number",
+        labelKey: "preferenceRank",
+        hintKey: "preferenceRank",
+        min: 0,
+        max: 9,
+        defaultValue: 0,
+        inTable: true,
+      },
+      IS_ACTIVE,
+      { name: "notes", type: "textarea", labelKey: "notes", maxLength: 500, wide: true },
     ],
   },
 

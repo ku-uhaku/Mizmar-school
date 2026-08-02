@@ -105,6 +105,10 @@ const en = {
       staffCodeFormat: "Staff reference",
       defaultInstalmentCount: "Instalments per year",
       feeDueDayOfMonth: "Due on the",
+      teacherWeeklyMinutes: "Teaching load per teacher (minutes/week)",
+      classWeeklyMinutes: "Lesson time per class (minutes/week)",
+      teacherSubjects: "Who teaches what",
+      preferenceRank: "Priority",
       payrollWorkingDays: "Working days per month",
       name: "Name",
       nameAr: "Name (Arabic)",
@@ -207,6 +211,12 @@ const en = {
         "Used when a price on the list does not set its own.",
       feeDueDayOfMonth:
         "Day of the month an instalment falls due. Capped at 28.",
+      teacherWeeklyMinutes:
+        "The standard service. A contract may say otherwise for one employee. Only the timetable generator reads it — nothing refuses a booking over the line.",
+      classWeeklyMinutes:
+        "How much a class is actually given, which is less than the periods the bell schedule offers. Without it the generator fills every free slot.",
+      preferenceRank:
+        "Lower goes first when several teachers could take a subject. 0 for a specialist, higher for somebody covering.",
       payrollWorkingDays:
         "Divides a monthly salary to suggest a daily rate. Only ever a suggestion.",
       allowTeacherCreate:

@@ -102,6 +102,10 @@ const ar = {
       staffCodeFormat: "رقم الموظف",
       defaultInstalmentCount: "عدد الأقساط في السنة",
       feeDueDayOfMonth: "تُستحق يوم",
+      teacherWeeklyMinutes: "الحصة لكل أستاذ (دقيقة/أسبوع)",
+      classWeeklyMinutes: "الحجم الزمني لكل قسم (دقيقة/أسبوع)",
+      teacherSubjects: "من يدرّس ماذا",
+      preferenceRank: "الأولوية",
       payrollWorkingDays: "أيام العمل في الشهر",
       name: "الاسم",
       nameAr: "الاسم بالعربية",
@@ -201,6 +205,12 @@ const ar = {
         "‏{year}‏ تعني 2025، و‏{yy}‏ تعني 25، و‏{seq:4}‏ تعني 0007. وما عداها يُنقل كما هو.",
       defaultInstalmentCount: "يُعتمد حين لا تحدد تعريفة الجدول عددها بنفسها.",
       feeDueDayOfMonth: "اليوم من الشهر الذي يحل فيه القسط. بحد أقصى 28.",
+      teacherWeeklyMinutes:
+        "الحصة المعتادة. قد ينص عقد على خلاف ذلك. يقرأه مولّد استعمال الزمن وحده.",
+      classWeeklyMinutes:
+        "الحجم الزمني الممنوح فعليًا للقسم، وهو أقل ممّا تتيحه الشبكة الزمنية.",
+      preferenceRank:
+        "الأدنى أولاً عند تعدّد الأساتذة. 0 للمتخصّص، وأعلى لمن يسدّ الخصاص.",
       payrollWorkingDays:
         "يقسّم الأجر الشهري لاقتراح أجرة اليوم. ويبقى اقتراحًا لا يُطبَّق تلقائيًا.",
       allowTeacherCreate:

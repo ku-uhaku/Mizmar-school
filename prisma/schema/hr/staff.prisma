@@ -85,6 +85,21 @@ model Staff {
   /// filters by; this is what the attestation prints.
   jobTitle String?
 
+  /// Most minutes of class a week this employee may be given.
+  ///
+  /// A term of their employment, which is why it sits here and not in the
+  /// school's settings: a full-timer, a part-timer and a vacataire are on
+  /// different loads in the same school. Null falls back to
+  /// `SchoolSettings.teacherWeeklyMinutes`, so a school that treats everyone
+  /// the same never fills this in — the same default-plus-override the fee
+  /// schedule uses for instalments.
+  ///
+  /// Read by the timetable generator, which will not hand somebody a
+  /// twenty-fifth hour. It does not stop a human doing so by hand: an
+  /// exceptional week is the school's business, and a hard block would only be
+  /// worked around by deleting the number.
+  maxWeeklyMinutes Int?
+
   /// "ACTIVE" | "ON_LEAVE" | "SUSPENDED" | "TERMINATED" — see modules/hr/enums.ts.
   ///
   /// Typed in, unlike Student.status: leaving is a decision somebody makes and

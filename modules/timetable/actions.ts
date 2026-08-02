@@ -19,17 +19,21 @@ import { fieldErrors } from "@/lib/validation";
 import { isTeachingDayIn } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
+  applyTimetableDraft,
+  buildTimetableDraft,
   closeEntriesFromWeek,
   entriesInBlock,
   findClash,
   generateSchoolWeeks,
   saveLessonBlock,
+  type GeneratorRequest,
+  type PreviewResult,
 } from "@/modules/timetable/service";
 import {
   timetableEntrySchema,
   timetableExceptionSchema,
 } from "@/modules/timetable/validation";
-import { bookingKeyOf } from "@/modules/timetable/enums";
+import { bookingKeyOf, MAX_LESSON_SPAN } from "@/modules/timetable/enums";
 import { schoolWeeks, startOfWeek } from "@/modules/timetable/weeks";
 
 /**
@@ -613,6 +617,150 @@ export async function generateSchoolWeeksAction(
     refresh();
     return success(
       interpolate(t.timetable.weeksGenerated, { count: result.written }),
+    );
+  });
+}
+
+// ── Generating a week ────────────────────────────────────────────────────────
+
+/** Bounds the numbers so a crafted request cannot ask for a 400-period block. */
+function readOptions(request: GeneratorRequest, schoolClassIds: string[]) {
+  const clamp = (value: number, min: number, max: number) =>
+    Number.isFinite(value) ? Math.min(max, Math.max(min, Math.trunc(value))) : min;
+
+  return {
+    schoolClassIds,
+    scheduleKind: request.scheduleKind === "RAMADAN" ? "RAMADAN" : "STANDARD",
+    seed: clamp(request.seed, 0, 2 ** 31),
+    replaceExisting: request.replaceExisting === true,
+    // A block longer than MAX_LESSON_SPAN is a data-entry slip, not a lesson —
+    // the same bound the manual editor holds itself to.
+    blockSize: clamp(request.blockSize, 1, MAX_LESSON_SPAN),
+    maxPerDay: clamp(request.maxPerDay, 1, 8),
+  };
+}
+
+/**
+ * Resolves the classes a generator request may touch.
+ *
+ * The ids come from the request and are re-derived against the school and year
+ * in context, so one from another tenant matches nothing rather than having its
+ * week rewritten. An empty list means "every class of the year", which is what
+ * the whole-school option sends.
+ */
+async function resolveGeneratorClasses(
+  schoolId: string,
+  schoolYearId: string,
+  requested: string[],
+): Promise<string[]> {
+  const classes = await db.schoolClass.findMany({
+    where: {
+      schoolId,
+      levelOffering: { schoolYearId },
+      isActive: true,
+      ...(requested.length > 0 ? { id: { in: requested } } : {}),
+    },
+    select: { id: true },
+  });
+
+  return classes.map((entry) => entry.id);
+}
+
+/**
+ * Lays out a grid and hands it back without writing anything.
+ *
+ * Not a `useActionState` form action — it returns the draft itself, which a
+ * form's `ActionState` has nowhere to put. The screen calls it directly inside
+ * a transition, draws the result, and only then offers to keep it.
+ *
+ * Gated on TIMETABLE_MANAGE rather than TIMETABLE_VIEW even though it writes
+ * nothing: it reads every teacher's week across the school to find the gaps,
+ * and that is not something a reader of one class's grid is entitled to.
+ */
+export async function previewTimetableAction(
+  request: GeneratorRequest,
+): Promise<PreviewResult> {
+  const t = await getDictionary();
+  const context = await requireAuth();
+
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return { ok: false, message: t.errors.noSchoolContext };
+
+  const schoolYearId = context.currentSchoolYear?.id;
+  if (!schoolYearId) return { ok: false, message: t.errors.noSchoolYearContext };
+
+  await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+  const schoolClassIds = await resolveGeneratorClasses(
+    schoolId,
+    schoolYearId,
+    request.schoolClassIds,
+  );
+  if (schoolClassIds.length === 0) {
+    return { ok: false, message: t.errors.notFound };
+  }
+
+  const draft = await buildTimetableDraft(
+    schoolId,
+    schoolYearId,
+    readOptions(request, schoolClassIds),
+  );
+
+  return { ok: true, draft };
+}
+
+/**
+ * Keeps a previewed grid.
+ *
+ * Takes the same request the preview took, seed included, and lays the week out
+ * again from the database before writing it — the browser's copy of the draft
+ * is never trusted. See `applyTimetableDraft`.
+ *
+ * The message reports what was actually written rather than what the preview
+ * promised, because between the two somebody may have booked a room.
+ */
+export async function applyTimetableAction(
+  request: GeneratorRequest,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const schoolId = context.currentSchool?.id;
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    const schoolClassIds = await resolveGeneratorClasses(
+      schoolId,
+      schoolYearId,
+      request.schoolClassIds,
+    );
+    if (schoolClassIds.length === 0) return failure(t.errors.notFound);
+
+    const result = await applyTimetableDraft(
+      schoolId,
+      schoolYearId,
+      readOptions(request, schoolClassIds),
+    );
+
+    refresh();
+    return success(
+      result.assigned > 0
+        ? interpolate(t.timetable.gridAppliedAssigned, {
+            written: result.written,
+            cleared: result.cleared,
+            classes: schoolClassIds.length,
+            assigned: result.assigned,
+          })
+        : interpolate(t.timetable.gridApplied, {
+            written: result.written,
+            cleared: result.cleared,
+            classes: schoolClassIds.length,
+          }),
     );
   });
 }
