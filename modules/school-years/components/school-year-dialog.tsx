@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import { useActionState } from "react";
 
 import {
@@ -32,7 +34,30 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
-import { SCHOOL_YEAR_STATUSES } from "@/modules/school-years/enums";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  SCHOOL_YEAR_STATUSES,
+  YEAR_COPY_PARTS,
+  type YearCopyPart,
+} from "@/modules/school-years/enums";
+import type { Dictionary } from "@/lib/i18n/types";
+
+const NONE = "__none__";
+
+/** Kept beside the enum so a new part is a compile error until it is labelled. */
+const COPY_LABELS: Record<YearCopyPart, (t: Dictionary) => string> = {
+  CALENDAR: (t) => t.schoolYear.copyCalendar,
+  STRUCTURE: (t) => t.schoolYear.copyStructure,
+  FEES: (t) => t.schoolYear.copyFees,
+  TRANSPORT: (t) => t.schoolYear.copyTransport,
+};
+
+const COPY_HINTS: Record<YearCopyPart, (t: Dictionary) => string> = {
+  CALENDAR: (t) => t.schoolYear.copyCalendarHint,
+  STRUCTURE: (t) => t.schoolYear.copyStructureHint,
+  FEES: (t) => t.schoolYear.copyFeesHint,
+  TRANSPORT: (t) => t.schoolYear.copyTransportHint,
+};
 
 export type SchoolYearRow = {
   id: string;
@@ -47,13 +72,37 @@ export function SchoolYearDialog({
   open,
   onOpenChange,
   year,
+  existingYears = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   year?: SchoolYearRow;
+  /** The school's other years, newest first — what a new one can start from. */
+  existingYears?: SchoolYearRow[];
 }) {
   const t = useT();
   const isEdit = Boolean(year);
+
+  /**
+   * Which year to start from, and what to bring across.
+   *
+   * Only offered when creating: copying onto a year that already exists is a
+   * different act with different risks, and folding it into the edit form would
+   * put it one mis-click from a year somebody is halfway through setting up.
+   */
+  const [copyFromId, setCopyFromId] = React.useState(NONE);
+  const [parts, setParts] = React.useState<Set<string>>(
+    () => new Set(YEAR_COPY_PARTS),
+  );
+
+  function togglePart(part: string, checked: boolean) {
+    setParts((current) => {
+      const next = new Set(current);
+      if (checked) next.add(part);
+      else next.delete(part);
+      return next;
+    });
+  }
 
   const [state, formAction] = useActionState(
     isEdit ? updateSchoolYearAction : createSchoolYearAction,
@@ -150,6 +199,81 @@ export function SchoolYearDialog({
                 </SelectContent>
               </Select>
             </FormField>
+
+            {!isEdit && existingYears.length > 0 ? (
+              <div className="grid gap-3 rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="copyFromYearId">{t.schoolYear.copyFrom}</Label>
+                  <p className="text-muted-foreground text-xs">
+                    {t.schoolYear.copyFromHint}
+                  </p>
+                </div>
+
+                <Select
+                  name="copyFromYearId"
+                  value={copyFromId}
+                  onValueChange={setCopyFromId}
+                >
+                  <SelectTrigger id="copyFromYearId" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>
+                      {t.schoolYear.copyNothing}
+                    </SelectItem>
+                    {existingYears.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* The parts only matter once a source is chosen, so they stay
+                  out of the way until then. */}
+                {copyFromId !== NONE ? (
+                  <div className="grid gap-2">
+                    {YEAR_COPY_PARTS.map((part) => {
+                      const checked = parts.has(part);
+                      return (
+                        <label
+                          key={part}
+                          htmlFor={`copy-${part}`}
+                          className="flex items-start gap-3 rounded-lg border px-3 py-2"
+                        >
+                          <Checkbox
+                            id={`copy-${part}`}
+                            checked={checked}
+                            onCheckedChange={(value) =>
+                              togglePart(part, value === true)
+                            }
+                            className="mt-0.5"
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium">
+                              {COPY_LABELS[part](t)}
+                            </span>
+                            <span className="text-muted-foreground block text-xs">
+                              {COPY_HINTS[part](t)}
+                            </span>
+                          </span>
+                          {/* Radix's Checkbox is not a native input, so the
+                            value rides on a hidden field — the same trick the
+                            permission matrix uses. */}
+                          {checked ? (
+                            <input
+                              type="hidden"
+                              name="copyParts"
+                              value={part}
+                            />
+                          ) : null}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3">
               <div className="space-y-0.5">

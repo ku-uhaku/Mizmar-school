@@ -629,3 +629,153 @@ export async function markBusRunInBulk(input: {
 
   return created.count;
 }
+
+// ── Carrying the lines into a new year ───────────────────────────────────────
+
+/**
+ * Copies the year's transport arrangement onto another year: the runs, the
+ * circuits, their stops, and which quartiers and horaires each line serves.
+ *
+ * ── What is not carried ─────────────────────────────────────────────────────
+ * No abonnement. Who rides the bus is a year-shaped fact decided at
+ * inscription, and a copied rider would be a child the school has not yet
+ * enrolled. The fleet needs no copying either — a vehicle belongs to the
+ * school, not to a year — but the *assignment* of a bus to a line does come
+ * across, because it is the line's own arrangement.
+ *
+ * Idempotent throughout: runs and circuits upsert on their year-scoped codes,
+ * stops on `(routeId, name)`, and the two join tables on their pairings. An
+ * existing row is never overwritten.
+ */
+export async function copyTransportConfiguration(
+  sourceYearId: string,
+  targetYearId: string,
+): Promise<{ schedules: number; routes: number; stops: number }> {
+  const [schedules, routes] = await Promise.all([
+    db.transportSchedule.findMany({ where: { schoolYearId: sourceYearId } }),
+    db.transportRoute.findMany({
+      where: { schoolYearId: sourceYearId },
+      include: {
+        stops: true,
+        neighbourhoods: { select: { neighbourhoodId: true } },
+        schedules: { select: { schedule: { select: { code: true } } } },
+      },
+    }),
+  ]);
+
+  // The runs first: a circuit's horaires are matched back by code, so they have
+  // to exist in the target year before the lines that point at them.
+  // Before/after deltas throughout — see the note in copyClassStructure.
+  const routeScope = { route: { schoolYearId: targetYearId } };
+  const [schedulesBefore, routesBefore, stopsBefore] = await Promise.all([
+    db.transportSchedule.count({ where: { schoolYearId: targetYearId } }),
+    db.transportRoute.count({ where: { schoolYearId: targetYearId } }),
+    db.routeStop.count({ where: routeScope }),
+  ]);
+
+  const scheduleIdByCode = new Map<string, string>();
+  for (const schedule of schedules) {
+    const target = await db.transportSchedule.upsert({
+      where: {
+        schoolYearId_code: {
+          schoolYearId: targetYearId,
+          code: schedule.code,
+        },
+      },
+      update: {},
+      create: {
+        schoolYearId: targetYearId,
+        code: schedule.code,
+        name: schedule.name,
+        nameAr: schedule.nameAr,
+        direction: schedule.direction,
+        departureTime: schedule.departureTime,
+        arrivalTime: schedule.arrivalTime,
+        position: schedule.position,
+        isActive: schedule.isActive,
+      },
+      select: { id: true },
+    });
+    scheduleIdByCode.set(schedule.code, target.id);
+  }
+
+  for (const route of routes) {
+    const target = await db.transportRoute.upsert({
+      where: {
+        schoolYearId_code: { schoolYearId: targetYearId, code: route.code },
+      },
+      update: {},
+      create: {
+        schoolYearId: targetYearId,
+        code: route.code,
+        name: route.name,
+        nameAr: route.nameAr,
+        direction: route.direction,
+        vehicleId: route.vehicleId,
+        capacity: route.capacity,
+        isActive: route.isActive,
+        notes: route.notes,
+      },
+      select: { id: true },
+    });
+
+    for (const stop of route.stops) {
+      await db.routeStop.upsert({
+        where: { routeId_name: { routeId: target.id, name: stop.name } },
+        update: {},
+        create: {
+          routeId: target.id,
+          name: stop.name,
+          nameAr: stop.nameAr,
+          landmark: stop.landmark,
+          // The quartier is school-scoped, not year-scoped: a place does not
+          // expire with the calendar, so the id carries straight across.
+          neighbourhoodId: stop.neighbourhoodId,
+          position: stop.position,
+          pickupTime: stop.pickupTime,
+          dropoffTime: stop.dropoffTime,
+        },
+        select: { id: true },
+      });
+    }
+
+    for (const link of route.neighbourhoods) {
+      await db.routeNeighbourhood.upsert({
+        where: {
+          routeId_neighbourhoodId: {
+            routeId: target.id,
+            neighbourhoodId: link.neighbourhoodId,
+          },
+        },
+        update: {},
+        create: {
+          routeId: target.id,
+          neighbourhoodId: link.neighbourhoodId,
+        },
+      });
+    }
+
+    for (const link of route.schedules) {
+      // Matched by code, not by id: the target year has its own run rows.
+      const scheduleId = scheduleIdByCode.get(link.schedule.code);
+      if (!scheduleId) continue;
+      await db.routeSchedule.upsert({
+        where: { routeId_scheduleId: { routeId: target.id, scheduleId } },
+        update: {},
+        create: { routeId: target.id, scheduleId },
+      });
+    }
+  }
+
+  const [schedulesAfter, routesAfter, stopsAfter] = await Promise.all([
+    db.transportSchedule.count({ where: { schoolYearId: targetYearId } }),
+    db.transportRoute.count({ where: { schoolYearId: targetYearId } }),
+    db.routeStop.count({ where: routeScope }),
+  ]);
+
+  return {
+    schedules: schedulesAfter - schedulesBefore,
+    routes: routesAfter - routesBefore,
+    stops: stopsAfter - stopsBefore,
+  };
+}

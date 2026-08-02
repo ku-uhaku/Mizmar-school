@@ -7,6 +7,22 @@
  */
 const en = {
   schoolYear: {
+    createdFromCopy:
+      "Year created from the previous one — {classes} classes, {rates} fee lines, {weeks} weeks.",
+    copyFrom: "Start from a previous year",
+    copyFromHint:
+      "Copies the configuration only. No pupil, no enrolment and no bus subscription is ever carried across.",
+    copyNothing: "Start empty",
+    copyParts: "What to copy",
+    copyCalendar: "Calendar — terms, periods, holidays",
+    copyCalendarHint:
+      "Dates move by whole weeks so a Monday stays a Monday. Aïd and Mawlid follow the Islamic calendar and will need correcting.",
+    copyStructure: "Structure — levels, classes, groups",
+    copyStructureHint: "The shape of the school. The professeur principal is not carried.",
+    copyFees: "Fees — price list and discounts",
+    copyFeesHint: "At last year's amounts. Nothing is uprated.",
+    copyTransport: "Transport — runs, circuits, stops",
+    copyTransportHint: "The lines and what they serve. No subscription is copied.",
     title: "School years",
     subtitle: "Academic years for {school}.",
     subtitleNoSchool: "Pick a school to manage its academic years.",

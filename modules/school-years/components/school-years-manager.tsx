@@ -215,6 +215,7 @@ export function SchoolYearsManager({
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         year={editing}
+        existingYears={years}
       />
 
       {deleting ? (

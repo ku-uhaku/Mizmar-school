@@ -473,3 +473,123 @@ export async function closeEntriesFromWeek(
 
   return { ended: ended.count, deleted: deleted.count };
 }
+
+// ── Carrying the calendar into a new year ────────────────────────────────────
+
+/**
+ * Copies the bell schedule onto another year.
+ *
+ * Times and days carry across unchanged: a school's periods are a standing
+ * arrangement, not a date, and the Ramadan set comes with the standard one
+ * because both are the same decision made once.
+ *
+ * Teacher unavailability is **not** carried. It hangs off the individual slots,
+ * and who works when is renegotiated over the summer — a stale block would
+ * silently refuse a lesson nobody could explain.
+ *
+ * Idempotent on `(schoolYearId, scheduleKind, dayOfWeek, startTime)`, and never
+ * overwrites an existing slot.
+ */
+export async function copyTimeSlots(
+  sourceYearId: string,
+  targetYearId: string,
+): Promise<number> {
+  const slots = await db.timeSlot.findMany({
+    where: { schoolYearId: sourceYearId },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+
+  // A before/after delta, not a per-row guess: `update: {}` leaves `updatedAt`
+  // untouched, so an existing row that was never edited is indistinguishable
+  // from a fresh one by its timestamps.
+  const before = await db.timeSlot.count({
+    where: { schoolYearId: targetYearId },
+  });
+
+  for (const slot of slots) {
+    await db.timeSlot.upsert({
+      where: {
+        schoolYearId_scheduleKind_dayOfWeek_startTime: {
+          schoolYearId: targetYearId,
+          scheduleKind: slot.scheduleKind,
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+        },
+      },
+      update: {},
+      create: {
+        schoolYearId: targetYearId,
+        dayOfWeek: slot.dayOfWeek,
+        session: slot.session,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        scheduleKind: slot.scheduleKind,
+        position: slot.position,
+        isBreak: slot.isBreak,
+        isActive: slot.isActive,
+      },
+      select: { id: true },
+    });
+  }
+
+  return (
+    (await db.timeSlot.count({ where: { schoolYearId: targetYearId } })) - before
+  );
+}
+
+/**
+ * Copies the holiday calendar onto another year, shifted.
+ *
+ * ── Why whole weeks ─────────────────────────────────────────────────────────
+ * `shiftDays` is the gap between the two years' start dates rounded to whole
+ * weeks, so a Monday stays a Monday. That matters here more than it looks: the
+ * bell schedule is keyed on the day of the week, and `planSchoolWeeks` decides
+ * whether a week is taught by checking Monday to Saturday. A holiday that slid
+ * mid-week would quietly change which weeks count.
+ *
+ * ── What this cannot get right ──────────────────────────────────────────────
+ * Aïd, Mawlid and Achoura follow the Islamic calendar and move about eleven
+ * days earlier each Gregorian year, so no shift rule places them correctly.
+ * They are copied so the school has the row and the name, and the dates must be
+ * corrected from the ministry circular. The fixed fêtes land within a few days.
+ *
+ * There is no unique constraint on a holiday, so this refuses to run twice
+ * rather than upserting: a year that already has holidays keeps them, and the
+ * caller is told nothing was copied.
+ */
+export async function copyHolidays(
+  sourceYearId: string,
+  targetYearId: string,
+  shiftDays: number,
+): Promise<number> {
+  const existing = await db.schoolHoliday.count({
+    where: { schoolYearId: targetYearId },
+  });
+  if (existing > 0) return 0;
+
+  const holidays = await db.schoolHoliday.findMany({
+    where: { schoolYearId: sourceYearId },
+    orderBy: { startDate: "asc" },
+  });
+  if (holidays.length === 0) return 0;
+
+  const shift = (date: Date) => {
+    const moved = new Date(date);
+    moved.setDate(moved.getDate() + shiftDays);
+    return moved;
+  };
+
+  const created = await db.schoolHoliday.createMany({
+    data: holidays.map((holiday) => ({
+      schoolYearId: targetYearId,
+      name: holiday.name,
+      nameAr: holiday.nameAr,
+      startDate: shift(holiday.startDate),
+      endDate: shift(holiday.endDate),
+      kind: holiday.kind,
+      notes: holiday.notes,
+    })),
+  });
+
+  return created.count;
+}

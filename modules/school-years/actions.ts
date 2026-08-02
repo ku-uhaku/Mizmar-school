@@ -5,15 +5,26 @@ import { refresh } from "next/cache";
 import { failure, success, type ActionState } from "@/lib/action-state";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { boolField, field, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
   clearOtherDefaultYears,
+  copyYearConfiguration,
   makeDefaultYear,
 } from "@/modules/school-years/service";
+import {
+  YEAR_COPY_PARTS,
+  type YearCopyPart,
+} from "@/modules/school-years/enums";
 import { schoolYearSchema } from "@/modules/school-years/validation";
 
 function readYearForm(formData: FormData) {
@@ -60,7 +71,42 @@ export async function createSchoolYearAction(
 
     if (parsed.data.isDefault) await clearOtherDefaultYears(schoolId);
 
-    await db.schoolYear.create({ data: { ...parsed.data, schoolId } });
+    const year = await db.schoolYear.create({
+      data: { ...parsed.data, schoolId },
+      select: { id: true },
+    });
+
+    /*
+      Starting the year from a previous one.
+
+      The source is re-derived against the school in context, so a year id from
+      another tenant copies nothing rather than seeding one school's price list
+      into another's. An unticked box, or a source that does not check out,
+      simply leaves the new year empty — which is what it would have been.
+    */
+    const parts = listField(formData, "copyParts").filter(
+      (part): part is YearCopyPart =>
+        (YEAR_COPY_PARTS as readonly string[]).includes(part),
+    );
+    const copyFromId = field(formData, "copyFromYearId");
+
+    if (copyFromId && parts.length > 0) {
+      const source = await db.schoolYear.findFirst({
+        where: { id: copyFromId, schoolId },
+        select: { id: true },
+      });
+      if (source) {
+        const copied = await copyYearConfiguration(source.id, year.id, parts);
+        refresh();
+        return success(
+          interpolate(t.schoolYear.createdFromCopy, {
+            classes: copied.classes,
+            rates: copied.feeRates,
+            weeks: copied.weeks,
+          }),
+        );
+      }
+    }
 
     refresh();
     return success(t.schoolYear.created);

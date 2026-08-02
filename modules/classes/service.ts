@@ -109,3 +109,132 @@ export async function ensurePrimaryTeacher(
     data: { isPrimary: true },
   });
 }
+
+// ── Carrying the structure into a new year ───────────────────────────────────
+
+/**
+ * Copies the shape of the school onto another year: which levels are offered,
+ * the classes in them, and the groups those classes split into.
+ *
+ * ── What is deliberately not copied ─────────────────────────────────────────
+ * No pupil. Enrolments are the year's own business and a new year starts empty
+ * — that split is the whole reason Student and Enrollment are separate tables.
+ * The professeur principal is not carried either: staff turnover over a summer
+ * is exactly where a copied grid goes stale, and a wrong name on a class is
+ * worse than a blank one. The home room *is* carried, because a room is a
+ * building and buildings do not resign.
+ *
+ * Idempotent at every level — offerings upsert on
+ * `(schoolYearId, levelId, scopeKey)`, classes on `(levelOfferingId, code)`,
+ * groups on `(schoolClassId, code)` — and an existing row is never overwritten,
+ * so a copy run onto a year somebody has begun editing adds what is missing and
+ * touches nothing else.
+ */
+export async function copyClassStructure(
+  sourceYearId: string,
+  targetYearId: string,
+): Promise<{ offerings: number; classes: number; groups: number }> {
+  const offerings = await db.levelOffering.findMany({
+    where: { schoolYearId: sourceYearId },
+    include: {
+      classes: {
+        include: { groups: true },
+      },
+    },
+  });
+
+  /*
+    Counted as before/after deltas rather than by inspecting each upsert.
+    `update: {}` leaves `updatedAt` untouched, so a row that already existed and
+    was never edited looks exactly like a fresh one by its timestamps — the
+    delta is the only honest answer, and these numbers are reported to whoever
+    pressed the button.
+  */
+  const yearScope = { levelOffering: { schoolYearId: targetYearId } };
+  const [offeringsBefore, classesBefore, groupsBefore] = await Promise.all([
+    db.levelOffering.count({ where: { schoolYearId: targetYearId } }),
+    db.schoolClass.count({ where: yearScope }),
+    db.classGroup.count({ where: { schoolClass: yearScope } }),
+  ]);
+
+  for (const offering of offerings) {
+    const target = await db.levelOffering.upsert({
+      where: {
+        schoolYearId_levelId_scopeKey: {
+          schoolYearId: targetYearId,
+          levelId: offering.levelId,
+          scopeKey: offering.scopeKey,
+        },
+      },
+      update: {},
+      create: {
+        schoolYearId: targetYearId,
+        levelId: offering.levelId,
+        trackId: offering.trackId,
+        plannedCapacity: offering.plannedCapacity,
+        isActive: offering.isActive,
+        scopeKey: offering.scopeKey,
+      },
+      select: { id: true },
+    });
+
+    for (const schoolClass of offering.classes) {
+      const targetClass = await db.schoolClass.upsert({
+        where: {
+          levelOfferingId_code: {
+            levelOfferingId: target.id,
+            code: schoolClass.code,
+          },
+        },
+        update: {},
+        create: {
+          levelOfferingId: target.id,
+          schoolId: schoolClass.schoolId,
+          code: schoolClass.code,
+          name: schoolClass.name,
+          section: schoolClass.section,
+          capacity: schoolClass.capacity,
+          // See the note above: the room comes, the teacher does not.
+          mainTeacherId: null,
+          roomId: schoolClass.roomId,
+          isActive: schoolClass.isActive,
+        },
+        select: { id: true },
+      });
+
+      for (const group of schoolClass.groups) {
+        await db.classGroup.upsert({
+          where: {
+            schoolClassId_code: {
+              schoolClassId: targetClass.id,
+              code: group.code,
+            },
+          },
+          update: {},
+          create: {
+            schoolClassId: targetClass.id,
+            code: group.code,
+            name: group.name,
+            purpose: group.purpose,
+            subjectId: group.subjectId,
+            capacity: group.capacity,
+            isActive: group.isActive,
+          },
+          select: { id: true },
+        });
+      }
+    }
+  }
+
+  const [offeringsAfter, classesAfter, groupsAfter] = await Promise.all([
+    db.levelOffering.count({ where: { schoolYearId: targetYearId } }),
+    db.schoolClass.count({ where: yearScope }),
+    db.classGroup.count({ where: { schoolClass: yearScope } }),
+  ]);
+
+  return {
+    offerings: offeringsAfter - offeringsBefore,
+    classes: classesAfter - classesBefore,
+    groups: groupsAfter - groupsBefore,
+  };
+}

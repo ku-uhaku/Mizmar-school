@@ -7,6 +7,23 @@
  */
 const fr = {
   schoolYear: {
+    createdFromCopy:
+      "Année créée à partir de la précédente — {classes} classes, {rates} tarifs, {weeks} semaines.",
+    copyFrom: "Partir d'une année précédente",
+    copyFromHint:
+      "Copie la configuration seulement. Aucun élève, aucune inscription et aucun abonnement transport n'est repris.",
+    copyNothing: "Partir de zéro",
+    copyParts: "Éléments à copier",
+    copyCalendar: "Calendrier — semestres, créneaux, vacances",
+    copyCalendarHint:
+      "Les dates sont décalées de semaines entières : un lundi reste un lundi. L'Aïd et le Mawlid suivent le calendrier hégirien et devront être corrigés.",
+    copyStructure: "Structure — niveaux, classes, groupes",
+    copyStructureHint:
+      "La forme de l'établissement. Le professeur principal n'est pas repris.",
+    copyFees: "Frais — liste des prix et réductions",
+    copyFeesHint: "Aux montants de l'an dernier. Rien n'est revalorisé.",
+    copyTransport: "Transport — horaires, circuits, arrêts",
+    copyTransportHint: "Les lignes et ce qu'elles desservent. Aucun abonnement n'est copié.",
     title: "Années scolaires",
     subtitle: "Années scolaires de {school}.",
     subtitleNoSchool: "Choisissez une école pour gérer ses années scolaires.",
