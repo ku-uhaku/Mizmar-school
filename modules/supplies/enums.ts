@@ -5,6 +5,42 @@
  */
 
 /**
+ * The families a catalogue article belongs to.
+ *
+ * What the picker groups by, and the only reason a catalogue of eighty articles
+ * is usable: a teacher looking for a pen opens "Écriture" rather than reading
+ * the whole list. Broad on purpose — these are the shelves of a Moroccan
+ * papeterie, not an inventory taxonomy, and a category nobody can place an
+ * article in is a category that gets used wrongly.
+ *
+ * Labels live in `i18n/*.ts` under `supplyOptions.categories`, and the column
+ * that holds one is `SupplyArticle.category`.
+ */
+export const SUPPLY_CATEGORIES = [
+  /** Stylos, crayons, gommes, taille-crayons, feutres. */
+  "ECRITURE",
+  /** Cahiers, blocs, feuilles, papier millimétré. */
+  "CAHIERS",
+  /** Protège-cahiers, couvre-livres, étiquettes. */
+  "COUVERTURES",
+  /** Classeurs, chemises, pochettes, intercalaires. */
+  "CLASSEMENT",
+  /** Règle, équerre, compas, rapporteur, calculatrice. */
+  "GEOMETRIE",
+  /** Peinture, pinceaux, pâte à modeler, ciseaux, colle. */
+  "ARTS",
+  /** Cartable, trousse, boîte à goûter. */
+  "CARTABLE",
+  /** Tenue de sport, chaussures, sac de piscine. */
+  "SPORT",
+  /** Mouchoirs, gel hydroalcoolique, blouse. */
+  "HYGIENE",
+  /** Anything the shelves above do not cover. */
+  "AUTRE",
+] as const;
+export type SupplyCategory = (typeof SUPPLY_CATEGORIES)[number];
+
+/**
  * Where a liste de fournitures has got to.
  *
  *   DRAFT      the teacher is still writing it; nobody else need look

@@ -130,6 +130,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.SUPPLY_WRITE,
       PERMISSIONS.SUPPLY_REVIEW,
       PERMISSIONS.SUPPLY_DELETE,
+      // The dossier d'inscription, both ends: a head answers for what the
+      // school accepted and for waiving a pièce a family cannot produce.
+      PERMISSIONS.DOCUMENT_VIEW,
+      PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
       // The whole caisse: a head runs the tills, pays out and answers for both.
@@ -179,6 +183,11 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ENROLMENT_VIEW,
       PERMISSIONS.ENROLMENT_CREATE,
       PERMISSIONS.ENROLMENT_UPDATE,
+      // The guichet: the papers cross this desk, so this is where the dossier
+      // is recorded. It is also what tells the secretary an inscription cannot
+      // proceed yet.
+      PERMISSIONS.DOCUMENT_VIEW,
+      PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ROSTER,
       // Reads the calendar of contrôles to answer a parent on the phone, and
@@ -248,6 +257,9 @@ export const SYSTEM_ROLES: {
       // families is the office's decision, so not SUPPLY_REVIEW.
       PERMISSIONS.SUPPLY_VIEW,
       PERMISSIONS.SUPPLY_WRITE,
+      // Reads a dossier to know why a certificat cannot be issued yet, and
+      // records nothing: the papers cross the guichet, not the staffroom.
+      PERMISSIONS.DOCUMENT_VIEW,
     ],
   },
 ];

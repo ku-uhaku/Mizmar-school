@@ -1,0 +1,62 @@
+/// One article the school is willing to put on a liste de fournitures: "Stylo
+/// bille bleu", "Protège-cahier 24×32 transparent".
+///
+/// ── Why a catalogue rather than free text ────────────────────────────────────
+/// A liste de fournitures used to be typed a line at a time, which meant the
+/// same pen arrived as "stylo bleu", "Stylo à bille bleu" and "bic bleu" on
+/// three lists of the same class. Nothing could then answer the question the
+/// office actually asks — *are four teachers asking this class for four ring
+/// binders?* — because the four rows did not match.
+///
+/// So the school declares its articles once, under Configuration, and a list is
+/// assembled by picking from them. Typing is replaced by choosing, which is
+/// also what makes the Arabic column reliable: `nameAr` is written once by
+/// whoever set the catalogue up, rather than by whichever teacher happened to
+/// add the line.
+///
+/// A row is never deleted out from under a list that already names it — see
+/// `SupplyItem.articleId`, which is SetNull, and `SupplyItem.label`, which is a
+/// copy taken at the moment the list was written.
+model SupplyArticle {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "STYLO-BLEU". What the catalogue is keyed on.
+  code String
+
+  /// What a parent reads on the printed list.
+  name   String
+  nameAr String?
+
+  /// Which family of articles it belongs to — "ECRITURE", "COUVERTURES", …
+  /// The picker groups by it, which is what makes a catalogue of eighty
+  /// articles usable: see SUPPLY_CATEGORIES in modules/supplies/enums.ts.
+  category String
+
+  /// What a teacher usually asks for, filled in when the article is picked.
+  /// Null for the things counted by eye — "des crayons de couleur".
+  defaultQuantity Int?
+
+  /// Detail that belongs to the article itself rather than to any one list:
+  /// the format, the ruling, the size. A list may still add its own on the line.
+  notes String?
+
+  /// Order within its category, on the printed list and in the picker.
+  position Int @default(0)
+
+  /// An article the school has stopped asking for. Kept rather than deleted so
+  /// last year's lists still read correctly; it simply leaves the picker.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items SupplyItem[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  /// The picker's own query: this school's live articles, by family.
+  @@index([schoolId, category])
+  @@map("supply_articles")
+}

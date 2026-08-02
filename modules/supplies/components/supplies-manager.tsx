@@ -19,7 +19,10 @@ import {
   submitSupplyListAction,
 } from "@/modules/supplies/actions";
 import { isEditableByAuthor } from "@/modules/supplies/enums";
-import type { SupplyListRow } from "@/modules/supplies/queries";
+import type {
+  SupplyArticleChoice,
+  SupplyListRow,
+} from "@/modules/supplies/queries";
 
 export type ClassChoice = { id: string; label: string };
 export type SubjectChoice = { id: string; label: string };
@@ -36,12 +39,15 @@ export function SuppliesManager({
   lists,
   classes,
   subjects,
+  articles,
   currentUserId,
   permissions,
 }: {
   lists: SupplyListRow[];
   classes: ClassChoice[];
   subjects: SubjectChoice[];
+  /** The school's supply catalogue, for the list editor's picker. */
+  articles: SupplyArticleChoice[];
   /** Whose lists are "mine" — the author checks are re-made on the server. */
   currentUserId: string;
   permissions: { canWrite: boolean; canReview: boolean; canDelete: boolean };
@@ -233,6 +239,7 @@ export function SuppliesManager({
           list={editing}
           classes={classes}
           subjects={subjects}
+          articles={articles}
           onClose={() => {
             setCreating(false);
             setEditing(null);

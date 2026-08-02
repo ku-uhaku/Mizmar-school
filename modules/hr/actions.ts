@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { resolveCashSession } from "@/modules/treasury/service";
 import {
   boolField,
   field,
@@ -17,6 +18,9 @@ import {
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
+  decideAdvance,
+  payAdvance,
+  saveAdvance,
   allocateStaffCode,
   decideLeave,
   endContract,
@@ -27,6 +31,8 @@ import {
   saveSalary,
 } from "@/modules/hr/service";
 import {
+  advanceDecisionSchema,
+  advanceSchema,
   attendanceSchema,
   contractSchema,
   leaveSchema,
@@ -445,6 +451,21 @@ export async function saveSalaryAction(
 
     if (!result) return failure(t.hr.alreadyPaid);
 
+    /*
+      The bulletin is written either way — the figures are the bursar's — but a
+      retenue larger than the employee's outstanding avances is money withheld
+      against nothing, and the recovery is refused rather than absorbed. Said
+      plainly, with the real figure, so the box can be corrected.
+    */
+    if (result.overRecovered !== undefined) {
+      refresh();
+      return failure(
+        interpolate(t.hr.advanceOverRecovered, {
+          amount: (result.overRecovered / 100).toFixed(2),
+        }),
+      );
+    }
+
     refresh();
     return success(t.hr.salarySaved);
   });
@@ -669,5 +690,219 @@ export async function deleteLeaveAction(leaveId: string): Promise<ActionState> {
 
     refresh();
     return success(t.hr.leaveDeleted);
+  });
+}
+
+// ── Avances sur salaire ──────────────────────────────────────────────────────
+
+/**
+ * Raises or restates a request for an avance.
+ *
+ * Behind HR_PAYROLL: an advance is a movement against somebody's wage, and the
+ * register-marking permission has no business raising one. Whether it is
+ * *granted* is a second act under the same code, and whether the money leaves
+ * is the caisse's — see `payAdvanceAction`.
+ */
+export async function saveAdvanceAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.HR_PAYROLL);
+
+    const id = field(formData, "id");
+    const parsed = advanceSchema(t).safeParse({
+      staffId: field(formData, "staffId"),
+      amount: field(formData, "amount") || "0",
+      instalmentCount: field(formData, "instalmentCount") || "1",
+      reason: field(formData, "reason"),
+      notes: field(formData, "notes"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    // The employee must be one of this school's — never trust the id alone.
+    const staff = await db.staff.findFirst({
+      where: { id: parsed.data.staffId, schoolId },
+      select: { id: true },
+    });
+    if (!staff) return failure(t.errors.notFound);
+
+    if (id) {
+      const existing = await db.salaryAdvance.findFirst({
+        where: { id, staff: { schoolId } },
+        select: { id: true },
+      });
+      if (!existing) return failure(t.errors.notFound);
+    }
+
+    const result = await saveAdvance(
+      {
+        staffId: staff.id,
+        amountCentimes: parsed.data.amountCentimes,
+        instalmentCount: parsed.data.instalmentCount,
+        reason: parsed.data.reason,
+        notes: parsed.data.notes,
+        recoverFromYear: null,
+        recoverFromMonth: null,
+      },
+      id || null,
+    );
+
+    if (!result.ok) {
+      return failure(
+        result.reason === "LOCKED" ? t.hr.advanceLocked : t.errors.notFound,
+      );
+    }
+
+    refresh();
+    return success(id ? t.hr.advanceSaved : t.hr.advanceRequested);
+  });
+}
+
+/** Agrees to a request, or refuses it with a reason. */
+export async function decideAdvanceAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.HR_PAYROLL);
+
+    const parsed = advanceDecisionSchema(t).safeParse({
+      id: field(formData, "id"),
+      approve: field(formData, "approve") === "1",
+      decisionNote: field(formData, "decisionNote"),
+    });
+    if (!parsed.success) return failure(t.errors.invalid);
+
+    const advance = await db.salaryAdvance.findFirst({
+      where: { id: parsed.data.id, staff: { schoolId } },
+      select: { id: true },
+    });
+    if (!advance) return failure(t.errors.notFound);
+
+    const result = await decideAdvance(
+      advance.id,
+      parsed.data.approve,
+      context.user.id,
+      parsed.data.decisionNote,
+    );
+    if (!result.ok) {
+      return failure(
+        result.reason === "ALREADY_DECIDED"
+          ? t.hr.advanceAlreadyDecided
+          : t.errors.notFound,
+      );
+    }
+
+    refresh();
+    return success(
+      parsed.data.approve ? t.hr.advanceApproved : t.hr.advanceRefused,
+    );
+  });
+}
+
+/**
+ * Hands the money over.
+ *
+ * Two permissions, exactly as paying a bulletin needs two: HR_PAYROLL says this
+ * person may work the payroll, TREASURY_DISBURSE says money may leave the till
+ * on their say-so. Keeping them apart is the whole of a small school's internal
+ * control.
+ */
+export async function payAdvanceAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.HR_PAYROLL);
+    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
+
+    const parsed = salaryPayoutSchema(t).safeParse({
+      salaryId: field(formData, "advanceId"),
+      method: field(formData, "method"),
+      cashSessionId: optionalId(formData, "cashSessionId"),
+      categoryId: optionalId(formData, "categoryId"),
+      reference: field(formData, "reference"),
+      chequeNumber: field(formData, "chequeNumber"),
+      bankName: field(formData, "bankName"),
+      paidOn: field(formData, "paidOn"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const advance = await db.salaryAdvance.findFirst({
+      where: { id: parsed.data.salaryId, staff: { schoolId } },
+      select: { id: true },
+    });
+    if (!advance) return failure(t.errors.notFound);
+
+    /*
+      Cash leaves a drawer, and the drawer is the caller's own.
+
+      Routed through the caisse's own gate rather than looking a session up
+      here, so the one-till-per-cashier rule and the day rule hold for a salary
+      advance exactly as they do for any other payment out.
+    */
+    let cashSessionId: string | null = null;
+    if (parsed.data.method === "CASH") {
+      const resolution = await resolveCashSession(schoolId, context.user.id);
+      if (resolution.state !== "OPEN") return failure(t.hr.noOpenSession);
+      cashSessionId = resolution.sessionId;
+    }
+
+    const category = parsed.data.categoryId
+      ? await db.operationCategory.findFirst({
+          where: { id: parsed.data.categoryId, schoolId },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.categoryId && !category) return failure(t.errors.notFound);
+
+    const result = await payAdvance({
+      advanceId: advance.id,
+      schoolId,
+      createdById: context.user.id,
+      method: parsed.data.method,
+      cashSessionId,
+      categoryId: category?.id ?? null,
+      reference: parsed.data.reference,
+      chequeNumber: parsed.data.chequeNumber,
+      bankName: parsed.data.bankName,
+      paidOn: parsed.data.paidOn,
+    });
+
+    if (!result.ok) {
+      switch (result.reason) {
+        case "ALREADY_PAID":
+          return failure(t.hr.advanceAlreadyPaid);
+        case "NOT_APPROVED":
+          return failure(t.hr.advanceNotApproved);
+        default:
+          return failure(t.errors.notFound);
+      }
+    }
+
+    refresh();
+    return success(t.hr.advancePaid);
   });
 }

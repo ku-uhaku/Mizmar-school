@@ -24,14 +24,18 @@ export function supplyListSchema(t: Dictionary) {
 }
 
 /**
- * One article. Parsed per row rather than as a whole list, so a single bad
+ * One line. Parsed per row rather than as a whole list, so a single bad
  * quantity names its own line instead of rejecting twenty good ones.
+ *
+ * The wording is deliberately not here: a line names a catalogue article and
+ * the label is resolved from it server-side — see `replaceItems`. Accepting a
+ * label from the form would let a crafted POST put any text on a list under
+ * cover of the catalogue.
  */
 export function supplyItemSchema(t: Dictionary) {
   const v = t.validation;
   return z.object({
-    label: requiredText(v, { max: 160 }),
-    labelAr: optionalText(160),
+    articleId: requiredText(v, { max: 40 }),
     quantity: z
       .union([z.literal(""), z.coerce.number({ error: v.invalidNumber })])
       .transform((value) => (value === "" ? null : Number(value)))

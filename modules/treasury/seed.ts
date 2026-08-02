@@ -19,9 +19,15 @@ export type RegisterSeed = {
   position: number;
 };
 
+/**
+ * The shared drawer. Held by nobody on purpose: it is the coffre the cashiers
+ * transfer into at the end of the day, not anybody's shift.
+ *
+ * The cashiers' own tills are not listed here — they are generated from whoever
+ * may actually collect, one apiece. See `seedTreasury`.
+ */
 export const REGISTER_SEEDS: RegisterSeed[] = [
   { code: "PRINCIPALE", name: "Caisse principale", nameAr: "الصندوق الرئيسي", position: 1 },
-  { code: "SECONDAIRE", name: "Caisse secondaire", nameAr: "الصندوق الثانوي", position: 2 },
 ];
 
 export type CategorySeed = {
@@ -153,13 +159,63 @@ export async function seedTreasury(
 ): Promise<{ registerIdByCode: Record<string, string> }> {
   const registerIdByCode: Record<string, string> = {};
 
-  for (const register of REGISTER_SEEDS) {
+  /*
+    One drawer per cashier, plus the shared coffre.
+
+    Generated from who may actually take money rather than written down: a
+    school that hires a second secretary should get a second till without anyone
+    editing this file, and a seeded caisse everybody shares is precisely the
+    arrangement the holder rule exists to end. Whoever holds
+    TREASURY_COLLECT at this school gets a till named after them.
+  */
+  const cashiers = await db.user.findMany({
+    where: {
+      isActive: true,
+      memberships: {
+        some: {
+          schoolId,
+          role: { permissions: { some: { permission: { code: "treasury.collect" } } } },
+        },
+      },
+    },
+    orderBy: { email: "asc" },
+    select: {
+      id: true,
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  const perHolder: (RegisterSeed & { holderId: string })[] = cashiers.map(
+    (cashier, index) => {
+      const name = cashier.profile
+        ? `${cashier.profile.firstName} ${cashier.profile.lastName}`.trim()
+        : cashier.email;
+      return {
+        // Keyed on the account rather than on the name: two colleagues may share
+        // a surname, and a code has to stay unique and stable.
+        code: `CAISSE-${cashier.email.split("@")[0].toUpperCase()}`,
+        name: `Caisse ${name}`,
+        nameAr: `صندوق ${name}`,
+        position: 10 + index,
+        holderId: cashier.id,
+      };
+    },
+  );
+
+  const allRegisters: (RegisterSeed & { holderId?: string })[] = [
+    ...REGISTER_SEEDS,
+    ...perHolder,
+  ];
+
+  for (const register of allRegisters) {
     const row = await db.cashRegister.upsert({
       where: { schoolId_code: { schoolId, code: register.code } },
       update: {
         name: register.name,
         nameAr: register.nameAr,
         position: register.position,
+        holderId: register.holderId ?? null,
       },
       create: {
         schoolId,
@@ -167,6 +223,7 @@ export async function seedTreasury(
         name: register.name,
         nameAr: register.nameAr,
         position: register.position,
+        holderId: register.holderId ?? null,
       },
       select: { id: true },
     });
@@ -255,7 +312,8 @@ export async function seedTreasury(
 
   log(
     "caisse",
-    `${REGISTER_SEEDS.length} tills, ${CATEGORY_SEEDS.length} rubriques, ` +
+    `${allRegisters.length} tills (${perHolder.length} held), ` +
+      `${CATEGORY_SEEDS.length} rubriques, ` +
       `${MOTIF_SEEDS.length} motifs, ${BANK_SEEDS.length} banks`,
   );
 

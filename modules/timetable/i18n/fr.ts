@@ -86,6 +86,20 @@ const fr = {
     nextWeek: "Semaine suivante",
     holidayWeek: "Pas de cours cette semaine — {name}.",
     holidayDay: "{name}",
+    availabilityTitle: "Horaires des enseignants",
+    availabilitySubtitle:
+      "Les séances travaillées par chaque enseignant. Aucun cours ne peut être placé en dehors — le générateur en tient compte et la grille le refuse.",
+    availabilityHint:
+      "Cliquez une séance pour la basculer. Cliquez un jour ou une heure pour basculer toute la ligne ou la colonne.",
+    availabilitySaved: "Horaires enregistrés — {count} séance(s) bloquée(s).",
+    availableAllWeek: "Disponible toute la semaine",
+    working: "Travaille",
+    notWorking: "Absent",
+    periodsWorked: "Travaille {worked} séances sur {total}",
+    periodsOff: "{count} bloquées",
+    pickTeacher: "Enseignant",
+    noTeachers: "Aucun enseignant dans cet établissement.",
+    teacherHours: "Horaires des enseignants",
     generateGrid: "Générer l'emploi du temps",
     generateGridHint:
       "Construit la semaine à partir des heures hebdomadaires du programme, en tenant compte de ce que chaque enseignant et chaque salle font déjà. Rien n'est enregistré tant que vous ne validez pas.",

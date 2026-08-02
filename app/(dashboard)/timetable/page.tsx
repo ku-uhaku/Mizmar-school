@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PrinterIcon } from "lucide-react";
+import { ClockIcon, PrinterIcon } from "lucide-react";
 
 import { EmptyState } from "@/components/shell/empty-state";
 import { PageHeader } from "@/components/shell/page-header";
@@ -107,6 +107,15 @@ export default async function TimetablePage({
         </Button>
         <Button asChild variant="outline" size="sm">
           <Link href={`/classes/${selected.id}`}>{t.timetable.openClass}</Link>
+        </Button>
+        {/* Beside the generator, because it is the constraint the generator
+          plans around: somebody who dislikes a drawn week fixes the horaires
+          here and draws again. */}
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/timetable/availability?schedule=${scheduleKind}`}>
+            <ClockIcon />
+            {t.timetable.teacherHours}
+          </Link>
         </Button>
         {/* The weeks are the spine the grid hangs on, so the button that lays
           them out belongs here rather than three screens away. */}

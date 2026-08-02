@@ -810,3 +810,140 @@ export async function loadWeekOverlay(
 
   return { exceptions: bySlot, absencesByDay };
 }
+
+// ── When a teacher works ─────────────────────────────────────────────────────
+
+export type TeacherOption = { id: string; label: string; blockedCount: number };
+
+/**
+ * The school's teachers, with how many periods each is unavailable for.
+ *
+ * The count is in the picker on purpose: it is the one thing somebody scanning
+ * the list wants — who has a standing arrangement and who is open all week —
+ * and without it every name has to be opened to find out.
+ */
+export async function listTeacherOptions(
+  context: AuthContext,
+  scheduleKind = "STANDARD",
+): Promise<TeacherOption[]> {
+  const schoolId = context.currentSchool?.id ?? "__none__";
+  const schoolYearId = context.currentSchoolYear?.id ?? "__none__";
+
+  const teachers = await db.user.findMany({
+    where: {
+      organizationId: context.organization.id,
+      isActive: true,
+      memberships: { some: { schoolId } },
+    },
+    orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+      unavailability: {
+        where: { timeSlot: { schoolYearId, scheduleKind } },
+        select: { id: true },
+      },
+    },
+  });
+
+  return teachers.map((teacher) => ({
+    id: teacher.id,
+    label: displayName(teacher),
+    blockedCount: teacher.unavailability.length,
+  }));
+}
+
+export type AvailabilityGrid = {
+  columns: SlotColumn[];
+  /** Indexed by ISO day, then column key. Null where the school does not teach. */
+  rows: {
+    dayOfWeek: number;
+    cells: Record<string, { timeSlotId: string; blocked: boolean } | null>;
+  }[];
+  /** How many teaching periods the week holds, for the "works N of M" line. */
+  totalPeriods: number;
+  blockedPeriods: number;
+};
+
+/**
+ * One teacher's week, as a grid of periods they do or do not work.
+ *
+ * Shaped exactly like `loadClassTimetable` — same columns, same days — because
+ * the two are read side by side and a grid that transposed the axes would be
+ * one more thing to translate in your head.
+ *
+ * Breaks are left out entirely rather than shown greyed: nobody is "available"
+ * during the récréation, so offering it as a choice would be asking a question
+ * with no meaning.
+ */
+export async function loadTeacherAvailability(
+  context: AuthContext,
+  teacherId: string,
+  scheduleKind = "STANDARD",
+): Promise<AvailabilityGrid | null> {
+  const schoolId = context.currentSchool?.id ?? "__none__";
+  const schoolYearId = context.currentSchoolYear?.id ?? "__none__";
+
+  // The teacher must belong to this school; one from elsewhere reads as absent.
+  const teacher = await db.user.findFirst({
+    where: { id: teacherId, memberships: { some: { schoolId } } },
+    select: { id: true },
+  });
+  if (!teacher) return null;
+
+  const [slots, blocked] = await Promise.all([
+    db.timeSlot.findMany({
+      where: { schoolYearId, scheduleKind, isActive: true, isBreak: false },
+      orderBy: [{ startTime: "asc" }, { dayOfWeek: "asc" }],
+      select: { id: true, dayOfWeek: true, startTime: true, endTime: true },
+    }),
+    db.teacherUnavailability.findMany({
+      where: { teacherId, timeSlot: { schoolYearId, scheduleKind } },
+      select: { timeSlotId: true },
+    }),
+  ]);
+
+  const blockedIds = new Set(blocked.map((row) => row.timeSlotId));
+
+  const columns: SlotColumn[] = [];
+  const seen = new Set<string>();
+  for (const slot of slots) {
+    const key = `${slot.startTime}-${slot.endTime}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    columns.push({
+      key,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      isBreak: false,
+    });
+  }
+
+  const days = [...new Set(slots.map((slot) => slot.dayOfWeek))].sort(
+    (a, b) => a - b,
+  );
+
+  const rows = days.map((dayOfWeek) => {
+    const cells: Record<string, { timeSlotId: string; blocked: boolean } | null> =
+      {};
+    for (const column of columns) {
+      const slot = slots.find(
+        (candidate) =>
+          candidate.dayOfWeek === dayOfWeek &&
+          `${candidate.startTime}-${candidate.endTime}` === column.key,
+      );
+      cells[column.key] = slot
+        ? { timeSlotId: slot.id, blocked: blockedIds.has(slot.id) }
+        : null;
+    }
+    return { dayOfWeek, cells };
+  });
+
+  return {
+    columns,
+    rows,
+    totalPeriods: slots.length,
+    blockedPeriods: blockedIds.size,
+  };
+}

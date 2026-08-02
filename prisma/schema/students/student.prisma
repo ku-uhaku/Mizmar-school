@@ -192,6 +192,10 @@ model Student {
 
   enrollments Enrollment[]
 
+  /// The dossier: which pièces the school has, and which it is still waiting
+  /// for. Identity rather than a year's business — see StudentDocument.
+  documents StudentDocument[]
+
   @@unique([schoolId, code])
   /// No two pupils may map to the same MASSAR code. Many may be unmapped.
   @@unique([schoolId, massarCode])

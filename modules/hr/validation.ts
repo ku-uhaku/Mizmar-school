@@ -212,3 +212,45 @@ export function salaryPayoutSchema(t: Dictionary) {
     paidOn: dateField(v),
   });
 }
+
+/**
+ * An avance sur salaire, as the form posts it.
+ *
+ * `status` is deliberately absent: it moves through `decideAdvance` and
+ * `payAdvance` under their own permissions, and accepting it here would let
+ * whoever may raise a request approve their own with a crafted POST.
+ */
+export function advanceSchema(t: Dictionary) {
+  const v = t.validation;
+  return z
+    .object({
+      staffId: requiredText(v, { max: 40 }),
+      amount: moneyField(v),
+      instalmentCount: z.coerce
+        .number({ error: v.invalidNumber })
+        .int({ error: v.invalidNumber })
+        .min(1, { error: v.invalidNumber })
+        .max(24, { error: v.invalidNumber }),
+      reason: optionalText(300),
+      notes: optionalText(500),
+    })
+    .transform((data) => ({
+      ...data,
+      amountCentimes: Math.round(data.amount * 100),
+    }))
+    // Nought is not an advance, and the deduction maths would divide by it.
+    .refine((data) => data.amountCentimes > 0, {
+      error: v.invalidNumber,
+      path: ["amount"],
+    });
+}
+
+/** The decision on a request. */
+export function advanceDecisionSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    id: requiredText(v, { max: 40 }),
+    approve: z.boolean(),
+    decisionNote: optionalText(500),
+  });
+}

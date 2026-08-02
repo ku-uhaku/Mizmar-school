@@ -1,9 +1,13 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
- * Two schools, deliberately unalike: a groupe scolaire running every cycle, and
- * a preschool-and-primary school. Configuration is per school, and two schools
- * with identical setups would prove nothing.
+ * Two groupes scolaires, each running the whole Moroccan cursus.
+ *
+ * Two rather than one because almost everything in the app is school-scoped, and
+ * a single-school database cannot show the one bug that matters: a query that
+ * forgot its `where`. The two carry the same cursus but their own configuration
+ * rows — their own levels, subjects, rooms, prices and staff — so a leak between
+ * them is visible on any screen rather than only in a test.
  */
 
 export const SCHOOLS = [
@@ -23,13 +27,13 @@ export const SCHOOLS = [
   {
     code: "ALM-RABAT",
     name: "Al Manar Rabat Agdal",
-    level: "PRIMARY",
+    level: "GROUP",
     city: "Rabat",
     region: "Rabat-Salé-Kénitra",
     postalCode: "10090",
     addressLine: "45, Avenue de France, Agdal",
     directorName: "Youssef El Amrani",
-    capacity: 420,
+    capacity: 1200,
     phone: "+212 537 77 12 34",
     email: "rabat@almanar.ma",
   },

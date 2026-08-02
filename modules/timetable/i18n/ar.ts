@@ -82,6 +82,20 @@ const ar = {
     nextWeek: "الأسبوع الموالي",
     holidayWeek: "لا دروس هذا الأسبوع — {name}.",
     holidayDay: "{name}",
+    availabilityTitle: "أوقات عمل الأساتذة",
+    availabilitySubtitle:
+      "الحصص التي يشتغلها كل أستاذ. لا يمكن وضع درس خارجها.",
+    availabilityHint:
+      "انقر على حصة لتغييرها، أو على يوم أو ساعة لتغيير الصف أو العمود كله.",
+    availabilitySaved: "تم حفظ الأوقات — {count} حصة محجوبة.",
+    availableAllWeek: "متاح طوال الأسبوع",
+    working: "يشتغل",
+    notWorking: "غير متاح",
+    periodsWorked: "يشتغل {worked} حصة من أصل {total}",
+    periodsOff: "{count} محجوبة",
+    pickTeacher: "الأستاذ",
+    noTeachers: "لا يوجد أساتذة في هذه المؤسسة.",
+    teacherHours: "أوقات العمل",
     generateGrid: "توليد استعمال الزمن",
     generateGridHint:
       "يبني الأسبوع انطلاقًا من الغلاف الزمني الأسبوعي، مع مراعاة ارتباطات الأساتذة والقاعات. لا يُحفظ شيء قبل المصادقة.",

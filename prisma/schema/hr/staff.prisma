@@ -121,6 +121,8 @@ model Staff {
 
   contracts     EmploymentContract[]
   salaries      SalaryPayment[]
+  /// Avances sur salaire — see prisma/schema/hr/salary-advance.prisma.
+  advances      SalaryAdvance[]
   attendance    StaffAttendance[]
   leaveRequests LeaveRequest[]
 

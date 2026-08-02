@@ -6,7 +6,10 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { listTimetableClasses } from "@/modules/timetable/queries";
-import { listSubjectChoices } from "@/modules/supplies/queries";
+import {
+  listSubjectChoices,
+  listSupplyArticles,
+} from "@/modules/supplies/queries";
 import { SuppliesManager } from "@/modules/supplies/components/supplies-manager";
 import { listSupplyLists } from "@/modules/supplies/queries";
 
@@ -29,10 +32,12 @@ export default async function SuppliesPage() {
 
   const canReview = context.can(PERMISSIONS.SUPPLY_REVIEW);
 
-  const [lists, classes, subjects] = await Promise.all([
+  const [lists, classes, subjects, articles] = await Promise.all([
     listSupplyLists(context, { canReview }),
     listTimetableClasses(context),
     listSubjectChoices(context),
+    // The catalogue a list is assembled from — see the note on SupplyArticle.
+    listSupplyArticles(context),
   ]);
 
   return (
@@ -46,6 +51,7 @@ export default async function SuppliesPage() {
           label: `${schoolClass.code} · ${schoolClass.levelLabel}`,
         }))}
         subjects={subjects}
+        articles={articles}
         currentUserId={context.user.id}
         permissions={{
           canWrite: context.can(PERMISSIONS.SUPPLY_WRITE),

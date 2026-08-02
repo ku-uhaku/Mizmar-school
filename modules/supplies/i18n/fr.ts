@@ -32,6 +32,11 @@ const fr = {
     required: "Obligatoire",
     optional: "Facultatif",
     itemCount: "{count} articles",
+    pickArticle: "Choisir un article…",
+    articleWithdrawn:
+      "« {label} » n’est plus au catalogue — choisissez son remplaçant.",
+    noArticles:
+      "Le catalogue de fournitures est vide. Ajoutez-y des articles dans Configuration → Logistique.",
     author: "Rédigée par",
     reviewedBy: "Décidée par",
     submit: "Envoyer pour validation",
@@ -60,6 +65,18 @@ const fr = {
     print: "Imprimer la liste",
   },
   supplyOptions: {
+    categories: {
+      ECRITURE: "Écriture",
+      CAHIERS: "Cahiers",
+      COUVERTURES: "Couvertures",
+      CLASSEMENT: "Classement",
+      GEOMETRIE: "Géométrie",
+      ARTS: "Arts plastiques",
+      CARTABLE: "Cartable et trousse",
+      SPORT: "Sport",
+      HYGIENE: "Hygiène",
+      AUTRE: "Divers",
+    },
     statuses: {
       DRAFT: "Brouillon",
       SUBMITTED: "En attente de validation",

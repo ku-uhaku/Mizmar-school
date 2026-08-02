@@ -5,6 +5,12 @@
 /// drawers, count them separately, and hand over between them (see the TRANSFERT
 /// operations in cash-operation.prisma).
 ///
+/// ── One drawer per cashier ───────────────────────────────────────────────────
+/// Where a till names a `holder`, only that person may open it and only they may
+/// post into it. That is the whole of a small school's cash control: a drawer
+/// two people can reach is a drawer whose shortfall belongs to nobody, and
+/// "who was holding it" stops being answerable the first time it happens.
+///
 /// The register itself holds no balance. A balance is only ever the opening
 /// float of a session plus the cash movements posted into it, which is what
 /// makes a count at closing time checkable rather than asserted.
@@ -17,6 +23,21 @@ model CashRegister {
   code   String
   name   String
   nameAr String?
+
+  /// The cashier this drawer belongs to.
+  ///
+  /// Unique: a person holds at most one till, or "my caisse" would be a
+  /// question with several answers and the screens could not pick one.
+  ///
+  /// Nullable because a school may keep a shared drawer — the coffre the
+  /// bursar transfers into at the end of the day is nobody's shift. An unheld
+  /// till may be opened by anyone with TREASURY_SESSION; a held one, only by
+  /// its holder. Enforced in `openSession`, not merely in the screen.
+  ///
+  /// SetNull rather than Cascade: a cashier who leaves must not take the till —
+  /// and its sessions — with them. The drawer is reassigned, not deleted.
+  holderId String? @unique
+  holder   User?   @relation("CashRegisterHolder", fields: [holderId], references: [id], onDelete: SetNull)
 
   position Int     @default(0)
   isActive Boolean @default(true)

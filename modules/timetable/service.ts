@@ -335,6 +335,65 @@ export async function entriesInBlock(
   return run.map((entry) => ({ id: entry.id, timeSlotId: entry.timeSlotId }));
 }
 
+// ── When a teacher works ─────────────────────────────────────────────────────
+
+/**
+ * Replaces a teacher's standing horaire: the periods they do **not** work.
+ *
+ * ── Why the whole set is replaced ───────────────────────────────────────────
+ * The screen shows the full week and the answer it collects is the full week —
+ * "these are the periods M. Bennis is available". Diffing that into individual
+ * adds and removes would let a stale tab silently re-open a period the office
+ * closed an hour ago; replacing wholesale makes the last save win, which is what
+ * the person looking at the grid expects.
+ *
+ * Slots are re-derived against the teacher's own school year rather than
+ * trusted: an id from another year would otherwise block a period on a bell
+ * schedule this teacher has nothing to do with.
+ *
+ * This is a *standing* arrangement and not an absence. A day off sick is a
+ * `TeacherAbsence`, which leaves the grid alone and asks who is covering; this
+ * says the lesson may never be placed there in the first place.
+ */
+export async function setTeacherAvailability(
+  teacherId: string,
+  schoolYearId: string,
+  blockedSlotIds: string[],
+  scheduleKind: string,
+): Promise<{ blocked: number }> {
+  const reachable = await db.timeSlot.findMany({
+    where: {
+      id: { in: blockedSlotIds },
+      schoolYearId,
+      scheduleKind,
+      isBreak: false,
+    },
+    select: { id: true },
+  });
+
+  await db.$transaction(async (tx) => {
+    // Only this bell schedule's rows: a teacher's Ramadan horaire is a separate
+    // negotiation and must survive editing the standard one.
+    await tx.teacherUnavailability.deleteMany({
+      where: {
+        teacherId,
+        timeSlot: { schoolYearId, scheduleKind },
+      },
+    });
+
+    if (reachable.length > 0) {
+      await tx.teacherUnavailability.createMany({
+        data: reachable.map((slot) => ({
+          teacherId,
+          timeSlotId: slot.id,
+        })),
+      });
+    }
+  });
+
+  return { blocked: reachable.length };
+}
+
 // ── Laying out a whole week automatically ────────────────────────────────────
 
 export type GeneratorOptions = {

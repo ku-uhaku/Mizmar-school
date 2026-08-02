@@ -19,52 +19,97 @@ type SlotSeed = {
   isBreak?: boolean;
 };
 
+/** How long one period rings for, in minutes. */
+const PERIOD_MINUTES = 30;
+
+/**
+ * `08:00` + 90 minutes → `09:30`. Kept here rather than reaching for a date
+ * library: the grid never crosses midnight and never leaves one day.
+ */
+function plus(time: string, minutes: number): string {
+  const [hour, minute] = time.split(":").map(Number);
+  const total = hour * 60 + minute + minutes;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/**
+ * A run of consecutive periods, sliced at `PERIOD_MINUTES`.
+ *
+ * Adjacency matters: the generator groups a day into runs by `endTime ===
+ * startTime`, so periods produced this way are genuinely back-to-back and a
+ * double can be placed across them. A run is broken only by a récréation, which
+ * is what stops a double straddling the break.
+ */
+function run(
+  day: number,
+  session: string,
+  kind: string,
+  from: string,
+  count: number,
+  firstPosition: number,
+): SlotSeed[] {
+  return Array.from({ length: count }, (_, index) => {
+    const startTime = plus(from, index * PERIOD_MINUTES);
+    return {
+      dayOfWeek: day,
+      session,
+      startTime,
+      endTime: plus(startTime, PERIOD_MINUTES),
+      scheduleKind: kind,
+      position: firstPosition + index,
+    };
+  });
+}
+
 /**
  * Monday–Friday full days, Saturday morning only — the Moroccan week.
  *
- * Periods are **one hour**, which is how collèges and lycées actually ring:
- * 8h–9h, 9h–10h, récréation, 10h15–11h15, 11h15–12h15, and the same shape after
- * lunch. Two-hour blocks would be simpler to seed and wrong — a 2h TP is *two*
- * consecutive periods a school chooses to give one subject, not a period that
- * is two hours long, and a grid built the other way can never express the
- * difference.
+ * Periods are **half an hour**: 08h00, 08h30, 09h00, 09h30 … The bell is the
+ * smallest unit the school timetables in, not the length of a lesson — an hour
+ * of maths is two consecutive periods the school chooses to give one subject,
+ * and a grid whose unit is the lesson can never express the difference between
+ * that and a single 30-minute slot. Halving the unit doubles what the programme
+ * can say without changing a single declared `weeklyMinutes`, since those are
+ * minutes and not periods.
+ *
+ * The day: 08h00–12h00 with a récréation at 10h00, 14h00–18h00 with one at
+ * 16h00. Fourteen teaching periods a day, seven on Saturday.
  */
 function standardSlots(): SlotSeed[] {
   const slots: SlotSeed[] = [];
 
-  const morning = (day: number, offset: number): SlotSeed[] => [
-    { dayOfWeek: day, session: "MORNING", startTime: "08:00", endTime: "09:00", scheduleKind: "STANDARD", position: offset + 1 },
-    { dayOfWeek: day, session: "MORNING", startTime: "09:00", endTime: "10:00", scheduleKind: "STANDARD", position: offset + 2 },
-    { dayOfWeek: day, session: "MORNING", startTime: "10:00", endTime: "10:15", scheduleKind: "STANDARD", position: offset + 3, isBreak: true },
-    { dayOfWeek: day, session: "MORNING", startTime: "10:15", endTime: "11:15", scheduleKind: "STANDARD", position: offset + 4 },
-    { dayOfWeek: day, session: "MORNING", startTime: "11:15", endTime: "12:15", scheduleKind: "STANDARD", position: offset + 5 },
+  const morning = (day: number): SlotSeed[] => [
+    ...run(day, "MORNING", "STANDARD", "08:00", 4, 1),
+    { dayOfWeek: day, session: "MORNING", startTime: "10:00", endTime: "10:30", scheduleKind: "STANDARD", position: 5, isBreak: true },
+    ...run(day, "MORNING", "STANDARD", "10:30", 3, 6),
   ];
 
   for (const day of [1, 2, 3, 4, 5]) {
     slots.push(
-      ...morning(day, 0),
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "14:00", endTime: "15:00", scheduleKind: "STANDARD", position: 6 },
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "15:00", endTime: "16:00", scheduleKind: "STANDARD", position: 7 },
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "16:00", endTime: "16:15", scheduleKind: "STANDARD", position: 8, isBreak: true },
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "16:15", endTime: "17:15", scheduleKind: "STANDARD", position: 9 },
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "17:15", endTime: "18:15", scheduleKind: "STANDARD", position: 10 },
+      ...morning(day),
+      ...run(day, "AFTERNOON", "STANDARD", "14:00", 4, 9),
+      { dayOfWeek: day, session: "AFTERNOON", startTime: "16:00", endTime: "16:30", scheduleKind: "STANDARD", position: 13, isBreak: true },
+      ...run(day, "AFTERNOON", "STANDARD", "16:30", 3, 14),
     );
   }
 
   // Saturday is morning only.
-  slots.push(...morning(6, 0));
+  slots.push(...morning(6));
 
   return slots;
 }
 
-/** Ramadan: one continuous morning, no afternoon session. */
+/**
+ * Ramadan: one continuous morning, no afternoon session.
+ *
+ * Same half-hour bell as the standard grid — the compressed day is shorter, not
+ * differently divided — running 09h00 to 12h30 around a single short break.
+ */
 function ramadanSlots(): SlotSeed[] {
   return [1, 2, 3, 4, 5, 6].flatMap((day) => [
-    { dayOfWeek: day, session: "MORNING", startTime: "09:00", endTime: "09:45", scheduleKind: "RAMADAN", position: 1 },
-    { dayOfWeek: day, session: "MORNING", startTime: "09:45", endTime: "10:30", scheduleKind: "RAMADAN", position: 2 },
-    { dayOfWeek: day, session: "MORNING", startTime: "10:40", endTime: "11:25", scheduleKind: "RAMADAN", position: 3 },
-    { dayOfWeek: day, session: "MORNING", startTime: "11:25", endTime: "12:10", scheduleKind: "RAMADAN", position: 4 },
-    { dayOfWeek: day, session: "MORNING", startTime: "12:20", endTime: "13:05", scheduleKind: "RAMADAN", position: 5 },
+    ...run(day, "MORNING", "RAMADAN", "09:00", 4, 1),
+    { dayOfWeek: day, session: "MORNING", startTime: "11:00", endTime: "11:15", scheduleKind: "RAMADAN", position: 5, isBreak: true },
+    ...run(day, "MORNING", "RAMADAN", "11:15", 3, 6),
   ]);
 }
 
@@ -417,4 +462,90 @@ export async function seedSchoolWeeks(
 
   log("weeks", `${weeks.length} taught weeks`);
   return weeks.length;
+}
+
+/**
+ * The periods each teacher does not work — their horaire, as a school actually
+ * negotiates it.
+ *
+ * Not everybody is available all week, and a demo where everybody is teaches
+ * nothing about the constraint the generator has to respect. So a stable slice
+ * of the staff gets a standing commitment: one has no Monday morning, the next
+ * no Wednesday afternoon, and so on around the week.
+ *
+ * ── Why it blocks a session and not a period ────────────────────────────────
+ * Because that is how the arrangement is actually made. Nobody is "unavailable
+ * at 10:15"; they are away Wednesday afternoon, or they arrive after the first
+ * two hours on a Monday. Blocking single periods scattered across the week
+ * would be noise no timetable could work around and no head of studies would
+ * recognise.
+ *
+ * Every third teacher, by index rather than at random, so a re-seed reproduces
+ * the same horaires and therefore the same timetable. Only the standard bell
+ * schedule: the Ramadan one is a different week and a school renegotiates it.
+ *
+ * Idempotent on (teacherId, timeSlotId), and it never clears a block somebody
+ * set by hand — a seed does not overrule the office.
+ */
+export async function seedTeacherAvailability(
+  db: SeedDb,
+  {
+    slots,
+    teachers,
+  }: {
+    slots: SeededSlot[];
+    teachers: { id: string }[];
+  },
+): Promise<number> {
+  const teaching = slots.filter(
+    (slot) => !slot.isBreak && slot.scheduleKind === "STANDARD",
+  );
+  if (teaching.length === 0) return 0;
+
+  // The half-days that exist in this bell schedule, in a stable order, so the
+  // rule below does not assume a six-day week or an afternoon session.
+  const sessions = [
+    ...new Map(
+      teaching.map((slot) => [
+        `${slot.dayOfWeek}:${slot.startTime < "12:00" ? "AM" : "PM"}`,
+        slot,
+      ]),
+    ).keys(),
+  ].sort();
+
+  let written = 0;
+
+  for (const [index, teacher] of teachers.entries()) {
+    if (index % 3 !== 0) continue;
+
+    const session = sessions[index % sessions.length];
+    const [day, half] = session.split(":");
+
+    const blocked = teaching.filter(
+      (slot) =>
+        String(slot.dayOfWeek) === day &&
+        (slot.startTime < "12:00" ? "AM" : "PM") === half,
+    );
+
+    for (const slot of blocked) {
+      await db.teacherUnavailability.upsert({
+        where: {
+          teacherId_timeSlotId: {
+            teacherId: teacher.id,
+            timeSlotId: slot.id,
+          },
+        },
+        update: {},
+        create: {
+          teacherId: teacher.id,
+          timeSlotId: slot.id,
+          reason: half === "AM" ? "Indisponible le matin" : "Indisponible l'après-midi",
+        },
+      });
+      written += 1;
+    }
+  }
+
+  log("timetable", `${written} unavailable periods across the staff`);
+  return written;
 }

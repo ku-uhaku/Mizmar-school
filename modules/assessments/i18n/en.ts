@@ -60,6 +60,9 @@ const en = {
     subjectsToGenerate: "Subjects",
     subjectsToGenerateHint:
       "Untick what is not sat, and give each paper its own date — a round is spread over a week, not one morning.",
+    wholeSubjectHint:
+      "This kind is sat on the matière as a whole — one paper for اللغة العربية, not one per component. Tick a component instead to set a paper on that alone.",
+    orOneComponent: "or one of its components instead",
     allSubjects: "All",
     noneSubjects: "None",
     nothingToGenerate: "Every subject already has this paper.",

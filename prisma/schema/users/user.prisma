@@ -49,6 +49,10 @@ model User {
   authoredExceptions    TimetableException[] @relation("TimetableExceptionAuthor")
   /// Listes de fournitures written, and reviewed.
   supplyListsAuthored   SupplyList[]         @relation("SupplyListAuthor")
+  documentsRecorded     StudentDocument[]    @relation("StudentDocumentRecorder")
+  /// The till this person holds, if any — see CashRegister.holderId.
+  cashRegisterHeld      CashRegister?        @relation("CashRegisterHolder")
+  advancesApproved      SalaryAdvance[]      @relation("AdvanceApprover")
   supplyListsReviewed   SupplyList[]         @relation("SupplyListReviewer")
   /// Contrôles this user is answerable for, set, and has marked. SetNull on all
   /// three — a paper outlives the account that created it.

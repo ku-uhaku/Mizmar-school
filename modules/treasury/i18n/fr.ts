@@ -56,6 +56,16 @@ const fr = {
     statusOpen: "Ouverte",
     statusClosed: "Fermée",
     noOpenSession: "Aucune caisse ouverte. Ouvrez-en une avant d'encaisser.",
+    holderTaken: "Ce caissier tient d\u00e9j\u00e0 une autre caisse.",
+    notYourTill:
+      "Cette caisse est celle d\u2019un autre caissier. Ouvrez la v\u00f4tre pour encaisser.",
+    sessionStaleClosed:
+      "Votre caisse \u00e9tait rest\u00e9e ouverte depuis le {date} ; elle vient d\u2019\u00eatre ferm\u00e9e sans comptage ({amount} DH attendus en caisse). Ouvrez la session du jour avant tout encaissement.",
+    sessionAutoClosed: "Ferm\u00e9e automatiquement \u2014 jamais compt\u00e9e",
+    heldBy: "Tenue par",
+    heldByHint:
+      "Une caisse par caissier : seul son titulaire peut l\u2019ouvrir et y encaisser. \u00c0 laisser vide pour une caisse partag\u00e9e.",
+    unheld: "Partag\u00e9e \u2014 sans titulaire",
     alreadyOpen: "Cette caisse est déjà ouverte.",
     sessionOpened: "Caisse ouverte.",
     sessionClosedBalanced: "Caisse fermée — le tiroir est juste.",

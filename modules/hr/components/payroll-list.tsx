@@ -300,7 +300,10 @@ function PayslipDialog({
     overtime: DIRHAMS(line.overtimeCentimes),
     bonus: DIRHAMS(line.bonusCentimes),
     absence: DIRHAMS(line.absenceCentimes),
-    advance: DIRHAMS(line.advanceCentimes),
+    // Pre-filled from what the employee genuinely still owes on their avances
+    // rather than from memory — see `advanceSuggestedCentimes`. Still a box:
+    // an employee having a hard month is exactly why it stays editable.
+    advance: DIRHAMS(line.advanceSuggestedCentimes),
     social: DIRHAMS(line.socialCentimes),
     tax: DIRHAMS(line.taxCentimes),
     otherDeduction: DIRHAMS(line.otherDeductionCentimes),
@@ -380,6 +383,39 @@ function PayslipDialog({
                 rate: formatAmount(line.dailyRateCentimes, locale),
               })}
             </p>
+            {/* What is actually outstanding, so a bursar can see whether the
+                suggested instalment is the whole of it. */}
+            {line.advanceOutstandingCentimes > 0 ? (
+              <p className="text-warning text-xs">
+                {t.hr.advanceOutstanding} ·{" "}
+                {formatAmount(line.advanceOutstandingCentimes, locale)}
+              </p>
+            ) : null}
+            {/* The school's own CNSS, AMO and IR rates, applied to this gross.
+                Buttons rather than pre-filled values: a suggestion that filled
+                itself in would be a payroll engine, and this deliberately is
+                not one. */}
+            {line.statutory.socialCentimes > 0 ||
+            line.statutory.taxCentimes > 0 ? (
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground w-fit text-start text-xs underline"
+                onClick={() =>
+                  setAmounts((current) => ({
+                    ...current,
+                    social: DIRHAMS(line.statutory.socialCentimes),
+                    tax: DIRHAMS(line.statutory.taxCentimes),
+                  }))
+                }
+              >
+                {t.hr.statutorySuggested} · CNSS{" "}
+                {formatAmount(line.statutory.cnssCentimes, locale)} · AMO{" "}
+                {formatAmount(line.statutory.amoCentimes, locale)}
+                {line.statutory.taxCentimes > 0
+                  ? ` · IR ${formatAmount(line.statutory.taxCentimes, locale)}`
+                  : ""}
+              </button>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               {money("absence", t.hr.absenceDeduction)}
               {money("advance", t.hr.advance)}

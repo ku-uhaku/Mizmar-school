@@ -103,7 +103,7 @@ export const nav = {
   overview: "Tableau de bord",
   main: "Principal",
   vieScolaire: "Vie scolaire",
-  finance: "Caisse",
+  finance: "Finance",
   logistique: "Logistique",
   rh: "Ressources humaines",
   enseignant: "Espace enseignant",

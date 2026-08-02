@@ -1,54 +1,43 @@
-import {
-  FULL_RANGE_PRESET,
-  PRIMARY_ONLY_PRESET,
-  seedAcademics,
-  type AcademicsPreset,
-} from "@/modules/academics/seed";
+import { MOROCCAN_CURSUS, seedAcademics } from "@/modules/academics/seed";
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
 import {
-  FULL_RANGE_FEES,
-  FULL_RANGE_RATES,
-  PRIMARY_ONLY_FEES,
-  PRIMARY_ONLY_RATES,
+  FEE_RATES,
+  FEE_TYPES,
   seedFeeRatesAndDiscounts,
   seedFeeTypes,
-  type FeeRateSeed,
-  type FeeTypeSeed,
 } from "@/modules/billing/seed";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments } from "@/modules/enrolment/seed";
-import { seedHr, seedTeacherSubjects } from "@/modules/hr/seed";
+import {
+  PART_TIME_FACTOR,
+  PART_TIME_SHARE,
+  seedHr,
+  seedPartTimeContracts,
+  seedTeacherSubjects,
+} from "@/modules/hr/seed";
+import { DEFAULT_SETTINGS } from "@/lib/school-settings";
 import { seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport } from "@/modules/transport/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
-import {
-  FAMILY_SEEDS,
-  seedFamilies,
-  type FamilySeed,
-} from "@/modules/families/seed";
-import {
-  FULL_RANGE_ROOMS,
-  PRIMARY_ONLY_ROOMS,
-  seedRooms,
-  type RoomSeed,
-} from "@/modules/facilities/seed";
+import { seedSupplyArticles } from "@/modules/supplies/seed";
+import { seedDocumentTypes } from "@/modules/documents/seed";
+import { seedFamilies } from "@/modules/families/seed";
+import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
 import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
-import {
-  STUDENT_SEEDS,
-  seedStudents,
-  type StudentSeed,
-} from "@/modules/students/seed";
+import { seedStudents } from "@/modules/students/seed";
 import {
   seedHolidays,
   seedSchoolWeeks,
+  seedTeacherAvailability,
   seedTimeSlots,
   seedTimetable,
 } from "@/modules/timetable/seed";
-import { seedUsers } from "@/modules/users/seed";
+import { seedUsers, type TeacherRequirement } from "@/modules/users/seed";
 import { db } from "@/prisma/seed/client";
+import { buildRoster, type Cohort } from "@/prisma/seed/roster";
 
 /**
  * Idempotent seed: safe to re-run.
@@ -57,12 +46,20 @@ import { db } from "@/prisma/seed/client";
  * ids along, so a new module means a new `modules/<x>/seed.ts` and one call
  * here rather than another few hundred lines in a single script.
  *
- * What it builds: one organisation, **two schools** with deliberately different
- * setups, **three school years each**, and a full configuration for every one of
- * them — cycles, levels, filières, subjects with their components, programmes,
- * rooms, semesters, timetable grids (standard and Ramadan), levels opened,
- * classes, groups, teaching assignments, a worked timetable, fee catalogues,
- * price lists and discounts.
+ * What it builds, per school and to an exact shape:
+ *
+ *   2 schools  ×  1 school year  ×  3 cycles  ×  12 levels
+ *              ×  2 classes a level  ×  21 pupils a class
+ *
+ * — so 24 classes and 504 pupils each, 1 008 in all. Plus everything those need
+ * to mean anything: subjects with their components, the programme that weights
+ * them, rooms, semesters, the bell schedule (standard and Ramadan), teaching
+ * assignments, a worked timetable, dossiers familiaux with siblings across
+ * levels, fee catalogues, price lists, discounts and every pupil's échéancier.
+ *
+ * The staff is not a fixed roster: `teacherPlan` reads the declared programme
+ * and sizes it, so changing the plan below changes the hiring rather than
+ * leaving the school short of its own curriculum.
  *
  * Note: it upserts and never deletes, so schools you created yourself — or ones
  * seeded by an earlier version of this file — are left in place. Use
@@ -72,120 +69,200 @@ import { db } from "@/prisma/seed/client";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@groupescolaire.ma";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Admin123!";
 
-/** How many parallel classes each school opens, per level and track. */
-const FULL_RANGE_PLANS: OfferingPlan[] = [
-  ...["1AP", "2AP", "3AP", "4AP", "5AP", "6AP"].map((levelCode) => ({
-    levelCode,
-    trackCode: null,
-    classCount: 2,
-    capacity: 30,
-  })),
-  ...["1AC", "2AC", "3AC"].map((levelCode) => ({
-    levelCode,
-    trackCode: null,
-    classCount: 2,
-    capacity: 34,
-  })),
-  { levelCode: "TC", trackCode: "TC-S", classCount: 2, capacity: 36 },
-  { levelCode: "TC", trackCode: "TC-LSH", classCount: 1, capacity: 36 },
-  { levelCode: "1BAC", trackCode: "1B-SE", classCount: 1, capacity: 34 },
-  { levelCode: "1BAC", trackCode: "1B-SM", classCount: 1, capacity: 30 },
-  { levelCode: "1BAC", trackCode: "1B-L", classCount: 1, capacity: 36 },
-  { levelCode: "2BAC", trackCode: "2B-SVT", classCount: 1, capacity: 34 },
-  { levelCode: "2BAC", trackCode: "2B-PC", classCount: 1, capacity: 32 },
-  { levelCode: "2BAC", trackCode: "2B-SM-A", classCount: 1, capacity: 28 },
-  { levelCode: "2BAC", trackCode: "2B-L", classCount: 1, capacity: 36 },
-];
-
-const PRIMARY_ONLY_PLANS: OfferingPlan[] = [
-  { levelCode: "MS", trackCode: null, classCount: 1, capacity: 20 },
-  { levelCode: "GS", trackCode: null, classCount: 1, capacity: 20 },
-  ...["1AP", "2AP", "3AP", "4AP", "5AP", "6AP"].map((levelCode) => ({
-    levelCode,
-    trackCode: null,
-    classCount: 1,
-    capacity: 26,
-  })),
-];
+/** The twelve levels of the Moroccan cursus, in the order a school runs them. */
+const LEVEL_CODES = [
+  "1AP", "2AP", "3AP", "4AP", "5AP", "6AP",
+  "1AC", "2AC", "3AC",
+  "TC", "1BAC", "2BAC",
+] as const;
 
 /**
- * The dossiers each school keeps, split so the two have different families —
- * a household belongs to one school (see the note on the Family model), and
- * giving both the same file numbers would be one dossier duplicated rather than
- * two schools with their own.
+ * The stream each lycée level opens.
+ *
+ * A tracked level needs one, because a class hangs off a `LevelOffering` and an
+ * offering is per track. One apiece rather than all of them: the ask is two
+ * classes per *level*, and opening every filière would give 2BAC eight. The
+ * others stay configured and unopened, which is the ordinary state of a filière
+ * a school offers on paper.
  */
-const CASA_FAMILY_CODES = new Set([
-  "F-2025-0001",
-  "F-2025-0002",
-  "F-2025-0003",
-  "F-2025-0004",
-  "F-2025-0005",
-  "F-2025-0006",
-]);
-
-const familiesFor = (codes: Set<string>): FamilySeed[] =>
-  FAMILY_SEEDS.filter((family) => codes.has(family.code));
-
-const studentsFor = (families: FamilySeed[]): StudentSeed[] => {
-  const codes = new Set(families.map((family) => family.code));
-  return STUDENT_SEEDS.filter((student) => codes.has(student.familyCode));
+const TRACK_FOR: Record<string, string | null> = {
+  TC: "TC-S",
+  "1BAC": "1B-SE",
+  "2BAC": "2B-SVT",
 };
+
+/** Two parallel classes at every level, sized for the intake plus a few places. */
+const CLASSES_PER_LEVEL = 2;
+const PUPILS_PER_CLASS = 21;
+const CLASS_CAPACITY = 26;
+
+const PLANS_PER_SCHOOL: OfferingPlan[] = LEVEL_CODES.map((levelCode) => ({
+  levelCode,
+  trackCode: TRACK_FOR[levelCode] ?? null,
+  classCount: CLASSES_PER_LEVEL,
+  capacity: CLASS_CAPACITY,
+}));
+
+/**
+ * Which age fills which level, by the Moroccan calendar: six years old starts
+ * 1AP and each year after moves up one.
+ *
+ * The mirror of `placementFor` in the enrolment seed, which is what actually
+ * seats a child — it works from the age on the file, so the roster has to
+ * declare the age that lands a pupil where this plan intends. Getting the two
+ * out of step does not error; it silently leaves a level empty.
+ */
+const AGE_AT_LEVEL: Record<string, number> = {
+  "1AP": 6, "2AP": 7, "3AP": 8, "4AP": 9, "5AP": 10, "6AP": 11,
+  "1AC": 12, "2AC": 13, "3AC": 14,
+  TC: 15, "1BAC": 16, "2BAC": 17,
+};
+
+/** 42 pupils at each of the twelve levels — two classes of twenty-one. */
+const COHORTS: Cohort[] = LEVEL_CODES.map((levelCode) => ({
+  levelCode,
+  age: AGE_AT_LEVEL[levelCode],
+  count: CLASSES_PER_LEVEL * PUPILS_PER_CLASS,
+}));
 
 type SchoolPlan = {
   code: string;
-  academics: AcademicsPreset;
-  rooms: RoomSeed[];
-  plans: OfferingPlan[];
-  feeTypes: FeeTypeSeed[];
-  rates: FeeRateSeed[];
-  families: FamilySeed[];
+  /** Town the pupils are born in and the dossiers are addressed in. */
+  cityCode: string;
+  cityName: string;
+  /** Offsets the name pools so the two schools get different rosters. */
+  variant: number;
 };
 
-const CASA_FAMILIES = familiesFor(CASA_FAMILY_CODES);
-const RABAT_FAMILIES = FAMILY_SEEDS.filter(
-  (family) => !CASA_FAMILY_CODES.has(family.code),
+const PLANS: SchoolPlan[] = [
+  { code: "ALM-CASA", cityCode: "CASA", cityName: "Casablanca", variant: 0 },
+  { code: "ALM-RABAT", cityCode: "RABAT", cityName: "Rabat", variant: 1 },
+];
+
+/**
+ * Level code → subject code → weekly minutes, from the cursus.
+ *
+ * `PROGRAMME_BY_LEVEL` already says *which* subjects a level teaches; this says
+ * how much of each, which is what levels a teacher's load when the classes are
+ * staffed. Both read the same rows, so they cannot disagree about what is taught.
+ */
+function subjectMinutesByLevel(): Record<string, Record<string, number>> {
+  const byLevel: Record<string, Record<string, number>> = {};
+
+  for (const row of MOROCCAN_CURSUS.programme) {
+    if (!row.weeklyMinutes) continue;
+    byLevel[row.levelCode] ??= {};
+    // A level-wide row and a track row for the same subject: the larger wins, so
+    // a stream with extra hours is not understated.
+    byLevel[row.levelCode][row.subjectCode] = Math.max(
+      byLevel[row.levelCode][row.subjectCode] ?? 0,
+      row.weeklyMinutes,
+    );
+  }
+
+  return byLevel;
+}
+
+/** The subject codes that are components, marked inside their parent. */
+const COMPONENT_CODES = new Set(
+  MOROCCAN_CURSUS.subjects
+    .filter((subject) => subject.parent)
+    .map((subject) => subject.code),
 );
 
-const PLANS: SchoolPlan[] = [
-  {
-    code: "ALM-CASA",
-    academics: FULL_RANGE_PRESET,
-    rooms: FULL_RANGE_ROOMS,
-    plans: FULL_RANGE_PLANS,
-    feeTypes: FULL_RANGE_FEES,
-    rates: FULL_RANGE_RATES,
-    families: CASA_FAMILIES,
-  },
-  {
-    code: "ALM-RABAT",
-    academics: PRIMARY_ONLY_PRESET,
-    rooms: PRIMARY_ONLY_ROOMS,
-    plans: PRIMARY_ONLY_PLANS,
-    feeTypes: PRIMARY_ONLY_FEES,
-    rates: PRIMARY_ONLY_RATES,
-    families: RABAT_FAMILIES,
-  },
-];
+/**
+ * What one school's declared programme costs in teaching minutes a week, per
+ * subject.
+ *
+ * Every class of every level the school opens, times what the programme gives
+ * that subject at that level. This is the figure the teaching staff has to be
+ * able to cover, and working it out here — rather than writing down a roster
+ * and hoping — is what stops the seed producing a school that is twenty
+ * teachers short of its own curriculum.
+ *
+ * Components are left out: they are marked inside their parent and never taught
+ * in their own hour, exactly as `PROGRAMME_BY_LEVEL` filters them.
+ */
+function subjectDemand(): Map<string, number> {
+  const demand = new Map<string, number>();
+
+  for (const offering of PLANS_PER_SCHOOL) {
+    for (const row of MOROCCAN_CURSUS.programme) {
+      if (row.levelCode !== offering.levelCode) continue;
+      // A row for every track applies here; a row naming one applies only to it.
+      if (row.trackCode !== null && row.trackCode !== offering.trackCode) continue;
+      if (COMPONENT_CODES.has(row.subjectCode)) continue;
+      if (!row.weeklyMinutes) continue;
+
+      demand.set(
+        row.subjectCode,
+        (demand.get(row.subjectCode) ?? 0) +
+          row.weeklyMinutes * offering.classCount,
+      );
+    }
+  }
+
+  return demand;
+}
+
+/**
+ * How many teachers of each subject a school needs.
+ *
+ * Demand divided by what a teacher can actually be expected to give, rounded
+ * up, plus a quarter.
+ *
+ * ── The headroom is not padding ─────────────────────────────────────────────
+ * A staff sized exactly to its programme has no slack at all: every teacher
+ * would have to be free in precisely the periods their classes are, which no
+ * timetable can arrange, and one standing Wednesday-afternoon commitment makes
+ * the week unsolvable. A quarter is roughly what a real school carries.
+ *
+ * ── Why the service is not the nominal one ──────────────────────────────────
+ * A fifth of the staff is put on a reduced contract further down (see
+ * `PART_TIME_SHARE`), so the average teacher gives less than a full service.
+ * Sizing against the nominal figure and *then* cutting contracts produced
+ * schools understaffed by exactly the hours the seed had just taken away — and
+ * it bit hardest on the small subjects, where physique-chimie was sized at two
+ * teachers and one of them turned out to be a vacataire.
+ *
+ * Both figures come from shared constants, so the two steps cannot drift apart
+ * again.
+ */
+function teacherPlan(): TeacherRequirement[] {
+  const labels = new Map(
+    MOROCCAN_CURSUS.subjects.map((subject) => [
+      subject.code,
+      subject.shortName ?? subject.name,
+    ]),
+  );
+
+  // What one teacher gives on average, once the reduced contracts are counted.
+  const effectiveService =
+    DEFAULT_SETTINGS.teacherWeeklyMinutes *
+    (1 - PART_TIME_SHARE * (1 - PART_TIME_FACTOR));
+
+  return [...subjectDemand()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([subjectCode, minutes]) => ({
+      subjectCode,
+      subjectLabel: labels.get(subjectCode) ?? subjectCode,
+      count: Math.max(1, Math.ceil((minutes * 1.25) / effectiveService)),
+    }));
+}
 
 /**
  * The subjects actually timetabled at each level: the programme's rows, minus
  * the components (which are marked inside their parent, not taught separately).
  */
-function programmeByLevel(preset: AcademicsPreset): Record<string, string[]> {
-  const componentCodes = new Set(
-    preset.subjects
-      .filter((subject) => subject.parent)
-      .map((subject) => subject.code),
-  );
-
+const PROGRAMME_BY_LEVEL: Record<string, string[]> = (() => {
   const byLevel: Record<string, string[]> = {};
-  for (const row of preset.programme) {
-    if (componentCodes.has(row.subjectCode)) continue;
+  for (const row of MOROCCAN_CURSUS.programme) {
+    if (COMPONENT_CODES.has(row.subjectCode)) continue;
     const list = (byLevel[row.levelCode] ??= []);
     if (!list.includes(row.subjectCode)) list.push(row.subjectCode);
   }
   return byLevel;
-}
+})();
 
 async function main() {
   console.log("Seeding…\n");
@@ -205,13 +282,24 @@ async function main() {
     yearsBySchool[school.id] = await seedSchoolYears(db, school.id);
   }
 
+  // The staff each school needs, read off the programme it has declared — see
+  // `teacherPlan`. The same figure for both, since they run the same cursus.
+  const staffing = teacherPlan();
   const teachersBySchool = await seedUsers(db, {
+    teacherPlan: Object.fromEntries(
+      PLANS.map((plan) => [plan.code, staffing] as const),
+    ),
     organizationId: organization.id,
     schools,
     roles,
     adminEmail: ADMIN_EMAIL,
     adminPassword: ADMIN_PASSWORD,
   });
+
+  const subjectMinutes = subjectMinutesByLevel();
+  const labSubjectCodes = MOROCCAN_CURSUS.subjects
+    .filter((subject) => subject.requiresLab)
+    .map((subject) => subject.code);
 
   for (const plan of PLANS) {
     const school = schools.find((entry) => entry.code === plan.code);
@@ -220,12 +308,12 @@ async function main() {
     console.log(`\n${school.name}`);
 
     const { levelIdByCode, trackIdByCode, subjectIdByCode } =
-      await seedAcademics(db, school.id, plan.academics);
-    const roomIdByCode = await seedRooms(db, school.id, plan.rooms);
+      await seedAcademics(db, school.id, MOROCCAN_CURSUS);
+    const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
     // Towns before pupils: a birthplace is now a reference, not a string.
     const cityIdByCode = await seedCities(db, school.id);
     await seedNeighbourhoods(db, school.id, cityIdByCode);
-    const feeTypeIdByCode = await seedFeeTypes(db, school.id, plan.feeTypes);
+    const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
 
     // The tills and expense rubriques. Year-independent, like the fee
     // catalogue above it — how much is collected is a fact of each year, but
@@ -238,38 +326,31 @@ async function main() {
     // are generated through the screen. See modules/assessments/seed.ts.
     await seedAssessmentTypes(db, school.id);
 
+    // The articles a liste de fournitures may name. Year-independent for the
+    // same reason as the fee catalogue: what the school is willing to ask a
+    // family to buy is a policy of the school, not of one rentrée.
+    await seedSupplyArticles(db, school.id);
+
+    // The pièces a dossier d'inscription calls for. Year-independent like the
+    // rest: what the school asks a family to bring is its own policy, and a
+    // pupil's dossier is identity rather than a year's business.
+    await seedDocumentTypes(db, school.id);
+
     // The payroll, also year-independent. Before the fleet below, because a bus
     // names one of these people as its driver rather than repeating a string.
-    const driverIdByName = await seedHr(db, {
-      schoolId: school.id,
-      teachers: teachersBySchool[school.id] ?? [],
-    });
-
-    const labSubjectCodes = plan.academics.subjects
-      .filter((subject) => subject.requiresLab)
-      .map((subject) => subject.code);
-    const labRoomIds = plan.rooms
-      .filter(
-        (room) => room.kind === "LAB_SCIENCE" || room.kind === "LAB_COMPUTER",
-      )
-      .map((room) => roomIdByCode[room.code])
-      .filter(Boolean);
-    const classroomIds = plan.rooms
-      .filter((room) => room.kind === "CLASSROOM")
-      .map((room) => roomIdByCode[room.code])
-      .filter(Boolean);
-
-    const byLevel = programmeByLevel(plan.academics);
     const teachers = teachersBySchool[school.id] ?? [];
+    const driverIdByName = await seedHr(db, { schoolId: school.id, teachers });
 
-    // Families and children are year-independent — they are identity, and only
-    // the inscription below belongs to a year.
-    const familyIdByCode = await seedFamilies(db, school.id, plan.families);
+    const roomsOfKind = (kinds: string[]) =>
+      SCHOOL_ROOMS.filter((room) => kinds.includes(room.kind))
+        .map((room) => roomIdByCode[room.code])
+        .filter(Boolean);
 
     for (const year of yearsBySchool[school.id]) {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
       const slots = await seedTimeSlots(db, year.id);
+
       // The calendar the timetable reads to know which weeks are taught.
       await seedHolidays(db, year.id, year.startDate, year.endDate);
       // After the holidays: which weeks are taught depends on them.
@@ -281,61 +362,84 @@ async function main() {
       });
       await seedFeeRatesAndDiscounts(db, {
         schoolYearId: year.id,
-        rates: plan.rates,
+        rates: FEE_RATES,
         feeTypeIdByCode,
         levelIdByCode,
       });
 
-      // Only the running year gets staffing and a timetable — a closed year's
-      // grid is not interesting, and a planned one has no staff yet.
-      const isActive = year.status === "ACTIVE";
+      // The staff's horaires, once the periods they refer to exist.
+      await seedTeacherAvailability(db, { slots, teachers });
 
       const classes = await seedClasses(db, {
         schoolId: school.id,
         schoolYearId: year.id,
-        plans: plan.plans,
+        plans: PLANS_PER_SCHOOL,
         levelIdByCode,
         trackIdByCode,
         subjectIdByCode,
         labSubjectCodes,
-        roomIds: classroomIds,
+        roomIds: roomsOfKind(["CLASSROOM"]),
         teachers,
-        withStaffing: isActive,
-        programmeByLevel: byLevel,
+        withStaffing: true,
+        programmeByLevel: PROGRAMME_BY_LEVEL,
+        subjectMinutes,
       });
 
-      if (isActive) {
-        await seedTimetable(db, {
-          classes,
-          slots,
-          termId: year.terms[1],
-          labRoomIds,
-        });
+      await seedTimetable(db, {
+        classes,
+        slots,
+        termId: year.terms[1],
+        labRoomIds: roomsOfKind(["LAB_SCIENCE", "LAB_COMPUTER"]),
+      });
 
-        // Only the running year gets pupils. Ages are worked out from this
-        // year's start, so the children land in the levels their age implies —
-        // seeding a closed year as well would inscribe the same child twice at
-        // two different levels.
-        const students = await seedStudents(db, {
-          schoolId: school.id,
-          yearStart: year.startDate,
-          familyIdByCode,
-          cityIdByCode,
-          students: studentsFor(plan.families),
-        });
+      /*
+        The roster, sized to the classes just opened.
 
-        await seedEnrolments(db, {
-          schoolId: school.id,
-          schoolYearId: year.id,
-          students,
-        });
-      }
+        Built here rather than held as a constant because the ages it declares
+        are read against *this* year's start date — a roster fixed in code would
+        age out of its own levels the first September after it was written. See
+        `buildRoster`.
+      */
+      const roster = buildRoster({
+        cohorts: COHORTS,
+        cityCode: plan.cityCode,
+        cityName: plan.cityName,
+        yearLabel: year.name.slice(0, 4),
+        variant: plan.variant,
+      });
+
+      // Families before children: a pupil hangs off a dossier.
+      const familyIdByCode = await seedFamilies(db, school.id, roster.families);
+      const students = await seedStudents(db, {
+        schoolId: school.id,
+        yearStart: year.startDate,
+        familyIdByCode,
+        cityIdByCode,
+        students: roster.students,
+      });
+
+      // Everybody gets a seat: the intake was sized to fill the classes exactly,
+      // so leaving a share unseated would just make every class short.
+      await seedEnrolments(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        students,
+        unseatedEvery: null,
+      });
     }
 
-    // Who may teach what, read off the assignments the years above just wrote.
-    // After the loop because it is a fact about the school rather than a year,
-    // and it needs the classes to exist — see seedTeacherSubjects.
-    await seedTeacherSubjects(db, school.id);
+    // Who may teach what, and who is on a reduced service. Both are facts about
+    // the school rather than any one year, so they sit after the year loop.
+    await seedTeacherSubjects(db, {
+      schoolId: school.id,
+      teachers,
+      subjectIdByCode,
+    });
+    await seedPartTimeContracts(db, {
+      schoolId: school.id,
+      teachers,
+      fullServiceMinutes: DEFAULT_SETTINGS.teacherWeeklyMinutes,
+    });
   }
 
   console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);

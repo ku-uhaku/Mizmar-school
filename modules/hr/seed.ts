@@ -306,49 +306,90 @@ export async function seedHr(
 }
 
 /**
- * Qualifications, materialised from the assignments that already exist.
+ * Records what each teacher is qualified to take.
  *
- * Called after the classes are seeded rather than inside `seedHr`, because it
- * reads `TeachingAssignment` and on a fresh database those do not exist yet
- * when the payroll is written. Year-independent like the rest of this module,
- * so it runs once per school after the year loop.
+ * Read from the specialty the account was minted with, not inferred from the
+ * assignments it happens to hold. The two used to be the same thing and both
+ * were wrong: the class seed handed subjects out round-robin, so inferring
+ * qualifications from it said every teacher could teach everything, and a
+ * timetable generator trusting that would staff Arabic with the sports teacher.
  *
- * Not invented: seeding a *narrower* pool than the school really has would be
- * worse than none at all, because a declared list overrides the one the
- * generator infers from who already teaches what — so two hand-picked names per
- * subject would quietly shrink the staff the timetable can draw on. Taking the
- * distinct (subject, teacher) pairs reproduces exactly the pool the generator
- * would have inferred, and gives the configuration screen real rows to edit.
- *
- * Idempotent on (teacherId, subjectId), like everything else here.
+ * Idempotent on (teacherId, subjectId).
  */
 export async function seedTeacherSubjects(
   db: SeedDb,
-  schoolId: string,
+  {
+    schoolId,
+    teachers,
+    subjectIdByCode,
+  }: {
+    schoolId: string;
+    teachers: { id: string; subjectCodes: string[] }[];
+    subjectIdByCode: Record<string, string>;
+  },
 ): Promise<number> {
-  const taught = await db.teachingAssignment.findMany({
-    where: { schoolClass: { schoolId } },
-    select: { subjectId: true, teacherId: true },
-    distinct: ["subjectId", "teacherId"],
-  });
+  let written = 0;
 
-  for (const pair of taught) {
-    await db.teacherSubject.upsert({
-      where: {
-        teacherId_subjectId: {
-          teacherId: pair.teacherId,
-          subjectId: pair.subjectId,
+  for (const teacher of teachers) {
+    for (const code of teacher.subjectCodes) {
+      const subjectId = subjectIdByCode[code];
+      if (!subjectId) continue;
+
+      await db.teacherSubject.upsert({
+        where: {
+          teacherId_subjectId: { teacherId: teacher.id, subjectId },
         },
-      },
-      update: {},
-      create: {
-        schoolId,
-        teacherId: pair.teacherId,
-        subjectId: pair.subjectId,
-      },
-    });
+        update: {},
+        create: { schoolId, teacherId: teacher.id, subjectId },
+      });
+      written += 1;
+    }
   }
 
-  log("hr", `${taught.length} teaching qualifications`);
-  return taught.length;
+  log("hr", `${written} teaching qualifications`);
+  return written;
+}
+
+/**
+ * How much of the staff is on a reduced service, and how reduced.
+ *
+ * Exported because sizing the staff has to know: `teacherPlanFor` mints
+ * teachers against an *effective* service, not the nominal one. When these two
+ * disagreed the seed produced schools that were understaffed by exactly the
+ * hours it had just taken away — a subject sized for two full-timers, one of
+ * whom then turned out to be a vacataire.
+ */
+export const PART_TIME_SHARE = 1 / 5;
+export const PART_TIME_FACTOR = 0.6;
+
+/**
+ * Part-time contracts, so the demo carries the case the generator has to cope
+ * with: not everybody works a full service.
+ *
+ * Every fifth teacher, by a stable rule rather than at random, so a re-seed
+ * produces the same staff and the same timetable.
+ */
+export async function seedPartTimeContracts(
+  db: SeedDb,
+  {
+    schoolId,
+    teachers,
+    fullServiceMinutes,
+  }: {
+    schoolId: string;
+    teachers: { id: string }[];
+    fullServiceMinutes: number;
+  },
+): Promise<number> {
+  const every = Math.round(1 / PART_TIME_SHARE);
+  const partTime = teachers.filter((_, index) => index % every === every - 1);
+  if (partTime.length === 0) return 0;
+
+  const result = await db.staff.updateMany({
+    where: { schoolId, userId: { in: partTime.map((teacher) => teacher.id) } },
+    data: { maxWeeklyMinutes: Math.round(fullServiceMinutes * PART_TIME_FACTOR) },
+  });
+
+  log("hr", `${result.count} part-time services`);
+  return result.count;
 }

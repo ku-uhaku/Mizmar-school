@@ -56,6 +56,16 @@ const en = {
     statusOpen: "Open",
     statusClosed: "Closed",
     noOpenSession: "No till is open. Open one before taking cash.",
+    holderTaken: "That cashier already holds another till.",
+    notYourTill:
+      "That till belongs to another cashier. Open your own to take money.",
+    sessionStaleClosed:
+      "Your till was still open from {date} and has been closed uncounted ({amount} DH expected in the drawer). Open today's session before taking any money.",
+    sessionAutoClosed: "Closed automatically \u2014 never counted",
+    heldBy: "Held by",
+    heldByHint:
+      "One drawer per cashier: only its holder may open it or post into it. Leave blank for a shared till.",
+    unheld: "Shared \u2014 no holder",
     alreadyOpen: "That till is already open.",
     sessionOpened: "Till opened.",
     sessionClosedBalanced: "Till closed — the drawer balanced.",

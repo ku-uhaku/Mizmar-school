@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   cashImpactOf,
   documentCode,
+  isStaleSession,
   openSessionKey,
   outstandingOf,
   summariseMethod,
@@ -17,8 +18,13 @@ import {
  * Three rules are enforced here and nowhere else, because every one of them is
  * a rule the database cannot express and a screen must not be trusted with:
  *
- *   1. **A till is open at most once.** Guarded by the `openKey` unique index,
- *      set only through `openSessionKey` — never written by hand.
+ *   1. **A till is open at most once, by the person who holds it.** The first
+ *      half is guarded by the `openKey` unique index, set only through
+ *      `openSessionKey`; the second by `openSession`, because a drawer two
+ *      people can reach has a shortfall belonging to nobody.
+ *   1b. **A shift belongs to a calendar day.** Yesterday's session is closed
+ *      uncounted before anything can be posted today — see `resolveCashSession`,
+ *      which every movement of cash goes through.
  *   2. **A receipt's parts equal its whole.** Tenders sum to the total, and so
  *      do allocations. Checked again here after the form has checked it, because
  *      a Server Function is reachable by direct POST.
@@ -59,32 +65,191 @@ export type OpenSessionInput = {
   notes: string | null;
 };
 
+export type OpenSessionResult =
+  | { ok: true; id: string }
+  /** The till is somebody else's — see `CashRegister.holderId`. */
+  | { ok: false; reason: "NOT_YOUR_TILL" }
+  /** Somebody already has it open, including this same person. */
+  | { ok: false; reason: "ALREADY_OPEN" }
+  | { ok: false; reason: "NOT_FOUND" };
+
 /**
  * Opens a till for a shift.
  *
- * Returns null when the register already has an open session — the caller turns
- * that into a message rather than an error, because two people opening the same
- * drawer is a race between colleagues, not a bug.
+ * ── Two rules, both enforced here rather than in the screen ──────────────────
+ * A held till may be opened only by the person who holds it. A Server Function
+ * is reachable by direct POST, so a check on the screen that hides other
+ * people's tills protects nothing — and the whole value of one drawer per
+ * cashier is that a shortfall has exactly one name attached to it.
+ *
+ * A till already open cannot be opened again. Guarded by the `openKey` unique
+ * index underneath as well; this only makes the failure a message rather than a
+ * constraint violation, because two colleagues reaching for the same drawer is
+ * a race between people, not a bug.
  */
 export async function openSession(
   input: OpenSessionInput,
-): Promise<{ id: string } | null> {
+): Promise<OpenSessionResult> {
+  const register = await db.cashRegister.findFirst({
+    where: { id: input.cashRegisterId, isActive: true },
+    select: { id: true, holderId: true },
+  });
+  if (!register) return { ok: false, reason: "NOT_FOUND" };
+
+  // An unheld till is the shared drawer — anyone with the permission may take
+  // it. A held one belongs to its holder and to nobody else.
+  if (register.holderId !== null && register.holderId !== input.openedById) {
+    return { ok: false, reason: "NOT_YOUR_TILL" };
+  }
+
   const existing = await db.cashSession.findFirst({
-    where: { cashRegisterId: input.cashRegisterId, status: "OPEN" },
+    where: { cashRegisterId: register.id, status: "OPEN" },
     select: { id: true },
   });
-  if (existing) return null;
+  if (existing) return { ok: false, reason: "ALREADY_OPEN" };
 
-  return db.cashSession.create({
+  const session = await db.cashSession.create({
     data: {
-      cashRegisterId: input.cashRegisterId,
+      cashRegisterId: register.id,
       openedById: input.openedById,
       openingFloatCentimes: input.openingFloatCentimes,
       notes: input.notes,
       status: "OPEN",
-      openKey: openSessionKey(input.cashRegisterId, "OPEN"),
+      openKey: openSessionKey(register.id, "OPEN"),
     },
     select: { id: true },
+  });
+
+  return { ok: true, id: session.id };
+}
+
+/** The float plus every posted cash movement — what the drawer should hold. */
+async function expectedInDrawer(sessionId: string): Promise<number | null> {
+  const session = await db.cashSession.findFirst({
+    where: { id: sessionId, status: "OPEN" },
+    select: {
+      openingFloatCentimes: true,
+      operations: {
+        where: { status: "POSTED" },
+        select: { cashImpactCentimes: true },
+      },
+    },
+  });
+  if (!session) return null;
+
+  return (
+    session.openingFloatCentimes +
+    sumCentimes(session.operations.map((o) => o.cashImpactCentimes))
+  );
+}
+
+export type CashSessionResolution =
+  /** Usable: post into it. */
+  | { state: "OPEN"; sessionId: string }
+  /** Nothing open for this cashier — they must open their till first. */
+  | { state: "NONE" }
+  /** Yesterday's shift, now closed uncounted. Today's must be opened. */
+  | { state: "STALE_CLOSED"; openedAt: Date; expectedCentimes: number };
+
+/**
+ * The session a cash movement may be posted into, closing yesterday's on the way.
+ *
+ * ── This is the gate every movement of cash goes through ─────────────────────
+ * Encaissement, décaissement and transfert all call it, so the day rule cannot
+ * hold on one screen and leak on another. It is deliberately *not* a read: it
+ * has a side effect, and the side effect is the point.
+ *
+ * ── Why a stale session is closed rather than reused or refused ──────────────
+ * Refusing and leaving it open would strand the cashier: they cannot post, and
+ * the till they need to reopen is already open. Reusing it would date today's
+ * takings into yesterday's drawer, so neither day would ever reconcile — the
+ * one failure a caisse exists to prevent.
+ *
+ * So it is closed, and closed *uncounted*: nobody was standing there at
+ * midnight, and writing `counted = expected` would assert a count that never
+ * happened. The expected figure is a fact and is frozen; the counted figure and
+ * the variance stay null, and `wasAutoClosed` says why. Whoever holds the till
+ * then opens today's with a fresh float, and the discrepancy — if there is one
+ * — surfaces against a real count instead of being papered over.
+ *
+ * The caller is told which of the three states it got, because "you have no
+ * till open" and "your till was yesterday's" need different sentences.
+ */
+export async function resolveCashSession(
+  schoolId: string,
+  userId: string,
+  now: Date = new Date(),
+): Promise<CashSessionResolution> {
+  const session = await db.cashSession.findFirst({
+    where: {
+      status: "OPEN",
+      cashRegister: { schoolId },
+      // The cashier's own shift: whoever opened it, or whoever holds the till.
+      // Not simply "any open session in the school" — that was what let one
+      // person's receipt land in another person's drawer.
+      OR: [{ openedById: userId }, { cashRegister: { holderId: userId } }],
+    },
+    orderBy: { openedAt: "desc" },
+    select: { id: true, openedAt: true },
+  });
+  if (!session) return { state: "NONE" };
+
+  if (!isStaleSession(session.openedAt, now)) {
+    return { state: "OPEN", sessionId: session.id };
+  }
+
+  const expectedCentimes = (await expectedInDrawer(session.id)) ?? 0;
+  await finaliseSession(session.id, {
+    closedById: null,
+    countedCentimes: null,
+    expectedCentimes,
+    wasAutoClosed: true,
+  });
+
+  return { state: "STALE_CLOSED", openedAt: session.openedAt, expectedCentimes };
+}
+
+/**
+ * Writes the closing figures onto a session and releases the one-open-per-till
+ * constraint.
+ *
+ * Shared by the counted close and the day-boundary one so the two cannot drift
+ * — in particular so both always clear `openKey`, which is the only thing
+ * standing between a school and two open drawers on one till.
+ */
+async function finaliseSession(
+  sessionId: string,
+  figures: {
+    closedById: string | null;
+    countedCentimes: number | null;
+    expectedCentimes: number;
+    wasAutoClosed: boolean;
+    notes?: string | null;
+  },
+): Promise<void> {
+  const session = await db.cashSession.findUnique({
+    where: { id: sessionId },
+    select: { cashRegisterId: true },
+  });
+  if (!session) return;
+
+  await db.cashSession.update({
+    where: { id: sessionId },
+    data: {
+      status: "CLOSED",
+      closedById: figures.closedById,
+      closedAt: new Date(),
+      countedCentimes: figures.countedCentimes,
+      expectedCentimes: figures.expectedCentimes,
+      // Unknowable when nobody counted — see CashSession.wasAutoClosed.
+      varianceCentimes:
+        figures.countedCentimes === null
+          ? null
+          : figures.countedCentimes - figures.expectedCentimes,
+      wasAutoClosed: figures.wasAutoClosed,
+      ...(figures.notes !== undefined ? { notes: figures.notes } : {}),
+      openKey: openSessionKey(session.cashRegisterId, "CLOSED"),
+    },
   });
 }
 
@@ -108,41 +273,24 @@ export async function closeSession(
   countedCentimes: number,
   notes: string | null,
 ): Promise<CloseSessionResult | null> {
-  const session = await db.cashSession.findFirst({
-    where: { id: sessionId, status: "OPEN" },
-    select: {
-      id: true,
-      cashRegisterId: true,
-      openingFloatCentimes: true,
-      operations: {
-        where: { status: "POSTED" },
-        select: { cashImpactCentimes: true },
-      },
-    },
-  });
-  if (!session) return null;
+  const expectedCentimes = await expectedInDrawer(sessionId);
+  if (expectedCentimes === null) return null;
 
-  const expectedCentimes =
-    session.openingFloatCentimes +
-    sumCentimes(session.operations.map((o) => o.cashImpactCentimes));
-  const varianceCentimes = countedCentimes - expectedCentimes;
-
-  await db.cashSession.update({
-    where: { id: sessionId },
-    data: {
-      status: "CLOSED",
-      closedById,
-      closedAt: new Date(),
-      countedCentimes,
-      expectedCentimes,
-      varianceCentimes,
-      notes,
-      // Releases the one-open-session-per-till constraint.
-      openKey: openSessionKey(session.cashRegisterId, "CLOSED"),
-    },
+  await finaliseSession(sessionId, {
+    closedById,
+    countedCentimes,
+    expectedCentimes,
+    // Somebody stood at the drawer and counted it. That is the difference this
+    // flag records.
+    wasAutoClosed: false,
+    notes,
   });
 
-  return { expectedCentimes, countedCentimes, varianceCentimes };
+  return {
+    expectedCentimes,
+    countedCentimes,
+    varianceCentimes: countedCentimes - expectedCentimes,
+  };
 }
 
 // ── Encaissement ─────────────────────────────────────────────────────────────

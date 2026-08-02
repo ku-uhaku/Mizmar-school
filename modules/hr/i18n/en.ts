@@ -196,6 +196,34 @@ const en = {
     leaveThisYear: "Leave days this year",
     leaveStatusNote:
       "Approving leave that covers today puts the employee on leave, so the register does not mark them absent.",
+    // ── Avances sur salaire ────────────────────────────────────────────────
+    advances: "Salary advances",
+    advancesHint: "Money handed over before payday, and what is still owed on it.",
+    newAdvance: "New advance",
+    editAdvance: "Edit request",
+    advanceAmount: "Amount",
+    advanceInstalments: "Recovered over",
+    advanceInstalmentsHint: "How many months to take it back over. The last one is whatever is left.",
+    advanceReason: "Reason",
+    advanceRecovered: "Recovered",
+    advanceOutstanding: "Still owed",
+    advanceRequested: "Advance requested.",
+    advanceSaved: "Request updated.",
+    advanceApproved: "Advance approved.",
+    advanceRefused: "Advance refused.",
+    advancePaid: "Advance handed over.",
+    advanceLocked: "This request has already been decided \u2014 it can no longer be edited.",
+    advanceAlreadyDecided: "This request has already been decided.",
+    advanceAlreadyPaid: "This advance has already been handed over.",
+    advanceNotApproved: "Approve the advance before handing the money over.",
+    advanceOverRecovered: "That is more than is owed on this employee\u2019s advances ({amount} DH outstanding).",
+    noAdvances: "No advance has been asked for.",
+    noAdvancesHint: "Raise one when somebody needs money before payday.",
+    payAdvance: "Hand over",
+    payAdvanceAmount: "Hand over {amount}",
+    decide: "Decide",
+    refuse: "Refuse",
+    statutorySuggested: "Suggested from the school\u2019s rates",
   },
   hrOptions: {
     jobRoles: {
@@ -259,6 +287,13 @@ const en = {
       PATERNITY: "Paternity",
       EXCEPTIONAL: "Exceptional",
     },
+    advanceStatuses: {
+      REQUESTED: "Requested",
+      APPROVED: "Approved",
+      PAID: "Handed over",
+      RECOVERED: "Recovered",
+      CANCELLED: "Refused",
+    },
     leaveStatuses: {
       PENDING: "Awaiting a decision",
       APPROVED: "Approved",
@@ -278,6 +313,7 @@ export const nav = {
   hrStaff: "Staff",
   hrAttendance: "Attendance",
   hrPayroll: "Payroll",
+  hrAdvances: "Advances",
   hrLeave: "Leave",
 } as const;
 

@@ -1,0 +1,190 @@
+import type { FamilySeed } from "@/modules/families/seed";
+import type { StudentSeed } from "@/modules/students/seed";
+import {
+  BOYS,
+  FATHERS,
+  GIRLS,
+  MOTHERS,
+  PROFESSIONS,
+  STREETS,
+  SURNAMES,
+  pick,
+  spread,
+} from "@/prisma/seed/names";
+
+/**
+ * One school's dossiers and the children on them, built rather than listed.
+ *
+ * A thousand pupils cannot be typed out, and a class list of six is not a demo
+ * of anything — the data table, the class roster, the mark sheet and the fee
+ * grid all behave differently at twenty-one pupils than at three. So the roster
+ * is generated from the name pools in `names.ts`, to an exact shape: so many
+ * pupils at each level, no more and no fewer.
+ *
+ * ── Everything here is a function of an index ───────────────────────────────
+ * No randomness at all. The seed is upserted on the matricule, so a roster that
+ * re-rolled its choices would quietly rewrite E-2025-0417 as a different child
+ * on every run — the name would change, the age would change, and the enrolment
+ * seeded against it would stop meaning what it said. Index arithmetic gives the
+ * same roster every time, which is the whole contract of an idempotent seed.
+ *
+ * ── Siblings ────────────────────────────────────────────────────────────────
+ * Children are paired onto one dossier two at a time, and the pupil list is
+ * built by rotating through the levels rather than filling one level at a time,
+ * so the two children of a household land in different levels. That is what
+ * makes the sibling reduction demonstrable and the family screen worth opening —
+ * a database where every family has one only child cannot show either.
+ */
+
+export type Cohort = {
+  /** What the school calls the level — only used to make the roster readable. */
+  levelCode: string;
+  /** Age at the start of the year, which is what places the child. */
+  age: number;
+  /** Pupils to produce at this level. */
+  count: number;
+};
+
+export type Roster = {
+  families: FamilySeed[];
+  students: StudentSeed[];
+};
+
+/**
+ * `+212 522 45 67 90` — nine digits after the country code, which is what a
+ * Moroccan number is. Landlines start 5, mobiles 6.
+ */
+function phone(kind: "fixed" | "mobile", index: number): string {
+  const pairs = (seed: number) =>
+    [0, 1, 2]
+      .map((step) => String((seed * (7 + step * 3) + step * 17) % 100).padStart(2, "0"))
+      .join(" ");
+
+  return kind === "fixed"
+    ? `+212 5${String(22 + (index % 15)).padStart(2, "0")} ${pairs(index + 3)}`
+    : `+212 6${String(60 + (index % 10))} ${pairs(index + 11)}`;
+}
+
+/**
+ * A household's situation.
+ *
+ * Mostly married, with roughly a ninth divorced and a seventeenth widowed —
+ * enough of each that the screens which branch on it (who receives the
+ * paperwork, who may collect a child) are exercised by the demo data instead of
+ * only ever seeing the common case.
+ */
+function situationFor(index: number): string {
+  const scattered = spread(index);
+  if (scattered % 17 === 5) return "WIDOWED";
+  if (scattered % 9 === 4) return "DIVORCED";
+  return "MARRIED";
+}
+
+export function buildRoster({
+  cohorts,
+  cityCode,
+  cityName,
+  yearLabel,
+  /** Offsets the name pools so the two schools do not produce the same roster. */
+  variant,
+}: {
+  cohorts: Cohort[];
+  /** `City.code` the children are born in — see modules/geography/seed.ts. */
+  cityCode: string;
+  /** The town on the dossier's address. */
+  cityName: string;
+  /** Prefix year for the matricules and dossier numbers, e.g. "2025". */
+  yearLabel: string;
+  variant: number;
+}): Roster {
+  /*
+    The pupils to produce, level by level, interleaved.
+
+    Rotating through the cohorts rather than draining one at a time is what puts
+    the two children of a dossier in different levels — the pairing below takes
+    them two at a time, and a level-major order would make every pair twins.
+  */
+  const slots: { levelCode: string; age: number }[] = [];
+  const remaining = cohorts.map((cohort) => cohort.count);
+  let left = remaining.reduce((sum, count) => sum + count, 0);
+
+  while (left > 0) {
+    for (const [index, cohort] of cohorts.entries()) {
+      if (remaining[index] === 0) continue;
+      slots.push({ levelCode: cohort.levelCode, age: cohort.age });
+      remaining[index] -= 1;
+      left -= 1;
+    }
+  }
+
+  const families: FamilySeed[] = [];
+  const students: StudentSeed[] = [];
+
+  for (const [index, slot] of slots.entries()) {
+    // Two children per dossier. The odd pupil at the end of the list simply gets
+    // a file of their own, which is an ordinary case and not worth special-casing.
+    const familyIndex = Math.floor(index / 2);
+    const surname = pick(SURNAMES, spread(familyIndex + variant * 977));
+    const familyCode = `F-${yearLabel}-${String(familyIndex + 1).padStart(4, "0")}`;
+
+    if (families.length === familyIndex) {
+      const situation = situationFor(familyIndex + variant);
+      const father = {
+        first: pick(FATHERS, spread(familyIndex + variant * 31)),
+        last: surname.fr,
+        profession: pick(PROFESSIONS, spread(familyIndex * 2 + variant)),
+        phone: phone("mobile", familyIndex * 2),
+      };
+      const mother = {
+        first: pick(MOTHERS, spread(familyIndex + variant * 53)),
+        last: surname.fr,
+        profession: pick(PROFESSIONS, spread(familyIndex * 2 + 1 + variant)),
+        phone: phone("mobile", familyIndex * 2 + 1),
+      };
+
+      families.push({
+        code: familyCode,
+        name: `Famille ${surname.fr}`,
+        nameAr: `أسرة ${surname.ar}`,
+        situation,
+        city: cityName,
+        addressLine: `${(spread(familyIndex) % 180) + 1}, ${pick(STREETS, spread(familyIndex + variant * 7))}`,
+        phone: phone("fixed", familyIndex),
+        // A widowed file keeps one parent, which is the point of recording the
+        // situation at all: `ensurePrimaryContact` has to promote the mother.
+        father: situation === "WIDOWED" ? undefined : father,
+        mother,
+        // A divorced file gets a tuteur as well — several contacts on one
+        // dossier is the case the guardian screen exists for.
+        guardian:
+          situation === "DIVORCED"
+            ? {
+                first: pick(FATHERS, spread(familyIndex + 6)),
+                last: pick(SURNAMES, spread(familyIndex + 13)).fr,
+                profession: pick(PROFESSIONS, spread(familyIndex + 4)),
+                phone: phone("mobile", familyIndex * 2 + 500),
+              }
+            : undefined,
+      });
+    }
+
+    // Scattered rather than alternated: the pupils of one class sit a fixed
+    // stride apart in this list, so `index % 2` gave every class a single sex.
+    const isBoy = spread(index + variant * 101) % 2 === 0;
+    const given = pick(isBoy ? BOYS : GIRLS, spread(index * 3 + variant * 211));
+
+    students.push({
+      code: `E-${yearLabel}-${String(index + 1).padStart(4, "0")}`,
+      familyCode,
+      firstName: given.fr,
+      lastName: surname.fr,
+      firstNameAr: given.ar,
+      lastNameAr: surname.ar,
+      gender: isBoy ? "MALE" : "FEMALE",
+      age: slot.age,
+      birthCityCode: cityCode,
+    });
+  }
+
+  return { families, students };
+}

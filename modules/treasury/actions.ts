@@ -7,6 +7,7 @@ import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
@@ -19,6 +20,7 @@ import {
   recordDisbursement,
   recordPayment,
   recordTransfer,
+  resolveCashSession,
   setChequeStatus,
 } from "@/modules/treasury/service";
 import {
@@ -57,17 +59,47 @@ async function currentSchool() {
 }
 
 /**
- * The session a cash movement should be posted into.
+ * The drawer a cash movement may be posted into, and the sentence to show when
+ * there is not one.
  *
- * Only cash needs one — a virement never comes near a drawer — so this returns
- * null happily for the other methods and the caller decides whether that is a
- * problem.
+ * Every screen that touches cash goes through here rather than looking a
+ * session up for itself, so the day rule cannot hold on the encaissement screen
+ * and leak on the décaissement one. `resolveCashSession` closes yesterday's
+ * shift on the way past — see the note on it — and this only turns the three
+ * outcomes into either an id or a message.
+ *
+ * Only cash needs a drawer: a virement never comes near one, so the caller asks
+ * only when it is actually taking notes.
  */
-async function openSessionFor(schoolId: string) {
-  return db.cashSession.findFirst({
-    where: { status: "OPEN", cashRegister: { schoolId } },
-    select: { id: true },
-  });
+async function requireDrawer(
+  t: Dictionary,
+  schoolId: string,
+  userId: string,
+): Promise<{ ok: true; sessionId: string } | { ok: false; message: string }> {
+  const resolution = await resolveCashSession(schoolId, userId);
+
+  if (resolution.state === "OPEN") {
+    return { ok: true, sessionId: resolution.sessionId };
+  }
+
+  // Two different problems and two different next actions: one cashier has
+  // simply not opened up yet, the other is standing at yesterday's drawer.
+  if (resolution.state === "STALE_CLOSED") {
+    return {
+      ok: false,
+      message: interpolate(t.treasury.sessionStaleClosed, {
+        date: formatDateOnly(resolution.openedAt),
+        amount: centimesToDirhams(resolution.expectedCentimes).toFixed(2),
+      }),
+    };
+  }
+
+  return { ok: false, message: t.treasury.noOpenSession };
+}
+
+/** `YYYY-MM-DD`, for naming the day a stale shift belonged to. */
+function formatDateOnly(moment: Date): string {
+  return moment.toISOString().slice(0, 10);
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
@@ -103,13 +135,21 @@ export async function openSessionAction(
     if (!register) return failure(t.errors.notFound);
 
     const context = await requireAuth();
-    const session = await openSession({
+    const opened = await openSession({
       cashRegisterId: register.id,
       openedById: context.user.id,
       openingFloatCentimes: parsed.data.openingFloatCentimes,
       notes: parsed.data.notes,
     });
-    if (!session) return failure(t.treasury.alreadyOpen);
+
+    if (!opened.ok) {
+      // Three different refusals, three different things to do about them.
+      if (opened.reason === "NOT_YOUR_TILL") {
+        return failure(t.treasury.notYourTill);
+      }
+      if (opened.reason === "ALREADY_OPEN") return failure(t.treasury.alreadyOpen);
+      return failure(t.errors.notFound);
+    }
 
     refresh();
     return success(t.treasury.sessionOpened);
@@ -256,8 +296,12 @@ export async function recordPaymentAction(
     const takesCash = parsed.data.tenders.some(
       (tender) => tender.method === "CASH",
     );
-    const session = await openSessionFor(schoolId);
-    if (takesCash && !session) return failure(t.treasury.noOpenSession);
+    let cashSessionId: string | null = null;
+    if (takesCash) {
+      const drawer = await requireDrawer(t, schoolId, context.user.id);
+      if (!drawer.ok) return failure(drawer.message);
+      cashSessionId = drawer.sessionId;
+    }
 
     /*
       Every bank a tender named is re-derived against this school in one query.
@@ -288,7 +332,7 @@ export async function recordPaymentAction(
       schoolYearId,
       familyId: family?.id ?? null,
       createdById: context.user.id,
-      cashSessionId: takesCash ? (session?.id ?? null) : null,
+      cashSessionId,
       paidAt: parsed.data.paidAt ?? new Date(),
       notes: parsed.data.notes,
       tenders: parsed.data.tenders.map((tender) => ({
@@ -443,16 +487,18 @@ export async function recordDisbursementAction(
       return failure(t.errors.notFound);
     }
 
-    const session = await openSessionFor(schoolId);
-    if (parsed.data.method === "CASH" && !session) {
-      return failure(t.treasury.noOpenSession);
+    let cashSessionId: string | null = null;
+    if (parsed.data.method === "CASH") {
+      const resolved = await requireDrawer(t, schoolId, context.user.id);
+      if (!resolved.ok) return failure(resolved.message);
+      cashSessionId = resolved.sessionId;
     }
 
     // Never pay out more cash than the drawer holds — the ledger would show a
     // negative till, which is not a state a drawer can be in.
-    if (parsed.data.method === "CASH" && session) {
+    if (cashSessionId) {
       const drawer = await db.cashSession.findUnique({
-        where: { id: session.id },
+        where: { id: cashSessionId },
         select: {
           openingFloatCentimes: true,
           operations: {
@@ -479,8 +525,7 @@ export async function recordDisbursementAction(
     await recordDisbursement({
       schoolId,
       createdById: context.user.id,
-      cashSessionId:
-        parsed.data.method === "CASH" ? (session?.id ?? null) : null,
+      cashSessionId,
       categoryId: category?.id ?? null,
       subcategoryId: subcategory?.id ?? null,
       motifId: motif?.id ?? null,
@@ -549,9 +594,20 @@ export async function recordTransferAction(
     if (parsed.data.target === "REGISTER" && !to)
       return failure(t.errors.notFound);
 
-    // Money can only leave a drawer somebody is holding.
+    /*
+      Money leaves the caller's own drawer, and no other.
+
+      Resolving the session from the *user* rather than from the register in the
+      form is what makes that true: a transfer is a cashier handing over what
+      they are holding, so a form naming somebody else's till has to fail even
+      though both tills belong to this school. It also puts the day rule on this
+      screen for free — `requireDrawer` closes yesterday's shift on the way past.
+    */
+    const drawer = await requireDrawer(t, schoolId, context.user.id);
+    if (!drawer.ok) return failure(drawer.message);
+
     const fromSession = await db.cashSession.findFirst({
-      where: { cashRegisterId: from.id, status: "OPEN" },
+      where: { id: drawer.sessionId, cashRegisterId: from.id },
       select: {
         id: true,
         openingFloatCentimes: true,
@@ -561,7 +617,7 @@ export async function recordTransferAction(
         },
       },
     });
-    if (!fromSession) return failure(t.treasury.noOpenSession);
+    if (!fromSession) return failure(t.treasury.notYourTill);
 
     const available =
       fromSession.openingFloatCentimes +
@@ -688,6 +744,7 @@ export async function saveCashRegisterAction(
       code: field(formData, "code"),
       name: field(formData, "name"),
       nameAr: field(formData, "nameAr"),
+      holderId: optionalId(formData, "holderId"),
       position: field(formData, "position"),
       notes: field(formData, "notes"),
     });
@@ -725,10 +782,47 @@ export async function saveCashRegisterAction(
       });
     }
 
+    /*
+      The holder, re-derived against this school's staff.
+
+      Never taken from the form on trust: a user id from another organisation
+      would hand somebody outside the school a drawer, and `holderId` is exactly
+      what the posting rules are checked against. A membership of this school is
+      the test, not merely that the user exists.
+    */
+    let holderId: string | null = null;
+    if (parsed.data.holderId) {
+      const holder = await db.user.findFirst({
+        where: {
+          id: parsed.data.holderId,
+          isActive: true,
+          memberships: { some: { schoolId } },
+        },
+        select: { id: true },
+      });
+      if (!holder) return failure(t.errors.notFound);
+      holderId = holder.id;
+    }
+
+    // One drawer per person: the unique index would throw, so the clash is
+    // caught here and named instead.
+    if (holderId) {
+      const held = await db.cashRegister.findFirst({
+        where: { holderId, ...(id ? { NOT: { id } } : {}) },
+        select: { id: true },
+      });
+      if (held) {
+        return failure(t.treasury.holderTaken, {
+          holderId: t.treasury.holderTaken,
+        });
+      }
+    }
+
     const data = {
       code: parsed.data.code,
       name: parsed.data.name,
       nameAr: parsed.data.nameAr,
+      holderId,
       position: parsed.data.position,
       notes: parsed.data.notes,
     };

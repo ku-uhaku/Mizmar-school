@@ -88,6 +88,20 @@ export function GenerateDialog({
   const [defaultDate, setDefaultDate] = React.useState(initialDate);
 
   /**
+   * The kind of paper, held rather than left to the form.
+   *
+   * It decides which half of a split matière is on offer — one contrôle for
+   * اللغة العربية, or one devoir per component — so the picker has to re-derive
+   * when it changes. See AssessmentType.gradesWholeSubject.
+   */
+  const [assessmentTypeId, setAssessmentTypeId] = React.useState(
+    types[0]?.id ?? "",
+  );
+  const wholeSubject =
+    types.find((type) => type.id === assessmentTypeId)?.gradesWholeSubject ??
+    false;
+
+  /**
    * How wide the round is. A level is the ordinary case — 3AP sits the same
    * contrôle n°1 in all three of its classes — and generating class by class is
    * the same dialog filled in eight times, which is where a date gets mistyped.
@@ -149,9 +163,16 @@ export function GenerateDialog({
     return [...bySubject.values()];
   }, [programmes, targetClasses]);
 
-  /** What the ticks belong to — changing any of it means a different list. */
-  const selectionKey =
-    scope === "CLASS" ? classId : scope === "LEVEL" ? levelOfferingId : "*";
+  /**
+   * What the ticks belong to — changing any of it means a different list.
+   *
+   * The kind is part of it: switching from a contrôle to a devoir replaces
+   * "اللغة العربية" with its four components, and ticks made against the one
+   * mean nothing against the other.
+   */
+  const selectionKey = `${
+    scope === "CLASS" ? classId : scope === "LEVEL" ? levelOfferingId : "*"
+  }:${assessmentTypeId}`;
 
   /**
    * What is ticked, and the date on each — kept together with the class it was
@@ -170,16 +191,41 @@ export function GenerateDialog({
   } | null>(null);
 
   /**
+   * The rows the kind is ordinarily sat on — what "All" ticks, and what the
+   * dialog starts with.
+   *
+   * A contrôle is sat on the matière, so the matières and the subjects that
+   * have no components are the rows; a devoir is sat on a component, so the
+   * components and the undivided subjects are, and the matière is not offered
+   * at all. `componentCount` is what tells the two apart.
+   */
+  const primary = React.useMemo(
+    () =>
+      programme.filter((entry) =>
+        wholeSubject
+          ? entry.parentSubjectId === null
+          : entry.componentCount === 0,
+      ),
+    [programme, wholeSubject],
+  );
+
+  /**
    * The programme as the picker shows it: components gathered under the matière
    * they belong to, subjects in their own right on their own.
    *
    * The order of the programme is preserved — it is `LevelSubject.position`,
    * which is the order a report card prints in — so a group appears where its
-   * first component does rather than being sorted somewhere else.
+   * matière does rather than being sorted somewhere else.
    */
   const groups = React.useMemo(() => {
     const byParent: {
       key: string;
+      /**
+       * The matière, when the kind is sat on it — a row of its own, ticked by
+       * default, standing for the whole of اللغة العربية.
+       */
+      matiere: ProgrammeEntry | null;
+      /** The heading a component list sits under, when the matière is not a row. */
       title: string | null;
       entries: ProgrammeEntry[];
     }[] = [];
@@ -187,27 +233,40 @@ export function GenerateDialog({
 
     for (const entry of programme) {
       const key = entry.parentSubjectId ?? entry.subjectId;
-      const seen = index.get(key);
-      if (seen === undefined) {
+
+      if (index.get(key) === undefined) {
         index.set(key, byParent.length);
         byParent.push({
           key,
+          matiere: null,
           // Null for a matière with no components: it needs no heading, it *is*
           // the row.
           title: entry.parentSubjectName,
-          entries: [entry],
+          entries: [],
         });
+      }
+      const group = byParent[index.get(key)!];
+
+      if (entry.componentCount === 0) {
+        group.entries.push(entry);
+      } else if (wholeSubject) {
+        // The kind is sat on the matière, so it is a row of its own.
+        group.matiere = entry;
       } else {
-        byParent[seen].entries.push(entry);
+        // It is not sat directly — it only names the components below it.
+        group.title = entry.subjectName;
       }
     }
 
     return byParent;
-  }, [programme]);
+  }, [programme, wholeSubject]);
 
   /** A subject nobody teaches cannot be generated — the action refuses it. */
-  const staffed = programme.filter((entry) => entry.teacherName !== null);
-  const unstaffedCount = programme.length - staffed.length;
+  const staffed = primary.filter((entry) => entry.teacherName !== null);
+  const unstaffedCount = primary.length - staffed.length;
+
+  /** Whether any matière is split, so the note about components is worth making. */
+  const hasComponents = programme.some((entry) => entry.componentCount > 0);
 
   const everythingOn = (subjects: ProgrammeEntry[], date: string) =>
     Object.fromEntries(subjects.map((entry) => [entry.subjectId, date]));
@@ -222,10 +281,34 @@ export function GenerateDialog({
   const setChosen = (chosenNext: Record<string, string>) =>
     setSelection({ key: selectionKey, chosen: chosenNext });
 
-  function toggle(subjectId: string, checked: boolean) {
+  /**
+   * Ticks one row, and unticks whatever it is an alternative to.
+   *
+   * A matière and its own components are two ways of marking the same work, so
+   * they are mutually exclusive: ticking اللغة العربية drops الإملاء, and
+   * ticking الإملاء drops اللغة العربية. Generating both would put the matière
+   * on the report card twice. The service enforces the same rule — a Server
+   * Function is reachable by direct POST — but doing it here is what makes the
+   * screen honest about what will be written.
+   */
+  function toggle(entry: ProgrammeEntry, checked: boolean) {
     const next = { ...chosen };
-    if (checked) next[subjectId] = defaultDate;
-    else delete next[subjectId];
+
+    if (!checked) {
+      delete next[entry.subjectId];
+      setChosen(next);
+      return;
+    }
+
+    next[entry.subjectId] = defaultDate;
+    if (entry.componentCount > 0) {
+      for (const other of programme) {
+        if (other.parentSubjectId === entry.subjectId) delete next[other.subjectId];
+      }
+    } else if (entry.parentSubjectId) {
+      delete next[entry.parentSubjectId];
+    }
+
     setChosen(next);
   }
 
@@ -248,6 +331,68 @@ export function GenerateDialog({
   const disabled =
     classes.length === 0 || openTerms.length === 0 || types.length === 0;
 
+  /**
+   * One tickable subject, with its own date.
+   *
+   * Shared by the matière row and the component rows under it: they differ only
+   * in indentation, and giving them two renderers is how the two quietly stop
+   * behaving the same.
+   */
+  function renderRow(entry: ProgrammeEntry, indented: boolean) {
+    const checked = entry.subjectId in chosen;
+    // No teacher, no paper — the action refuses it, so the row cannot be ticked
+    // and says why.
+    const blocked = entry.teacherName === null;
+
+    return (
+      <div
+        key={entry.subjectId}
+        className={cn(
+          "flex items-center gap-3 p-2",
+          indented && "ps-6",
+          blocked && "opacity-60",
+        )}
+      >
+        <Checkbox
+          id={`subject-${entry.subjectId}`}
+          checked={checked}
+          disabled={blocked}
+          onCheckedChange={(value) => toggle(entry, value === true)}
+        />
+        <Label
+          htmlFor={`subject-${entry.subjectId}`}
+          className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
+        >
+          <span className="truncate">{entry.subjectName}</span>
+          <span className="text-muted-foreground ms-1.5 text-xs">
+            ×{entry.coefficient}
+          </span>
+          <span
+            className={cn(
+              "block truncate text-xs",
+              blocked ? "text-warning" : "text-muted-foreground",
+            )}
+          >
+            {entry.teacherName ?? t.assessment.noTeacher}
+          </span>
+        </Label>
+        <Input
+          type="date"
+          value={chosen[entry.subjectId] ?? ""}
+          onChange={(event) =>
+            setChosen({ ...chosen, [entry.subjectId]: event.target.value })
+          }
+          // A date on an unticked subject would be a promise the generator will
+          // not keep.
+          disabled={!checked}
+          dir="ltr"
+          className="h-8 w-36 text-xs"
+          aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       <Button onClick={() => setOpen(true)} disabled={disabled}>
@@ -256,7 +401,7 @@ export function GenerateDialog({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <form action={formAction}>
             <DialogHeader>
               <DialogTitle>{t.assessment.generateTitle}</DialogTitle>
@@ -363,7 +508,11 @@ export function GenerateDialog({
               </FormField>
 
               <FormField name="assessmentTypeId" label={t.assessment.kind}>
-                <Select name="assessmentTypeId" defaultValue={types[0]?.id}>
+                <Select
+                  name="assessmentTypeId"
+                  value={assessmentTypeId}
+                  onValueChange={setAssessmentTypeId}
+                >
                   <SelectTrigger id="assessmentTypeId" className="w-full">
                     <SelectValue placeholder={t.assessment.kind} />
                   </SelectTrigger>
@@ -424,8 +573,11 @@ export function GenerateDialog({
                 <div className="flex flex-wrap items-center gap-2">
                   <Label className="flex-1">
                     {t.assessment.subjectsToGenerate}
+                    {/* Ticked, without a denominator: a component ticked in
+                      place of its matière swaps one row for another, so there
+                      is no single total to count against. */}
                     <Badge variant="secondary" className="ms-1.5 tabular-nums">
-                      {chosenCount}/{staffed.length}
+                      {chosenCount}
                     </Badge>
                   </Label>
                   <Button
@@ -449,6 +601,15 @@ export function GenerateDialog({
                   {t.assessment.subjectsToGenerateHint}
                 </p>
 
+                {/* Said only where a matière is actually split, and only where
+                  the kind is sat on it — otherwise it describes nothing on
+                  screen. */}
+                {wholeSubject && hasComponents ? (
+                  <p className="text-muted-foreground text-xs text-pretty">
+                    {t.assessment.wholeSubjectHint}
+                  </p>
+                ) : null}
+
                 {unstaffedCount > 0 ? (
                   <p className="text-warning text-xs text-pretty">
                     {interpolate(t.assessment.unstaffedSubjects, {
@@ -462,80 +623,31 @@ export function GenerateDialog({
                     {t.assessment.noProgramme}
                   </p>
                 ) : (
-                  <div className="max-h-64 overflow-y-auto rounded-lg border">
+                  <div className="max-h-80 overflow-y-auto rounded-lg border">
                     {groups.map((group) => (
                       <div key={group.key} className="border-b last:border-b-0">
-                        {/* Only a matière split into components gets a heading;
-                          a subject marked as one paper is its own row. */}
+                        {/* A matière the kind is *not* sat on is a heading over
+                          its components; one it is sat on is a row, rendered
+                          below with the rest. */}
                         {group.title ? (
                           <p className="bg-muted/50 text-muted-foreground px-2 py-1 text-xs font-medium">
                             {group.title}
                           </p>
                         ) : null}
 
-                        {group.entries.map((entry) => {
-                          const checked = entry.subjectId in chosen;
-                          // No teacher, no paper — the action refuses it, so
-                          // the row cannot be ticked and says why.
-                          const blocked = entry.teacherName === null;
+                        {group.matiere ? renderRow(group.matiere, false) : null}
 
-                          return (
-                            <div
-                              key={entry.subjectId}
-                              className={cn(
-                                "flex items-center gap-3 p-2",
-                                group.title && "ps-6",
-                                blocked && "opacity-60",
-                              )}
-                            >
-                              <Checkbox
-                                id={`subject-${entry.subjectId}`}
-                                checked={checked}
-                                disabled={blocked}
-                                onCheckedChange={(value) =>
-                                  toggle(entry.subjectId, value === true)
-                                }
-                              />
-                              <Label
-                                htmlFor={`subject-${entry.subjectId}`}
-                                className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
-                              >
-                                <span className="truncate">
-                                  {entry.subjectName}
-                                </span>
-                                <span className="text-muted-foreground ms-1.5 text-xs">
-                                  ×{entry.coefficient}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "block truncate text-xs",
-                                    blocked
-                                      ? "text-warning"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {entry.teacherName ?? t.assessment.noTeacher}
-                                </span>
-                              </Label>
-                              <Input
-                                type="date"
-                                value={chosen[entry.subjectId] ?? ""}
-                                onChange={(event) =>
-                                  setChosen({
-                                    ...chosen,
-                                    [entry.subjectId]: event.target.value,
-                                  })
-                                }
-                                // A date on an unticked subject would be a
-                                // promise the generator will not keep.
-                                disabled={!checked}
-                                dir="ltr"
-                                className="h-8 w-36 text-xs"
-                                aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
-                              />
-                            </div>
-                          );
-                        })}
+                        {/* Under a matière that is itself a row, the components
+                          are the exception — offered, but off unless asked for. */}
+                        {group.matiere && group.entries.length > 0 ? (
+                          <p className="text-muted-foreground px-2 pt-1 ps-9 text-xs">
+                            {t.assessment.orOneComponent}
+                          </p>
+                        ) : null}
+
+                        {group.entries.map((entry) =>
+                          renderRow(entry, Boolean(group.title || group.matiere)),
+                        )}
                       </div>
                     ))}
                   </div>

@@ -1,8 +1,13 @@
 import "server-only";
 
-import type { AuthContext } from "@/lib/dal";
+import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import {
+  advanceInstalment,
+  outstandingAdvance,
+  suggestStatutory,
+  type StatutorySuggestion,
+  OWED_ADVANCE_STATUSES,
   EMPLOYED_STATUSES,
   PAYABLE_SALARY_STATUSES,
   dailyRate,
@@ -453,6 +458,18 @@ export type PayrollLine = SalaryRow & {
   unjustifiedDays: number;
   /** What one day of the contract base is worth — a suggestion, never applied. */
   dailyRateCentimes: number;
+  /** Everything still owed on avances the employee has actually received. */
+  advanceOutstandingCentimes: number;
+  /** What this month's instalments come to — what the deduction box starts at. */
+  advanceSuggestedCentimes: number;
+  /**
+   * What the CNSS, AMO and IR boxes should probably say for this gross.
+   *
+   * Computed against the school's own rates and offered to the screen; nothing
+   * applies it. See `suggestStatutory`, which explains at length why a payroll
+   * engine is exactly what this is not.
+   */
+  statutory: StatutorySuggestion;
 };
 
 /**
@@ -470,6 +487,8 @@ export async function listPayroll(
 ): Promise<PayrollLine[]> {
   const monthStart = new Date(periodYear, periodMonth - 1, 1);
   const monthEnd = new Date(periodYear, periodMonth, 1);
+
+  const balances = await advanceBalances(context);
 
   const staff = await db.staff.findMany({
     where: { ...schoolScope(context), status: { in: [...EMPLOYED_STATUSES] } },
@@ -526,6 +545,11 @@ export async function listPayroll(
           notes: null,
         };
 
+    const balance = balances[person.id] ?? {
+      outstandingCentimes: 0,
+      suggestedCentimes: 0,
+    };
+
     return {
       ...row,
       jobRole: person.jobRole,
@@ -535,6 +559,14 @@ export async function listPayroll(
         contract?.baseSalaryCentimes ?? 0,
         context.settings.payrollWorkingDays,
       ),
+      advanceOutstandingCentimes: balance.outstandingCentimes,
+      // A bulletin already written keeps whatever the bursar put in the box; a
+      // fresh one starts at what this month's instalments come to. Overwriting
+      // a saved figure with a suggestion would undo a deliberate decision.
+      advanceSuggestedCentimes: salary
+        ? row.advanceCentimes
+        : Math.min(balance.suggestedCentimes, balance.outstandingCentimes),
+      statutory: suggestStatutory(row.grossCentimes, context.settings),
     };
   });
 }
@@ -736,4 +768,156 @@ export async function hrSummary(
     unmarkedToday: Math.max(0, employed.length - markedToday),
     pendingLeave,
   };
+}
+
+// ── Avances sur salaire ──────────────────────────────────────────────────────
+
+/** `YYYY-MM-DD`, the shape every date input and every list cell wants. */
+function isoDay(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+export type AdvanceRow = {
+  id: string;
+  staffId: string;
+  staffName: string;
+  staffCode: string;
+  jobRole: string;
+  amountCentimes: number;
+  instalmentCount: number;
+  status: string;
+  requestedOn: string;
+  reason: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  decisionNote: string | null;
+  paidOn: string | null;
+  cashOperationId: string | null;
+  /** Taken back so far, summed from the recoveries — never a stored total. */
+  recoveredCentimes: number;
+  /** What is still owed. Derived; see `outstandingAdvance`. */
+  outstandingCentimes: number;
+  notes: string | null;
+};
+
+/**
+ * Every avance, newest first.
+ *
+ * The recoveries are summed here rather than on the client because the
+ * outstanding figure is what a school will act on — refusing a fourth advance,
+ * or chasing a leaver — and it must be computed in one place so the list, the
+ * payroll screen and the employee's file cannot disagree about it.
+ */
+export async function listAdvances(
+  context: AuthContext,
+  options: { staffId?: string } = {},
+): Promise<AdvanceRow[]> {
+  const advances = await db.salaryAdvance.findMany({
+    where: {
+      staff: { ...schoolScope(context), ...(options.staffId ? { id: options.staffId } : {}) },
+    },
+    orderBy: [{ requestedOn: "desc" }],
+    select: {
+      id: true,
+      amountCentimes: true,
+      instalmentCount: true,
+      status: true,
+      requestedOn: true,
+      reason: true,
+      approvedAt: true,
+      decisionNote: true,
+      paidOn: true,
+      cashOperationId: true,
+      notes: true,
+      staff: {
+        select: { id: true, code: true, firstName: true, lastName: true, jobRole: true },
+      },
+      approvedBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      recoveries: { select: { amountCentimes: true } },
+    },
+  });
+
+  return advances.map((advance) => {
+    const recoveredCentimes = advance.recoveries.reduce(
+      (total, row) => total + row.amountCentimes,
+      0,
+    );
+
+    return {
+      id: advance.id,
+      staffId: advance.staff.id,
+      staffName: staffName(advance.staff),
+      staffCode: advance.staff.code,
+      jobRole: advance.staff.jobRole,
+      amountCentimes: advance.amountCentimes,
+      instalmentCount: advance.instalmentCount,
+      status: advance.status,
+      requestedOn: isoDay(advance.requestedOn),
+      reason: advance.reason,
+      approvedByName: advance.approvedBy ? displayName(advance.approvedBy) : null,
+      approvedAt: advance.approvedAt ? isoDay(advance.approvedAt) : null,
+      decisionNote: advance.decisionNote,
+      paidOn: advance.paidOn ? isoDay(advance.paidOn) : null,
+      cashOperationId: advance.cashOperationId,
+      recoveredCentimes,
+      outstandingCentimes: outstandingAdvance({
+        status: advance.status,
+        amountCentimes: advance.amountCentimes,
+        recoveredCentimes,
+      }),
+      notes: advance.notes,
+    };
+  });
+}
+
+/**
+ * What each employee still owes, keyed by staff id.
+ *
+ * One pass for the whole payroll rather than a query per line: the payroll
+ * screen shows this against every employee of the school, and a round trip
+ * apiece is the difference between a page and a timeout.
+ */
+export async function advanceBalances(
+  context: AuthContext,
+): Promise<Record<string, { outstandingCentimes: number; suggestedCentimes: number }>> {
+  const advances = await db.salaryAdvance.findMany({
+    where: { staff: schoolScope(context), status: { in: [...OWED_ADVANCE_STATUSES] } },
+    select: {
+      staffId: true,
+      status: true,
+      amountCentimes: true,
+      instalmentCount: true,
+      recoveries: { select: { amountCentimes: true } },
+    },
+  });
+
+  const balances: Record<
+    string,
+    { outstandingCentimes: number; suggestedCentimes: number }
+  > = {};
+
+  for (const advance of advances) {
+    const recoveredCentimes = advance.recoveries.reduce(
+      (total, row) => total + row.amountCentimes,
+      0,
+    );
+    const shaped = {
+      status: advance.status,
+      amountCentimes: advance.amountCentimes,
+      instalmentCount: advance.instalmentCount,
+      recoveredCentimes,
+    };
+
+    const held = balances[advance.staffId] ?? {
+      outstandingCentimes: 0,
+      suggestedCentimes: 0,
+    };
+    held.outstandingCentimes += outstandingAdvance(shaped);
+    held.suggestedCentimes += advanceInstalment(shaped);
+    balances[advance.staffId] = held;
+  }
+
+  return balances;
 }

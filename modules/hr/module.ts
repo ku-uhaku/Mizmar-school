@@ -57,6 +57,16 @@ export const hrModule = defineModule({
       schoolPermission: HR_PERMISSIONS.HR_PAYROLL,
     },
     {
+      href: "/hr/advances",
+      icon: "payroll",
+      section: "rh",
+      labelKey: "hrAdvances",
+      // Beside the paie and behind the same code: an avance is a movement
+      // against a wage, and it is recovered on a bulletin.
+      order: 45,
+      schoolPermission: HR_PERMISSIONS.HR_PAYROLL,
+    },
+    {
       href: "/hr/leave",
       icon: "leave",
       section: "rh",

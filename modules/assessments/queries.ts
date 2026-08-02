@@ -34,6 +34,12 @@ export type AssessmentTypeOption = {
   defaultCoefficient: number;
   defaultMaxScore: number;
   countsTowardAverage: boolean;
+  /**
+   * One paper for the whole matière rather than one per component — see
+   * AssessmentType.gradesWholeSubject. Carried into the picker so switching the
+   * kind switches which rows are ticked by default.
+   */
+  gradesWholeSubject: boolean;
   colorHex: string | null;
 };
 
@@ -63,6 +69,7 @@ export async function listAssessmentTypes(
       defaultCoefficient: true,
       defaultMaxScore: true,
       countsTowardAverage: true,
+      gradesWholeSubject: true,
       colorHex: true,
     },
   });
@@ -136,6 +143,17 @@ export type ProgrammeEntry = {
    */
   parentSubjectId: string | null;
   parentSubjectName: string | null;
+  /**
+   * How many components of this matière are on the same programme — 0 for a
+   * component, and for a matière marked as one paper.
+   *
+   * What tells the picker whether this row *stands for* its components. A
+   * contrôle is sat on اللغة العربية as a whole, so that row is the one ticked
+   * and its four components sit under it as the exception; a devoir is sat on
+   * الإملاء, so the components are the rows and the matière is not offered at
+   * all. See AssessmentType.gradesWholeSubject.
+   */
+  componentCount: number;
   /**
    * Who would answer for the marks, resolved the same way the generator
    * resolves it — the primary TeachingAssignment for the subject, falling back
@@ -221,7 +239,7 @@ export async function loadProgrammesByClass(
   for (const schoolClass of classes) {
     const { levelId, trackId } = schoolClass.levelOffering;
 
-    // Same two rules as `resolveProgramme` in the service — this one exists to
+    // Same rule 1 as `resolveProgramme` in the service — this one exists to
     // *show* the list, that one to write it, and they must agree.
     const forClass = rows.filter(
       (row) =>
@@ -229,40 +247,49 @@ export async function loadProgrammesByClass(
         (row.trackId === null || row.trackId === trackId),
     );
 
-    const parentsCoveredByComponents = new Set(
-      forClass
-        .map((row) => row.subject.parentId)
-        .filter((parentId): parentId is string => parentId !== null),
-    );
+    /*
+      Both halves of a split matière are offered, unlike the service's rule 2,
+      which resolves the programme for one kind of paper at a time.
+
+      The picker does not know which kind is being generated until the operator
+      picks it, and switching from a contrôle to a devoir must not cost a round
+      trip. So the list carries the matière *and* its components, `componentCount`
+      says which is which, and the dialog shows the half that kind is sat on.
+    */
+    const componentCounts = new Map<string, number>();
+    for (const row of forClass) {
+      const parentId = row.subject.parentId;
+      if (parentId === null) continue;
+      componentCounts.set(parentId, (componentCounts.get(parentId) ?? 0) + 1);
+    }
 
     // Parent names, for the component rows to be grouped under. Read off the
     // programme itself rather than fetched: a component's parent is on it by
-    // construction — that is what rule 2 tests.
+    // construction.
     const nameById = new Map(
       forClass.map((row) => [row.subject.id, row.subject.name]),
     );
 
-    result[schoolClass.id] = forClass
-      .filter((row) => !parentsCoveredByComponents.has(row.subject.id))
-      .map((row) => {
-        const parentId = row.subject.parentId;
-        return {
-          subjectId: row.subject.id,
-          subjectCode: row.subject.code,
-          subjectName: row.subject.name,
-          coefficient: row.coefficient,
-          parentSubjectId: parentId,
-          parentSubjectName: parentId ? (nameById.get(parentId) ?? null) : null,
-          // Same fallback as the generator's `teacherFor`: assignments are made
-          // against the matière as taught, while the papers are per component.
-          teacherName:
-            teacherByClassSubject.get(`${schoolClass.id}:${row.subject.id}`) ??
-            (parentId
-              ? (teacherByClassSubject.get(`${schoolClass.id}:${parentId}`) ??
-                null)
-              : null),
-        };
-      });
+    result[schoolClass.id] = forClass.map((row) => {
+      const parentId = row.subject.parentId;
+      return {
+        subjectId: row.subject.id,
+        subjectCode: row.subject.code,
+        subjectName: row.subject.name,
+        coefficient: row.coefficient,
+        parentSubjectId: parentId,
+        parentSubjectName: parentId ? (nameById.get(parentId) ?? null) : null,
+        componentCount: componentCounts.get(row.subject.id) ?? 0,
+        // Same fallback as the generator's `teacherFor`: assignments are made
+        // against the matière as taught, while the papers are per component.
+        teacherName:
+          teacherByClassSubject.get(`${schoolClass.id}:${row.subject.id}`) ??
+          (parentId
+            ? (teacherByClassSubject.get(`${schoolClass.id}:${parentId}`) ??
+              null)
+            : null),
+      };
+    });
   }
 
   return result;

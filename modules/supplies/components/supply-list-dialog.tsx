@@ -22,25 +22,38 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
+import { interpolate } from "@/lib/i18n/format";
 import { saveSupplyListAction } from "@/modules/supplies/actions";
 import type {
   ClassChoice,
   SubjectChoice,
 } from "@/modules/supplies/components/supplies-manager";
-import type { SupplyListRow } from "@/modules/supplies/queries";
+import type {
+  SupplyArticleChoice,
+  SupplyListRow,
+} from "@/modules/supplies/queries";
 
-/** One editable row. `key` is local only — items carry no identity that matters. */
+/**
+ * One editable row. `key` is local only — items carry no identity that matters.
+ *
+ * `articleId` is what the row *is*: the wording comes off the catalogue and is
+ * never typed here. `label` is carried only so a line written before the
+ * catalogue existed can still say what it used to ask for while its article is
+ * being chosen.
+ */
 type DraftItem = {
   key: string;
+  articleId: string;
   label: string;
-  labelAr: string;
   quantity: string;
   notes: string;
   isRequired: boolean;
@@ -49,8 +62,8 @@ type DraftItem = {
 function emptyItem(): DraftItem {
   return {
     key: crypto.randomUUID(),
+    articleId: "",
     label: "",
-    labelAr: "",
     quantity: "",
     notes: "",
     isRequired: true,
@@ -69,11 +82,14 @@ export function SupplyListDialog({
   list,
   classes,
   subjects,
+  articles,
   onClose,
 }: {
   list: SupplyListRow | null;
   classes: ClassChoice[];
   subjects: SubjectChoice[];
+  /** The school's catalogue — the only thing a line may name. */
+  articles: SupplyArticleChoice[];
   onClose: () => void;
 }) {
   const t = useT();
@@ -87,8 +103,8 @@ export function SupplyListDialog({
     list && list.items.length > 0
       ? list.items.map((item) => ({
           key: item.id,
+          articleId: item.articleId ?? "",
           label: item.label,
-          labelAr: item.labelAr ?? "",
           quantity: item.quantity === null ? "" : String(item.quantity),
           notes: item.notes ?? "",
           isRequired: item.isRequired,
@@ -102,6 +118,44 @@ export function SupplyListDialog({
     setItems((current) =>
       current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
     );
+  }
+
+  /**
+   * The catalogue, by shelf — what makes eighty articles pickable.
+   *
+   * Grouped here rather than fetched grouped: the query already returns them in
+   * category order, so this only has to cut the run into blocks, and the picker
+   * and the configuration screen show the same order for the same reason.
+   */
+  const byCategory = React.useMemo(() => {
+    const groups: { category: string; articles: SupplyArticleChoice[] }[] = [];
+    for (const article of articles) {
+      const last = groups[groups.length - 1];
+      if (last?.category === article.category) last.articles.push(article);
+      else groups.push({ category: article.category, articles: [article] });
+    }
+    return groups;
+  }, [articles]);
+
+  const articleById = React.useMemo(
+    () => new Map(articles.map((article) => [article.id, article])),
+    [articles],
+  );
+
+  /**
+   * Choosing an article fills the quantity in, but only when the row is still
+   * untouched — a teacher who typed 3 and then corrected the article meant 3.
+   */
+  function chooseArticle(item: DraftItem, articleId: string) {
+    const article = articleById.get(articleId);
+    update(item.key, {
+      articleId,
+      label: article?.label ?? item.label,
+      quantity:
+        item.quantity === "" && article?.defaultQuantity != null
+          ? String(article.defaultQuantity)
+          : item.quantity,
+    });
   }
 
   return (
@@ -188,6 +242,15 @@ export function SupplyListDialog({
 
             <div className="grid gap-2">
               <Label>{t.supply.items}</Label>
+
+              {/* Nothing to pick from is a configuration problem, not a form
+                error — say where to fix it rather than showing empty selects. */}
+              {articles.length === 0 ? (
+                <p className="text-warning text-xs text-pretty">
+                  {t.supply.noArticles}
+                </p>
+              ) : null}
+
               <div className="grid gap-2">
                 {items.map((item) => (
                   <div
@@ -208,21 +271,55 @@ export function SupplyListDialog({
                       placeholder={t.supply.quantity}
                     />
                     <div className="grid gap-2">
-                      <Input
-                        value={item.label}
-                        onChange={(event) =>
-                          update(item.key, { label: event.target.value })
-                        }
-                        aria-label={t.supply.itemLabel}
-                        placeholder={t.supply.itemLabelPlaceholder}
-                      />
+                      <Select
+                        value={item.articleId}
+                        onValueChange={(value) => chooseArticle(item, value)}
+                      >
+                        <SelectTrigger
+                          className="w-full"
+                          aria-label={t.supply.itemLabel}
+                        >
+                          <SelectValue placeholder={t.supply.pickArticle} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {byCategory.map((group) => (
+                            <SelectGroup key={group.category}>
+                              <SelectLabel>
+                                {t.supplyOptions.categories[
+                                  group.category as keyof typeof t.supplyOptions.categories
+                                ] ?? group.category}
+                              </SelectLabel>
+                              {group.articles.map((article) => (
+                                <SelectItem key={article.id} value={article.id}>
+                                  {article.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {/* A line written before the catalogue existed, or whose
+                        article has since been withdrawn: what it used to ask
+                        for, so nothing looks lost while it is re-picked. */}
+                      {item.articleId === "" && item.label !== "" ? (
+                        <p className="text-warning text-xs">
+                          {interpolate(t.supply.articleWithdrawn, {
+                            label: item.label,
+                          })}
+                        </p>
+                      ) : null}
+
                       <Input
                         value={item.notes}
                         onChange={(event) =>
                           update(item.key, { notes: event.target.value })
                         }
                         aria-label={t.supply.itemNotes}
-                        placeholder={t.supply.itemNotes}
+                        placeholder={
+                          articleById.get(item.articleId)?.notes ??
+                          t.supply.itemNotes
+                        }
                         className="text-xs"
                       />
                     </div>
@@ -252,12 +349,13 @@ export function SupplyListDialog({
                       </Button>
                     </div>
 
-                    {/* Parallel arrays, one slot per row — see the note above. */}
-                    <input type="hidden" name="itemLabel" value={item.label} />
+                    {/* Parallel arrays, one slot per row — see the note above.
+                      The wording is not among them: the server resolves it from
+                      the article, so it cannot be forged. */}
                     <input
                       type="hidden"
-                      name="itemLabelAr"
-                      value={item.labelAr}
+                      name="itemArticleId"
+                      value={item.articleId}
                     />
                     <input
                       type="hidden"

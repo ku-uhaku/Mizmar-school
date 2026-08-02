@@ -53,34 +53,31 @@ async function supplyContext() {
  * which is the same trap the mark sheet and the register avoid the same way.
  */
 function readItems(formData: FormData): ItemInput[] | null {
-  const labels = listField(formData, "itemLabel");
-  const labelsAr = listField(formData, "itemLabelAr");
+  const articles = listField(formData, "itemArticleId");
   const quantities = listField(formData, "itemQuantity");
   const notes = listField(formData, "itemNotes");
   const required = listField(formData, "itemRequired");
 
   if (
-    labelsAr.length !== labels.length ||
-    quantities.length !== labels.length ||
-    notes.length !== labels.length ||
-    required.length !== labels.length
+    quantities.length !== articles.length ||
+    notes.length !== articles.length ||
+    required.length !== articles.length
   ) {
     return null;
   }
 
-  return labels
-    .map((label, index) => ({
-      label: label.trim(),
-      labelAr: labelsAr[index]?.trim() || null,
+  return articles
+    .map((articleId, index) => ({
+      articleId: articleId.trim(),
       quantity: quantities[index]?.trim() ?? "",
       notes: notes[index]?.trim() || null,
       // The checkbox travels as "1"/"0" per row rather than as its presence,
       // so an unticked box still occupies its slot in the array.
       isRequired: required[index] === "1",
     }))
-    // A row whose article was left blank is somebody adding a line and changing
-    // their mind, not an error worth refusing the whole list for.
-    .filter((item) => item.label !== "")
+    // A row whose article was left unchosen is somebody adding a line and
+    // changing their mind, not an error worth refusing the whole list for.
+    .filter((item) => item.articleId !== "")
     .map((item) => ({
       ...item,
       quantity: item.quantity === "" ? null : Number(item.quantity),
@@ -180,7 +177,7 @@ export async function saveSupplyListAction(
           notes: parsed.data.notes,
         },
       });
-      await replaceItems(existing.id, items);
+      await replaceItems(existing.id, schoolId, items);
 
       refresh();
       return success(t.supply.saved);
@@ -199,7 +196,7 @@ export async function saveSupplyListAction(
       },
       select: { id: true },
     });
-    await replaceItems(created.id, items);
+    await replaceItems(created.id, schoolId, items);
 
     refresh();
     return success(t.supply.created);

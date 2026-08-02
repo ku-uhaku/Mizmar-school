@@ -30,6 +30,9 @@ export type RegisterRow = {
   notes: string | null;
   position: number;
   isActive: boolean;
+  /** The cashier this drawer belongs to — see CashRegister.holderId. */
+  holderId: string | null;
+  holderName: string | null;
   /**
    * Shifts ever held on this till. Nonzero means it has history, which is what
    * decides whether it may be deleted or only retired — see the action.
@@ -62,6 +65,9 @@ export async function listRegisters(
     where: schoolScope(context),
     orderBy: [{ position: "asc" }, { name: "asc" }],
     include: {
+      holder: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
       _count: { select: { sessions: true } },
       sessions: {
         where: { status: "OPEN" },
@@ -87,6 +93,8 @@ export async function listRegisters(
       notes: register.notes,
       position: register.position,
       isActive: register.isActive,
+      holderId: register.holderId,
+      holderName: register.holder ? displayName(register.holder) : null,
       sessionCount: register._count.sessions,
       openSession: session
         ? {
@@ -109,24 +117,67 @@ export async function listRegisters(
 }
 
 /**
- * The session a cashier is currently posting into, if any.
+ * The caller's own open session, if they have one.
  *
- * Deliberately "any open session in this school" rather than "mine": a small
- * school has one drawer and two people who take money at it, and requiring each
- * to open their own would make the count meaningless.
+ * Scoped to the *user*, not merely to the school. It used to return whichever
+ * session happened to be open anywhere in the school, which is what let a
+ * secretary's receipt land in the bursar's drawer — and made the evening count
+ * unanswerable for both of them. Now "my caisse" has one answer: the shift I
+ * opened, or the one on the till I hold.
+ *
+ * Stale sessions are *not* filtered out here. This is a read and the screens
+ * need to be able to say "yours is yesterday's" — closing it is the writing
+ * path's job, in `resolveCashSession`.
  */
 export async function findOpenSession(context: AuthContext) {
   const schoolId = context.currentSchool?.id;
   if (!schoolId) return null;
 
   return db.cashSession.findFirst({
-    where: { status: "OPEN", cashRegister: { schoolId } },
+    where: {
+      status: "OPEN",
+      cashRegister: { schoolId },
+      OR: [
+        { openedById: context.user.id },
+        { cashRegister: { holderId: context.user.id } },
+      ],
+    },
     include: {
       cashRegister: { select: { id: true, name: true, code: true } },
       openedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
     },
     orderBy: { openedAt: "desc" },
   });
+}
+
+export type CashierChoice = { id: string; label: string };
+
+/**
+ * Who may be given a till.
+ *
+ * The school's own members, not the whole organisation: a drawer is held at a
+ * school, and offering somebody from the sister school would be offering an id
+ * the action then refuses. The same clause is re-checked on write — see
+ * `saveCashRegisterAction` — so a filtered dropdown is a convenience and never
+ * the guard.
+ */
+export async function listCashierChoices(
+  context: AuthContext,
+): Promise<CashierChoice[]> {
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return [];
+
+  const users = await db.user.findMany({
+    where: { isActive: true, memberships: { some: { schoolId } } },
+    orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  return users.map((user) => ({ id: user.id, label: displayName(user) }));
 }
 
 export type SessionRow = {
@@ -141,6 +192,8 @@ export type SessionRow = {
   expectedCentimes: number | null;
   varianceCentimes: number | null;
   status: string;
+  /** Closed by the day boundary rather than counted — see CashSession. */
+  wasAutoClosed: boolean;
   operationCount: number;
 };
 
@@ -177,6 +230,7 @@ export async function listSessions(
     expectedCentimes: session.expectedCentimes,
     varianceCentimes: session.varianceCentimes,
     status: session.status,
+    wasAutoClosed: session.wasAutoClosed,
     operationCount: session._count.operations,
   }));
 }

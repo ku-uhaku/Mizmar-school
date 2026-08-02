@@ -36,6 +36,8 @@ import { SCHOOL_PERMISSIONS } from "@/modules/schools/permissions";
 import { studentsModule } from "@/modules/students/module";
 import { suppliesModule } from "@/modules/supplies/module";
 import { SUPPLY_PERMISSIONS } from "@/modules/supplies/permissions";
+import { documentsModule } from "@/modules/documents/module";
+import { DOCUMENT_PERMISSIONS } from "@/modules/documents/permissions";
 import { STUDENT_PERMISSIONS } from "@/modules/students/permissions";
 import { timetableModule } from "@/modules/timetable/module";
 import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
@@ -99,6 +101,7 @@ export const MODULES: readonly AppModule[] = [
   classroomModule,
   timetableModule,
   suppliesModule,
+  documentsModule,
 
   // ── Caisse ────────────────────────────────────────────────────────────────
   // The money side of the year: the tills, the receipts that settle the fee
@@ -150,6 +153,7 @@ export const PERMISSIONS = {
   ...CLASSROOM_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
   ...SUPPLY_PERMISSIONS,
+  ...DOCUMENT_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
   ...TRANSPORT_PERMISSIONS,
 } as const;

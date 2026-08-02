@@ -33,6 +33,8 @@ import type {
 import { StudentForm } from "@/modules/students/components/student-form";
 import { StudentFamilyPanel } from "@/modules/students/components/student-family-panel";
 import { StudentSummary } from "@/modules/students/components/student-summary";
+import { StudentDossierPanel } from "@/modules/documents/components/student-dossier-panel";
+import type { StudentDossier } from "@/modules/documents/queries";
 import { StudentWorkflow } from "@/modules/students/components/student-workflow";
 import type { StudentWorkflowStep } from "@/modules/students/enums";
 import type { StudentDetail } from "@/modules/students/queries";
@@ -102,6 +104,7 @@ export function StudentProfile({
   transportSubscriptions,
   workflow,
   workflowSteps,
+  dossier,
   permissions,
 }: {
   student: StudentDetail;
@@ -159,6 +162,8 @@ export function StudentProfile({
   workflow: Record<StudentWorkflowStep, boolean>;
   /** Narrowed by the page when the reader may not see money. */
   workflowSteps: readonly StudentWorkflowStep[];
+  /** The pièces d'inscription. Null when the reader may not see the dossier. */
+  dossier: StudentDossier | null;
   permissions: {
     canUpdateStudent: boolean;
     canManageFamily: boolean;
@@ -169,6 +174,7 @@ export function StudentProfile({
     canCollect: boolean;
     canCancelPayment: boolean;
     canSubscribeTransport: boolean;
+    canManageDocuments: boolean;
   };
 }) {
   const t = useT();
@@ -220,6 +226,18 @@ export function StudentProfile({
               </Badge>
             ) : null}
           </TabsTrigger>
+          {/* Absent rather than empty when the reader may not see the dossier,
+            like the money tabs below. */}
+          {dossier ? (
+            <TabsTrigger value="dossier">
+              {t.document.dossier}
+              {dossier.standing.missingRequired > 0 ? (
+                <Badge variant="destructive" className="ms-1.5 tabular-nums">
+                  {dossier.standing.missingRequired}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger value="enrolment">{t.student.tabEnrolment}</TabsTrigger>
           <TabsTrigger value="fees">
             {t.student.tabFees}
@@ -311,6 +329,16 @@ export function StudentProfile({
             canManage={permissions.canManageFamily}
           />
         </TabsContent>
+
+        {dossier ? (
+          <TabsContent value="dossier">
+            <StudentDossierPanel
+              studentId={student.id}
+              dossier={dossier}
+              canManage={permissions.canManageDocuments}
+            />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="enrolment">
           <EnrolmentPanel
@@ -451,6 +479,7 @@ export function StudentProfile({
 const TAB_FOR_STEP: Record<StudentWorkflowStep, string> = {
   FILE: "information",
   FAMILY: "family",
+  DOSSIER: "dossier",
   ENROLMENT: "enrolment",
   CLASS: "enrolment",
   FEES: "fees",

@@ -130,6 +130,7 @@ const fr = {
     steps: {
       FILE: "Dossier ouvert",
       FAMILY: "Famille rattachée",
+      DOSSIER: "Dossier complet",
       ENROLMENT: "Inscrit",
       CLASS: "Classe affectée",
       FEES: "Échéancier généré",

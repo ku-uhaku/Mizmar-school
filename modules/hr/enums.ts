@@ -301,6 +301,152 @@ export function dailyRate(
   return Math.round(monthlySalaryCentimes / Math.max(1, workingDays));
 }
 
+// ── Avances sur salaire ──────────────────────────────────────────────────────
+
+/**
+ * Where an avance sur salaire has got to.
+ *
+ *   REQUESTED  asked for; nothing has left and nothing is owed
+ *   APPROVED   agreed to, but the money is still in the till
+ *   PAID       handed over — this is the first status that owes anything back
+ *   RECOVERED  taken back in full out of the payslips that followed
+ *   CANCELLED  refused, or withdrawn before the money left
+ *
+ * RECOVERED is *derived and then stamped*: it is set the moment the recoveries
+ * add up to the amount, so a list can be filtered on it without every reader
+ * re-summing the join. `outstandingAdvance` below is the authority, and the
+ * status only ever follows it.
+ */
+export const ADVANCE_STATUSES = [
+  "REQUESTED",
+  "APPROVED",
+  "PAID",
+  "RECOVERED",
+  "CANCELLED",
+] as const;
+export type AdvanceStatus = (typeof ADVANCE_STATUSES)[number];
+
+/**
+ * Statuses whose money has actually left the school.
+ *
+ * The only ones that may be recovered out of a wage: deducting against an
+ * advance that was merely approved would take money off somebody who never
+ * received any.
+ */
+export const OWED_ADVANCE_STATUSES: readonly AdvanceStatus[] = [
+  "PAID",
+  "RECOVERED",
+];
+
+/** Statuses a decision may still be made about. */
+export function isAdvanceDecidable(status: string): boolean {
+  return status === "REQUESTED";
+}
+
+/** Whether the money may now be handed over. */
+export function isAdvancePayable(status: string): boolean {
+  return status === "APPROVED";
+}
+
+/**
+ * What is still owed on one advance.
+ *
+ * Derived from the recoveries rather than kept as a running total, for the same
+ * reason a dossier's completeness is derived: a stored balance that can
+ * disagree with the payslips underneath it is worse than no balance at all.
+ * Floored at zero so an over-recovery — which the service refuses, but which a
+ * hand-edited row could still produce — reads as settled rather than negative.
+ */
+export function outstandingAdvance(advance: {
+  status: string;
+  amountCentimes: number;
+  recoveredCentimes: number;
+}): number {
+  if (!OWED_ADVANCE_STATUSES.includes(advance.status as AdvanceStatus)) return 0;
+  return Math.max(0, advance.amountCentimes - advance.recoveredCentimes);
+}
+
+/**
+ * What one month should take back, when an advance is spread over instalments.
+ *
+ * The plan, not the rule: the last instalment is whatever is left, so rounding
+ * never leaves a stray centime owed for ever. A bursar may still type something
+ * else — an employee having a hard month is exactly why the box stays editable.
+ */
+export function advanceInstalment(advance: {
+  status: string;
+  amountCentimes: number;
+  recoveredCentimes: number;
+  instalmentCount: number;
+}): number {
+  const outstanding = outstandingAdvance(advance);
+  if (outstanding === 0) return 0;
+
+  const perMonth = Math.round(
+    advance.amountCentimes / Math.max(1, advance.instalmentCount),
+  );
+  return Math.min(outstanding, Math.max(1, perMonth));
+}
+
+// ── Cotisations et retenues légales ──────────────────────────────────────────
+
+export type StatutoryRates = {
+  cnssRateBps: number;
+  cnssCeilingCentimes: number;
+  amoRateBps: number;
+  irRateBps: number;
+};
+
+export type StatutorySuggestion = {
+  /** CNSS + AMO, which is what the `socialCentimes` box holds. */
+  socialCentimes: number;
+  /** Shown apart so the screen can explain where the figure came from. */
+  cnssCentimes: number;
+  amoCentimes: number;
+  taxCentimes: number;
+};
+
+/**
+ * What the CNSS, AMO and IR boxes should probably say for a given gross.
+ *
+ * ── A suggestion, and deliberately not a payroll engine ─────────────────────
+ * Every figure lands in a box the bursar can overwrite, and nothing applies
+ * itself. The rates move by decree, a school may be on a different convention
+ * collective, and the Moroccan IR is a progressive barème with a deduction per
+ * dependant — a single rate cannot express it and pretending otherwise would
+ * put wrong numbers on a legal document with nobody's name against them.
+ *
+ * The CNSS ceiling is the one piece of real structure here, because getting it
+ * wrong is not a rounding error: above 6 000 MAD a month the employee's share
+ * stops growing, and computing it on the whole gross overstates the deduction
+ * for every senior member of staff.
+ */
+export function suggestStatutory(
+  grossCentimes: number,
+  rates: StatutoryRates,
+): StatutorySuggestion {
+  const applyBps = (base: number, bps: number) =>
+    Math.max(0, Math.round((base * bps) / 10_000));
+
+  const cnssBase =
+    rates.cnssCeilingCentimes > 0
+      ? Math.min(grossCentimes, rates.cnssCeilingCentimes)
+      : grossCentimes;
+
+  const cnssCentimes = applyBps(cnssBase, rates.cnssRateBps);
+  const amoCentimes = applyBps(grossCentimes, rates.amoRateBps);
+
+  return {
+    cnssCentimes,
+    amoCentimes,
+    socialCentimes: cnssCentimes + amoCentimes,
+    // On the gross rather than on the net taxable: the real base is net of the
+    // cotisations and of the frais professionnels, which is another thing a
+    // flat rate cannot express. Left simple, and left editable.
+    taxCentimes: applyBps(grossCentimes, rates.irRateBps),
+  };
+}
+
 // ── Dates ────────────────────────────────────────────────────────────────────
 
 /**

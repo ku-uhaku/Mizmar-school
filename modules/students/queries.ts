@@ -8,6 +8,7 @@ import {
   workflowStateOf,
   type StudentWorkflowStep,
 } from "@/modules/students/enums";
+import { dossierStandingByStudent } from "@/modules/documents/queries";
 import { studentPaymentStanding } from "@/modules/treasury/queries";
 
 /**
@@ -276,9 +277,14 @@ export async function loadStudentWorkflow(
   // than summing its tables here, so the parcours and the caisse can never
   // disagree about whether a family is behind.
   const standing = await studentPaymentStanding(context, studentId);
+  const dossier = await dossierStandingByStudent(context, [studentId]);
 
   return workflowStateOf({
     hasFamily: Boolean(student?.familyId),
+    // The dossier is the documents module's to answer — read through its own
+    // query rather than counting its tables here, so the parcours and the
+    // dossier tab can never disagree about what is outstanding.
+    hasDossier: dossier[studentId]?.isComplete ?? true,
     hasEnrolment: enrolment !== null,
     hasClass: Boolean(enrolment?.schoolClassId),
     hasFees: (enrolment?._count.fees ?? 0) > 0,

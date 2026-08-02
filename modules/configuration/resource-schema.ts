@@ -151,6 +151,25 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ direction: "asc" }, { departureTime: "asc" }],
   },
 
+  "document-types": {
+    table: () => db.documentType as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // The order the pièces are asked for at the guichet, which is the order the
+    // dossier checklist shows them in.
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
+  "supply-articles": {
+    table: () => db.supplyArticle as unknown as Delegate,
+    where: bySchool,
+    createData: (context) => ({ schoolId: context.currentSchool?.id }),
+    // Grouped by shelf, then by the school's own order within it — the same
+    // order the picker shows, so the screen that manages the catalogue reads
+    // like the screen that uses it.
+    orderBy: [{ category: "asc" }, { position: "asc" }, { name: "asc" }],
+  },
+
   neighbourhoods: {
     table: () => db.neighbourhood as unknown as Delegate,
     where: bySchool,

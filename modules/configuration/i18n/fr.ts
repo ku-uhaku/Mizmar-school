@@ -48,6 +48,8 @@ const fr = {
       schoolWeeks: "Semaines de l'année",
       teacherUnavailability: "Horaires des enseignants",
       transportSchedules: "Horaires de transport",
+      supplyArticles: "Catalogue de fournitures",
+      documentTypes: "Pi\u00e8ces du dossier",
       banks: "Banques",
       operationCategories: "Rubriques",
       operationSubcategories: "Sous-rubriques",
@@ -107,6 +109,10 @@ const fr = {
       teacherSubjects: "Qui enseigne quoi",
       preferenceRank: "Priorité",
       payrollWorkingDays: "Jours ouvrables par mois",
+      cnssRate: "CNSS (part salariale)",
+      cnssCeiling: "Plafond CNSS",
+      amoRate: "AMO (part salariale)",
+      irRate: "Imp\u00f4t sur le revenu (IR)",
       name: "Nom",
       nameAr: "Nom (arabe)",
       code: "Code",
@@ -124,7 +130,14 @@ const fr = {
       defaultCoefficient: "Poids par défaut",
       defaultMaxScore: "Noté sur",
       countsTowardAverage: "Compte dans la moyenne",
+      gradesWholeSubject: "Porte sur la matière entière",
       allowTeacherCreate: "Les enseignants peuvent en donner",
+      supplyCategory: "Famille",
+      defaultQuantity: "Quantit\u00e9 habituelle",
+      supplyArticleNotes: "D\u00e9tail",
+      isRequiredDocument: "Obligatoire",
+      copies: "Exemplaires",
+      documentNotes: "Pr\u00e9cision",
       colorHex: "Couleur",
       isLanguage: "Matière de langue",
       requiresLab: "Nécessite un laboratoire",
@@ -170,6 +183,25 @@ const fr = {
     },
 
     hints: {
+      cnssRate:
+        "Sugg\u00e9r\u00e9e sur le bulletin, jamais appliqu\u00e9e d\u2019office. 4,48 % est la part salariale usuelle.",
+      cnssCeiling:
+        "Le salaire mensuel sur lequel la CNSS est calcul\u00e9e. Au-del\u00e0, la part salariale n\u2019augmente plus. 0 pour aucun plafond.",
+      amoRate: "Sugg\u00e9r\u00e9e sur le bulletin, jamais appliqu\u00e9e d\u2019office. 2,26 % est la part usuelle.",
+      irRate:
+        "Simple suggestion \u00e0 taux fixe. Le bar\u00e8me r\u00e9el est progressif avec une d\u00e9duction par personne \u00e0 charge : laissez 0 sauf si un taux unique convient vraiment.",
+      isRequiredDocument:
+        "Seule une pi\u00e8ce obligatoire peut bloquer une inscription. Une pi\u00e8ce facultative est tout de m\u00eame demand\u00e9e et affich\u00e9e.",
+      copies:
+        "Combien en apporter \u2014 \u00ab 2 photos d'identit\u00e9 \u00bb. \u00c0 laisser vide lorsqu\u2019un seul exemplaire suffit.",
+      documentNotes:
+        "O\u00f9 l\u2019obtenir, de quand elle doit dater \u2014 ce que le nom ne dit pas.",
+      supplyCategory:
+        "Le rayon de papeterie o\u00f9 l\u2019article se trouve. Le s\u00e9lecteur des listes s\u2019y regroupe.",
+      defaultQuantity:
+        "Pr\u00e9-remplie quand un enseignant choisit l\u2019article. \u00c0 laisser vide pour ce qui se compte \u00e0 l\u2019\u0153il.",
+      supplyArticleNotes:
+        "Format, r\u00e9glure, taille \u2014 ce qui appartient \u00e0 l\u2019article et non \u00e0 une liste.",
       weekNumber:
         "Compte les semaines réellement enseignées — les vacances sont sautées, pas numérotées.",
       weekParity:
@@ -217,6 +249,8 @@ const fr = {
         "Le plus bas passe en premier quand plusieurs enseignants peuvent prendre la matière. 0 pour un spécialiste, plus haut pour un remplaçant.",
       payrollWorkingDays:
         "Divise le salaire mensuel pour suggérer un taux journalier. Jamais appliqué d'office.",
+      gradesWholeSubject:
+        "\u00c0 activer pour ce qui se passe sur la mati\u00e8re enti\u00e8re en une \u00e9preuve \u2014 contr\u00f4les et oraux. D\u00e9sactiv\u00e9, c\u2019est une \u00e9preuve par composante, comme pour un devoir.",
       allowTeacherCreate:
         "À activer pour ce qu\u2019un enseignant donne lui-même — les devoirs. Les contrôles restent désactivés : seul le responsable pédagogique les programme.",
       defaultCoefficient:
@@ -268,6 +302,18 @@ const fr = {
     weekParities: {
       A: "Semaine A",
       B: "Semaine B",
+    },
+    supplyCategories: {
+      ECRITURE: "\u00c9criture",
+      CAHIERS: "Cahiers",
+      COUVERTURES: "Couvertures",
+      CLASSEMENT: "Classement",
+      GEOMETRIE: "G\u00e9om\u00e9trie",
+      ARTS: "Arts plastiques",
+      CARTABLE: "Cartable et trousse",
+      SPORT: "Sport",
+      HYGIENE: "Hygi\u00e8ne",
+      AUTRE: "Divers",
     },
     scheduleDirections: {
       MORNING: "Matin",

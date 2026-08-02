@@ -95,6 +95,10 @@ model SalaryPayment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Which avances this month's `advanceCentimes` actually paid down. The
+  /// deduction box is the total of these — see SalaryAdvanceRecovery.
+  advanceRecoveries SalaryAdvanceRecovery[]
+
   /// One bulletin per employee per month. Running the payroll twice for
   /// September must update September, never raise a second one.
   @@unique([staffId, periodYear, periodMonth])

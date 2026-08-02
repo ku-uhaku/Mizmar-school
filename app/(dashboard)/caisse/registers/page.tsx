@@ -7,7 +7,10 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RegistersManager } from "@/modules/treasury/components/registers-manager";
 import { SessionBar } from "@/modules/treasury/components/session-bar";
-import { listRegisters } from "@/modules/treasury/queries";
+import {
+  listCashierChoices,
+  listRegisters,
+} from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Caisses" };
 
@@ -27,7 +30,10 @@ export default async function CashRegistersPage() {
     return <ForbiddenState />;
   }
 
-  const registers = await listRegisters(context);
+  const [registers, cashiers] = await Promise.all([
+    listRegisters(context),
+    listCashierChoices(context),
+  ]);
   const canManage = context.can(PERMISSIONS.TREASURY_SESSION);
 
   return (
@@ -40,7 +46,11 @@ export default async function CashRegistersPage() {
       />
 
       <div className="grid gap-5">
-        <RegistersManager registers={registers} canManage={canManage} />
+        <RegistersManager
+          registers={registers}
+          cashiers={cashiers}
+          canManage={canManage}
+        />
 
         {/* Opening and closing lives here too: the list is where somebody
             looking at the tills already is, so making them go elsewhere to

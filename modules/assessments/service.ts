@@ -41,16 +41,27 @@ export type ProgrammeSubject = {
  *    track" — that is how the common subjects (Arabic, Islamic education, EPS)
  *    are declared once instead of per stream. See LevelSubject.trackId.
  *
- * 2. Where a subject is split into components at that level, the components are
- *    what get marked and the parent does not. اللغة العربية in 3AP is not sat as
- *    one paper; القراءة and التعبير الكتابي are, and the parent's mark is
- *    computed from them. Generating for both would double the subject.
+ * 2. Where a subject is split into components at that level, what may be marked
+ *    depends on the kind of paper — which is what `wholeSubjects` selects:
+ *
+ *      false  the components only. اللغة العربية in 3AP is not sat as one
+ *             devoir; الإملاء is, and the matière's mark is computed from its
+ *             components. The historical behaviour, and still the default.
+ *      true   the matière *and* its components, because a contrôle continu is
+ *             ordinarily sat on اللغة العربية as one paper but a school may run
+ *             one on الصرف والتحويل alone.
+ *
+ *    Widening the second case is safe because it only widens what may be
+ *    *asked for*. Asking for both halves at once is settled in
+ *    `generateAssessments`, which drops a component whose matière is in the
+ *    same run rather than marking the same work twice.
  *
  * Ungraded rows — the support and activity slots that are timetabled but never
  * averaged — are excluded outright.
  */
 export async function resolveProgramme(
   schoolClassId: string,
+  options: { wholeSubjects?: boolean } = {},
 ): Promise<ProgrammeSubject[]> {
   const schoolClass = await db.schoolClass.findUnique({
     where: { id: schoolClassId },
@@ -79,12 +90,15 @@ export async function resolveProgramme(
     },
   });
 
-  // Rule 2: a parent that has at least one of its components in this same
-  // programme is marked through them, not directly.
+  // Rule 2: a matière that has at least one of its components in this same
+  // programme is marked through them, not directly — unless the kind of paper
+  // is sat on the matière, in which case both halves are on offer.
   const parentsCoveredByComponents = new Set(
-    rows
-      .map((row) => row.subject.parentId)
-      .filter((parentId): parentId is string => parentId !== null),
+    options.wholeSubjects
+      ? []
+      : rows
+          .map((row) => row.subject.parentId)
+          .filter((parentId): parentId is string => parentId !== null),
   );
 
   return rows
@@ -175,11 +189,14 @@ export async function generateAssessments(
       name: true,
       defaultCoefficient: true,
       defaultMaxScore: true,
+      gradesWholeSubject: true,
     },
   });
   if (!type) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
-  const programme = await resolveProgramme(input.schoolClassId);
+  const programme = await resolveProgramme(input.schoolClassId, {
+    wholeSubjects: type.gradesWholeSubject,
+  });
   if (programme.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   // Only subjects that are genuinely on this class's programme. A subject id
@@ -188,9 +205,31 @@ export async function generateAssessments(
   const onProgramme = new Map(
     programme.map((subject) => [subject.subjectId, subject]),
   );
-  const requested = input.targets.filter((target) =>
+  const onProgrammeTargets = input.targets.filter((target) =>
     onProgramme.has(target.subjectId),
   );
+
+  /*
+    A matière and its own component cannot both be marked in one round.
+
+    Only reachable when the kind is sat on the matière, since that is the only
+    case where both halves are on the programme at all. The picker keeps the two
+    mutually exclusive, but a Server Function is reachable by direct POST and the
+    consequence of trusting the request here is a double-counted matière at
+    moyenne time — so the matière wins and the component is dropped, rather than
+    the whole run being refused over a tick the operator cannot see.
+  */
+  const markedWhole = new Set(
+    onProgrammeTargets
+      .map((target) => onProgramme.get(target.subjectId)!)
+      .filter((subject) => subject.parentSubjectId === null)
+      .map((subject) => subject.subjectId),
+  );
+  const requested = onProgrammeTargets.filter((target) => {
+    const parentId = onProgramme.get(target.subjectId)!.parentSubjectId;
+    return parentId === null || !markedWhole.has(parentId);
+  });
+
   if (requested.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   const [existing, assignments] = await Promise.all([

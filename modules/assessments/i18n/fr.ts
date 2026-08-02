@@ -62,6 +62,9 @@ const fr = {
     subjectsToGenerate: "Matières",
     subjectsToGenerateHint:
       "Décochez ce qui n'est pas évalué, et donnez à chaque contrôle sa propre date — une série s'étale sur une semaine, pas sur une matinée.",
+    wholeSubjectHint:
+      "Ce type se passe sur la matière entière — un seul contrôle pour اللغة العربية, et non un par composante. Cochez plutôt une composante pour n'évaluer qu'elle.",
+    orOneComponent: "ou plutôt une seule de ses composantes",
     allSubjects: "Tout",
     noneSubjects: "Aucune",
     nothingToGenerate: "Toutes les matières ont déjà ce contrôle.",

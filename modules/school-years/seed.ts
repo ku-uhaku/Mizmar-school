@@ -1,8 +1,15 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
- * Three school years per school — one closed, one running, one planned — each
- * split into the two semesters Moroccan schools work in.
+ * One school year per school — the one being taught — split into the two
+ * semesters Moroccan schools work in.
+ *
+ * A single year rather than a closed / running / planned trio: everything
+ * year-scoped is seeded three times over otherwise, and a demo database whose
+ * pupil counts are three parallel realities is harder to read than one school
+ * year with a full class list behind it. The app handles several years — the
+ * screens are all year-scoped — but proving that is the tests' job, not the
+ * seed's.
  */
 
 export type YearSeed = {
@@ -14,9 +21,7 @@ export type YearSeed = {
 };
 
 export const YEARS: YearSeed[] = [
-  { name: "2024-2025", start: "2024-09-09", end: "2025-07-04", status: "CLOSED", isDefault: false },
   { name: "2025-2026", start: "2025-09-08", end: "2026-07-03", status: "ACTIVE", isDefault: true },
-  { name: "2026-2027", start: "2026-09-07", end: "2027-07-02", status: "PLANNED", isDefault: false },
 ];
 
 /** Semesters, expressed as offsets so they follow whichever year they belong to. */

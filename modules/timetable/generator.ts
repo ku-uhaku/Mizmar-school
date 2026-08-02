@@ -527,16 +527,21 @@ function placeDemand(
       // Both ceilings are checked before anything is offered: a class that has
       // had its 30 hours and a teacher who has had their 22 are both full, and
       // the placer must stop rather than report a grid nobody can staff.
+      //
+      // `continue`, not `break`: the ceiling is being tested against *this*
+      // block, so a school with an hour of headroom left and doubles turned on
+      // must still be offered the single period. Breaking out here abandoned
+      // the whole subject over a block that was merely one period too long.
       const classKey = demand.schoolClassId;
       const classAfter =
         (ledger.classMinutes.get(classKey) ?? 0) + size * input.periodMinutes;
-      if (input.classCapacity > 0 && classAfter > input.classCapacity) break;
+      if (input.classCapacity > 0 && classAfter > input.classCapacity) continue;
 
       if (teacherId) {
         const cap = input.teacherCapacity[teacherId];
         const after =
           (ledger.teacherMinutes.get(teacherId) ?? 0) + size * input.periodMinutes;
-        if (cap !== undefined && cap > 0 && after > cap) break;
+        if (cap !== undefined && cap > 0 && after > cap) continue;
       }
 
       const ofSize = windowsOfSize(runs, size).filter((window) => {

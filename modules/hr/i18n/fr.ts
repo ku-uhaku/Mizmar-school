@@ -194,6 +194,34 @@ const fr = {
     leaveThisYear: "Jours de congé cette année",
     leaveStatusNote:
       "Accorder un congé qui couvre aujourd'hui met l'employé en congé, pour que le pointage ne le note pas absent.",
+    // ── Avances sur salaire ────────────────────────────────────────────────
+    advances: "Avances sur salaire",
+    advancesHint: "L\u2019argent avanc\u00e9 avant la paie, et ce qu\u2019il en reste d\u00fb.",
+    newAdvance: "Nouvelle avance",
+    editAdvance: "Modifier la demande",
+    advanceAmount: "Montant",
+    advanceInstalments: "R\u00e9cup\u00e9r\u00e9e sur",
+    advanceInstalmentsHint: "Sur combien de mois la retenir. La derni\u00e8re \u00e9ch\u00e9ance solde le reste.",
+    advanceReason: "Motif",
+    advanceRecovered: "R\u00e9cup\u00e9r\u00e9",
+    advanceOutstanding: "Reste d\u00fb",
+    advanceRequested: "Avance demand\u00e9e.",
+    advanceSaved: "Demande mise \u00e0 jour.",
+    advanceApproved: "Avance accord\u00e9e.",
+    advanceRefused: "Avance refus\u00e9e.",
+    advancePaid: "Avance remise.",
+    advanceLocked: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e \u2014 elle n\u2019est plus modifiable.",
+    advanceAlreadyDecided: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e.",
+    advanceAlreadyPaid: "Cette avance a d\u00e9j\u00e0 \u00e9t\u00e9 remise.",
+    advanceNotApproved: "Accordez l\u2019avance avant d\u2019en remettre le montant.",
+    advanceOverRecovered: "C\u2019est plus que ce que doit cet employ\u00e9 ({amount} DH restant d\u00fb).",
+    noAdvances: "Aucune avance n\u2019a \u00e9t\u00e9 demand\u00e9e.",
+    noAdvancesHint: "Cr\u00e9ez-en une lorsqu\u2019un salari\u00e9 a besoin d\u2019argent avant la paie.",
+    payAdvance: "Remettre",
+    payAdvanceAmount: "Remettre {amount}",
+    decide: "Trancher",
+    refuse: "Refuser",
+    statutorySuggested: "Sugg\u00e9r\u00e9 d\u2019apr\u00e8s les taux de l\u2019\u00e9cole",
   },
   hrOptions: {
     jobRoles: {
@@ -257,6 +285,13 @@ const fr = {
       PATERNITY: "Paternité",
       EXCEPTIONAL: "Exceptionnel",
     },
+    advanceStatuses: {
+      REQUESTED: "Demand\u00e9e",
+      APPROVED: "Accord\u00e9e",
+      PAID: "Remise",
+      RECOVERED: "R\u00e9cup\u00e9r\u00e9e",
+      CANCELLED: "Refus\u00e9e",
+    },
     leaveStatuses: {
       PENDING: "En attente",
       APPROVED: "Accordé",
@@ -275,6 +310,7 @@ export const nav = {
   hrStaff: "Personnel",
   hrAttendance: "Pointage",
   hrPayroll: "Paie",
+  hrAdvances: "Avances",
   hrLeave: "Congés",
 } as const;
 

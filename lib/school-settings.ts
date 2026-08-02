@@ -49,6 +49,12 @@ export type SchoolSettingsValues = {
   defaultInstalmentCount: number;
   feeDueDayOfMonth: number;
   payrollWorkingDays: number;
+  /** Employee CNSS share, in basis points. See the note on the column. */
+  cnssRateBps: number;
+  /** Monthly plafond the CNSS is computed on, in centimes. 0 = uncapped. */
+  cnssCeilingCentimes: number;
+  amoRateBps: number;
+  irRateBps: number;
 };
 
 /** The values the app used before any of this was configurable. */
@@ -67,6 +73,12 @@ export const DEFAULT_SETTINGS: SchoolSettingsValues = {
   defaultInstalmentCount: 9,
   feeDueDayOfMonth: 5,
   payrollWorkingDays: 26,
+  // The ordinary Moroccan employee shares. IR stays blank on purpose — a flat
+  // rate would be wrong for everybody, and the barème is progressive.
+  cnssRateBps: 448,
+  cnssCeilingCentimes: 600000,
+  amoRateBps: 226,
+  irRateBps: 0,
 };
 
 /**

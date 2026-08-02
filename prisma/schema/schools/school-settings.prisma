@@ -104,6 +104,29 @@ model SchoolSettings {
   /// never applied automatically. See modules/hr/enums.ts.
   payrollWorkingDays Int @default(26)
 
+  /// Cotisations salariales and the tax withheld, as rates the school sets.
+  ///
+  /// ── Why these are suggestions and not a calculator ──────────────────────
+  /// They fill the CNSS, AMO and IR boxes on a bulletin so a bursar is not
+  /// typing four figures from a table every month. They are *not* a payroll
+  /// engine: the rates change by decree, a school may be on a different
+  /// convention collective, and — most of all — the Moroccan IR is a
+  /// progressive barème with a deduction per dependant, which a single rate
+  /// cannot express. Every suggested figure is written into an editable box and
+  /// the bursar remains the one who says what is withheld.
+  ///
+  /// Basis points throughout, for the same reason `passMarkBps` is: a rate that
+  /// decides what somebody is paid must not be a float.
+  ///
+  /// Defaults are the ordinary Moroccan employee shares: CNSS 4.48% capped at
+  /// 6 000 MAD a month, AMO 2.26% uncapped. IR defaults to zero, because a flat
+  /// rate would be wrong for everybody and a zero is honestly blank.
+  cnssRateBps         Int @default(448)
+  /// The monthly plafond CNSS is computed on, in centimes. 0 means uncapped.
+  cnssCeilingCentimes Int @default(600000)
+  amoRateBps          Int @default(226)
+  irRateBps           Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

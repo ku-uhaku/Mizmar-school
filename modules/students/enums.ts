@@ -143,6 +143,11 @@ export function deriveStudentStatus(
 export const STUDENT_WORKFLOW_STEPS = [
   "FILE",
   "FAMILY",
+  // Before the inscription, because that is the order the guichet works in: the
+  // dossier is what the family brings, and the inscription is what the school
+  // does once it has it. A pupil can be inscribed with pièces outstanding — the
+  // step goes amber, it does not refuse — but the parcours says so.
+  "DOSSIER",
   "ENROLMENT",
   "CLASS",
   "FEES",
@@ -157,6 +162,12 @@ export type StudentWorkflowStep = (typeof STUDENT_WORKFLOW_STEPS)[number];
  */
 export function workflowStateOf(input: {
   hasFamily: boolean;
+  /**
+   * Every *required* pièce of the school's catalogue is settled — received or
+   * waived. See `dossierStandingOf` in modules/documents/enums.ts, which is
+   * where the rule lives; this only reads its verdict.
+   */
+  hasDossier: boolean;
   hasEnrolment: boolean;
   hasClass: boolean;
   hasFees: boolean;
@@ -176,6 +187,7 @@ export function workflowStateOf(input: {
     // The file exists — the pupil is being looked at, so this is always done.
     FILE: true,
     FAMILY: input.hasFamily,
+    DOSSIER: input.hasDossier,
     ENROLMENT: input.hasEnrolment,
     CLASS: input.hasClass,
     FEES: input.hasFees,

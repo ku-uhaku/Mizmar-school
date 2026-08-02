@@ -40,6 +40,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
@@ -50,7 +57,10 @@ import {
   saveCashRegisterAction,
   setCashRegisterActiveAction,
 } from "@/modules/treasury/actions";
-import type { RegisterRow } from "@/modules/treasury/queries";
+import type {
+  CashierChoice,
+  RegisterRow,
+} from "@/modules/treasury/queries";
 
 /**
  * The tills, and how a school adds one.
@@ -63,11 +73,17 @@ import type { RegisterRow } from "@/modules/treasury/queries";
  * that has never been opened can actually be removed, and that is exactly the
  * one somebody created by mistake.
  */
+/** The empty option's value: a `Select` cannot hold an empty string. */
+const NO_HOLDER = "__none__";
+
 export function RegistersManager({
   registers,
+  cashiers,
   canManage,
 }: {
   registers: RegisterRow[];
+  /** Who may be given a drawer — this school's members. */
+  cashiers: CashierChoice[];
   canManage: boolean;
 }) {
   const { t, locale } = useI18n();
@@ -94,7 +110,8 @@ export function RegistersManager({
     () => [
       {
         id: "register",
-        accessorFn: (row) => `${row.name} ${row.code} ${row.nameAr ?? ""}`,
+        accessorFn: (row) =>
+          `${row.name} ${row.code} ${row.nameAr ?? ""} ${row.holderName ?? ""}`,
         header: t.treasury.register,
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -295,6 +312,7 @@ export function RegistersManager({
       {creating || editing ? (
         <RegisterDialog
           register={editing}
+          cashiers={cashiers}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -320,9 +338,11 @@ export function RegistersManager({
 
 function RegisterDialog({
   register,
+  cashiers,
   onClose,
 }: {
   register: RegisterRow | null;
+  cashiers: CashierChoice[];
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -406,6 +426,32 @@ function RegisterDialog({
                 maxLength={120}
                 dir="rtl"
               />
+            </FormField>
+
+            {/* One drawer per cashier. Leaving it blank keeps the till shared,
+              which is what the coffre the bursar banks into actually is. */}
+            <FormField
+              name="holderId"
+              label={t.treasury.heldBy}
+              hint={t.treasury.heldByHint}
+              error={errors.holderId}
+            >
+              <Select
+                name="holderId"
+                defaultValue={register?.holderId ?? NO_HOLDER}
+              >
+                <SelectTrigger id="holderId" className="w-full">
+                  <SelectValue placeholder={t.treasury.unheld} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_HOLDER}>{t.treasury.unheld}</SelectItem>
+                  {cashiers.map((cashier) => (
+                    <SelectItem key={cashier.id} value={cashier.id}>
+                      {cashier.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
 
             <FormField

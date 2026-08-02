@@ -235,6 +235,8 @@ export function cashRegisterSchema(t: Dictionary) {
     code: requiredText(v, { max: 32 }),
     name: requiredText(v, { max: 120 }),
     nameAr: optionalText(120),
+    /** Empty means a shared drawer — see CashRegister.holderId. */
+    holderId: optionalText(40),
     position: z.coerce
       .number({ error: v.invalidNumber })
       .int({ error: v.invalidNumber })

@@ -37,6 +37,7 @@ export async function seedClasses(
     /** Only the running year gets teachers and groups; the rest just get classes. */
     withStaffing,
     programmeByLevel,
+    subjectMinutes,
   }: {
     schoolId: string;
     schoolYearId: string;
@@ -46,10 +47,13 @@ export async function seedClasses(
     subjectIdByCode: Record<string, string>;
     labSubjectCodes: string[];
     roomIds: string[];
-    teachers: { id: string }[];
+    /** The school's teaching staff, each with what they are qualified to take. */
+    teachers: { id: string; subjectCodes: string[] }[];
     withStaffing: boolean;
     /** Level code → the subject codes taught there, in order. */
     programmeByLevel: Record<string, string[]>;
+    /** Level code → subject code → weekly minutes, for levelling the load. */
+    subjectMinutes: Record<string, Record<string, number>>;
   },
 ): Promise<TimetableClass[]> {
   /** Only the staffed classes, which are what the timetable step needs. */
@@ -60,6 +64,42 @@ export async function seedClasses(
   let assignments = 0;
   let roomCursor = 0;
   let teacherCursor = 0;
+
+  /*
+    Who gets which class, and how much they are carrying.
+
+    This used to be `teachers[cursor % teachers.length]` — round-robin, blind to
+    the subject — which handed Arabic to the maths teacher and made every
+    qualification the database later inferred a fiction. A school seeded that way
+    cannot be timetabled, because the constraint the generator solves against was
+    never true of the data.
+
+    Now the pool is narrowed to teachers actually qualified for the subject and
+    the least-loaded of them takes it, so a staff sized by `teacherPlanFor`
+    spreads evenly instead of the first name being buried. Minutes, not lesson
+    counts: eight hours of Arabic and ninety minutes of Tamazight are not the
+    same burden.
+
+    Falling back to the whole staff when nobody is qualified is deliberate — a
+    seeded class with no teacher at all would be a worse lie than one taught by
+    somebody out of their field, and the fallback is visible in the data rather
+    than silently skipping the assignment.
+  */
+  const carrying = new Map<string, number>();
+
+  const pickTeacher = (subjectCode: string, minutes: number) => {
+    const qualified = teachers.filter((teacher) =>
+      teacher.subjectCodes.includes(subjectCode),
+    );
+    const pool = qualified.length > 0 ? qualified : teachers;
+    if (pool.length === 0) return null;
+
+    const chosen = pool.reduce((best, teacher) =>
+      (carrying.get(teacher.id) ?? 0) < (carrying.get(best.id) ?? 0) ? teacher : best,
+    );
+    carrying.set(chosen.id, (carrying.get(chosen.id) ?? 0) + minutes);
+    return chosen;
+  };
 
   for (const plan of plans) {
     const levelId = levelIdByCode[plan.levelCode];
@@ -91,10 +131,14 @@ export async function seedClasses(
       const roomId = roomIds.length > 0 ? roomIds[roomCursor % roomIds.length] : null;
       roomCursor += 1;
 
+      // The titulaire, round-robin. Unlike the subject assignments below this
+      // is only a label — it constrains no lesson — so spreading it evenly over
+      // the staff is all that is wanted.
       const mainTeacher =
         withStaffing && teachers.length > 0
           ? teachers[teacherCursor % teachers.length]
           : null;
+      teacherCursor += 1;
 
       const klass = await db.schoolClass.upsert({
         where: { levelOfferingId_code: { levelOfferingId: offering.id, code } },
@@ -122,8 +166,9 @@ export async function seedClasses(
         const subjectId = subjectIdByCode[subjectCode];
         if (!subjectId || teachers.length === 0) continue;
 
-        const teacher = teachers[teacherCursor % teachers.length];
-        teacherCursor += 1;
+        const minutes = subjectMinutes[plan.levelCode]?.[subjectCode] ?? 0;
+        const teacher = pickTeacher(subjectCode, minutes);
+        if (!teacher) continue;
 
         await db.teachingAssignment.upsert({
           where: {

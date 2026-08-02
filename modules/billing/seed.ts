@@ -39,7 +39,7 @@ export type DiscountSeed = {
   isStackable?: boolean;
 };
 
-export const FULL_RANGE_FEES: FeeTypeSeed[] = [
+export const FEE_TYPES: FeeTypeSeed[] = [
   { code: "SCOLARITE", name: "Scolarité", nameAr: "الرسوم الدراسية", kind: "TUITION", billingCycle: "MONTHLY", isMandatory: true },
   { code: "INSCRIPTION", name: "Frais d'inscription", nameAr: "رسوم التسجيل", kind: "REGISTRATION", billingCycle: "ONE_OFF", isMandatory: true },
   { code: "ASSURANCE", name: "Assurance scolaire", nameAr: "التأمين المدرسي", kind: "INSURANCE", billingCycle: "ANNUAL", isMandatory: true },
@@ -50,7 +50,7 @@ export const FULL_RANGE_FEES: FeeTypeSeed[] = [
   { code: "CLUB-THEATRE", name: "Club de théâtre", nameAr: "نادي المسرح", kind: "CLUB", billingCycle: "ANNUAL", isMandatory: false },
 ];
 
-export const FULL_RANGE_RATES: FeeRateSeed[] = [
+export const FEE_RATES: FeeRateSeed[] = [
   // Scolarité rises with the cycle — the whole reason a price is per level.
   { feeCode: "SCOLARITE", levelCode: "1AP", dirhams: 15000, instalmentCount: 9 },
   { feeCode: "SCOLARITE", levelCode: "2AP", dirhams: 15000, instalmentCount: 9 },
@@ -72,29 +72,6 @@ export const FULL_RANGE_RATES: FeeRateSeed[] = [
   { feeCode: "CANTINE", levelCode: null, dirhams: 6300, instalmentCount: 9 },
   { feeCode: "CLUB-FOOT", levelCode: null, dirhams: 900 },
   { feeCode: "CLUB-THEATRE", levelCode: null, dirhams: 700 },
-];
-
-export const PRIMARY_ONLY_FEES: FeeTypeSeed[] = [
-  { code: "SCOLARITE", name: "Scolarité", nameAr: "الرسوم الدراسية", kind: "TUITION", billingCycle: "MONTHLY", isMandatory: true },
-  { code: "INSCRIPTION", name: "Frais d'inscription", nameAr: "رسوم التسجيل", kind: "REGISTRATION", billingCycle: "ONE_OFF", isMandatory: true },
-  { code: "ASSURANCE", name: "Assurance scolaire", nameAr: "التأمين المدرسي", kind: "INSURANCE", billingCycle: "ANNUAL", isMandatory: true },
-  { code: "CANTINE", name: "Cantine", nameAr: "المطعم المدرسي", kind: "CANTEEN", billingCycle: "MONTHLY", isMandatory: false },
-  { code: "CLUB-ARTS", name: "Club d'arts plastiques", nameAr: "نادي الفنون التشكيلية", kind: "CLUB", billingCycle: "ANNUAL", isMandatory: false },
-];
-
-export const PRIMARY_ONLY_RATES: FeeRateSeed[] = [
-  { feeCode: "SCOLARITE", levelCode: "MS", dirhams: 11000, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "GS", dirhams: 12000, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "1AP", dirhams: 14000, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "2AP", dirhams: 14000, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "3AP", dirhams: 14500, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "4AP", dirhams: 14500, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "5AP", dirhams: 15000, instalmentCount: 10 },
-  { feeCode: "SCOLARITE", levelCode: "6AP", dirhams: 15000, instalmentCount: 10 },
-  { feeCode: "INSCRIPTION", levelCode: null, dirhams: 1200 },
-  { feeCode: "ASSURANCE", levelCode: null, dirhams: 150 },
-  { feeCode: "CANTINE", levelCode: null, dirhams: 5400, instalmentCount: 10 },
-  { feeCode: "CLUB-ARTS", levelCode: null, dirhams: 700 },
 ];
 
 export const DISCOUNTS: DiscountSeed[] = [

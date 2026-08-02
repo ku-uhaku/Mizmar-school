@@ -82,6 +82,8 @@ model School {
   teacherAbsences TeacherAbsence[]
   /// Listes de fournitures, once approved — see prisma/schema/supplies/.
   supplyLists     SupplyList[]
+  supplyArticles  SupplyArticle[]
+  documentTypes   DocumentType[]
 
   // ── RH ────────────────────────────────────────────────────────────────────
   /// Everybody on the payroll. Year-independent, like the fleet: an employee is

@@ -30,6 +30,7 @@ import {
   loadPupilRemarks,
 } from "@/modules/classroom/queries";
 import { findStudent, loadStudentWorkflow } from "@/modules/students/queries";
+import { loadStudentDossier } from "@/modules/documents/queries";
 import {
   loadTransportChoices,
   studentTransport,
@@ -78,9 +79,19 @@ export default async function StudentPage({
   // Money is gated separately from the pupil's file: a teacher may read a
   // child's record without learning whether their family is behind on fees.
   const canSeeMoney = context.can(PERMISSIONS.TREASURY_VIEW);
+  // The dossier is gated on its own code, like money and transport: a reader
+  // without it gets no tab rather than an empty one.
+  const canSeeDossier = context.can(PERMISSIONS.DOCUMENT_VIEW);
 
-  const [workflow, enrolment, choices, families, cities, neighbourhoods] =
-    await Promise.all([
+  const [
+    workflow,
+    enrolment,
+    choices,
+    families,
+    cities,
+    neighbourhoods,
+    dossier,
+  ] = await Promise.all([
       loadStudentWorkflow(context, student.id),
       findEnrolment(context, student.id),
       loadEnrolmentChoices(context),
@@ -93,6 +104,7 @@ export default async function StudentPage({
       ]),
       // Same rule for their quartier — a merged one must not blank the address.
       listNeighbourhoodChoices(context, [student.neighbourhoodId]),
+      canSeeDossier ? loadStudentDossier(context, student.id) : null,
     ]);
 
   // The rest depends on what the first round found: no dossier means no
@@ -247,6 +259,7 @@ export default async function StudentPage({
         familyStanding={familyStanding}
         payments={payments}
         workflow={workflow}
+        dossier={dossier}
         // Whether a family is behind on its payments is money: a teacher who
         // may view a pupil has no business reading it off their parcours.
         workflowSteps={
@@ -264,6 +277,7 @@ export default async function StudentPage({
           canCollect: context.can(PERMISSIONS.TREASURY_COLLECT),
           canCancelPayment: context.can(PERMISSIONS.TREASURY_CANCEL),
           canSubscribeTransport: context.can(PERMISSIONS.TRANSPORT_SUBSCRIBE),
+          canManageDocuments: context.can(PERMISSIONS.DOCUMENT_MANAGE),
         }}
       />
     </>

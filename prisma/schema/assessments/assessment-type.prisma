@@ -33,6 +33,22 @@ model AssessmentType {
   /// never move the average — remediation exercises, mock papers.
   countsTowardAverage Boolean @default(true)
 
+  /// Whether a round of this kind is sat on the matière as a whole rather than
+  /// on each of its components.
+  ///
+  /// A contrôle continu in 1AP is one paper for اللغة العربية, not four for
+  /// القراءة، الإملاء، التعبير الكتابي and الصرف والتحويل — the components are how
+  /// the report card breaks the matière down, not how the class sits it. A
+  /// devoir is the opposite: it is set on the exact component being worked on,
+  /// which is why this is false by default.
+  ///
+  /// Only the *default*: the generator still offers the components underneath,
+  /// so a school running one contrôle on الصرف والتحويل alone can tick it. What
+  /// it may not do is tick both — see `generateAssessments`, which drops a
+  /// component whose parent is in the same run rather than marking the matière
+  /// twice.
+  gradesWholeSubject Boolean @default(false)
+
   /// Whether a teacher may set one of these themselves, from their own
   /// workspace.
   ///

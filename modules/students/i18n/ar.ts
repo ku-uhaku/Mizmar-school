@@ -120,6 +120,7 @@ const ar = {
     steps: {
       FILE: "فتح الملف",
       FAMILY: "ربط الأسرة",
+      DOSSIER: "الملف مكتمل",
       ENROLMENT: "التسجيل",
       CLASS: "إسناد القسم",
       FEES: "جدولة الرسوم",

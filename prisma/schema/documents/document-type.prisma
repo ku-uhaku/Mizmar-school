@@ -1,0 +1,56 @@
+/// One pièce a dossier d'inscription may call for: "Acte de naissance",
+/// "Copie de la CIN du père", "2 photos d'identité".
+///
+/// A table rather than an enum because the dossier is each school's own
+/// decision and it changes — a school that starts asking for an attestation de
+/// travail should not need a migration. What is asked for is configured once
+/// under Configuration, and every pupil's dossier is then read against it.
+///
+/// ── What this is not ─────────────────────────────────────────────────────────
+/// It holds no file. The school keeps the paper; the app records whether it has
+/// it, which is the question the guichet actually asks — "que manque-t-il pour
+/// inscrire cet enfant ?" — and the one that can be answered without becoming a
+/// document store.
+model DocumentType {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "ACTE-NAISSANCE". What the catalogue is keyed on.
+  code String
+
+  name   String
+  nameAr String?
+
+  /// Whether the dossier is incomplete without it.
+  ///
+  /// Only a required pièce can hold the parcours up. An optional one still
+  /// appears on the checklist — a school wants to see that it asked for the
+  /// attestation de travail and did not get it — but it never blocks an
+  /// inscription, which is what stops the workflow being red for everybody.
+  isRequired Boolean @default(true)
+
+  /// How many copies to bring: "2 photos d'identité". Null when one is meant.
+  copies Int?
+
+  /// Anything the name cannot say — where to get it, how recent it must be.
+  notes String?
+
+  /// Order on the checklist and on the printed liste des pièces.
+  position Int @default(0)
+
+  /// A pièce the school has stopped asking for. Kept rather than deleted so the
+  /// dossiers that recorded it still read correctly; it simply stops counting.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents StudentDocument[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  /// The checklist's own query: this school's live pièces, in order.
+  @@index([schoolId, isActive])
+  @@map("document_types")
+}

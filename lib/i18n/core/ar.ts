@@ -103,7 +103,7 @@ export const nav = {
   overview: "لوحة القيادة",
   main: "الرئيسية",
   vieScolaire: "الحياة المدرسية",
-  finance: "الصندوق",
+  finance: "المالية",
   logistique: "اللوجستيك",
   rh: "الموارد البشرية",
   enseignant: "فضاء الأستاذ",

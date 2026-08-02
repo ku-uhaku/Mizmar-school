@@ -13,6 +13,7 @@ import { CATEGORY_KINDS } from "@/modules/treasury/enums";
 import { ROOM_KINDS } from "@/modules/facilities/enums";
 import { SCHEDULE_DIRECTIONS } from "@/modules/transport/enums";
 import { TERM_STATUSES } from "@/modules/school-years/enums";
+import { SUPPLY_CATEGORIES } from "@/modules/supplies/enums";
 import { SCHOOL_WEEK_PARITIES } from "@/modules/timetable/enums";
 import {
   ABSENCE_KINDS,
@@ -247,6 +248,45 @@ export const RESOURCES: ResourceDef[] = [
         defaultValue: 5,
       },
       {
+        name: "cnssRateBps",
+        type: "percent",
+        labelKey: "cnssRate",
+        hintKey: "cnssRate",
+        groupKey: "payroll",
+        min: 0,
+        max: 100,
+        defaultValue: 4.48,
+      },
+      {
+        name: "cnssCeilingCentimes",
+        type: "money",
+        labelKey: "cnssCeiling",
+        hintKey: "cnssCeiling",
+        groupKey: "payroll",
+        min: 0,
+        defaultValue: 6000,
+      },
+      {
+        name: "amoRateBps",
+        type: "percent",
+        labelKey: "amoRate",
+        hintKey: "amoRate",
+        groupKey: "payroll",
+        min: 0,
+        max: 100,
+        defaultValue: 2.26,
+      },
+      {
+        name: "irRateBps",
+        type: "percent",
+        labelKey: "irRate",
+        hintKey: "irRate",
+        groupKey: "payroll",
+        min: 0,
+        max: 100,
+        defaultValue: 0,
+      },
+      {
         name: "payrollWorkingDays",
         type: "number",
         labelKey: "payrollWorkingDays",
@@ -440,6 +480,14 @@ export const RESOURCES: ResourceDef[] = [
         labelKey: "countsTowardAverage",
         hintKey: "countsTowardAverage",
         defaultValue: true,
+        inTable: true,
+      },
+      {
+        name: "gradesWholeSubject",
+        type: "boolean",
+        labelKey: "gradesWholeSubject",
+        hintKey: "gradesWholeSubject",
+        defaultValue: false,
         inTable: true,
       },
       {
@@ -1406,6 +1454,120 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: "departureTime", type: "time", labelKey: "departureTime", required: true, dir: "ltr", inTable: true },
       { name: "arrivalTime", type: "time", labelKey: "arrivalTime", hintKey: "arrivalTime", dir: "ltr", inTable: true },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  /*
+    Le catalogue de fournitures. Declared once by the school; a liste de
+    fournitures is then assembled by *picking* from it rather than typed, which
+    is what stops the same pen arriving as "stylo bleu", "Stylo à bille bleu"
+    and "bic bleu" on three lists of the same class. See
+    prisma/schema/supplies/supply-article.prisma.
+  */
+  {
+    id: "supply-articles",
+    section: "logistique",
+    labelKey: "supplyArticles",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "STYLO-BLEU",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 160, inTable: true },
+      NAME_AR,
+      {
+        name: "category",
+        type: "select",
+        labelKey: "supplyCategory",
+        hintKey: "supplyCategory",
+        options: SUPPLY_CATEGORIES,
+        optionsKey: "supplyCategories",
+        defaultValue: "ECRITURE",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "defaultQuantity",
+        type: "number",
+        labelKey: "defaultQuantity",
+        hintKey: "defaultQuantity",
+        min: 1,
+        max: 100,
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "notes",
+        type: "textarea",
+        labelKey: "supplyArticleNotes",
+        hintKey: "supplyArticleNotes",
+        maxLength: 200,
+        wide: true,
+      },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+  /*
+    Les pièces du dossier d'inscription. Declared once by the school; every
+    pupil's dossier is then read against this list, so adding a pièce here shows
+    up on every dossier and withdrawing one stops it being asked for — without
+    touching a single pupil. See prisma/schema/documents/document-type.prisma.
+  */
+  {
+    id: "document-types",
+    section: "school",
+    labelKey: "documentTypes",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "ACTE-NAISSANCE",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 160, inTable: true },
+      NAME_AR,
+      {
+        name: "isRequired",
+        type: "boolean",
+        labelKey: "isRequiredDocument",
+        hintKey: "isRequiredDocument",
+        defaultValue: true,
+        inTable: true,
+      },
+      {
+        name: "copies",
+        type: "number",
+        labelKey: "copies",
+        hintKey: "copies",
+        min: 1,
+        max: 10,
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "notes",
+        type: "textarea",
+        labelKey: "documentNotes",
+        hintKey: "documentNotes",
+        maxLength: 300,
+        wide: true,
+      },
       POSITION,
       IS_ACTIVE,
     ],

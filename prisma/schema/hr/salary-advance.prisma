@@ -1,0 +1,109 @@
+/// An avance sur salaire: money handed to an employee before payday, recovered
+/// out of the months that follow.
+///
+/// ── Why this is a table and not a number on the payslip ─────────────────────
+/// It used to be `SalaryPayment.advanceCentimes` — a figure the bursar typed
+/// into the deduction box from memory. That could say what was withheld in
+/// March but never what was *owed*: not when the advance was given, not who
+/// agreed to it, not whether the money had actually left the till, and not how
+/// much was still outstanding. Every one of those is a question an employee
+/// asks, and none of them could be answered.
+///
+/// ── The four things that happen to one ──────────────────────────────────────
+/// It is asked for, it is agreed to, the money leaves, and it is recovered over
+/// one or more months. The first two are decisions, the third is a movement of
+/// money in the caisse, and the fourth is arithmetic on the payslips — see
+/// SalaryAdvanceRecovery, which is what makes "still owed" derivable rather
+/// than stored.
+model SalaryAdvance {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// What was asked for, in centimes. Frozen once paid: the sum an employee
+  /// received is not something a later edit may restate.
+  amountCentimes Int
+
+  /// Over how many months it is to be recovered. 1 is the ordinary case; a
+  /// larger advance is spread so the employee is not left with nothing to live
+  /// on. Only ever a *plan* — what was actually recovered is the recoveries.
+  instalmentCount Int @default(1)
+
+  /// "REQUESTED" | "APPROVED" | "PAID" | "RECOVERED" | "CANCELLED"
+  /// see modules/hr/enums.ts.
+  ///
+  /// INVARIANT (service layer): only an APPROVED advance may be paid, and only
+  /// a PAID one is ever recovered — money that has not left cannot be taken
+  /// back out of a wage.
+  status String @default("REQUESTED")
+
+  requestedOn DateTime @default(now())
+  /// Why it was asked for. Kept because a school granting a fourth advance to
+  /// the same person wants to see the first three.
+  reason      String?
+
+  /// Who agreed to it, and when. Restrict is wrong here and SetNull is right:
+  /// the decision outlives the account that made it.
+  approvedById String?
+  approvedBy   User?     @relation("AdvanceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  /// Why it was refused. Shown to whoever asked.
+  decisionNote String?
+
+  /// When the money actually left, and the ledger entry that took it out.
+  ///
+  /// Unique, for the same reason SalaryPayment.cashOperationId is: one
+  /// décaissement settles one advance, so a double-click cannot hand the money
+  /// over twice and leave two operations pointing at the same row. SetNull:
+  /// cancelling the movement in the caisse leaves the advance standing and
+  /// unpaid, which is the true state of affairs.
+  paidOn          DateTime?
+  cashOperationId String?        @unique
+  cashOperation   CashOperation? @relation("OperationAdvance", fields: [cashOperationId], references: [id], onDelete: SetNull)
+
+  /// The month recovery starts from. Null means "the next payroll run".
+  recoverFromYear  Int?
+  recoverFromMonth Int?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recoveries SalaryAdvanceRecovery[]
+
+  @@index([staffId])
+  /// The screen's own query: this person's advances, newest first.
+  @@index([staffId, status])
+  @@index([status])
+  @@map("salary_advances")
+}
+
+/// How much of one advance was taken out of one month's payslip.
+///
+/// The join is what makes an advance's balance *derivable*: outstanding is the
+/// amount less the sum of these, so no running total can drift out of step with
+/// the payslips underneath it. It is also what lets a bulletin be restated —
+/// the rows for that month are replaced, and every balance follows.
+model SalaryAdvanceRecovery {
+  id        String        @id @default(cuid())
+  advanceId String
+  advance   SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+
+  /// Cascade: a bulletin deleted takes its recoveries with it, which puts the
+  /// advance back to what it was before that month — the correct outcome, and
+  /// the reason this is not a soft link.
+  salaryPaymentId String
+  salaryPayment   SalaryPayment @relation(fields: [salaryPaymentId], references: [id], onDelete: Cascade)
+
+  amountCentimes Int
+
+  createdAt DateTime @default(now())
+
+  /// One line per advance per bulletin. Recovering twice in one month against
+  /// the same advance is a restatement, not a second deduction.
+  @@unique([advanceId, salaryPaymentId])
+  @@index([advanceId])
+  @@index([salaryPaymentId])
+  @@map("salary_advance_recoveries")
+}

@@ -104,7 +104,7 @@ export const nav = {
   overview: "Overview",
   main: "Main",
   vieScolaire: "School life",
-  finance: "Cash desk",
+  finance: "Finance",
   logistique: "Logistics",
   rh: "Human resources",
   enseignant: "Teaching",

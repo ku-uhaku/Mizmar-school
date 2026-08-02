@@ -51,6 +51,8 @@ const en = {
       schoolWeeks: "Weeks of the year",
       teacherUnavailability: "Teacher availability",
       transportSchedules: "Transport timetables",
+      supplyArticles: "Supply catalogue",
+      documentTypes: "Dossier documents",
       banks: "Banks",
       operationCategories: "Rubrics",
       operationSubcategories: "Sub-rubrics",
@@ -110,6 +112,10 @@ const en = {
       teacherSubjects: "Who teaches what",
       preferenceRank: "Priority",
       payrollWorkingDays: "Working days per month",
+      cnssRate: "CNSS (employee share)",
+      cnssCeiling: "CNSS ceiling",
+      amoRate: "AMO (employee share)",
+      irRate: "Income tax (IR)",
       name: "Name",
       nameAr: "Name (Arabic)",
       code: "Code",
@@ -127,7 +133,14 @@ const en = {
       defaultCoefficient: "Default weight",
       defaultMaxScore: "Marked out of",
       countsTowardAverage: "Counts toward the average",
+      gradesWholeSubject: "Sat on the whole matière",
       allowTeacherCreate: "Teachers may set this",
+      supplyCategory: "Family",
+      defaultQuantity: "Usual quantity",
+      supplyArticleNotes: "Detail",
+      isRequiredDocument: "Required",
+      copies: "Copies",
+      documentNotes: "Note",
       colorHex: "Colour",
       isLanguage: "Language subject",
       requiresLab: "Needs a lab",
@@ -173,6 +186,25 @@ const en = {
     },
 
     hints: {
+      cnssRate:
+        "Suggested on a bulletin, never applied. 4.48% is the ordinary employee share.",
+      cnssCeiling:
+        "The monthly pay CNSS is computed on. Above it the employee\u2019s share stops growing. 0 for no ceiling.",
+      amoRate: "Suggested on a bulletin, never applied. 2.26% is the ordinary employee share.",
+      irRate:
+        "A flat suggestion only. The real bar\u00e8me is progressive with a deduction per dependant, so leave it at 0 unless a single rate genuinely fits your staff.",
+      isRequiredDocument:
+        "Only a required piece can hold an inscription up. An optional one is still asked for and still listed.",
+      copies:
+        "How many to bring \u2014 \"2 photos d'identit\u00e9\". Leave blank when one is meant.",
+      documentNotes:
+        "Where to get it, how recent it must be \u2014 anything the name cannot say.",
+      supplyCategory:
+        "Which shelf of the papeterie it sits on. The list editor groups its picker by this.",
+      defaultQuantity:
+        "Filled in when a teacher picks this article. Leave blank for what is counted by eye.",
+      supplyArticleNotes:
+        "Format, ruling, size \u2014 detail that belongs to the article rather than to one list.",
       weekNumber:
         "Counts the weeks the school actually teaches in — holidays are skipped, not numbered.",
       weekParity:
@@ -221,6 +253,8 @@ const en = {
         "Divides a monthly salary to suggest a daily rate. Only ever a suggestion.",
       allowTeacherCreate:
         "Turn on for the kinds a teacher sets themselves — devoirs. Contrôles stay off, so only the head of studies plans those.",
+      gradesWholeSubject:
+        "Turn on for the kinds sat on a matière as one paper — contrôles and orals. Off means one paper per component, which is how a devoir is set.",
       defaultCoefficient:
         "Starting weight for a new paper of this kind, within the subject\u2019s mark for the term.",
       defaultMaxScore:
@@ -262,6 +296,18 @@ const en = {
     weekParities: {
       A: "Week A",
       B: "Week B",
+    },
+    supplyCategories: {
+      ECRITURE: "Writing",
+      CAHIERS: "Exercise books",
+      COUVERTURES: "Covers",
+      CLASSEMENT: "Filing",
+      GEOMETRIE: "Geometry",
+      ARTS: "Art",
+      CARTABLE: "Bag and pencil case",
+      SPORT: "Sport",
+      HYGIENE: "Hygiene",
+      AUTRE: "Other",
     },
     scheduleDirections: {
       MORNING: "Morning",

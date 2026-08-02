@@ -1,0 +1,61 @@
+/// What has become of one pièce for one pupil: handed in, refused, waived.
+///
+/// ── Absence is the default, and it is not stored ─────────────────────────────
+/// A row exists only once somebody has *said* something about the pièce. A pupil
+/// whose dossier has never been touched has no rows at all, and every required
+/// pièce reads as MISSING — derived, not written. Seeding a MISSING row per
+/// pupil per pièce would be a thousand rows saying nothing, and it would go
+/// stale the moment the catalogue changed.
+///
+/// ── Why it hangs off the pupil and not the enrolment ─────────────────────────
+/// A dossier is identity: an acte de naissance does not expire in July, and a
+/// child who repeats a year does not hand one in twice. The *inscription* reads
+/// the dossier to decide whether it may proceed — see the DOCUMENTS step of the
+/// pupil's parcours — but it does not own it, which is the same split as
+/// Student versus Enrollment everywhere else in the vie scolaire.
+model StudentDocument {
+  id String @id @default(cuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// Restrict: a pièce with dossiers recorded against it is not deletable out
+  /// from under them. Withdraw it instead — `DocumentType.isActive`.
+  documentTypeId String
+  documentType   DocumentType @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+
+  /// "MISSING" | "RECEIVED" | "REJECTED" | "EXEMPTED"
+  /// see modules/documents/enums.ts.
+  ///
+  /// INVARIANT (service layer): `receivedOn` is set when and only when the
+  /// status is RECEIVED — see `recordDocument`.
+  status String @default("MISSING")
+
+  /// When the paper actually crossed the counter. Distinct from `createdAt`,
+  /// which is when a secretary got round to recording it.
+  receivedOn DateTime?
+
+  /// The document's own number where it has one — the acte de naissance's
+  /// numéro d'acte, the CIN. What lets a registrar check the paper against the
+  /// file without fetching the paper.
+  reference String?
+
+  /// Why it was refused, or on what grounds it was waived. The only place a
+  /// REJECTED or EXEMPTED status can explain itself.
+  notes String?
+
+  /// Who recorded it. SetNull: the record outlives the account that made it,
+  /// and the dossier is still complete.
+  recordedById String?
+  recordedBy   User?   @relation("StudentDocumentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One verdict per pièce per pupil. Recording a second time edits the first,
+  /// so a dossier cannot say a document is both received and missing.
+  @@unique([studentId, documentTypeId])
+  @@index([studentId])
+  @@index([documentTypeId])
+  @@map("student_documents")
+}

@@ -26,6 +26,7 @@ import {
   findClash,
   generateSchoolWeeks,
   saveLessonBlock,
+  setTeacherAvailability,
   type GeneratorRequest,
   type PreviewResult,
 } from "@/modules/timetable/service";
@@ -761,6 +762,58 @@ export async function applyTimetableAction(
             cleared: result.cleared,
             classes: schoolClassIds.length,
           }),
+    );
+  });
+}
+
+/**
+ * Saves a teacher's standing horaire — the periods they do not work.
+ *
+ * The teacher and the year both decide the school, and the slots are re-derived
+ * against it inside the service, so a crafted request cannot block periods on
+ * somebody else's bell schedule. TIMETABLE_MANAGE rather than a code of its
+ * own: whoever may draw the grid may say who is available to be put on it.
+ */
+export async function setTeacherAvailabilityAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const schoolId = context.currentSchool?.id;
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    // The teacher must be one of this school's — an id from elsewhere reaches
+    // nothing rather than having their week rewritten.
+    const teacher = await db.user.findFirst({
+      where: {
+        id: field(formData, "teacherId"),
+        memberships: { some: { schoolId } },
+      },
+      select: { id: true },
+    });
+    if (!teacher) return failure(t.errors.notFound);
+
+    const scheduleKind =
+      field(formData, "scheduleKind") === "RAMADAN" ? "RAMADAN" : "STANDARD";
+
+    const result = await setTeacherAvailability(
+      teacher.id,
+      schoolYearId,
+      listField(formData, "blockedSlotIds"),
+      scheduleKind,
+    );
+
+    refresh();
+    return success(
+      interpolate(t.timetable.availabilitySaved, { count: result.blocked }),
     );
   });
 }

@@ -27,6 +27,9 @@ function scope(context: AuthContext) {
 
 export type SupplyItemRow = {
   id: string;
+  /** The catalogue article this line asks for; null on a line written before
+   *  the catalogue existed, or whose article has since been withdrawn. */
+  articleId: string | null;
   label: string;
   labelAr: string | null;
   quantity: number | null;
@@ -90,6 +93,7 @@ type ListWithRelations = {
   reviewedBy: Parameters<typeof displayName>[0] | null;
   items: {
     id: string;
+    articleId: string | null;
     label: string;
     labelAr: string | null;
     quantity: number | null;
@@ -173,6 +177,51 @@ export async function countAwaitingReview(
   return db.supplyList.count({
     where: { ...scope(context), status: "SUBMITTED" },
   });
+}
+
+export type SupplyArticleChoice = {
+  id: string;
+  label: string;
+  labelAr: string | null;
+  category: string;
+  /** Pre-fills the quantity when the article is picked. */
+  defaultQuantity: number | null;
+  /** The article's own detail — the format, the ruling — as a hint on the row. */
+  notes: string | null;
+};
+
+/**
+ * The school's catalogue, for the list editor's picker.
+ *
+ * Only the live articles: a withdrawn one still reads correctly on the lists
+ * that named it — `SupplyItem.label` is a copy — but it must not be offered
+ * again. Ordered the way the picker groups them, so the shelf a teacher is
+ * looking for is where the catalogue screen said it would be.
+ */
+export async function listSupplyArticles(
+  context: AuthContext,
+): Promise<SupplyArticleChoice[]> {
+  const articles = await db.supplyArticle.findMany({
+    where: { schoolId: context.currentSchool?.id ?? "__none__", isActive: true },
+    orderBy: [{ category: "asc" }, { position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      category: true,
+      defaultQuantity: true,
+      notes: true,
+    },
+  });
+
+  return articles.map((article) => ({
+    id: article.id,
+    label: article.name,
+    labelAr: article.nameAr,
+    category: article.category,
+    defaultQuantity: article.defaultQuantity,
+    notes: article.notes,
+  }));
 }
 
 /** The school's subjects, for the optional per-subject list. */

@@ -82,6 +82,49 @@ export const SESSION_STATUSES = ["OPEN", "CLOSED"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 /**
+ * Midnight at the start of the day a moment falls in, in the server's zone.
+ *
+ * A shift is bounded by the *calendar day*, not by twenty-four hours. A drawer
+ * opened at 08h00 and still open at 09h00 the next morning has been open for
+ * twenty-five hours, but that is not what makes it wrong — what makes it wrong
+ * is that it belongs to yesterday, and yesterday has been counted, banked and
+ * reported on.
+ */
+export function startOfDay(moment: Date): Date {
+  return new Date(moment.getFullYear(), moment.getMonth(), moment.getDate());
+}
+
+/**
+ * Whether a session belongs to a day that has ended.
+ *
+ * The one rule that makes a caisse's daily figures mean anything. A session
+ * left open overnight cannot simply carry on: every movement posted into it
+ * would be dated today and counted against yesterday's drawer, so the day's
+ * takings would be wrong at both ends and no count would ever reconcile.
+ *
+ * The remedy is not to refuse the *session* — it is already open and it holds
+ * real money — but to refuse to post into it, close it as uncounted, and make
+ * whoever holds it open today's. See `resolveCashSession`.
+ */
+export function isStaleSession(openedAt: Date, now: Date = new Date()): boolean {
+  return startOfDay(openedAt).getTime() < startOfDay(now).getTime();
+}
+
+/**
+ * Whether a closed session was actually counted by the person who held it.
+ *
+ * False for one the day boundary closed — see `CashSession.wasAutoClosed`. Kept
+ * as a helper rather than read off the column directly so a report cannot
+ * quietly treat an uncounted drawer as a balanced one.
+ */
+export function wasCounted(session: {
+  status: string;
+  wasAutoClosed: boolean;
+}): boolean {
+  return session.status === "CLOSED" && !session.wasAutoClosed;
+}
+
+/**
  * Whether a movement still counts.
  *
  * CANCELLED rows stay in the ledger and are excluded from every total. Nothing

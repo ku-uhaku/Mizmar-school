@@ -85,6 +85,20 @@ const en = {
     nextWeek: "Next week",
     holidayWeek: "No lessons this week — {name}.",
     holidayDay: "{name}",
+    availabilityTitle: "Teacher working hours",
+    availabilitySubtitle:
+      "The periods each teacher works. A lesson can never be placed outside them — the generator plans around this, and the grid refuses it.",
+    availabilityHint:
+      "Click a period to switch it. Click a day or a time heading to switch the whole row or column.",
+    availabilitySaved: "Working hours saved — {count} period(s) blocked.",
+    availableAllWeek: "Available all week",
+    working: "Works",
+    notWorking: "Off",
+    periodsWorked: "Works {worked} of {total} periods",
+    periodsOff: "{count} off",
+    pickTeacher: "Teacher",
+    noTeachers: "No teachers in this school yet.",
+    teacherHours: "Working hours",
     generateGrid: "Generate the timetable",
     generateGridHint:
       "Lays out the week from the weekly hours in the programme, around what each teacher and room is already doing. Nothing is written until you keep it.",

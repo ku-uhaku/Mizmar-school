@@ -9,7 +9,24 @@ model SupplyItem {
   listId String
   list   SupplyList @relation(fields: [listId], references: [id], onDelete: Cascade)
 
-  /// What to buy: "Cahier 96 pages, grands carreaux".
+  /// Which catalogue article this line asks for — see SupplyArticle.
+  ///
+  /// This is what makes two teachers' "stylo bleu" the same thing, and it is
+  /// how the line is chosen: the editor offers the school's catalogue and never
+  /// a free-text box.
+  ///
+  /// SetNull rather than Restrict or Cascade: an article withdrawn from the
+  /// catalogue must not delete the lines that named it, nor block the
+  /// withdrawal. The line keeps reading correctly because `label` below is a
+  /// copy, not a lookup.
+  articleId String?
+  article   SupplyArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  /// What to buy, copied off the article when the list was written.
+  ///
+  /// Denormalised on purpose, exactly as `Assessment` copies its type's
+  /// `maxScore`: renaming an article next year must not rewrite the list a
+  /// family already shopped from.
   label   String
   labelAr String?
 
@@ -31,5 +48,6 @@ model SupplyItem {
   updatedAt DateTime @updatedAt
 
   @@index([listId])
+  @@index([articleId])
   @@map("supply_items")
 }

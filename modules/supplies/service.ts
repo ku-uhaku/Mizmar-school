@@ -12,35 +12,62 @@ import { REVIEW_TRANSITIONS } from "@/modules/supplies/enums";
  * every action that touches a list.
  */
 
+/**
+ * One posted line. The article is what was chosen; the wording is not sent.
+ *
+ * A form that posted the label as well would be a form that could put any text
+ * on a list under the cover of a catalogue — the whole point of the catalogue
+ * is that the school decided the wording once.
+ */
 export type ItemInput = {
-  label: string;
-  labelAr: string | null;
+  articleId: string;
   quantity: number | null;
   notes: string | null;
   isRequired: boolean;
 };
 
 /**
- * Replaces a list's items wholesale.
+ * Replaces a list's items wholesale, resolving each line against the school's
+ * own catalogue.
  *
  * A delete-then-insert rather than a diff: the editor posts the whole list
  * every time, items carry no identity a user would recognise, and reconciling
  * twenty unnamed rows to keep ids stable buys nothing — nothing points at a
  * SupplyItem. `position` is the array order, so reordering is just resubmitting.
+ *
+ * ── Why the wording is looked up here ───────────────────────────────────────
+ * `label` is written from the article rather than from the request, and the
+ * lookup is scoped to `schoolId`, so an article id belonging to another school
+ * matches nothing and its line is dropped rather than written. The copy is then
+ * frozen: renaming the article next year leaves lists that families have
+ * already shopped from exactly as they were printed.
  */
 export async function replaceItems(
   listId: string,
+  schoolId: string,
   items: ItemInput[],
 ): Promise<number> {
+  const articles = await db.supplyArticle.findMany({
+    where: { id: { in: items.map((item) => item.articleId) }, schoolId },
+    select: { id: true, name: true, nameAr: true },
+  });
+  const byId = new Map(articles.map((article) => [article.id, article]));
+
+  const resolved = items.flatMap((item) => {
+    const article = byId.get(item.articleId);
+    return article ? [{ item, article }] : [];
+  });
+
   await db.$transaction([
     db.supplyItem.deleteMany({ where: { listId } }),
-    ...(items.length > 0
+    ...(resolved.length > 0
       ? [
           db.supplyItem.createMany({
-            data: items.map((item, index) => ({
+            data: resolved.map(({ item, article }, index) => ({
               listId,
-              label: item.label,
-              labelAr: item.labelAr,
+              articleId: article.id,
+              label: article.name,
+              labelAr: article.nameAr,
               quantity: item.quantity,
               notes: item.notes,
               isRequired: item.isRequired,
@@ -51,7 +78,7 @@ export async function replaceItems(
       : []),
   ]);
 
-  return items.length;
+  return resolved.length;
 }
 
 export type ReviewResult =

@@ -33,6 +33,11 @@ const en = {
     required: "Required",
     optional: "Optional",
     itemCount: "{count} items",
+    pickArticle: "Choose an article…",
+    articleWithdrawn:
+      "“{label}” is no longer in the catalogue — choose its replacement.",
+    noArticles:
+      "The supply catalogue is empty. Add articles under Configuration → Logistics first.",
     author: "Written by",
     reviewedBy: "Decided by",
     // ── The decision ────────────────────────────────────────────────────────
@@ -61,6 +66,18 @@ const en = {
     print: "Print the list",
   },
   supplyOptions: {
+    categories: {
+      ECRITURE: "Writing",
+      CAHIERS: "Exercise books",
+      COUVERTURES: "Covers",
+      CLASSEMENT: "Filing",
+      GEOMETRIE: "Geometry",
+      ARTS: "Art",
+      CARTABLE: "Bag and pencil case",
+      SPORT: "Sport",
+      HYGIENE: "Hygiene",
+      AUTRE: "Other",
+    },
     statuses: {
       DRAFT: "Draft",
       SUBMITTED: "Awaiting approval",

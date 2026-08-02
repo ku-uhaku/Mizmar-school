@@ -8,9 +8,8 @@ import { log, type SeedDb } from "@/prisma/seed/client";
  * Inscriptions for the running year, and the fee schedules they generate.
  *
  * The pupils are matched to a level by age and seated in the emptiest of that
- * level's classes, so the demo database has classes that fill unevenly the way
- * real ones do — and a few pupils deliberately left unseated, which is what the
- * "awaiting a class" figure on the dashboard is there to surface.
+ * level's classes, so an intake sized to the classes fills them evenly and one
+ * sized to anything else fills them the way a real rentrée does.
  *
  * Prices come from `buildScheduleLines`, the same pure function the enrolment
  * action uses. A seed that priced pupils by its own logic would produce demo
@@ -44,11 +43,18 @@ export async function seedEnrolments(
     schoolId,
     schoolYearId,
     students,
+    /**
+     * Leave every nth pupil without a class, to exercise the dashboard's
+     * "awaiting a class" figure. Null seats everybody, which is what a roster
+     * sized to fill the classes exactly wants.
+     */
+    unseatedEvery = null,
   }: {
     schoolId: string;
     schoolYearId: string;
     /** Matricule → id and age, as returned by `seedStudents`. */
     students: Record<string, { id: string; age: number }>;
+    unseatedEvery?: number | null;
   },
 ): Promise<void> {
   const year = await db.schoolYear.findUnique({
@@ -146,8 +152,8 @@ export async function seedEnrolments(
     // with no place, which is a state the app has to handle anyway.
     if (!offering) continue;
 
-    // Every fifth pupil is left unseated on purpose; see the note above.
-    const leaveUnseated = enrolled % 5 === 4;
+    const leaveUnseated =
+      unseatedEvery !== null && enrolled % unseatedEvery === unseatedEvery - 1;
 
     const emptiest = leaveUnseated
       ? null

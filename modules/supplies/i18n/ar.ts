@@ -30,6 +30,11 @@ const ar = {
     required: "إجباري",
     optional: "اختياري",
     itemCount: "{count} أدوات",
+    pickArticle: "اختر منتوجًا…",
+    articleWithdrawn:
+      "«{label}» لم يعد في الكتالوج — اختر ما يعوّضه.",
+    noArticles:
+      "كتالوج اللوازم فارغ. أضف إليه منتوجات من الإعدادات ← اللوجستيك.",
     author: "حرّرها",
     reviewedBy: "بتّ فيها",
     submit: "إرسال للمصادقة",
@@ -56,6 +61,18 @@ const ar = {
     print: "طباعة اللائحة",
   },
   supplyOptions: {
+    categories: {
+      ECRITURE: "الكتابة",
+      CAHIERS: "الدفاتر",
+      COUVERTURES: "الأغلفة",
+      CLASSEMENT: "الترتيب",
+      GEOMETRIE: "الهندسة",
+      ARTS: "التربية التشكيلية",
+      CARTABLE: "المحفظة والمقلمة",
+      SPORT: "الرياضة",
+      HYGIENE: "النظافة",
+      AUTRE: "متفرقات",
+    },
     statuses: {
       DRAFT: "مسودة",
       SUBMITTED: "في انتظار المصادقة",

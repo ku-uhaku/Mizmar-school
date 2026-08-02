@@ -125,6 +125,7 @@ const en = {
     steps: {
       FILE: "File opened",
       FAMILY: "Family attached",
+      DOSSIER: "Dossier complete",
       ENROLMENT: "Enrolled",
       CLASS: "Class assigned",
       FEES: "Fees scheduled",

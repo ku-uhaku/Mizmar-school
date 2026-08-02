@@ -113,6 +113,8 @@ model CashOperation {
   /// `payStaffSalary` in modules/hr/service.ts — see the note there on why the
   /// payroll is never summed from the ledger, nor the ledger from the payroll.
   salaryPayment SalaryPayment? @relation("OperationSalary")
+  /// The avance sur salaire this movement handed over, if it was one.
+  salaryAdvance SalaryAdvance? @relation("OperationAdvance")
 
   /// The fuel request this décaissement settled, when it was a tank of diesel.
   /// Written by `decideFuelRequest` in modules/transport/service.ts, and the

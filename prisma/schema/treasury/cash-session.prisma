@@ -40,6 +40,18 @@ model CashSession {
   /// "OPEN" | "CLOSED" — see modules/treasury/enums.ts.
   status String @default("OPEN")
 
+  /// Closed by the system because its day had ended, rather than counted shut
+  /// by whoever held it.
+  ///
+  /// A shift belongs to a day. A drawer still open the next morning is not a
+  /// long shift, it is a shift nobody closed — so the first movement posted
+  /// after midnight closes it and refuses to post into it (see
+  /// `resolveCashSession`). What it cannot do is *count* it: nobody was there,
+  /// so `countedCentimes` and `varianceCentimes` stay null and this flag says
+  /// why. Asserting the drawer balanced would be the one lie the caisse must
+  /// never tell.
+  wasAutoClosed Boolean @default(false)
+
   notes String?
 
   createdAt DateTime @default(now())
