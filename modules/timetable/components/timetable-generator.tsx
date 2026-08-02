@@ -35,6 +35,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { interpolate } from "@/lib/i18n/format";
+import {
+  formatDuration,
+  LESSON_LENGTHS_MINUTES,
+  periodsForMinutes,
+} from "@/modules/timetable/enums";
 import { cn } from "@/lib/utils";
 import {
   applyTimetableAction,
@@ -67,12 +72,15 @@ export function TimetableGenerator({
   classCount,
   currentClassId,
   scheduleKind,
+  periodMinutes,
 }: {
   /** How many classes "every class" would cover — for the scope label only.
    *  The names on the preview come from the draft, which is the server's. */
   classCount: number;
   currentClassId: string;
   scheduleKind: string;
+  /** How long one period rings for, so the dialog can talk in hours. */
+  periodMinutes: number;
 }) {
   const t = useT();
   const router = useRouter();
@@ -80,8 +88,17 @@ export function TimetableGenerator({
   const [open, setOpen] = React.useState(false);
   const [scope, setScope] = React.useState<"CLASS" | "ALL">("CLASS");
   const [replaceExisting, setReplaceExisting] = React.useState(true);
-  const [allowDoubles, setAllowDoubles] = React.useState(true);
-  const [maxPerDay, setMaxPerDay] = React.useState(2);
+  /*
+    Both of these are held in *minutes and hours*, not in periods.
+
+    The bell rings every half hour so that a school can start at 08h30 or 09h30
+    — the half hour is there to let the day shift, and nobody teaches for half
+    an hour. Asking a head of studies "how many periods?" would be asking them
+    to do that conversion themselves, and to redo it the day the bell schedule
+    changes. `periodsForMinutes` does it instead, against the grid's own period.
+  */
+  const [lessonMinutes, setLessonMinutes] = React.useState(60);
+  const [maxHoursPerDay, setMaxHoursPerDay] = React.useState(2);
 
   const [draft, setDraft] = React.useState<TimetableDraft | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -95,10 +112,18 @@ export function TimetableGenerator({
       scheduleKind,
       seed,
       replaceExisting,
-      blockSize: allowDoubles ? 2 : 1,
-      maxPerDay,
+      blockSize: periodsForMinutes(lessonMinutes, periodMinutes),
+      maxPerDay: periodsForMinutes(maxHoursPerDay * 60, periodMinutes),
     }),
-    [scope, currentClassId, scheduleKind, replaceExisting, allowDoubles, maxPerDay],
+    [
+      scope,
+      currentClassId,
+      scheduleKind,
+      replaceExisting,
+      lessonMinutes,
+      maxHoursPerDay,
+      periodMinutes,
+    ],
   );
 
   const [request, setRequest] = React.useState<GeneratorRequest | null>(null);
@@ -165,10 +190,10 @@ export function TimetableGenerator({
             classCount={classCount}
             replaceExisting={replaceExisting}
             onReplaceExisting={setReplaceExisting}
-            allowDoubles={allowDoubles}
-            onAllowDoubles={setAllowDoubles}
-            maxPerDay={maxPerDay}
-            onMaxPerDay={setMaxPerDay}
+            lessonMinutes={lessonMinutes}
+            onLessonMinutes={setLessonMinutes}
+            maxHoursPerDay={maxHoursPerDay}
+            onMaxHoursPerDay={setMaxHoursPerDay}
             // Changing a rule invalidates the grid on screen: applying a draft
             // drawn under the old rules would not be what the switches say.
             onChanged={() => {
@@ -221,10 +246,10 @@ function Options({
   classCount,
   replaceExisting,
   onReplaceExisting,
-  allowDoubles,
-  onAllowDoubles,
-  maxPerDay,
-  onMaxPerDay,
+  lessonMinutes,
+  onLessonMinutes,
+  maxHoursPerDay,
+  onMaxHoursPerDay,
   onChanged,
 }: {
   scope: "CLASS" | "ALL";
@@ -232,10 +257,10 @@ function Options({
   classCount: number;
   replaceExisting: boolean;
   onReplaceExisting: (value: boolean) => void;
-  allowDoubles: boolean;
-  onAllowDoubles: (value: boolean) => void;
-  maxPerDay: number;
-  onMaxPerDay: (value: number) => void;
+  lessonMinutes: number;
+  onLessonMinutes: (value: number) => void;
+  maxHoursPerDay: number;
+  onMaxHoursPerDay: (value: number) => void;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -271,18 +296,41 @@ function Options({
         </div>
 
         <div className="grid gap-1.5">
+          <Label htmlFor="generator-length">{t.timetable.lessonLength}</Label>
+          <Select
+            value={String(lessonMinutes)}
+            onValueChange={change<string>((value) =>
+              onLessonMinutes(Number(value)),
+            )}
+          >
+            <SelectTrigger id="generator-length" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LESSON_LENGTHS_MINUTES.map((minutes) => (
+                <SelectItem key={minutes} value={String(minutes)}>
+                  {formatDuration(minutes)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-1.5">
           <Label htmlFor="generator-max">{t.timetable.maxPerDay}</Label>
           <Select
-            value={String(maxPerDay)}
-            onValueChange={change<string>((value) => onMaxPerDay(Number(value)))}
+            value={String(maxHoursPerDay)}
+            onValueChange={change<string>((value) =>
+              onMaxHoursPerDay(Number(value)),
+            )}
           >
             <SelectTrigger id="generator-max" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[1, 2, 3, 4].map((value) => (
-                <SelectItem key={value} value={String(value)}>
-                  {interpolate(t.timetable.periodsPerDay, { count: value })}
+              {[1, 2, 3, 4].map((hours) => (
+                <SelectItem key={hours} value={String(hours)}>
+                  {formatDuration(hours * 60)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -302,13 +350,6 @@ function Options({
         onCheckedChange={change(onReplaceExisting)}
       />
 
-      <ToggleRow
-        id="generator-doubles"
-        label={t.timetable.allowDoubles}
-        hint={t.timetable.allowDoublesHint}
-        checked={allowDoubles}
-        onCheckedChange={change(onAllowDoubles)}
-      />
     </div>
   );
 }

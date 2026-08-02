@@ -44,6 +44,16 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
     },
     {
+      href: "/caisse/familles",
+      icon: "encaissement",
+      section: "finance",
+      labelKey: "familyPayments",
+      // Beside the encaissement screen: one takes the money, the other says
+      // who has not brought it.
+      order: 25,
+      schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
+    },
+    {
       href: "/caisse/factures",
       icon: "decaissement",
       section: "finance",

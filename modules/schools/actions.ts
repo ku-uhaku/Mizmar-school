@@ -16,6 +16,7 @@ function readSchoolForm(formData: FormData) {
   return {
     code: field(formData, "code").toUpperCase(),
     name: field(formData, "name"),
+    massarCode: field(formData, "massarCode"),
     level: field(formData, "level"),
     directorName: field(formData, "directorName"),
     capacity: field(formData, "capacity"),
@@ -63,6 +64,23 @@ export async function createSchoolAction(
       return failure(t.school.codeTaken, { code: t.school.codeTaken });
     }
 
+    // The nullable-unique index would throw; caught here so a clash names the
+    // field to change rather than a stack trace. Many schools may be unmapped.
+    if (parsed.data.massarCode) {
+      const mapped = await db.school.findFirst({
+        where: {
+          organizationId: context.organization.id,
+          massarCode: parsed.data.massarCode,
+        },
+        select: { id: true },
+      });
+      if (mapped) {
+        return failure(t.school.massarTaken, {
+          massarCode: t.school.massarTaken,
+        });
+      }
+    }
+
     await db.school.create({
       data: { ...parsed.data, organizationId: context.organization.id },
     });
@@ -102,6 +120,22 @@ export async function updateSchoolAction(
     });
     if (duplicate) {
       return failure(t.school.codeTaken, { code: t.school.codeTaken });
+    }
+
+    if (parsed.data.massarCode) {
+      const mapped = await db.school.findFirst({
+        where: {
+          organizationId: context.organization.id,
+          massarCode: parsed.data.massarCode,
+          NOT: { id: schoolId },
+        },
+        select: { id: true },
+      });
+      if (mapped) {
+        return failure(t.school.massarTaken, {
+          massarCode: t.school.massarTaken,
+        });
+      }
     }
 
     // Scope the write by organisation as well, so a crafted id cannot reach

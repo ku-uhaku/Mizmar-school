@@ -10,6 +10,15 @@ model School {
   /// see modules/schools/enums.ts
   level String @default("GROUP")
 
+  /// The establishment's code in MASSAR (منظومة مسار) — the code établissement
+  /// every national return, class list and mark export is filed under.
+  ///
+  /// Nullable-unique within the organisation, the same pattern every other
+  /// MASSAR mapping uses: a groupe scolaire may have mapped one school and not
+  /// yet the other, but no two of its schools may claim the same code. See the
+  /// note on Subject.massarCode.
+  massarCode String?
+
   email   String?
   phone   String?
   website String?
@@ -109,6 +118,8 @@ model School {
   cheques           Cheque[]
 
   @@unique([organizationId, code])
+  /// No two schools may map to the same establishment. Many may be unmapped.
+  @@unique([organizationId, massarCode])
   @@index([organizationId])
   @@map("schools")
 }

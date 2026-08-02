@@ -8,7 +8,10 @@ import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { interpolate } from "@/lib/i18n/format";
-import { MAX_LESSON_SPAN } from "@/modules/timetable/enums";
+import {
+  formatDuration,
+  MAX_LESSON_SPAN,
+} from "@/modules/timetable/enums";
 import { TimetableCellDialog } from "@/modules/timetable/components/timetable-cell-dialog";
 import type {
   AbsenceView,
@@ -238,6 +241,7 @@ export function TimetableGrid({
                       >
                         <Cell
                           cell={cell}
+                          periodMinutes={grid.periodMinutes}
                           canManage={canManage}
                           exception={
                             cell.timeSlotId
@@ -342,12 +346,15 @@ function daysRunning(grid: TimetableGridData, columnKey: string): number[] {
 
 function Cell({
   cell,
+  periodMinutes,
   canManage,
   exception,
   absence,
   onOpen,
 }: {
   cell: TimetableCell;
+  /** How long one column rings for, so a block can say how long it runs. */
+  periodMinutes: number;
   canManage: boolean;
   /** A one-off change to this period, this week. */
   exception?: ExceptionView;
@@ -402,11 +409,14 @@ function Cell({
           {replaced && exception?.subjectName
             ? exception.subjectName
             : (entry?.subjectShort ?? exception?.subjectName ?? "")}
-          {/* A double period says so on its face — the width alone is easy to
-            misread on a grid whose columns are not all the same size. */}
-          {entry && entry.span > 1 ? (
-            <span className="text-muted-foreground ms-1 font-normal">
-              ×{entry.span}
+          {/* How long the lesson actually runs, in hours rather than in
+            periods. The bell rings every half hour so the day can start at
+            08h30 — nobody teaches for half an hour, and "×2" made an ordinary
+            hour look like a double. The width alone is easy to misread on a
+            grid whose columns are not all the same size, so it is said. */}
+          {entry ? (
+            <span className="text-muted-foreground ms-1 text-[10px] font-normal">
+              {formatDuration(entry.span * periodMinutes)}
             </span>
           ) : null}
         </span>

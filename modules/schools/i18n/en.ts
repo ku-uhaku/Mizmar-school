@@ -38,6 +38,7 @@ const en = {
     deleteTitle: "Delete this school?",
     deleteBody: "“{name}” and all of its school years and role assignments will be permanently removed.",
     codeTaken: "That code is already used by another school.",
+    massarTaken: "Another school is already mapped to that MASSAR code.",
     noSchools: "No schools yet. Create the first one.",
     searchPlaceholder: "Search by name, code or city…",
     levels: {

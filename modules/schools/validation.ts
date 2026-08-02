@@ -21,6 +21,8 @@ export function schoolSchema(t: Dictionary) {
       error: v.codeFormat,
     }),
     name: requiredText(v, { max: 120 }),
+    /** The code établissement in MASSAR. Blank until an administrator maps it. */
+    massarCode: optionalText(32),
     level: enumField(SCHOOL_LEVELS, v),
     directorName: optionalText(120),
     capacity: optionalPositiveInt(v),

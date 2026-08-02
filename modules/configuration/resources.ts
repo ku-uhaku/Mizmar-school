@@ -874,6 +874,7 @@ export const RESOURCES: ResourceDef[] = [
       },
       { name: "name", type: "text", labelKey: "name", required: true, maxLength: 60, inTable: true },
       NAME_AR,
+      MASSAR_CODE,
       { name: "startDate", type: "date", labelKey: "startDate", required: true, inTable: true },
       { name: "endDate", type: "date", labelKey: "endDate", required: true, inTable: true },
       {
@@ -1048,6 +1049,7 @@ export const RESOURCES: ResourceDef[] = [
         inTable: true,
       },
       { name: "name", type: "text", labelKey: "name", maxLength: 120 },
+      MASSAR_CODE,
       { name: "section", type: "text", labelKey: "section", maxLength: 8, dir: "ltr", inTable: true },
       { name: "capacity", type: "number", labelKey: "capacity", min: 0, max: 200, inTable: true },
       {

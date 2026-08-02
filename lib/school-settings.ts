@@ -48,6 +48,15 @@ export type SchoolSettingsValues = {
   staffCodeFormat: string;
   defaultInstalmentCount: number;
   feeDueDayOfMonth: number;
+  /** How long one period rings for. See the note on the column. */
+  periodMinutes: number;
+  /** `HH:MM` the morning starts at — the half hour a school actually shifts. */
+  dayStartsAt: string;
+  afternoonStartsAt: string;
+  periodsBeforeBreak: number;
+  breakMinutes: number;
+  morningPeriods: number;
+  afternoonPeriods: number;
   payrollWorkingDays: number;
   /** Employee CNSS share, in basis points. See the note on the column. */
   cnssRateBps: number;
@@ -72,6 +81,13 @@ export const DEFAULT_SETTINGS: SchoolSettingsValues = {
   staffCodeFormat: "P-{year}-{seq:4}",
   defaultInstalmentCount: 9,
   feeDueDayOfMonth: 5,
+  periodMinutes: 60,
+  dayStartsAt: "08:00",
+  afternoonStartsAt: "14:00",
+  periodsBeforeBreak: 2,
+  breakMinutes: 15,
+  morningPeriods: 4,
+  afternoonPeriods: 4,
   payrollWorkingDays: 26,
   // The ordinary Moroccan employee shares. IR stays blank on purpose — a flat
   // rate would be wrong for everybody, and the barème is progressive.

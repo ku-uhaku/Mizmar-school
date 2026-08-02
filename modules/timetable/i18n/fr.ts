@@ -114,6 +114,7 @@ const fr = {
     generateScope: "Portée",
     scopeThisClass: "Cette classe uniquement",
     scopeAllClasses: "Toutes les classes ({count})",
+    lessonLength: "Dur\u00e9e d\u2019un cours",
     maxPerDay: "Même matière par jour",
     periodsPerDay: "{count} séance(s) au maximum",
     replaceExisting: "Repartir d'une semaine vide",

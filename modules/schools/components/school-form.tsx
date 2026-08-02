@@ -139,6 +139,23 @@ export function SchoolForm({ school }: { school?: SchoolRow }) {
           </FormGrid>
 
           <FormGrid cols={3}>
+            {/* The code établissement. Its own field rather than part of `code`:
+              one is what the school calls itself, the other is what the
+              Ministry calls it, and they rarely match. */}
+            <FormField
+              name="massarCode"
+              label={t.configuration.fields.massarCode}
+              hint={t.configuration.hints.massarCode}
+              error={errors.massarCode}
+            >
+              <Input
+                {...controlProps("massarCode", errors.massarCode)}
+                defaultValue={valueOf(state, "massarCode", school?.massarCode)}
+                dir="ltr"
+                maxLength={32}
+              />
+            </FormField>
+
             <FormField name="level" label={t.school.level} error={errors.level}>
               <Select
                 name="level"

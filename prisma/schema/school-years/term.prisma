@@ -18,6 +18,11 @@ model Term {
   name   String
   nameAr String?
 
+  /// The semester's code in MASSAR. Marks are exported per semester, so a
+  /// return that named only the year would be filed against nothing — see the
+  /// note on Subject.massarCode.
+  massarCode String?
+
   startDate DateTime
   endDate   DateTime
 
@@ -33,6 +38,8 @@ model Term {
   assessments      Assessment[]
 
   @@unique([schoolYearId, number])
+  /// No two semesters of one year may map to the same code. Many may be unmapped.
+  @@unique([schoolYearId, massarCode])
   @@index([schoolYearId])
   @@map("terms")
 }

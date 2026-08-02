@@ -129,6 +129,10 @@ export default async function TimetablePage({
               classCount={classes.length}
               currentClassId={selected.id}
               scheduleKind={scheduleKind}
+              // 30 when the grid has not loaded: the dialog only needs it to
+              // convert hours into periods, and the request is re-derived
+              // server-side against the real bell schedule anyway.
+              periodMinutes={grid?.periodMinutes ?? 30}
             />
           </>
         ) : null}

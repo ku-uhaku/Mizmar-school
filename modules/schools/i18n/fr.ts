@@ -38,6 +38,7 @@ const fr = {
     deleteTitle: "Supprimer cette école ?",
     deleteBody: "« {name} » ainsi que toutes ses années scolaires et affectations seront définitivement supprimées.",
     codeTaken: "Ce code est déjà utilisé par une autre école.",
+    massarTaken: "Une autre \u00e9cole est d\u00e9j\u00e0 rattach\u00e9e \u00e0 ce code MASSAR.",
     noSchools: "Aucune école pour le moment. Créez la première.",
     searchPlaceholder: "Rechercher par nom, code ou ville…",
     levels: {

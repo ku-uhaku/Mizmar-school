@@ -63,6 +63,18 @@ const ar = {
     accountRef: "\u0631\u0642\u0645 \u0627\u0644\u0639\u0642\u062f",
     noSuppliers: "\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u0632\u0648\u0651\u062f. \u0623\u0636\u0641\u0647\u0645 \u0645\u0646 \u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a \u2190 \u0627\u0644\u0645\u0627\u0644\u064a\u0629.",
     payNow: "\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u0623\u062f\u0627\u0621",
+    familyPayments: "\u0648\u0636\u0639\u064a\u0629 \u0627\u0644\u0623\u0633\u0631",
+    familyPaymentsHint: "\u0645\u0627 \u0641\u064f\u0648\u062a\u0631 \u0639\u0644\u0649 \u0643\u0644 \u0623\u0633\u0631\u0629 \u0648\u0645\u0627 \u0623\u062f\u0651\u062a\u0647 \u0648\u0645\u0627 \u062a\u0623\u062e\u0651\u0631 \u0639\u0644\u064a\u0647\u0627.",
+    enrolledChildren: "\u0627\u0644\u0623\u0628\u0646\u0627\u0621",
+    charged: "\u0627\u0644\u0645\u0641\u0648\u062a\u0631",
+    collected: "\u0627\u0644\u0645\u0624\u062f\u0651\u0649",
+    outstanding: "\u0627\u0644\u0628\u0627\u0642\u064a",
+    overdue: "\u0627\u0644\u0645\u0633\u062a\u062d\u0642\u0651",
+    standing: "\u0627\u0644\u0648\u0636\u0639\u064a\u0629",
+    lastPaid: "\u0622\u062e\u0631 \u0623\u062f\u0627\u0621",
+    familiesLate: "{count} \u0623\u0633\u0631\u0629 \u0645\u062a\u0623\u062e\u0651\u0631\u0629",
+    noFamilies: "\u0644\u0627 \u062a\u0648\u062c\u062f \u0623\u0633\u0631\u0629 \u0647\u0630\u0647 \u0627\u0644\u0633\u0646\u0629.",
+    noFamiliesHint: "\u0633\u062c\u0651\u0644 \u062a\u0644\u0645\u064a\u0630\u064b\u0627 \u0648\u0633\u064a\u0638\u0647\u0631 \u0645\u0644\u0641\u0647 \u0647\u0646\u0627.",
     notYourTill:
       "\u0647\u0630\u0647 \u0627\u0644\u0635\u0646\u062f\u0648\u0642\u0629 \u062a\u0639\u0648\u062f \u0644\u0645\u062d\u0635\u0651\u0644 \u0622\u062e\u0631. \u0627\u0641\u062a\u062d \u0635\u0646\u062f\u0648\u0642\u062a\u0643 \u0644\u0644\u0627\u0633\u062a\u062e\u0644\u0627\u0635.",
     sessionStaleClosed:
@@ -214,17 +226,14 @@ const ar = {
     chequesPending: "شيكات في المحفظة",
     chequesBounced: "بدون أداء",
     dueSoon: "استحقاق قريب",
-    overdue: "متأخر",
     overdueLabel: "حلّ أجله ولم يودع",
     showSiblings: "إظهار الإخوة ({count})",
     siblings: "الإخوة",
     familyTotal: "ما أدّته الأسرة",
     familyOwes: "الباقي على الأسرة",
     collectForFamily: "التحصيل لفائدة الأسرة",
-    standing: "وضعية الأداء",
     upToDate: "في وضعية سليمة",
     overdueBy: "{amount} متأخرة",
-    charged: "المفوتر",
     byService: "التفصيل حسب الخدمة",
     service: "الخدمة",
     pupil: "التلميذ",
@@ -234,7 +243,6 @@ const ar = {
     noScheduleYet: "لم يتم بعد إصدار جدول الرسوم لهذا التلميذ.",
     paidOfCharged: "{paid} مؤدّاة من أصل {charged}",
     linesSettled: "{settled} أقساط مسدَّدة من أصل {total}",
-    lastPaid: "آخر أداء"
   },
   treasuryOptions: {
     /** حالة قسط واحد أو جدول كامل. انظر payment-state.ts. */
@@ -248,6 +256,12 @@ const ar = {
       ENCAISSEMENT: "قبض",
       DECAISSEMENT: "صرف",
       TRANSFERT: "تحويل",
+    },
+    familyStandings: {
+      LATE: "\u0645\u062a\u0623\u062e\u0651\u0631\u0629",
+      ON_TRACK: "\u0641\u064a \u0627\u0644\u0645\u0648\u0639\u062f",
+      SETTLED: "\u0645\u064f\u0633\u062f\u0651\u062f\u0629",
+      NOTHING_DUE: "\u0644\u0627 \u0634\u064a\u0621 \u0645\u0641\u0648\u062a\u0631",
     },
     supplierKinds: {
       UTILITY: "\u0648\u0643\u0627\u0644\u0629 / \u0627\u0634\u062a\u0631\u0627\u0643",
@@ -295,6 +309,7 @@ export const nav = {
   decaissement: "الصرف",
   bills: "الفواتير",
   purchases: "المشتريات",
+  familyPayments: "الأسر",
   transfert: "التحويل",
   cheques: "تتبع الشيكات",
 };

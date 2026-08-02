@@ -1378,3 +1378,157 @@ export async function listSuppliers(
     accountRef: supplier.accountRef,
   }));
 }
+
+// ── La situation des familles ────────────────────────────────────────────────
+
+export type FamilyPaymentRow = {
+  familyId: string;
+  familyCode: string;
+  familyName: string;
+  phone: string | null;
+  /** Children of the dossier enrolled in the year in context. */
+  childCount: number;
+  chargedCentimes: number;
+  paidCentimes: number;
+  outstandingCentimes: number;
+  /** The part of the outstanding whose due date has passed — see PaymentStanding. */
+  overdueCentimes: number;
+  /** How many receipts the household has written this year. */
+  receiptCount: number;
+  lastPaidAt: string | null;
+};
+
+/**
+ * Every household's standing for the year, in one pass.
+ *
+ * ── Why this is not `familyPaymentStanding` in a loop ───────────────────────
+ * That function answers "how does *this* household stand" and does four reads
+ * to do it. Asked five hundred times it is five hundred round trips, which is
+ * the difference between a page and a timeout — so the schedule lines and the
+ * allocations are fetched once each and totalled in memory, the same shape
+ * `dossierStandingByStudent` uses for the pupil dossiers.
+ *
+ * ── What counts, and what "behind" means ────────────────────────────────────
+ * Only DUE lines are charged: a waived or cancelled line is not owed, and
+ * counting it would put a family in arrears for a charge the school itself
+ * cancelled. Only POSTED allocations are paid, so cancelling a receipt puts the
+ * money straight back on the household's balance.
+ *
+ * `overdueCentimes` — not the outstanding total — is what says a family is
+ * behind. Scolarité is collected in nine instalments, so every family owes most
+ * of the year in September and none of them is late for any of it. A list that
+ * called that arrears would have the whole school on the chasing list on the
+ * first day of term.
+ */
+export async function listFamilyPayments(
+  context: AuthContext,
+): Promise<FamilyPaymentRow[]> {
+  const schoolId = context.currentSchool?.id;
+  const schoolYearId = context.currentSchoolYear?.id;
+  if (!schoolId || !schoolYearId) return [];
+
+  const today = new Date();
+
+  const [families, lines, receipts] = await Promise.all([
+    db.family.findMany({
+      where: { schoolId },
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        phone: true,
+        children: {
+          where: { enrollments: { some: { schoolYearId } } },
+          select: { id: true },
+        },
+      },
+    }),
+    db.enrollmentFee.findMany({
+      where: {
+        status: "DUE",
+        enrollment: { schoolYearId, student: { schoolId } },
+      },
+      select: {
+        amountCentimes: true,
+        dueDate: true,
+        enrollment: { select: { student: { select: { familyId: true } } } },
+        allocations: {
+          where: { payment: { status: "POSTED" } },
+          select: { amountCentimes: true },
+        },
+      },
+    }),
+    db.payment.findMany({
+      where: { schoolId, schoolYearId, status: "POSTED", familyId: { not: null } },
+      select: { familyId: true, paidAt: true },
+    }),
+  ]);
+
+  type Totals = {
+    charged: number;
+    paid: number;
+    overdue: number;
+    receipts: number;
+    lastPaidAt: Date | null;
+  };
+  const byFamily = new Map<string, Totals>();
+  const totalsFor = (familyId: string): Totals => {
+    const held = byFamily.get(familyId) ?? {
+      charged: 0,
+      paid: 0,
+      overdue: 0,
+      receipts: 0,
+      lastPaidAt: null,
+    };
+    byFamily.set(familyId, held);
+    return held;
+  };
+
+  for (const line of lines) {
+    const familyId = line.enrollment.student.familyId;
+    // A pupil with no dossier familial belongs to no household, and totalling
+    // them under a null key would invent one.
+    if (!familyId) continue;
+
+    const totals = totalsFor(familyId);
+    const paid = line.allocations.reduce(
+      (sum, allocation) => sum + allocation.amountCentimes,
+      0,
+    );
+    const outstanding = Math.max(0, line.amountCentimes - paid);
+
+    totals.charged += line.amountCentimes;
+    totals.paid += paid;
+    if (line.dueDate <= today) totals.overdue += outstanding;
+  }
+
+  for (const receipt of receipts) {
+    if (!receipt.familyId) continue;
+    const totals = totalsFor(receipt.familyId);
+    totals.receipts += 1;
+    if (!totals.lastPaidAt || receipt.paidAt > totals.lastPaidAt) {
+      totals.lastPaidAt = receipt.paidAt;
+    }
+  }
+
+  return families.map((family) => {
+    const totals = byFamily.get(family.id);
+    const charged = totals?.charged ?? 0;
+    const paid = totals?.paid ?? 0;
+
+    return {
+      familyId: family.id,
+      familyCode: family.code,
+      familyName: family.name,
+      phone: family.phone,
+      childCount: family.children.length,
+      chargedCentimes: charged,
+      paidCentimes: paid,
+      outstandingCentimes: Math.max(0, charged - paid),
+      overdueCentimes: totals?.overdue ?? 0,
+      receiptCount: totals?.receipts ?? 0,
+      lastPaidAt: totals?.lastPaidAt?.toISOString() ?? null,
+    };
+  });
+}

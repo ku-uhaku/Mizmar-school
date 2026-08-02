@@ -110,6 +110,7 @@ const ar = {
     generateScope: "النطاق",
     scopeThisClass: "هذا القسم فقط",
     scopeAllClasses: "جميع الأقسام ({count})",
+    lessonLength: "\u0645\u062f\u0629 \u0627\u0644\u062d\u0635\u0629",
     maxPerDay: "المادة نفسها في اليوم",
     periodsPerDay: "{count} حصة على الأكثر",
     replaceExisting: "الانطلاق من أسبوع فارغ",

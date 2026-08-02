@@ -113,6 +113,7 @@ const en = {
     generateScope: "Lay out",
     scopeThisClass: "This class only",
     scopeAllClasses: "Every class ({count})",
+    lessonLength: "Lesson length",
     maxPerDay: "Same subject per day",
     periodsPerDay: "{count} period(s) at most",
     replaceExisting: "Start from an empty week",

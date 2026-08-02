@@ -84,11 +84,51 @@ export type TeachingDay = (typeof TEACHING_DAYS)[number];
 /**
  * The most consecutive periods one lesson may occupy.
  *
- * Four, because a Moroccan timetable runs 2h blocks for TP and the odd 3h
- * atelier, and anything longer is a data-entry slip rather than a lesson. Each
- * period is still its own row — see the note in `service.ts`.
+ * Counted in *periods*, not hours, and a period is whatever the school's bell
+ * schedule says — 30 minutes in the grids this app seeds. So eight covers the
+ * 3h atelier that four covered when a period was an hour, and anything longer
+ * is a data-entry slip rather than a lesson. Each period is still its own row —
+ * see the note in `service.ts`.
  */
-export const MAX_LESSON_SPAN = 4;
+export const MAX_LESSON_SPAN = 8;
+
+/**
+ * How long a lesson runs, offered as minutes rather than as a count of periods.
+ *
+ * ── Why the screens talk in hours and the placer counts periods ─────────────
+ * The bell rings every 30 minutes so that a school can start at 08h30 or 09h30
+ * — the half hour exists to let the whole day *shift*, not because anybody
+ * teaches for half an hour. A lesson is an hour, and a screen that asked "how
+ * many periods?" would be asking the head of studies to do the conversion in
+ * their head and to get it wrong the first time the bell schedule changed.
+ *
+ * So the dialogs offer these, and `periodsForMinutes` turns the answer into the
+ * number of consecutive slots the placer actually books.
+ */
+export const LESSON_LENGTHS_MINUTES = [30, 60, 90, 120] as const;
+
+/**
+ * How many consecutive periods a lesson of `minutes` occupies.
+ *
+ * Rounded up, and never below one: a school whose bell is 45 minutes asking for
+ * an hour gets two periods rather than one and a third, because a lesson has to
+ * end when a bell rings.
+ */
+export function periodsForMinutes(
+  minutes: number,
+  periodMinutes: number,
+): number {
+  if (periodMinutes <= 0) return 1;
+  return Math.max(1, Math.ceil(minutes / periodMinutes));
+}
+
+/** `90` → `"1h30"`, `60` → `"1h"`, `30` → `"30min"`. */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours}h` : `${hours}h${String(rest).padStart(2, "0")}`;
+}
 
 /** `HH:MM`, 24-hour — the format `TimeSlot.startTime` / `endTime` are stored in. */
 export const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;

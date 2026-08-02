@@ -20,6 +20,11 @@ model SchoolClass {
 
   /// Code as printed on lists and report cards, e.g. "2BAC-SM-B".
   code String
+
+  /// The class's code in MASSAR. A national class list is filed against the
+  /// *class*, not merely against its level and filière, so mapping the level
+  /// alone is not enough to export one — see the note on Level.massarCode.
+  massarCode String?
   name String?
 
   /// Section letter on its own ("A", "B", "C"), for sorting and for generating
@@ -56,6 +61,8 @@ model SchoolClass {
   enrollments      Enrollment[]
 
   @@unique([levelOfferingId, code])
+  /// No two classes of one school may map to the same code. Many may be unmapped.
+  @@unique([schoolId, massarCode])
   @@index([schoolId])
   @@index([levelOfferingId])
   @@index([mainTeacherId])

@@ -75,6 +75,14 @@ export type TimetableCell = {
 
 export type TimetableGrid = {
   columns: SlotColumn[];
+  /**
+   * How long one period rings for, in minutes.
+   *
+   * Carried so the screens can talk in hours while the placer counts periods —
+   * see `periodsForMinutes`. The commonest column length rather than the mean:
+   * one short slot at the end of Friday must not re-scale the whole grid.
+   */
+  periodMinutes: number;
   /** Indexed by ISO day (1 = Monday), then by column key. */
   rows: { dayOfWeek: number; cells: Record<string, TimetableCell> }[];
   scheduleKind: string;
@@ -82,6 +90,38 @@ export type TimetableGrid = {
 };
 
 const slotKey = (startTime: string, endTime: string) => `${startTime}-${endTime}`;
+
+/** `"08:30"` → 510. */
+function minutesOfDay(time: string): number {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+/**
+ * The commonest column length, which is what "a period" means for this grid.
+ *
+ * The mode rather than the mean, for the same reason `modalDuration` in
+ * service.ts uses it: a school with one 15-minute récréation column must not
+ * have every lesson re-scaled by it.
+ */
+function modalColumnMinutes(columns: SlotColumn[]): number {
+  const tally = new Map<number, number>();
+  for (const column of columns) {
+    if (column.isBreak) continue;
+    const length = minutesOfDay(column.endTime) - minutesOfDay(column.startTime);
+    if (length > 0) tally.set(length, (tally.get(length) ?? 0) + 1);
+  }
+
+  let best = 30;
+  let bestCount = 0;
+  for (const [length, count] of tally) {
+    if (count > bestCount) {
+      best = length;
+      bestCount = count;
+    }
+  }
+  return best;
+}
 
 /**
  * The week for one class, as a grid.
@@ -283,7 +323,13 @@ export async function loadClassTimetable(
     return { dayOfWeek, cells };
   });
 
-  return { columns, rows, scheduleKind, entryCount: inForce.length };
+  return {
+    columns,
+    periodMinutes: modalColumnMinutes(columns),
+    rows,
+    scheduleKind,
+    entryCount: inForce.length,
+  };
 }
 
 /**

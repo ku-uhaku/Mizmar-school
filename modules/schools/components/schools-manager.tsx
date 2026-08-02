@@ -36,6 +36,8 @@ export type SchoolRow = {
   id: string;
   code: string;
   name: string;
+  /** The code établissement in MASSAR. Null until an administrator maps it. */
+  massarCode: string | null;
   level: string;
   directorName: string | null;
   capacity: number | null;

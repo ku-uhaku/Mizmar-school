@@ -97,6 +97,37 @@ model SchoolSettings {
   /// than one that is always on the 28th.
   feeDueDayOfMonth Int @default(5)
 
+  // ── La sonnerie ───────────────────────────────────────────────────────────
+  /// How long one period rings for, in minutes.
+  ///
+  /// An hour is what a Moroccan school actually teaches in, and it is what the
+  /// grid should show: sixteen half-hour columns is a table nobody can read,
+  /// and a 30-minute lesson is not a thing anybody timetables.
+  ///
+  /// The half hour that *does* matter is the **start** — see `dayStartsAt`. A
+  /// school opening at 08h30 wants its whole day shifted, not its periods
+  /// halved, and those are two different settings.
+  periodMinutes Int @default(60)
+
+  /// When the morning session begins, `HH:MM`.
+  ///
+  /// This is the shift. 08h00, 08h30, 09h00 and 09h30 are all ordinary, and
+  /// every period of the morning follows from it — which is why it is one
+  /// setting rather than a bell schedule somebody retypes.
+  dayStartsAt String @default("08:00")
+
+  /// When the afternoon session begins, after the lunch break.
+  afternoonStartsAt String @default("14:00")
+
+  /// Teaching periods before the récréation, in each session. The break falls
+  /// after them and lasts `breakMinutes`.
+  periodsBeforeBreak Int @default(2)
+  breakMinutes       Int @default(15)
+
+  /// Teaching periods in each session, the récréation aside.
+  morningPeriods   Int @default(4)
+  afternoonPeriods Int @default(4)
+
   // ── Paie ──────────────────────────────────────────────────────────────────
   /// The divisor that turns a monthly salary into a daily rate. A convention
   /// (26 is the common Moroccan one), which is exactly why it is a setting: the
