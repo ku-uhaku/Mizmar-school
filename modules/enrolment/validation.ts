@@ -21,6 +21,11 @@ export function enrolmentSchema(t: Dictionary) {
     isRepeating: z.boolean(),
     usesTransport: z.boolean(),
     usesCanteen: z.boolean(),
+    // `YYYY-MM`, or blank for "from the start of the year". Only the shape is
+    // checked here; whether the month falls inside the school year is a fact
+    // about the year and is settled by `resolveOptionStart`.
+    transportStartsOn: optionalText(7),
+    canteenStartsOn: optionalText(7),
     notes: optionalText(1000),
   });
 }

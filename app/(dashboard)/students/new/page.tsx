@@ -6,7 +6,10 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { listFamilyChoices } from "@/modules/families/queries";
-import { listCityChoices } from "@/modules/geography/queries";
+import {
+  listCityChoices,
+  listNeighbourhoodChoices,
+} from "@/modules/geography/queries";
 import { StudentForm } from "@/modules/students/components/student-form";
 
 export const metadata: Metadata = { title: "Nouvel élève" };
@@ -20,9 +23,10 @@ export default async function NewStudentPage() {
   }
 
   // Cross-module read through the owner's queries — never a raw db call.
-  const [families, cities] = await Promise.all([
+  const [families, cities, neighbourhoods] = await Promise.all([
     listFamilyChoices(context),
     listCityChoices(context),
+    listNeighbourhoodChoices(context),
   ]);
 
   return (
@@ -34,7 +38,11 @@ export default async function NewStudentPage() {
         backLabel={t.student.title}
       />
 
-      <StudentForm families={families} cities={cities} />
+      <StudentForm
+        families={families}
+        cities={cities}
+        neighbourhoods={neighbourhoods}
+      />
     </>
   );
 }

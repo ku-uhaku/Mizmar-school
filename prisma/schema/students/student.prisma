@@ -59,6 +59,24 @@ model Student {
   birthCityId String?
   birthCity   City?   @relation("StudentBirthCity", fields: [birthCityId], references: [id], onDelete: Restrict)
 
+  /// The quartier the family lives in — see
+  /// prisma/schema/geography/neighbourhood.prisma.
+  ///
+  /// On the pupil rather than only on their abonnement, because it is asked at
+  /// admission of *every* child and is true whether or not they take the bus:
+  /// a walker's quartier is what an attestation de résidence prints, what a
+  /// social case is grouped by, and what tells the school which circuits it
+  /// would have to open to collect the families it is turning away. Holding it
+  /// only on TransportSubscription made it unaskable until a child was seated
+  /// on a line, which is backwards.
+  ///
+  /// It is also what pre-fills the inscription's transport cascade, so a
+  /// secretary who has already typed the address is not asked for it twice.
+  /// Restrict, like every other reference to the geography lists: a quartier
+  /// with residents cannot be deleted out from under them.
+  neighbourhoodId String?
+  neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id], onDelete: Restrict)
+
   /// ISO 3166-1 alpha-2.
   nationality String @default("MA")
 
@@ -179,6 +197,7 @@ model Student {
   @@unique([schoolId, massarCode])
   @@index([schoolId])
   @@index([familyId])
+  @@index([neighbourhoodId])
   @@index([birthCityId])
   @@index([previousSchoolCityId])
   @@index([schoolId, lastName])

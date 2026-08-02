@@ -29,6 +29,10 @@ const fr = {
     usesCanteen: "Cantine",
     optionsHint:
       "Les frais optionnels ne sont facturés qu'aux familles abonnées.",
+    optionStartsOn: "Facturé à partir de",
+    optionStartsWithYear: "Le début de l'année",
+    optionStartsOnHint:
+      "Les échéances antérieures à ce mois ne sont pas générées : une famille qui s'abonne en cours d'année ne paie que les mois utilisés.",
     notes: "Remarques",
     capacity: "{enrolled} / {capacity}",
     seatsLeft: "{count} places restantes",
@@ -36,6 +40,8 @@ const fr = {
     enrolled: "Élève inscrit.",
     enrolledWithFees: "Élève inscrit et échéancier de l'année généré.",
     updated: "Inscription mise à jour.",
+    updatedWithFees:
+      "Inscription mise à jour · {added} échéances ajoutées, {removed} retirées.",
     deleted: "Inscription supprimée.",
     alreadyEnrolled: "Cet élève est déjà inscrit pour cette année.",
     offeringUnavailable: "Ce niveau n'est pas ouvert cette année.",

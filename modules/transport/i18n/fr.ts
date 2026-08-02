@@ -111,6 +111,8 @@ const fr = {
     endsOn: "Jusqu'au",
     riderAdded: "Élève abonné.",
     riderAddedBilled: "Élève abonné — {count} échéances tarifées.",
+    riderAddedPartly:
+      "{created} trajet(s) abonné(s), {refused} refusé(s) — le bus est complet ou l'élève y circule déjà.",
     riderUpdated: "Abonnement mis à jour.",
     riderRemoved: "Abonnement résilié.",
     riderRemovedBilled:
@@ -175,6 +177,11 @@ const fr = {
     chooseNeighbourhood: "Quartier",
     chooseRoute: "Circuit",
     chooseSchedule: "Horaire",
+    chooseRuns: "Horaires",
+    chooseRunsHint:
+      "Cochez le trajet emprunté dans chaque sens. Chacun devient un abonnement distinct.",
+    noSchedulesOnRoute:
+      "Aucun horaire n'est encore déclaré sur ce circuit : le sens est donc demandé directement.",
     chooseStop: "Arr\u00eat",
     stopAutoResolved: "Un seul arr\u00eat dessert ce quartier sur ce circuit.",
     stopsUnfilteredHint:

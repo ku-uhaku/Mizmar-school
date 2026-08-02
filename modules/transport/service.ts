@@ -180,6 +180,70 @@ export async function subscribeRider(
   return { ok: true, id: created.id, repricedLines: raisedLines };
 }
 
+export type SubscribeRunsResult = {
+  created: number;
+  repricedLines: number;
+  /**
+   * The runs that could not be taken, and why. Reported rather than thrown: a
+   * family asking for the morning and the evening, where only the evening bus
+   * has a seat left, should be put on the evening bus and *told* about the
+   * morning — not refused both.
+   */
+  refused: SubscribeFailure[];
+};
+
+/**
+ * Puts a pupil on several runs of one line in a single act.
+ *
+ * A child collected in the morning and taken home in the evening is the normal
+ * arrangement, and it is two abonnements — one per direction, which is what
+ * `@@unique([enrollmentId, direction])` says. Asking the secretary to fill the
+ * same form twice for it was the whole friction.
+ *
+ * The direction is read off each run rather than asked for: a TransportSchedule
+ * is MORNING or AFTERNOON and cannot be both (see its note), so the run the
+ * family boards already answers the question. That also makes the two
+ * impossible to contradict, which a separate direction select could.
+ *
+ * Runs sharing a direction are refused after the first, by the unique index and
+ * by `subscribeRider` before it — a child boards one morning bus.
+ */
+export async function subscribeRiderToRuns(
+  base: Omit<SubscribeInput, "direction" | "scheduleId">,
+  scheduleIds: string[],
+): Promise<SubscribeRunsResult> {
+  const runs = await db.transportSchedule.findMany({
+    where: { id: { in: scheduleIds } },
+    // Morning before afternoon, so a partial success is the start of the day
+    // rather than an arbitrary half of it.
+    orderBy: [{ direction: "asc" }, { position: "asc" }],
+    select: { id: true, direction: true },
+  });
+
+  let created = 0;
+  let repricedLines = 0;
+  const refused: SubscribeFailure[] = [];
+
+  // Sequential rather than in parallel: each one checks the seats left on the
+  // line, and two concurrent checks would both see the last seat.
+  for (const run of runs) {
+    const result = await subscribeRider({
+      ...base,
+      direction: run.direction as TransportDirection,
+      scheduleId: run.id,
+    });
+
+    if (result.ok) {
+      created += 1;
+      repricedLines += result.repricedLines;
+    } else {
+      refused.push(result.reason);
+    }
+  }
+
+  return { created, repricedLines, refused };
+}
+
 /**
  * Keeps `Enrollment.usesTransport` in step with whether the pupil is on a bus,
  * and raises the transport lines the first time they are.

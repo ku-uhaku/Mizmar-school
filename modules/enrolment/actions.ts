@@ -16,6 +16,8 @@ import {
   generateFeeSchedule,
   repriceFeeLine,
   repriceFollowingLines,
+  resolveOptionStart,
+  resyncOptionalCharges,
   setEnrolmentStatus,
 } from "@/modules/enrolment/service";
 import { enrolmentSchema, feeLineSchema } from "@/modules/enrolment/validation";
@@ -48,8 +50,37 @@ function readEnrolmentForm(formData: FormData) {
     isRepeating: boolField(formData, "isRepeating"),
     usesTransport: boolField(formData, "usesTransport"),
     usesCanteen: boolField(formData, "usesCanteen"),
+    transportStartsOn: optionalId(formData, "transportStartsOn"),
+    canteenStartsOn: optionalId(formData, "canteenStartsOn"),
     notes: field(formData, "notes"),
   };
+}
+
+/**
+ * The start month of each opt-in, as columns.
+ *
+ * Cleared whenever its flag is off, so a family that drops the canteen cannot
+ * leave a start month behind for the next person to tick the box and be
+ * surprised by. The month itself is validated against the year — see
+ * `resolveOptionStart`.
+ */
+async function optionStartColumns(
+  schoolYearId: string,
+  parsed: { usesTransport: boolean; usesCanteen: boolean } & Record<
+    "transportStartsOn" | "canteenStartsOn",
+    string | null
+  >,
+) {
+  const [transportStartsOn, canteenStartsOn] = await Promise.all([
+    parsed.usesTransport
+      ? resolveOptionStart(schoolYearId, parsed.transportStartsOn)
+      : null,
+    parsed.usesCanteen
+      ? resolveOptionStart(schoolYearId, parsed.canteenStartsOn)
+      : null,
+  ]);
+
+  return { transportStartsOn, canteenStartsOn };
 }
 
 /**
@@ -145,6 +176,7 @@ export async function enrolStudentAction(
         isRepeating: parsed.data.isRepeating,
         usesTransport: parsed.data.usesTransport,
         usesCanteen: parsed.data.usesCanteen,
+        ...(await optionStartColumns(schoolYearId, parsed.data)),
         notes: parsed.data.notes,
       },
       select: { id: true },
@@ -212,6 +244,7 @@ export async function updateEnrolmentAction(
         isRepeating: parsed.data.isRepeating,
         usesTransport: parsed.data.usesTransport,
         usesCanteen: parsed.data.usesCanteen,
+        ...(await optionStartColumns(existing.schoolYearId, parsed.data)),
         notes: parsed.data.notes,
       },
     });
@@ -225,8 +258,18 @@ export async function updateEnrolmentAction(
     // Status and the pupil's own status move together — see setEnrolmentStatus.
     await setEnrolmentStatus(enrollmentId, parsed.data.status, new Date());
 
+    // The switches above and their start months decide what the bus and the
+    // canteen cost, so the échéancier has to follow them in the same save —
+    // leaving it to a second button is how a family ends up billed for a
+    // service they cancelled in front of the secretary.
+    const { added, removed } = await resyncOptionalCharges(enrollmentId);
+
     refresh();
-    return success(t.enrolment.updated);
+    return success(
+      added > 0 || removed > 0
+        ? interpolate(t.enrolment.updatedWithFees, { added, removed })
+        : t.enrolment.updated,
+    );
   });
 }
 

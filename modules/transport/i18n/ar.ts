@@ -103,6 +103,8 @@ const ar = {
     endsOn: "إلى غاية",
     riderAdded: "تم اشتراك التلميذ.",
     riderAddedBilled: "تم اشتراك التلميذ — سُعِّرت {count} أقساط.",
+    riderAddedPartly:
+      "تم اشتراك {created} رحلة، ورÙفضت {refused} — الحافلة ممتلئة أو التلميذ مشترك في هذا الاتجاه.",
     riderUpdated: "تم تحديث الاشتراك.",
     riderRemoved: "تم فسخ الاشتراك.",
     riderRemovedBilled: "تم فسخ الاشتراك — أُلغيت {count} أقساط مقبلة.",
@@ -169,6 +171,11 @@ const ar = {
     chooseNeighbourhood: "\u0627\u0644\u062d\u064a",
     chooseRoute: "\u0627\u0644\u0645\u0633\u0627\u0631",
     chooseSchedule: "\u0627\u0644\u0631\u062d\u0644\u0629",
+    chooseRuns: "الرحلات",
+    chooseRunsHint:
+      "أشِر إلى الرحلة التي يركبها التلميذ في كل اتجاه، وكل واحدة تصير اشتراكًا مستقلاً.",
+    noSchedulesOnRoute:
+      "لم تُعلَن بعد أي رحلة على هذا الخط، لذلك يُطلب الاتجاه مباشرة.",
     chooseStop: "\u0627\u0644\u0645\u062d\u0637\u0629",
     stopAutoResolved:
       "\u0645\u062d\u0637\u0629 \u0648\u0627\u062d\u062f\u0629 \u062a\u062e\u062f\u0645 \u0647\u0630\u0627 \u0627\u0644\u062d\u064a \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0645\u0633\u0627\u0631.",

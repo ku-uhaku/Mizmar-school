@@ -91,12 +91,15 @@ export function StudentForm({
   student,
   families,
   cities,
+  neighbourhoods,
 }: {
   student?: StudentDetail;
   /** Dossiers to attach to. Empty until the school has opened one. */
   families: { id: string; label: string }[];
   /** The school's towns, for the birthplace — see modules/geography. */
   cities: { id: string; label: string }[];
+  /** The school's quartiers, for the address — same list, same module. */
+  neighbourhoods: { id: string; label: string }[];
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -180,34 +183,72 @@ export function StudentForm({
           </FormField>
         </FormGrid>
 
-        {/* One picker, not two boxes: the town's French and Arabic spellings
-          are agreed once under /configuration, so a certificat de scolarité
-          cannot print two different names for the same place. */}
-        <FormField
-          name="birthCityId"
-          label={t.student.birthPlace}
-          hint={cities.length === 0 ? t.student.noCities : undefined}
-          error={errors.birthCityId}
-        >
-          <Select
+        <FormGrid cols={2}>
+          {/* One picker, not two boxes: the town's French and Arabic spellings
+            are agreed once under /configuration, so a certificat de scolarité
+            cannot print two different names for the same place. */}
+          <FormField
             name="birthCityId"
-            defaultValue={
-              valueOf(state, "birthCityId", student?.birthCityId) || "__none__"
-            }
+            label={t.student.birthPlace}
+            hint={cities.length === 0 ? t.student.noCities : undefined}
+            error={errors.birthCityId}
           >
-            <SelectTrigger id="birthCityId" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t.common.none}</SelectItem>
-              {cities.map((city) => (
-                <SelectItem key={city.id} value={city.id}>
-                  {city.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FormField>
+            <Select
+              name="birthCityId"
+              defaultValue={
+                valueOf(state, "birthCityId", student?.birthCityId) || "__none__"
+              }
+            >
+              <SelectTrigger id="birthCityId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {cities.map((city) => (
+                  <SelectItem key={city.id} value={city.id}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+
+          {/* Asked here, of every child, rather than on the transport tab:
+            the quartier is part of the address a secretary is already copying
+            off the admission form, it is true of walkers as much as riders, and
+            asking for it once is what lets the bus screen open on the right
+            circuit instead of asking again. */}
+          <FormField
+            name="neighbourhoodId"
+            label={t.student.neighbourhood}
+            hint={
+              neighbourhoods.length === 0
+                ? t.student.noNeighbourhoods
+                : t.student.neighbourhoodHint
+            }
+            error={errors.neighbourhoodId}
+          >
+            <Select
+              name="neighbourhoodId"
+              defaultValue={
+                valueOf(state, "neighbourhoodId", student?.neighbourhoodId) ||
+                "__none__"
+              }
+            >
+              <SelectTrigger id="neighbourhoodId" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t.common.none}</SelectItem>
+                {neighbourhoods.map((neighbourhood) => (
+                  <SelectItem key={neighbourhood.id} value={neighbourhood.id}>
+                    {neighbourhood.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </FormGrid>
       </FormSection>
 
       <FormSection

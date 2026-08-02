@@ -107,6 +107,8 @@ const en = {
     endsOn: "Until",
     riderAdded: "Rider added.",
     riderAddedBilled: "Rider added — {count} instalments priced.",
+    riderAddedPartly:
+      "{created} run(s) subscribed, {refused} refused — the bus may be full or already taken that way.",
     riderUpdated: "Rider updated.",
     riderRemoved: "Rider removed.",
     riderRemovedBilled:
@@ -171,6 +173,11 @@ const en = {
     chooseNeighbourhood: "District",
     chooseRoute: "Line",
     chooseSchedule: "Run",
+    chooseRuns: "Runs",
+    chooseRunsHint:
+      "Tick the run the pupil boards each way. Each one becomes its own abonnement.",
+    noSchedulesOnRoute:
+      "This line has no runs declared yet, so the direction is asked outright.",
     chooseStop: "Stop",
     stopAutoResolved: "One stop serves this district on this line.",
     stopsUnfilteredHint:

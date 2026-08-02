@@ -18,7 +18,10 @@ import {
   loadFeeGrid,
 } from "@/modules/enrolment/queries";
 import { findFamily, listFamilyChoices } from "@/modules/families/queries";
-import { listCityChoices } from "@/modules/geography/queries";
+import {
+  listCityChoices,
+  listNeighbourhoodChoices,
+} from "@/modules/geography/queries";
 import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
 import { loadPupilMarks } from "@/modules/assessments/queries";
@@ -76,18 +79,21 @@ export default async function StudentPage({
   // child's record without learning whether their family is behind on fees.
   const canSeeMoney = context.can(PERMISSIONS.TREASURY_VIEW);
 
-  const [workflow, enrolment, choices, families, cities] = await Promise.all([
-    loadStudentWorkflow(context, student.id),
-    findEnrolment(context, student.id),
-    loadEnrolmentChoices(context),
-    listFamilyChoices(context),
-    // The pupil's own towns are kept in the list even if deactivated, so
-    // merging two spellings never blanks a birthplace on the next save.
-    listCityChoices(context, [
-      student.birthCityId,
-      student.previousSchoolCityId,
-    ]),
-  ]);
+  const [workflow, enrolment, choices, families, cities, neighbourhoods] =
+    await Promise.all([
+      loadStudentWorkflow(context, student.id),
+      findEnrolment(context, student.id),
+      loadEnrolmentChoices(context),
+      listFamilyChoices(context),
+      // The pupil's own towns are kept in the list even if deactivated, so
+      // merging two spellings never blanks a birthplace on the next save.
+      listCityChoices(context, [
+        student.birthCityId,
+        student.previousSchoolCityId,
+      ]),
+      // Same rule for their quartier — a merged one must not blank the address.
+      listNeighbourhoodChoices(context, [student.neighbourhoodId]),
+    ]);
 
   // The rest depends on what the first round found: no dossier means no
   // guardians to load, no class means no week to draw, and the fratrie's
@@ -220,8 +226,10 @@ export default async function StudentPage({
         guardians={family?.guardians ?? []}
         families={families}
         cities={cities}
+        neighbourhoods={neighbourhoods}
         enrolment={enrolment}
         offerings={choices.offerings}
+        startMonths={choices.optionStartMonths}
         yearName={context.currentSchoolYear?.name ?? null}
         feeGrid={feeGrid}
         discounts={choices.discounts}

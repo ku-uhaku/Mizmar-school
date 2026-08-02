@@ -46,6 +46,9 @@ export function studentSchema(t: Dictionary) {
       // modules/geography. Blank means "not recorded", which is ordinary for a
       // file opened over the phone.
       birthCityId: optionalText(40),
+      // Where the family lives, from the same lists. Asked of every child, bus
+      // or no bus — see the note on `Student.neighbourhoodId`.
+      neighbourhoodId: optionalText(40),
       nationality: countryField(v),
       nationalId: optionalText(32),
       photoUrl: optionalImage(v),

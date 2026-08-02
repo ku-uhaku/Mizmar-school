@@ -536,6 +536,24 @@ export async function findPayableFamily(
   };
 }
 
+/**
+ * One charge of the year — scolarité, bus, cantine — and where the pupil stands
+ * against it on its own.
+ *
+ * The totals above it answer "does this family owe anything"; this answers "for
+ * what", which is the question actually asked at the desk. A parent settling the
+ * bus in cash wants to hear the bus figure, and a secretary reading them one
+ * grand total has to open the fee grid and add up a row to find it.
+ */
+export type ServiceStanding = {
+  feeTypeId: string;
+  feeTypeName: string;
+  chargedCentimes: number;
+  paidCentimes: number;
+  outstandingCentimes: number;
+  overdueCentimes: number;
+};
+
 export type PaymentStanding = {
   /** What the year's schedule charges this pupil, less waived and cancelled lines. */
   chargedCentimes: number;
@@ -556,6 +574,12 @@ export type PaymentStanding = {
   settledLines: number;
   totalLines: number;
   lastPaidAt: string | null;
+  /**
+   * The same figures split per charge, in the order the fee grid lists them, so
+   * the table on the payment tab and the grid on the fees tab read the same way
+   * down the page.
+   */
+  byService: ServiceStanding[];
 };
 
 /**
@@ -578,6 +602,7 @@ export async function studentPaymentStanding(
     settledLines: 0,
     totalLines: 0,
     lastPaidAt: null,
+    byService: [],
   };
 
   const schoolId = context.currentSchool?.id;
@@ -597,6 +622,9 @@ export async function studentPaymentStanding(
     select: {
       amountCentimes: true,
       dueDate: true,
+      // `position` is what orders the breakdown — the same column the fee grid
+      // orders its rows by, so the two screens cannot disagree.
+      feeType: { select: { id: true, name: true, position: true } },
       allocations: {
         where: { payment: { status: "POSTED" } },
         select: { amountCentimes: true, payment: { select: { paidAt: true } } },
@@ -617,19 +645,39 @@ export async function studentPaymentStanding(
   let settledLines = 0;
   let lastPaidAt: Date | null = null;
 
+  // Accumulated in the same pass as the totals, so a charge's figures are summed
+  // from exactly the lines the grand total was summed from — a second query
+  // filtered differently is how the parts stop adding up to the whole.
+  const services = new Map<string, ServiceStanding & { position: number }>();
+
   for (const line of lines) {
     const paid = sumCentimes(
       line.allocations.map((allocation) => allocation.amountCentimes),
     );
     const outstanding = outstandingOf(line.amountCentimes, paid);
+    const overdue =
+      outstanding > 0 && line.dueDate <= endOfToday ? outstanding : 0;
 
     chargedCentimes += line.amountCentimes;
     paidCentimes += paid;
     outstandingCentimes += outstanding;
+    overdueCentimes += overdue;
     if (outstanding === 0) settledLines += 1;
-    if (outstanding > 0 && line.dueDate <= endOfToday) {
-      overdueCentimes += outstanding;
-    }
+
+    const service = services.get(line.feeType.id) ?? {
+      feeTypeId: line.feeType.id,
+      feeTypeName: line.feeType.name,
+      position: line.feeType.position,
+      chargedCentimes: 0,
+      paidCentimes: 0,
+      outstandingCentimes: 0,
+      overdueCentimes: 0,
+    };
+    service.chargedCentimes += line.amountCentimes;
+    service.paidCentimes += paid;
+    service.outstandingCentimes += outstanding;
+    service.overdueCentimes += overdue;
+    services.set(line.feeType.id, service);
 
     for (const allocation of line.allocations) {
       if (!lastPaidAt || allocation.payment.paidAt > lastPaidAt) {
@@ -647,6 +695,19 @@ export async function studentPaymentStanding(
     settledLines,
     totalLines: lines.length,
     lastPaidAt: lastPaidAt?.toISOString() ?? null,
+    byService: [...services.values()]
+      .sort(
+        (a, b) =>
+          a.position - b.position || a.feeTypeName.localeCompare(b.feeTypeName),
+      )
+      .map((service) => ({
+        feeTypeId: service.feeTypeId,
+        feeTypeName: service.feeTypeName,
+        chargedCentimes: service.chargedCentimes,
+        paidCentimes: service.paidCentimes,
+        outstandingCentimes: service.outstandingCentimes,
+        overdueCentimes: service.overdueCentimes,
+      })),
   };
 }
 

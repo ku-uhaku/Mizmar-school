@@ -13,7 +13,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { GuardianRow } from "@/modules/families/queries";
 import { EnrolmentPanel } from "@/modules/enrolment/components/enrolment-panel";
-import type { OfferingChoice } from "@/modules/enrolment/components/enrolment-panel";
+import type {
+  OfferingChoice,
+  StartMonthChoice,
+} from "@/modules/enrolment/components/enrolment-panel";
 import { FeeGrid } from "@/modules/enrolment/components/fee-grid";
 import type {
   EnrolmentDetail,
@@ -77,8 +80,10 @@ export function StudentProfile({
   guardians,
   families,
   cities,
+  neighbourhoods,
   enrolment,
   offerings,
+  startMonths,
   yearName,
   feeGrid,
   discounts,
@@ -111,8 +116,11 @@ export function StudentProfile({
   families: { id: string; label: string }[];
   /** The school's towns, for the birthplace picker on the information tab. */
   cities: { id: string; label: string }[];
+  /** Its quartiers, for the address picker beside it. */
+  neighbourhoods: { id: string; label: string }[];
   enrolment: EnrolmentDetail | null;
   offerings: OfferingChoice[];
+  startMonths: StartMonthChoice[];
   yearName: string | null;
   feeGrid: FeeGridData | null;
   discounts: {
@@ -165,6 +173,25 @@ export function StudentProfile({
 }) {
   const t = useT();
   const [tab, setTab] = React.useState("information");
+
+  /**
+   * The bus tab appears once the family has actually taken the bus.
+   *
+   * Transport is an *option of the inscription* — it is the switch on the
+   * enrolment that decides whether it is billed at all — so offering a whole tab
+   * of circuits and stops to every walker in the school put a decision in two
+   * places and let a secretary seat a child on a line the family was never
+   * charged for. Now the tab follows the option, and the option is asked once,
+   * where the money is.
+   *
+   * A pupil who already has an abonnement keeps the tab whatever the flag says.
+   * That combination should not arise — `syncTransportOption` sets the flag when
+   * a rider is seated — but if it ever does, hiding the tab would strand a child
+   * on a bus with no screen to take them off it.
+   */
+  const showTransport =
+    transportChoices !== null &&
+    ((enrolment?.usesTransport ?? false) || transportSubscriptions.length > 0);
 
   return (
     <>
@@ -251,9 +278,9 @@ export function StudentProfile({
               ) : null}
             </TabsTrigger>
           ) : null}
-          {/* Absent, not disabled, when the reader may not see transport —
-            the same rule the money and register tabs follow. */}
-          {transportChoices ? (
+          {/* Absent when the reader may not see transport, and absent again
+            when the family has not taken it — see `showTransport`. */}
+          {showTransport ? (
             <TabsTrigger value="transport">
               {t.transport.tabTransport}
               {transportSubscriptions.length > 0 ? (
@@ -267,7 +294,12 @@ export function StudentProfile({
         </TabsList>
 
         <TabsContent value="information">
-          <StudentForm student={student} families={families} cities={cities} />
+          <StudentForm
+            student={student}
+            families={families}
+            cities={cities}
+            neighbourhoods={neighbourhoods}
+          />
         </TabsContent>
 
         <TabsContent value="family">
@@ -285,6 +317,7 @@ export function StudentProfile({
             studentId={student.id}
             enrolment={enrolment}
             offerings={offerings}
+            startMonths={startMonths}
             yearName={yearName}
             permissions={{
               canCreate: permissions.canCreateEnrolment,
@@ -348,12 +381,16 @@ export function StudentProfile({
           </TabsContent>
         ) : null}
 
-        {transportChoices ? (
+        {showTransport && transportChoices ? (
           <TabsContent value="transport">
             <TransportPanel
               enrolmentId={enrolment?.id ?? null}
               neighbourhoods={transportChoices}
               subscriptions={transportSubscriptions}
+              // The address already on the pupil's file, so the cascade opens on
+              // the quartier the secretary typed on the information tab rather
+              // than asking for it a second time.
+              defaultNeighbourhoodId={student.neighbourhoodId}
               canSubscribe={permissions.canSubscribeTransport}
             />
           </TabsContent>

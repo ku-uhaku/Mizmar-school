@@ -115,6 +115,41 @@ export function monthKeyString({ year, month }: MonthKey): string {
 }
 
 /**
+ * `2025-09` back to a month — the inverse of `monthKeyString`, and what an
+ * option's start-month picker submits.
+ *
+ * Returns null for anything that is not a month, blank included, so a caller
+ * can treat "not chosen" and "nonsense" the same way: fall back to the start of
+ * the year.
+ */
+export function monthKeyFromString(value: string): MonthKey | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(value.trim());
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+
+  return { year, month };
+}
+
+/** The first of the month — how an option's start date is stored. */
+export function startOfMonth({ year, month }: MonthKey): Date {
+  return new Date(year, month - 1, 1);
+}
+
+/**
+ * A month as one comparable number, so September 2025 and January 2026 order
+ * the way a school year reads them.
+ *
+ * The school year straddles two calendar years, which is exactly where
+ * comparing month numbers alone gets it wrong.
+ */
+export function monthOrdinal(date: Date): number {
+  return date.getFullYear() * 12 + date.getMonth();
+}
+
+/**
  * Every month the school year touches, in order — the columns of the fee grid.
  *
  * Built from the year's own dates rather than assumed to be September–June: a

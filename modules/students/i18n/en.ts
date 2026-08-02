@@ -37,6 +37,11 @@ const en = {
     birthDateHint: "Decides which level the child may be admitted to.",
     birthPlace: "Place of birth",
     noCities: "No towns configured yet \u2014 add them under Configuration.",
+    neighbourhood: "Quartier",
+    neighbourhoodHint:
+      "Where the family lives. Recorded for every pupil, and used to find their bus route if they take one.",
+    noNeighbourhoods:
+      "No quartiers configured yet \u2014 add them under Configuration.",
     nationality: "Nationality",
     nationalId: "National ID (CNIE)",
     nationalIdHint: "For pupils old enough to hold one.",

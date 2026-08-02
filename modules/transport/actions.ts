@@ -24,6 +24,7 @@ import {
   setRouteNeighbourhoods,
   setRouteSchedules,
   subscribeRider,
+  subscribeRiderToRuns,
   unsubscribeRider,
   updateRider,
 } from "@/modules/transport/service";
@@ -409,10 +410,22 @@ export async function subscribeRiderAction(
 
     await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_SUBSCRIBE);
 
+    // The runs the family boards, when the line declares any. Each one becomes
+    // its own abonnement with its own direction — see `subscribeRiderToRuns`.
+    // Only the shape is settled here; that a run belongs to this line, and to
+    // this year, is checked against the database in the service.
+    const scheduleIds = listField(formData, "scheduleIds").filter(
+      (id) => id && id !== NO_SELECTION,
+    );
+
     const parsed = subscriptionSchema(t).safeParse({
       enrollmentId: field(formData, "enrollmentId"),
       stopId: field(formData, "stopId"),
-      direction: field(formData, "direction"),
+      // A form offering runs does not also ask which way the child is going —
+      // each run answers that on its own, and two controls that can disagree is
+      // one too many. The column still needs a shape to parse, and it is
+      // replaced per run below.
+      direction: field(formData, "direction") || "BOTH",
       status: field(formData, "status") || "ACTIVE",
       scheduleId: optionalId(formData, "scheduleId"),
       startsOn: field(formData, "startsOn"),
@@ -445,16 +458,52 @@ export async function subscribeRiderAction(
     });
     if (!stop) return failure(t.errors.notFound);
 
-    const result = await subscribeRider({
+    const base = {
       enrollmentId: enrolment.id,
       stopId: stop.id,
-      direction: parsed.data.direction,
       status: parsed.data.status,
-      // Checked against the line inside the service — see `resolveSchedule`.
-      scheduleId: parsed.data.scheduleId,
       startsOn: parsed.data.startsOn ?? new Date(),
       endsOn: parsed.data.endsOn,
       notes: parsed.data.notes,
+    };
+
+    if (scheduleIds.length > 0) {
+      const runs = await subscribeRiderToRuns(base, scheduleIds);
+
+      if (runs.created === 0) {
+        // Nothing was taken, so the first reason is the whole story.
+        switch (runs.refused[0]) {
+          case "FULL":
+            return failure(t.transport.routeFull);
+          case "ALREADY_ON_BOARD":
+            return failure(t.transport.alreadySubscribed);
+          default:
+            return failure(t.errors.notFound);
+        }
+      }
+
+      refresh();
+      return success(
+        runs.refused.length > 0
+          ? interpolate(t.transport.riderAddedPartly, {
+              created: runs.created,
+              refused: runs.refused.length,
+            })
+          : runs.repricedLines > 0
+            ? interpolate(t.transport.riderAddedBilled, {
+                count: runs.repricedLines,
+              })
+            : t.transport.riderAdded,
+      );
+    }
+
+    // No runs declared on the line: the direction is asked for outright, and the
+    // abonnement carries no horaire — see the note on
+    // `TransportSubscription.scheduleId`.
+    const result = await subscribeRider({
+      ...base,
+      direction: parsed.data.direction,
+      scheduleId: null,
     });
 
     if (!result.ok) {

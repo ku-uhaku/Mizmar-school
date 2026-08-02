@@ -31,6 +31,10 @@ const en = {
     usesTransport: "School bus",
     usesCanteen: "Canteen",
     optionsHint: "Optional charges are billed only to those who subscribe.",
+    optionStartsOn: "Billed from",
+    optionStartsWithYear: "The start of the year",
+    optionStartsOnHint:
+      "Instalments before this month are not raised, so a family joining mid-year pays only for the months they use.",
     notes: "Notes",
     capacity: "{enrolled} / {capacity}",
     seatsLeft: "{count} seats left",
@@ -38,6 +42,8 @@ const en = {
     enrolled: "Pupil enrolled.",
     enrolledWithFees: "Pupil enrolled and the year's fees scheduled.",
     updated: "Enrolment updated.",
+    updatedWithFees:
+      "Enrolment updated · {added} fee lines added, {removed} withdrawn.",
     deleted: "Enrolment deleted.",
     alreadyEnrolled: "This pupil is already enrolled for this year.",
     offeringUnavailable: "That level is not open this year.",

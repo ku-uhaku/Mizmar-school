@@ -1,4 +1,5 @@
 import { dueDayOf, settingsOf } from "@/lib/school-settings";
+import { monthsOfYear, startOfMonth } from "@/modules/enrolment/enums";
 import { buildScheduleLines } from "@/modules/enrolment/schedule";
 import { deriveStudentStatus } from "@/modules/students/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
@@ -124,6 +125,14 @@ export async function seedEnrolments(
   let unseated = 0;
   let feeLines = 0;
 
+  // The month a mid-year canteen subscription starts in the demo data. Read off
+  // the year's own months rather than named, so a school year that opens in
+  // October still gets a plausible one.
+  const startsFromThirdMonth = (() => {
+    const month = monthsOfYear(year.startDate, year.endDate)[2];
+    return month ? startOfMonth(month) : null;
+  })();
+
   for (const student of Object.values(students)) {
     const placement = placementFor(student.age);
     if (!placement) continue;
@@ -151,6 +160,15 @@ export async function seedEnrolments(
     const usesTransport = student.age >= 12;
     const usesCanteen = student.age <= 11;
 
+    // Every seventh canteen family joins after the rentrée, so the demo data
+    // contains the mid-year case the fee grid and the payment tab have to cope
+    // with — a short échéancier next to full ones. Keyed off the same counter
+    // as `leaveUnseated`, so a re-seed picks the same families.
+    const canteenStartsOn =
+      usesCanteen && enrolled % 7 === 3
+        ? (startsFromThirdMonth ?? null)
+        : null;
+
     const enrolment = await db.enrollment.upsert({
       where: {
         studentId_schoolYearId: { studentId: student.id, schoolYearId },
@@ -165,6 +183,7 @@ export async function seedEnrolments(
         enrolledOn: year.startDate,
         usesTransport,
         usesCanteen,
+        canteenStartsOn,
       },
       select: { id: true, schoolClassId: true },
     });
@@ -184,6 +203,8 @@ export async function seedEnrolments(
       levelId: offering.levelId,
       usesTransport,
       usesCanteen,
+      transportStartsOn: null,
+      canteenStartsOn,
       yearStart: year.startDate,
       yearEnd: year.endDate,
       termCount: year._count.terms,

@@ -7,6 +7,7 @@ import {
   BanknoteArrowDownIcon,
   CheckCircle2Icon,
   ClockIcon,
+  ListTreeIcon,
   ReceiptTextIcon,
   TriangleAlertIcon,
   UsersIcon,
@@ -18,6 +19,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { PaymentConsole } from "@/modules/treasury/components/payment-console";
@@ -33,6 +43,7 @@ import type {
   PayableFamily,
   PaymentRow,
   PaymentStanding,
+  ServiceStanding,
 } from "@/modules/treasury/queries";
 
 /**
@@ -96,6 +107,36 @@ export function StudentPaymentPanel({
 
   const state = standingStateOf(standing);
   const hasSiblings = (family?.siblings.length ?? 0) > 0;
+
+  /**
+   * The breakdown table's rows: this pupil's charges, then — only when the
+   * fratrie switch is on — each sibling's underneath.
+   *
+   * The pupil comes first whatever the alphabet says: this is their file, and a
+   * table that opened on a brother's cantine would be answering a question
+   * nobody asked.
+   */
+  const serviceRows = React.useMemo(() => {
+    const rows = standing.byService.map((service) => ({
+      key: `self:${service.feeTypeId}`,
+      pupil: t.treasury.thisPupil,
+      service,
+    }));
+
+    if (!showSiblings || !family) return rows;
+
+    for (const sibling of family.siblings) {
+      for (const service of sibling.standing.byService) {
+        rows.push({
+          key: `${sibling.studentId}:${service.feeTypeId}`,
+          pupil: sibling.studentName,
+          service,
+        });
+      }
+    }
+
+    return rows;
+  }, [standing.byService, showSiblings, family, t.treasury.thisPupil]);
 
   if (standing.totalLines === 0) {
     return (
@@ -172,6 +213,22 @@ export function StudentPaymentPanel({
               ? ` · ${t.treasury.lastPaid} ${formatDate(standing.lastPaidAt, locale)}`
               : ""}
           </p>
+
+          {/*
+            The breakdown, inside the card the totals are in rather than beside
+            it: "what do we still owe" and "on what" are one question asked in
+            two breaths, and putting the second in its own card down the page
+            made the parent at the desk wait while somebody scrolled.
+
+            The fratrie lands in this same table when the switch above is on —
+            one household, one grid to read down — which is why the pupil is a
+            column rather than a heading.
+          */}
+          <ServiceBreakdown
+            rows={serviceRows}
+            money={money}
+            showPupil={showSiblings && hasSiblings}
+          />
 
           {showSiblings && family && hasSiblings ? (
             <div className="border-t pt-4">
@@ -293,6 +350,127 @@ export function StudentPaymentPanel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * What is owed, charge by charge.
+ *
+ * A table and not a second set of bars: the desk conversation is about exact
+ * dirhams — "the bus is settled, it's the cantine that's short 400" — and a
+ * proportion cannot be read out over the phone. The bar above already carries
+ * the glance.
+ *
+ * The pupil column appears only with the fratrie, because with one child every
+ * cell in it says the same thing and a column of the same word is a column that
+ * has to be read to be discarded. `Reste` is the last and heaviest column: it is
+ * the number the whole card exists to produce.
+ */
+function ServiceBreakdown({
+  rows,
+  money,
+  showPupil,
+}: {
+  rows: {
+    key: string;
+    pupil: string;
+    service: ServiceStanding;
+  }[];
+  money: (centimes: number) => string;
+  showPupil: boolean;
+}) {
+  const t = useT();
+
+  if (rows.length === 0) return null;
+
+  const totals = rows.reduce(
+    (sum, row) => ({
+      charged: sum.charged + row.service.chargedCentimes,
+      paid: sum.paid + row.service.paidCentimes,
+      outstanding: sum.outstanding + row.service.outstandingCentimes,
+    }),
+    { charged: 0, paid: 0, outstanding: 0 },
+  );
+
+  return (
+    <Card className="bg-background/60 gap-0 py-0">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <ListTreeIcon className="text-muted-foreground size-3.5" />
+        <h4 className="text-xs font-medium">{t.treasury.byService}</h4>
+      </div>
+
+      {/* Its own scroller: five money columns on a narrow phone must not push
+        the card — and the page behind it — sideways. */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>{t.treasury.service}</TableHead>
+              {showPupil ? <TableHead>{t.treasury.pupil}</TableHead> : null}
+              <TableHead className="text-end">{t.treasury.charged}</TableHead>
+              <TableHead className="text-end">
+                {t.treasury.alreadyPaid}
+              </TableHead>
+              <TableHead className="text-end">{t.treasury.remaining}</TableHead>
+            </TableRow>
+          </TableHeader>
+
+          <TableBody>
+            {rows.map(({ key, pupil, service }) => (
+              <TableRow key={key}>
+                <TableCell className="font-medium">
+                  {service.feeTypeName}
+                </TableCell>
+                {showPupil ? (
+                  <TableCell className="text-muted-foreground">
+                    {pupil}
+                  </TableCell>
+                ) : null}
+                <TableCell className="text-end tabular-nums">
+                  {money(service.chargedCentimes)}
+                </TableCell>
+                <TableCell className="text-end tabular-nums">
+                  {money(service.paidCentimes)}
+                </TableCell>
+                <TableCell
+                  className={cn(
+                    "text-end font-semibold tabular-nums",
+                    // Late is said in colour *and* in the badge above; nothing
+                    // here is carried by colour alone.
+                    service.overdueCentimes > 0
+                      ? "text-destructive"
+                      : service.outstandingCentimes === 0
+                        ? "text-success"
+                        : undefined,
+                  )}
+                >
+                  {service.outstandingCentimes === 0
+                    ? t.treasuryOptions.paymentStates.SETTLED
+                    : money(service.outstandingCentimes)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+
+          <TableFooter>
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={showPupil ? 2 : 1}>
+                {t.treasury.standingTotal}
+              </TableCell>
+              <TableCell className="text-end tabular-nums">
+                {money(totals.charged)}
+              </TableCell>
+              <TableCell className="text-end tabular-nums">
+                {money(totals.paid)}
+              </TableCell>
+              <TableCell className="text-end font-semibold tabular-nums">
+                {money(totals.outstanding)}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        </Table>
+      </div>
+    </Card>
   );
 }
 

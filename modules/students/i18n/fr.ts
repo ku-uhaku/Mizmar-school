@@ -37,6 +37,11 @@ const fr = {
     birthPlace: "Lieu de naissance",
     noCities:
       "Aucune ville configur\u00e9e \u2014 ajoutez-les dans Configuration.",
+    neighbourhood: "Quartier",
+    neighbourhoodHint:
+      "Le lieu de résidence de la famille. Renseigné pour tout élève, et utilisé pour trouver son circuit de bus s'il en prend un.",
+    noNeighbourhoods:
+      "Aucun quartier configuré — ajoutez-les dans Configuration.",
     nationality: "Nationalité",
     nationalId: "CNIE",
     nationalIdHint: "Pour les élèves en âge d'en posséder une.",

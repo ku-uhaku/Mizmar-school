@@ -51,6 +51,9 @@ export type StudentDetail = StudentRow & {
   birthCityId: string | null;
   /** Resolved for display; the form edits the id. */
   birthCityName: string | null;
+  /** Where the family lives. Also what pre-fills the transport cascade. */
+  neighbourhoodId: string | null;
+  neighbourhoodName: string | null;
   nationality: string;
   nationalId: string | null;
   entryDate: string;
@@ -166,6 +169,9 @@ export async function findStudent(
     include: {
       family: { select: { id: true, name: true, code: true } },
       birthCity: { select: { name: true } },
+      // The town comes with it: "Centre-ville" alone names four different
+      // places — the same reason `listNeighbourhoodChoices` labels them that way.
+      neighbourhood: { select: { name: true, city: { select: { name: true } } } },
       previousSchoolCity: { select: { name: true } },
       enrollments: enrolmentInclude(context.currentSchoolYear?.id),
     },
@@ -189,6 +195,10 @@ export async function findStudent(
     birthDate: toDateInputValue(student.birthDate),
     birthCityId: student.birthCityId,
     birthCityName: student.birthCity?.name ?? null,
+    neighbourhoodId: student.neighbourhoodId,
+    neighbourhoodName: student.neighbourhood
+      ? `${student.neighbourhood.city.name} · ${student.neighbourhood.name}`
+      : null,
     nationality: student.nationality,
     nationalId: student.nationalId,
     entryDate: toDateInputValue(student.entryDate),

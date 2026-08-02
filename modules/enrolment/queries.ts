@@ -4,6 +4,7 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import {
+  monthKeyOf,
   monthKeyString,
   monthsOfYear,
   type MonthKey,
@@ -19,6 +20,11 @@ import {
 
 function yearScope(context: AuthContext) {
   return { schoolYearId: context.currentSchoolYear?.id ?? "__none__" };
+}
+
+/** `YYYY-MM` for a start-month picker; "" for "from the start of the year". */
+function toMonthInputValue(date: Date | null): string {
+  return date ? monthKeyString(monthKeyOf(date)) : "";
 }
 
 export type EnrolmentDetail = {
@@ -41,6 +47,9 @@ export type EnrolmentDetail = {
   isRepeating: boolean;
   usesTransport: boolean;
   usesCanteen: boolean;
+  /** `YYYY-MM` for the start-month picker; "" means from the start of the year. */
+  transportStartsOn: string;
+  canteenStartsOn: string;
   notes: string | null;
   feeLineCount: number;
 };
@@ -133,6 +142,8 @@ export async function findEnrolment(
     isRepeating: enrolment.isRepeating,
     usesTransport: enrolment.usesTransport,
     usesCanteen: enrolment.usesCanteen,
+    transportStartsOn: toMonthInputValue(enrolment.transportStartsOn),
+    canteenStartsOn: toMonthInputValue(enrolment.canteenStartsOn),
     notes: enrolment.notes,
     feeLineCount: enrolment._count.fees,
   };
@@ -251,7 +262,7 @@ export async function loadFeeGrid(
 export async function loadEnrolmentChoices(context: AuthContext) {
   const yearId = context.currentSchoolYear?.id ?? "__none__";
 
-  const [offerings, discounts] = await Promise.all([
+  const [offerings, discounts, year] = await Promise.all([
     db.levelOffering.findMany({
       where: { schoolYearId: yearId, isActive: true },
       orderBy: [{ level: { gradeYear: "asc" } }, { level: { code: "asc" } }],
@@ -291,6 +302,11 @@ export async function loadEnrolmentChoices(context: AuthContext) {
         feeTypeId: true,
       },
     }),
+    // The year's own dates, for the months an opt-in may start in.
+    db.schoolYear.findUnique({
+      where: { id: yearId },
+      select: { startDate: true, endDate: true },
+    }),
   ]);
 
   return {
@@ -315,6 +331,23 @@ export async function loadEnrolmentChoices(context: AuthContext) {
       })),
     })),
     discounts,
+    /**
+     * The months an opt-in may start in — the year's own, minus the first.
+     *
+     * The first is left out because it *is* what "from the start of the year"
+     * means, and offering it as a choice beside that wording would be the same
+     * answer written two ways. Values are `YYYY-MM`; the labels are the month
+     * numbers, which the panel formats per-locale.
+     */
+    optionStartMonths: year
+      ? monthsOfYear(year.startDate, year.endDate)
+          .slice(1)
+          .map((month) => ({
+            value: monthKeyString(month),
+            year: month.year,
+            month: month.month,
+          }))
+      : [],
   };
 }
 

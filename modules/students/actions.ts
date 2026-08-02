@@ -49,6 +49,7 @@ function readStudentForm(formData: FormData) {
     gender: field(formData, "gender"),
     birthDate: field(formData, "birthDate"),
     birthCityId: optionalId(formData, "birthCityId"),
+    neighbourhoodId: optionalId(formData, "neighbourhoodId"),
     nationality: field(formData, "nationality"),
     nationalId: field(formData, "nationalId"),
     photoUrl: field(formData, "photoUrl"),
@@ -104,17 +105,24 @@ async function authorizeStudent(
 /**
  * Turns the parsed form into columns.
  *
- * `familyId`, the two city ids and `entryDate` arrive as strings and mean
- * "unset" when blank. Each reference is re-read against the school before it is
- * written, so an id belonging to another tenant is dropped rather than linked
- * across the boundary — the ids come from the request and are never trusted.
+ * `familyId`, the two city ids, the quartier and `entryDate` arrive as strings
+ * and mean "unset" when blank. Each reference is re-read against the school
+ * before it is written, so an id belonging to another tenant is dropped rather
+ * than linked across the boundary — the ids come from the request and are never
+ * trusted.
  */
 async function toColumns(
   parsed: ReturnType<ReturnType<typeof studentSchema>["parse"]>,
   schoolId: string,
 ) {
-  const { familyId, birthCityId, previousSchoolCityId, entryDate, ...rest } =
-    parsed;
+  const {
+    familyId,
+    birthCityId,
+    previousSchoolCityId,
+    neighbourhoodId,
+    entryDate,
+    ...rest
+  } = parsed;
 
   const cityInSchool = async (cityId: string | null) =>
     cityId
@@ -126,22 +134,30 @@ async function toColumns(
         )?.id ?? null)
       : null;
 
-  const [family, birthCity, previousSchoolCity] = await Promise.all([
-    familyId
-      ? db.family.findFirst({
-          where: { id: familyId, schoolId },
-          select: { id: true },
-        })
-      : null,
-    cityInSchool(birthCityId),
-    cityInSchool(previousSchoolCityId),
-  ]);
+  const [family, birthCity, previousSchoolCity, neighbourhood] =
+    await Promise.all([
+      familyId
+        ? db.family.findFirst({
+            where: { id: familyId, schoolId },
+            select: { id: true },
+          })
+        : null,
+      cityInSchool(birthCityId),
+      cityInSchool(previousSchoolCityId),
+      neighbourhoodId
+        ? db.neighbourhood.findFirst({
+            where: { id: neighbourhoodId, schoolId },
+            select: { id: true },
+          })
+        : null,
+    ]);
 
   return {
     ...rest,
     familyId: family?.id ?? null,
     birthCityId: birthCity,
     previousSchoolCityId: previousSchoolCity,
+    neighbourhoodId: neighbourhood?.id ?? null,
     entryDate: entryDate ? new Date(entryDate) : null,
   };
 }

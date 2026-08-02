@@ -60,6 +60,26 @@ model Enrollment {
   usesTransport Boolean @default(false)
   usesCanteen   Boolean @default(false)
 
+  /// When each opt-in actually starts, for a family that signs up after the
+  /// rentrée. A child put on the bus in January owes the bus from January, not
+  /// from September, and billing them the whole year is the one mistake nobody
+  /// forgives.
+  ///
+  /// Null means "from the start of the year", which is the ordinary case — that
+  /// is why these are nullable rather than defaulted to the year's start date,
+  /// which would freeze a copy of it that stops tracking the year if it moves.
+  ///
+  /// Only the *month* is read: `buildScheduleLines` drops the instalments
+  /// falling before it and leaves the rest at their normal amount, so a mid-year
+  /// joiner pays the monthly rate for the months they use rather than the annual
+  /// figure squeezed into fewer payments. The day is kept only because SQLite
+  /// has no month type.
+  ///
+  /// INVARIANT (service layer): a month inside the school year, and null
+  /// whenever the matching flag above is false — see `resolveOptionStart`.
+  transportStartsOn DateTime?
+  canteenStartsOn   DateTime?
+
   notes String?
 
   createdAt DateTime @default(now())

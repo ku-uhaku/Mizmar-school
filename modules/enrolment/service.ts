@@ -3,9 +3,15 @@ import "server-only";
 import { db } from "@/lib/db";
 import { dueDayOf } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
-import { netAmount } from "@/modules/enrolment/enums";
+import {
+  monthKeyFromString,
+  monthOrdinal,
+  netAmount,
+  startOfMonth,
+} from "@/modules/enrolment/enums";
 import {
   buildScheduleLines,
+  FLAG_GATED_FEE_KINDS,
   type ScheduleLine,
 } from "@/modules/enrolment/schedule";
 import { refreshStudentStatus } from "@/modules/students/service";
@@ -36,6 +42,8 @@ export async function buildFeeSchedule(
     select: {
       usesTransport: true,
       usesCanteen: true,
+      transportStartsOn: true,
+      canteenStartsOn: true,
       levelOffering: { select: { levelId: true } },
       schoolYear: {
         select: {
@@ -78,6 +86,8 @@ export async function buildFeeSchedule(
     levelId: enrolment.levelOffering.levelId,
     usesTransport: enrolment.usesTransport,
     usesCanteen: enrolment.usesCanteen,
+    transportStartsOn: enrolment.transportStartsOn,
+    canteenStartsOn: enrolment.canteenStartsOn,
     yearStart: schoolYear.startDate,
     yearEnd: schoolYear.endDate,
     termCount: schoolYear._count.terms,
@@ -138,6 +148,153 @@ export async function generateFeeSchedule(
     });
 
     return created.count;
+  });
+}
+
+/**
+ * Turns a `YYYY-MM` from an option's start-month picker into the date stored on
+ * the enrolment, refusing anything the school year does not contain.
+ *
+ * The month comes from a request, so it is checked against the year rather than
+ * trusted: a month before the rentrée would bill an opt-in for months that do
+ * not exist, and one after the year ends would bill it for none at all and read
+ * as a silently free canteen.
+ *
+ * The first month of the year is normalised back to null — "from the start" is
+ * what null already means, and storing a copy of the year's opening month would
+ * stop tracking it if the year's dates are later corrected.
+ */
+export async function resolveOptionStart(
+  schoolYearId: string,
+  monthValue: string | null,
+): Promise<Date | null> {
+  if (!monthValue) return null;
+
+  const key = monthKeyFromString(monthValue);
+  if (!key) return null;
+
+  const year = await db.schoolYear.findUnique({
+    where: { id: schoolYearId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!year) return null;
+
+  const chosen = startOfMonth(key);
+  const first = monthOrdinal(year.startDate);
+  const last = monthOrdinal(year.endDate);
+  const at = monthOrdinal(chosen);
+
+  if (at <= first || at > last) return null;
+  return chosen;
+}
+
+/**
+ * Brings the opt-in charges back in line with the enrolment's flags and start
+ * months, after either has been edited.
+ *
+ * Needed because `generateFeeSchedule` only ever *adds*: it is deliberately
+ * add-only so that re-running it cannot restate an amount renegotiated at the
+ * desk. But un-ticking the canteen, or moving the bus start from September to
+ * January, has to take lines *away*, and leaving them would go on billing a
+ * family for a service they told the school they were not taking.
+ *
+ * Three things keep that from being dangerous:
+ *
+ *   1. **Only the flag-gated kinds.** Scolarité is billed to everyone and a
+ *      club was added by hand; neither is decided by these switches, so neither
+ *      is touched. See `FLAG_GATED_FEE_KINDS`.
+ *   2. **Only unpaid lines.** A line a receipt has settled is history. It stays,
+ *      and the bursar waives or refunds it deliberately — silently deleting it
+ *      would leave a posted allocation pointing at nothing.
+ *   3. **Only lines the price list would not raise today.** The rebuild is the
+ *      authority on what is owed, and anything it still produces is kept as it
+ *      stands, discounts and negotiated amounts included.
+ *   4. **Only where the rebuild still says something about that charge.** If a
+ *      fee type the family is still subscribed to produces no lines at all —
+ *      because its rate was retired or deactivated after they signed — the
+ *      whole charge is left untouched. A price corrected in November must not
+ *      erase what was agreed in September; that is the same rule the copied
+ *      `baseAmountCentimes` on EnrollmentFee exists to keep.
+ */
+export async function resyncOptionalCharges(
+  enrollmentId: string,
+): Promise<{ added: number; removed: number }> {
+  const enrolment = await db.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: { usesTransport: true, usesCanteen: true },
+  });
+  if (!enrolment) return { added: 0, removed: 0 };
+
+  const lines = await buildFeeSchedule(enrollmentId);
+  const wanted = new Set(
+    lines.map((line) => `${line.feeTypeId}:${line.periodIndex}`),
+  );
+  // The charges the rebuild still has an opinion about. A fee type absent from
+  // this set is one the price list has gone quiet on — see reason 4.
+  const spokenFor = new Set(lines.map((line) => line.feeTypeId));
+
+  /** Whether the family has withdrawn from a charge outright. */
+  const dropped = (kind: string) =>
+    (kind === "TRANSPORT" && !enrolment.usesTransport) ||
+    (kind === "CANTEEN" && !enrolment.usesCanteen);
+
+  return db.$transaction(async (tx) => {
+    const existing = await tx.enrollmentFee.findMany({
+      where: { enrollmentId },
+      select: {
+        id: true,
+        feeTypeId: true,
+        periodIndex: true,
+        feeType: { select: { kind: true } },
+        _count: { select: { allocations: true } },
+      },
+    });
+
+    const stale = existing.filter((line) => {
+      const kind = line.feeType.kind;
+
+      if (
+        !FLAG_GATED_FEE_KINDS.includes(
+          kind as (typeof FLAG_GATED_FEE_KINDS)[number],
+        )
+      ) {
+        return false;
+      }
+      if (line._count.allocations > 0) return false;
+      if (wanted.has(`${line.feeTypeId}:${line.periodIndex}`)) return false;
+
+      // Withdrawn outright, or moved out of range by a later start month. The
+      // second only counts when the rebuild still prices this charge at all.
+      return dropped(kind) || spokenFor.has(line.feeTypeId);
+    });
+
+    if (stale.length > 0) {
+      await tx.enrollmentFee.deleteMany({
+        where: { id: { in: stale.map((line) => line.id) } },
+      });
+    }
+
+    // What survives after the removals is what the additions must not duplicate
+    // — the same in-memory filter `generateFeeSchedule` uses, and for the same
+    // reason: the SQLite connector has no `skipDuplicates`.
+    const removed = new Set(stale.map((line) => line.id));
+    const taken = new Set(
+      existing
+        .filter((line) => !removed.has(line.id))
+        .map((line) => `${line.feeTypeId}:${line.periodIndex}`),
+    );
+
+    const fresh = lines.filter(
+      (line) => !taken.has(`${line.feeTypeId}:${line.periodIndex}`),
+    );
+
+    if (fresh.length > 0) {
+      await tx.enrollmentFee.createMany({
+        data: fresh.map((line) => ({ ...line, enrollmentId })),
+      });
+    }
+
+    return { added: fresh.length, removed: stale.length };
   });
 }
 

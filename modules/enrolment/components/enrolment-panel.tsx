@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
-import { interpolate } from "@/lib/i18n/format";
+import { formatMonth, interpolate } from "@/lib/i18n/format";
 import {
   deleteEnrolmentAction,
   enrolStudentAction,
@@ -42,6 +42,13 @@ import {
 } from "@/modules/enrolment/actions";
 import { ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import type { EnrolmentDetail } from "@/modules/enrolment/queries";
+
+/** A month an opt-in may start in. `value` is `YYYY-MM`. */
+export type StartMonthChoice = {
+  value: string;
+  year: number;
+  month: number;
+};
 
 export type OfferingChoice = {
   id: string;
@@ -70,12 +77,15 @@ export function EnrolmentPanel({
   studentId,
   enrolment,
   offerings,
+  startMonths,
   yearName,
   permissions,
 }: {
   studentId: string;
   enrolment: EnrolmentDetail | null;
   offerings: OfferingChoice[];
+  /** Months an opt-in may start in — see `loadEnrolmentChoices`. */
+  startMonths: StartMonthChoice[];
   yearName: string | null;
   permissions: { canCreate: boolean; canUpdate: boolean; canDelete: boolean };
 }) {
@@ -96,6 +106,16 @@ export function EnrolmentPanel({
     enrolment?.schoolClassId ?? "__none__",
   );
   const [deleting, setDeleting] = React.useState(false);
+
+  // The opt-ins are controlled rather than uncontrolled, unlike the switches
+  // above them: each one reveals a start month, and a month asked for a service
+  // the family has not taken is a question with no meaning.
+  const [usesTransport, setUsesTransport] = React.useState(
+    checkedOf(state, "usesTransport", enrolment?.usesTransport ?? false),
+  );
+  const [usesCanteen, setUsesCanteen] = React.useState(
+    checkedOf(state, "usesCanteen", enrolment?.usesCanteen ?? false),
+  );
 
   const errors = state.fieldErrors ?? {};
   const offering = offerings.find((entry) => entry.id === offeringId) ?? null;
@@ -336,39 +356,41 @@ export function EnrolmentPanel({
               </div>
             </div>
 
-            <fieldset className="grid gap-3 rounded-lg border p-3">
+            <fieldset className="grid gap-2 rounded-lg border p-3">
               <legend className="px-1 text-sm font-medium">
                 {t.enrolment.options}
               </legend>
               <p className="text-muted-foreground -mt-1 text-xs">
                 {t.enrolment.optionsHint}
               </p>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="usesTransport">
-                  {t.enrolment.usesTransport}
-                </Label>
-                <Switch
-                  id="usesTransport"
-                  name="usesTransport"
-                  defaultChecked={checkedOf(
-                    state,
-                    "usesTransport",
-                    enrolment?.usesTransport ?? false,
-                  )}
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <Label htmlFor="usesCanteen">{t.enrolment.usesCanteen}</Label>
-                <Switch
-                  id="usesCanteen"
-                  name="usesCanteen"
-                  defaultChecked={checkedOf(
-                    state,
-                    "usesCanteen",
-                    enrolment?.usesCanteen ?? false,
-                  )}
-                />
-              </div>
+
+              <OptionRow
+                name="usesTransport"
+                label={t.enrolment.usesTransport}
+                startName="transportStartsOn"
+                checked={usesTransport}
+                onCheckedChange={setUsesTransport}
+                defaultStart={valueOf(
+                  state,
+                  "transportStartsOn",
+                  enrolment?.transportStartsOn,
+                )}
+                months={startMonths}
+              />
+
+              <OptionRow
+                name="usesCanteen"
+                label={t.enrolment.usesCanteen}
+                startName="canteenStartsOn"
+                checked={usesCanteen}
+                onCheckedChange={setUsesCanteen}
+                defaultStart={valueOf(
+                  state,
+                  "canteenStartsOn",
+                  enrolment?.canteenStartsOn,
+                )}
+                months={startMonths}
+              />
             </fieldset>
 
             <FormField
@@ -405,5 +427,81 @@ export function EnrolmentPanel({
         />
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * One opt-in charge: the switch, and — only once it is on — the month it starts
+ * being billed from.
+ *
+ * The month appears on demand rather than sitting there greyed out because a
+ * start date for a service the family has not taken is a question with no
+ * answer, and two dead selects on a form nobody usually touches is how the two
+ * that matter get missed.
+ *
+ * "From the start of the year" is the default and is spelled out as a choice,
+ * not left as an empty select: a bursar reading the form has to be able to see
+ * that the full year is what is being billed, without knowing that blank means
+ * September.
+ */
+function OptionRow({
+  name,
+  label,
+  startName,
+  checked,
+  onCheckedChange,
+  defaultStart,
+  months,
+}: {
+  name: string;
+  label: string;
+  startName: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  defaultStart: string;
+  months: StartMonthChoice[];
+}) {
+  const { t, locale } = useI18n();
+
+  return (
+    <div className="rounded-md border px-3 py-2.5">
+      <div className="flex items-center justify-between gap-4">
+        <Label htmlFor={name} className="cursor-pointer">
+          {label}
+        </Label>
+        <Switch
+          id={name}
+          name={name}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
+        />
+      </div>
+
+      {checked && months.length > 0 ? (
+        <div className="mt-3 grid gap-1.5 border-t pt-3">
+          <Label htmlFor={startName} className="text-muted-foreground text-xs">
+            {t.enrolment.optionStartsOn}
+          </Label>
+          <Select name={startName} defaultValue={defaultStart || "__none__"}>
+            <SelectTrigger id={startName} size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">
+                {t.enrolment.optionStartsWithYear}
+              </SelectItem>
+              {months.map((entry) => (
+                <SelectItem key={entry.value} value={entry.value}>
+                  {formatMonth(entry.year, entry.month, locale)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {t.enrolment.optionStartsOnHint}
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }

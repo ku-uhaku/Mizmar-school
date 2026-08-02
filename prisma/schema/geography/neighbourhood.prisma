@@ -41,6 +41,10 @@ model Neighbourhood {
   /// Bus stops standing in it — see prisma/schema/transport/route-stop.prisma.
   routeStops RouteStop[]
 
+  /// The pupils who live in it, bus or no bus — see the note on
+  /// `Student.neighbourhoodId`.
+  residents Student[]
+
   /// Circuits that serve it. Not the same thing as the stops above, and the
   /// difference is the point — see prisma/schema/transport/route-neighbourhood.prisma.
   servingRoutes RouteNeighbourhood[]

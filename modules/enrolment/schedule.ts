@@ -2,6 +2,7 @@ import { feeRateScopeKey, splitIntoInstalments } from "@/modules/billing/enums";
 import {
   defaultInstalmentCount,
   instalmentDueDates,
+  monthOrdinal,
   monthsOfYear,
   netAmount,
 } from "@/modules/enrolment/enums";
@@ -39,6 +40,12 @@ export type ScheduleInput = {
   levelId: string;
   usesTransport: boolean;
   usesCanteen: boolean;
+  /**
+   * When each opt-in begins, for a family that signs up after the rentrée. Null
+   * means from the start of the year — see the note on `Enrollment`.
+   */
+  transportStartsOn: Date | null;
+  canteenStartsOn: Date | null;
   yearStart: Date;
   yearEnd: Date;
   termCount: number;
@@ -85,6 +92,38 @@ function isSubscribed(
       return false;
   }
 }
+
+/**
+ * The month a subscribed charge starts being owed from, when it is not the
+ * start of the year.
+ *
+ * Only the flag-gated charges can have one: a mandatory fee is owed by everyone
+ * from the rentrée, and a club added by hand is added with the months it is
+ * wanted for. Null for everything else, which means "from the top".
+ */
+function subscriptionStartOf(
+  feeKind: string,
+  options: { transportStartsOn: Date | null; canteenStartsOn: Date | null },
+): Date | null {
+  switch (feeKind) {
+    case "TRANSPORT":
+      return options.transportStartsOn;
+    case "CANTEEN":
+      return options.canteenStartsOn;
+    default:
+      return null;
+  }
+}
+
+/**
+ * The kinds whose lines are wholly decided by an opt-in flag and its start
+ * month, and which may therefore be withdrawn again when either changes.
+ *
+ * Everything else on a schedule was either billed to everyone or put there by
+ * hand, and a resync that removed those would quietly delete a bursar's work —
+ * see `resyncOptionalCharges`.
+ */
+export const FLAG_GATED_FEE_KINDS = ["TRANSPORT", "CANTEEN"] as const;
 
 export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
   const monthsInYear = monthsOfYear(input.yearStart, input.yearEnd).length;
@@ -134,8 +173,28 @@ export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
       input.dueDayOfMonth,
     );
 
+    // A family that joins the canteen in January owes it from January. The
+    // instalments before that month are dropped and the rest keep their own
+    // amount, so the pro-rata falls out of the calendar rather than being a
+    // second, differently-rounded division of the annual figure.
+    //
+    // `periodIndex` still counts from the top of the year, and deliberately: it
+    // is half the (enrolment, feeType, periodIndex) unique the schedule is made
+    // idempotent by, so a mid-year start must not renumber January to 1 and
+    // collide with the September line of a family that started on time.
+    const startsFrom = subscriptionStartOf(feeType.kind, input);
+    const firstBillableMonth =
+      startsFrom === null ? null : monthOrdinal(startsFrom);
+
     amounts.forEach((amount, index) => {
       const dueDate = dueDates[index];
+      if (
+        firstBillableMonth !== null &&
+        monthOrdinal(dueDate) < firstBillableMonth
+      ) {
+        return;
+      }
+
       lines.push({
         feeTypeId: feeType.id,
         feeRateId: rate.id,

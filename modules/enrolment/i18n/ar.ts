@@ -27,6 +27,10 @@ const ar = {
     usesTransport: "النقل المدرسي",
     usesCanteen: "المطعم المدرسي",
     optionsHint: "الرسوم الاختيارية تُفوتر فقط للمشتركين.",
+    optionStartsOn: "تُفوتر ابتداءً من",
+    optionStartsWithYear: "بداية السنة",
+    optionStartsOnHint:
+      "لا تُنشأ الأقساط السابقة لهذا الشهر، فالأسرة التي تشترك في منتصف السنة تؤدي عن الأشهر المستعملة فقط.",
     notes: "ملاحظات",
     capacity: "{enrolled} / {capacity}",
     seatsLeft: "بقيت {count} أماكن",
@@ -34,6 +38,7 @@ const ar = {
     enrolled: "تم تسجيل التلميذ.",
     enrolledWithFees: "تم تسجيل التلميذ وإنشاء جدول رسوم السنة.",
     updated: "تم تحديث التسجيل.",
+    updatedWithFees: "تم تحديث التسجيل · أُضيفت {added} أقساط وسُحبت {removed}.",
     deleted: "تم حذف التسجيل.",
     alreadyEnrolled: "هذا التلميذ مسجّل بالفعل لهذه السنة.",
     offeringUnavailable: "هذا المستوى غير مفتوح هذه السنة.",

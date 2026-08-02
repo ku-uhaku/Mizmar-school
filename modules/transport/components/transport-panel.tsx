@@ -12,6 +12,7 @@ import { useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -33,9 +34,9 @@ import {
   unsubscribeRiderAction,
 } from "@/modules/transport/actions";
 import {
+  SCHEDULE_DIRECTIONS,
   SUBSCRIPTION_STATUSES,
   TRANSPORT_DIRECTIONS,
-  schedulesForDirection,
   type TransportDirection,
 } from "@/modules/transport/enums";
 import type {
@@ -68,12 +69,18 @@ export function TransportPanel({
   enrolmentId,
   neighbourhoods,
   subscriptions,
+  defaultNeighbourhoodId,
   canSubscribe,
 }: {
   /** Null when the pupil has no place this year — there is nothing to attach to. */
   enrolmentId: string | null;
   neighbourhoods: NeighbourhoodChoice[];
   subscriptions: RiderRow[];
+  /**
+   * The quartier already on the pupil's file, so the cascade opens on it. Null
+   * when the address has not been recorded — see `Student.neighbourhoodId`.
+   */
+  defaultNeighbourhoodId: string | null;
   canSubscribe: boolean;
 }) {
   const t = useT();
@@ -105,6 +112,7 @@ export function TransportPanel({
         <SubscribeCard
           enrolmentId={enrolmentId}
           neighbourhoods={neighbourhoods}
+          defaultNeighbourhoodId={defaultNeighbourhoodId}
           hasSubscription={subscriptions.length > 0}
         />
       ) : subscriptions.length === 0 ? (
@@ -205,10 +213,12 @@ function CurrentArrangement({
 function SubscribeCard({
   enrolmentId,
   neighbourhoods,
+  defaultNeighbourhoodId,
   hasSubscription,
 }: {
   enrolmentId: string;
   neighbourhoods: NeighbourhoodChoice[];
+  defaultNeighbourhoodId: string | null;
   hasSubscription: boolean;
 }) {
   const t = useT();
@@ -219,11 +229,33 @@ function SubscribeCard({
 
   // The cascade, narrowed by `.find()` in memory — everything arrived nested
   // from `loadTransportChoices`, so choosing a quartier costs no round trip.
-  const [neighbourhoodId, setNeighbourhoodId] = React.useState(NONE);
+  //
+  // It opens on the quartier already on the pupil's file, so the secretary who
+  // typed the address on the information tab is not asked for it again — and
+  // sees the circuits serving it without touching anything. Only when the
+  // quartier is one this school serves; an address in a quartier no line covers
+  // falls back to asking, which is the honest answer.
+  const [neighbourhoodId, setNeighbourhoodId] = React.useState(
+    defaultNeighbourhoodId &&
+      neighbourhoods.some((entry) => entry.id === defaultNeighbourhoodId)
+      ? defaultNeighbourhoodId
+      : NONE,
+  );
   const [routeId, setRouteId] = React.useState(NONE);
   const [stopId, setStopId] = React.useState(NONE);
   const [direction, setDirection] =
     React.useState<TransportDirection>("BOTH");
+
+  /**
+   * The runs the family boards — at most one per direction, which is what the
+   * abonnement's `@@unique([enrollmentId, direction])` allows and what a child
+   * physically does: one bus in the morning, one in the evening.
+   *
+   * Held as a map keyed by direction rather than a set of ids, so ticking a
+   * second morning run replaces the first instead of submitting a pair the
+   * server would have to refuse.
+   */
+  const [runs, setRuns] = React.useState<Partial<Record<string, string>>>({});
 
   const errors = state.fieldErrors ?? {};
 
@@ -233,11 +265,9 @@ function SubscribeCard({
   const route = routes.find((entry) => entry.id === routeId) ?? null;
   const stops = route?.stops ?? [];
 
-  // A one-way rider is only offered the runs that go their way; a BOTH rider
-  // sees them all and picks the one they board. See `schedulesForDirection`.
-  const allowed = schedulesForDirection(direction);
-  const schedules = (route?.schedules ?? []).filter((schedule) =>
-    allowed.includes(schedule.direction as (typeof allowed)[number]),
+  const schedules = route?.schedules ?? [];
+  const chosenRuns = SCHEDULE_DIRECTIONS.map((way) => runs[way]).filter(
+    (id): id is string => Boolean(id),
   );
 
   // One stop in the quartier is not a decision — it is the answer. Resolved
@@ -289,6 +319,7 @@ function SubscribeCard({
                   // submit a stop the server will refuse.
                   setRouteId(NONE);
                   setStopId(NONE);
+                  setRuns({});
                 }}
               >
                 <SelectTrigger id="neighbourhoodId" className="w-full">
@@ -316,6 +347,9 @@ function SubscribeCard({
                 onValueChange={(value) => {
                   setRouteId(value);
                   setStopId(NONE);
+                  // The runs belong to the old line; keeping them would submit
+                  // horaires this bus does not make.
+                  setRuns({});
                 }}
                 disabled={routes.length === 0}
               >
@@ -345,7 +379,72 @@ function SubscribeCard({
             </p>
           ) : null}
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          {/*
+            The runs, one column per direction, ticked rather than chosen from a
+            dropdown: a family says "the 7:30 out and the 17:00 back", which is
+            two answers, and the old single select made that two trips through
+            the same form. Each ticked run becomes its own abonnement — see
+            `subscribeRiderToRuns`.
+
+            The direction is not asked separately when there are runs to tick,
+            because each run already carries it and two controls that can
+            contradict each other is one control too many.
+          */}
+          {schedules.length > 0 ? (
+            <fieldset className="grid gap-3">
+              <legend className="mb-1 text-sm font-medium">
+                {t.transport.chooseRuns}
+              </legend>
+              <p className="text-muted-foreground -mt-2 text-xs">
+                {t.transport.chooseRunsHint}
+              </p>
+
+              {chosenRuns.map((id) => (
+                <input key={id} type="hidden" name="scheduleIds" value={id} />
+              ))}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {SCHEDULE_DIRECTIONS.map((way) => {
+                  const forWay = schedules.filter(
+                    (schedule) => schedule.direction === way,
+                  );
+                  if (forWay.length === 0) return null;
+
+                  return (
+                    <div key={way} className="grid gap-2 rounded-lg border p-3">
+                      <p className="text-xs font-medium">
+                        {t.transportOptions.directions[way]}
+                      </p>
+                      {forWay.map((schedule) => (
+                        <label
+                          key={schedule.id}
+                          className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1 text-sm"
+                        >
+                          <Checkbox
+                            checked={runs[way] === schedule.id}
+                            onCheckedChange={(checked) =>
+                              setRuns((current) => ({
+                                ...current,
+                                // Ticking replaces this direction's run;
+                                // unticking leaves the family off that bus.
+                                [way]: checked ? schedule.id : undefined,
+                              }))
+                            }
+                          />
+                          <span className="min-w-0 flex-1 truncate">
+                            {schedule.label} · {schedule.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : (
+            // No horaires declared on this line yet. The direction is then a
+            // real question, and the abonnement carries no run — which is a
+            // valid abonnement, see `TransportSubscription.scheduleId`.
             <Field label={t.transport.direction} name="direction">
               <Select
                 name="direction"
@@ -366,29 +465,15 @@ function SubscribeCard({
                 </SelectContent>
               </Select>
             </Field>
+          )}
 
-            <Field label={t.transport.chooseSchedule} name="scheduleId">
-              <Select
-                name="scheduleId"
-                defaultValue={NONE}
-                disabled={schedules.length === 0}
-              >
-                <SelectTrigger id="scheduleId" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>
-                    {t.transport.noScheduleChosen}
-                  </SelectItem>
-                  {schedules.map((schedule) => (
-                    <SelectItem key={schedule.id} value={schedule.id}>
-                      {schedule.label} · {schedule.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+          {/* Said plainly rather than left implicit: a line with no horaires is
+            a line still being planned, and the abonnement is valid without one. */}
+          {route && schedules.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              {t.transport.noSchedulesOnRoute}
+            </p>
+          ) : null}
 
           {/* Only when it is genuinely a choice. */}
           {route && stops.length > 1 ? (
@@ -444,8 +529,16 @@ function SubscribeCard({
             enrolment, from the price list. Seating a child at a stop does not
             change what their family owes. */}
 
+          {/* A line that makes runs must be boarded on one of them: the
+            abonnement's direction comes from the run, so no run means no
+            answer to give the server. */}
           <div className="flex justify-end">
-            <SubmitButton disabled={chosenStop === null}>
+            <SubmitButton
+              disabled={
+                chosenStop === null ||
+                (schedules.length > 0 && chosenRuns.length === 0)
+              }
+            >
               {t.transport.subscribe}
             </SubmitButton>
           </div>
