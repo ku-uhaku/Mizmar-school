@@ -1,0 +1,28 @@
+/// A report one person has starred.
+///
+/// ── Why `reportId` is a string and not a foreign key ────────────────────────
+/// The catalogue is code (`modules/reports/catalogue.ts`), not data — that is
+/// what lets a report be added in one file with no migration. So this stores
+/// the catalogue id and nothing enforces it, which means a row can outlive the
+/// report it names: a rapport that is renamed or dropped leaves a star pointing
+/// at nothing. That is deliberate and handled at the read — `findReport`
+/// returns null and the star is ignored — rather than by a constraint the
+/// catalogue cannot supply.
+///
+/// Scoped to the person, not to the school: "the reports I run every morning"
+/// follows a bursar between the two schools they cover.
+model ReportFavourite {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation("ReportFavourites", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The catalogue id — see the note above.
+  reportId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, reportId])
+  @@index([userId])
+  @@map("report_favourites")
+}

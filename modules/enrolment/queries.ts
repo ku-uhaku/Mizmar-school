@@ -66,6 +66,8 @@ export type FeeCell = {
   discountId: string | null;
   amountCentimes: number;
   status: string;
+  /** Why it stopped being owed. Null while the line is DUE. */
+  cancelReason: string | null;
   notes: string | null;
 };
 
@@ -223,6 +225,7 @@ export async function loadFeeGrid(
       discountId: line.discountId,
       amountCentimes: line.amountCentimes,
       status: line.status,
+      cancelReason: line.cancelReason,
       notes: line.notes,
     });
 

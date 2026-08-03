@@ -417,7 +417,7 @@ export async function updateFeeLineAction(
     });
     if (!line) return failure(t.errors.notFound);
 
-    await authorizeSchool(
+    const context = await authorizeSchool(
       line.enrollment.student.schoolId,
       PERMISSIONS.ENROLMENT_FEES,
     );
@@ -428,6 +428,7 @@ export async function updateFeeLineAction(
       discountAmount: field(formData, "discountAmount"),
       discountId: optionalId(formData, "discountId"),
       status: field(formData, "status"),
+      cancelReason: field(formData, "cancelReason"),
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
@@ -456,6 +457,8 @@ export async function updateFeeLineAction(
       discountId: discount?.id ?? null,
       status: parsed.data.status,
       notes: parsed.data.notes,
+      cancelReason: parsed.data.cancelReason,
+      actorId: context.user.id,
     });
 
     // A reduction is rarely for one month — see `repriceFollowingLines`. Only

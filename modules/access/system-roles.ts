@@ -134,6 +134,9 @@ export const SYSTEM_ROLES: {
       // school accepted and for waiving a pièce a family cannot produce.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // The reporting screen. What it actually shows is still gated report by
+      // report on the data's own code — see modules/reports/catalogue.ts.
+      PERMISSIONS.REPORT_VIEW,
       PERMISSIONS.TIMETABLE_VIEW,
       PERMISSIONS.TIMETABLE_MANAGE,
       // The whole caisse: a head runs the tills, pays out and answers for both.
@@ -188,6 +191,9 @@ export const SYSTEM_ROLES: {
       // proceed yet.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // The reporting screen. What it actually shows is still gated report by
+      // report on the data's own code — see modules/reports/catalogue.ts.
+      PERMISSIONS.REPORT_VIEW,
       PERMISSIONS.CLASS_VIEW,
       PERMISSIONS.CLASS_ROSTER,
       // Reads the calendar of contrôles to answer a parent on the phone, and

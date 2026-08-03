@@ -86,6 +86,8 @@ model User {
   sessionsClosed    CashSession[]   @relation("SessionClosedBy")
   operationsCreated CashOperation[] @relation("OperationCreatedBy")
   paymentsCreated   Payment[]       @relation("PaymentCreatedBy")
+  reportFavourites  ReportFavourite[] @relation("ReportFavourites")
+  feeLinesCancelled EnrollmentFee[] @relation("FeeLineCancelledBy")
 
   // ── Logistique ────────────────────────────────────────────────────────────
   /// Fuel requests this account decided. SetNull on the other side: an approval

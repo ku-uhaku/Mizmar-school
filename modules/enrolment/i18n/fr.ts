@@ -85,6 +85,8 @@ const fr = {
     discountRule: "Réduction accordée",
     discountRuleHint:
       "Au titre de laquelle des réductions de l'année elle est accordée.",
+    cancelReason: "Motif d'annulation",
+    cancelReasonRequired: "Indiquez pourquoi ce montant n'est plus dû.",
     discountTooLarge: "La réduction dépasse le montant facturé.",
     netAmount: "À payer",
     feeStatus: "Statut",

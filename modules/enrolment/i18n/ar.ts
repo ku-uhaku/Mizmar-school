@@ -79,6 +79,8 @@ const ar = {
     discountAmount: "مبلغ ثابت",
     discountRule: "التخفيض الممنوح",
     discountRuleHint: "بموجب أيّ من تخفيضات السنة مُنح.",
+    cancelReason: "سبب الإلغاء",
+    cancelReasonRequired: "حدد سبب عدم استحقاق هذا المبلغ.",
     discountTooLarge: "التخفيض أكبر من المبلغ المفوتر.",
     netAmount: "المستحق",
     feeStatus: "الحالة",

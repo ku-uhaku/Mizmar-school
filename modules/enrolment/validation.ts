@@ -56,6 +56,8 @@ export function feeLineSchema(t: Dictionary) {
         .max(10_000_000, { error: v.invalidNumber }),
       discountId: optionalText(40),
       status: enumField(FEE_LINE_STATUSES, v),
+      /** Why it stopped being owed. Only meaningful away from DUE. */
+      cancelReason: optionalText(300),
       notes: optionalText(500),
     })
     .transform((data) => ({
@@ -64,6 +66,7 @@ export function feeLineSchema(t: Dictionary) {
       discountCentimes: Math.round(data.discountAmount * 100),
       discountId: data.discountId,
       status: data.status,
+      cancelReason: data.cancelReason,
       notes: data.notes,
     }))
     .refine(
@@ -72,5 +75,11 @@ export function feeLineSchema(t: Dictionary) {
         // `netAmount` would floor it at zero and the bursar would never know.
         data.discountCentimes <= data.baseAmountCentimes,
       { error: t.enrolment.discountTooLarge, path: ["discountAmount"] },
+    )
+    .refine(
+      // Waiving a charge without saying why is the thing the annulations
+      // journal exists to prevent, so the reason is required at the form.
+      (data) => data.status === "DUE" || Boolean(data.cancelReason),
+      { error: t.enrolment.cancelReasonRequired, path: ["cancelReason"] },
     );
 }

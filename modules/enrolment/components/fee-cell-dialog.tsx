@@ -74,6 +74,7 @@ export function FeeCellDialog({
   // this component per cell (`key` in FeeGrid), so pointing the dialog at a
   // different month starts from that month's figures rather than needing an
   // effect to copy them across.
+  const [status, setStatus] = React.useState(cell.status);
   const [base, setBase] = React.useState(
     String(centimesToDirhams(cell.baseAmountCentimes)),
   );
@@ -243,19 +244,34 @@ export function FeeCellDialog({
               label={t.enrolment.feeStatus}
               error={errors.status}
             >
-              <Select name="status" defaultValue={cell.status}>
+              <Select name="status" value={status} onValueChange={setStatus}>
                 <SelectTrigger id="status" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FEE_LINE_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {t.enrolmentOptions.lineStatuses[status]}
+                  {FEE_LINE_STATUSES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t.enrolmentOptions.lineStatuses[option]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </FormField>
+
+            {/* Only where it means something: a line that is owed has no reason
+              to have stopped being owed, and asking for one would be noise. */}
+            {status === "DUE" ? null : (
+              <FormField
+                name="cancelReason"
+                label={t.enrolment.cancelReason}
+                error={errors.cancelReason}
+              >
+                <Input
+                  {...controlProps("cancelReason", errors.cancelReason)}
+                  defaultValue={cell.cancelReason ?? ""}
+                />
+              </FormField>
+            )}
 
             <FormField
               name="notes"

@@ -62,6 +62,10 @@ import supplies, {
 import documents, {
   permissions as documentsPermissions,
 } from "@/modules/documents/i18n/en";
+import reports, {
+  nav as reportsNav,
+  permissions as reportsPermissions,
+} from "@/modules/reports/i18n/en";
 import students, {
   nav as studentsNav,
   permissions as studentsPermissions,
@@ -119,6 +123,7 @@ const en = {
   ...students,
   ...supplies,
   ...documents,
+  ...reports,
   ...enrolment,
   ...classes,
   ...assessments,
@@ -148,6 +153,7 @@ const en = {
     ...familiesNav,
     ...studentsNav,
     ...suppliesNav,
+    ...reportsNav,
     ...classesNav,
     ...assessmentsNav,
     ...classroomNav,
@@ -169,6 +175,7 @@ const en = {
       ...studentsPermissions.groups,
       ...suppliesPermissions.groups,
       ...documentsPermissions.groups,
+      ...reportsPermissions.groups,
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
@@ -190,6 +197,7 @@ const en = {
       ...studentsPermissions.codes,
       ...suppliesPermissions.codes,
       ...documentsPermissions.codes,
+      ...reportsPermissions.codes,
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,

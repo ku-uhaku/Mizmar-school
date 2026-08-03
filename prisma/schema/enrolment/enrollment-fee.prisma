@@ -81,6 +81,18 @@ model EnrollmentFee {
   /// correction, and a school reports on them separately.
   status String @default("DUE")
 
+  /// Why the line stopped being owed, and who decided.
+  ///
+  /// A charge that vanishes from a family's schedule with no trace is the one
+  /// thing a bursar can never answer for at the end of the year — "journal des
+  /// annulations" is a report the school is asked for, so the trail is a column
+  /// rather than something reconstructed from an audit log. Written only when
+  /// `status` leaves DUE, and cleared when it comes back — see `repriceFeeLine`.
+  cancelledAt   DateTime?
+  cancelReason  String?
+  cancelledById String?
+  cancelledBy   User?     @relation("FeeLineCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
   notes String?
 
   createdAt DateTime @default(now())
@@ -99,6 +111,7 @@ model EnrollmentFee {
   @@index([feeTypeId])
   @@index([feeRateId])
   @@index([discountId])
+  @@index([cancelledById])
   @@index([dueYear, dueMonth])
   @@map("enrollment_fees")
 }

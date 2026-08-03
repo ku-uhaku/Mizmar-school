@@ -85,6 +85,8 @@ const en = {
     discountAmount: "Flat amount",
     discountRule: "Reduction offered",
     discountRuleHint: "Which of the year's reductions this is granted under.",
+    cancelReason: "Reason",
+    cancelReasonRequired: "Say why the charge is no longer owed.",
     discountTooLarge: "The reduction is larger than the charge.",
     netAmount: "Payable",
     feeStatus: "Status",

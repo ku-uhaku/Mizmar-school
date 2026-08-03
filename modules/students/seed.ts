@@ -26,6 +26,16 @@ export type StudentSeed = {
   age: number;
   /** Town of birth, by `City.code` — see modules/geography/seed.ts. */
   birthCityCode: string;
+  /**
+   * The quartier the family lives in, by `Neighbourhood.code`.
+   *
+   * Not decoration: it is what a bus line is drawn against — see
+   * `RouteNeighbourhood` — so a pupil with no quartier cannot be put on a
+   * circuit by anything but guesswork.
+   */
+  neighbourhoodCode: string;
+  /** National pupil number. Unique per school, so it is seeded per school. */
+  massarCode: string;
 };
 
 /**
@@ -45,12 +55,14 @@ export async function seedStudents(
     yearStart,
     familyIdByCode,
     cityIdByCode,
+    neighbourhoodIdByCode,
     students,
   }: {
     schoolId: string;
     yearStart: Date;
     familyIdByCode: Record<string, string>;
     cityIdByCode: Record<string, string>;
+    neighbourhoodIdByCode: Record<string, string>;
     students: StudentSeed[];
   },
 ): Promise<Record<string, { id: string; age: number }>> {
@@ -69,6 +81,8 @@ export async function seedStudents(
       gender: seed.gender,
       birthDate: birthDateFor(yearStart, seed.age),
       birthCityId: cityIdByCode[seed.birthCityCode] ?? null,
+      neighbourhoodId: neighbourhoodIdByCode[seed.neighbourhoodCode] ?? null,
+      massarCode: seed.massarCode,
       entryDate: yearStart,
     };
 

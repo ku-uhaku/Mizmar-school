@@ -84,6 +84,7 @@ export function buildRoster({
   cohorts,
   cityCode,
   cityName,
+  neighbourhoodCodes,
   yearLabel,
   /** Offsets the name pools so the two schools do not produce the same roster. */
   variant,
@@ -93,6 +94,11 @@ export function buildRoster({
   cityCode: string;
   /** The town on the dossier's address. */
   cityName: string;
+  /**
+   * The quartiers of that town, by `Neighbourhood.code`. Households are spread
+   * across them, which is what lets a bus line be drawn against a quartier.
+   */
+  neighbourhoodCodes: string[];
   /** Prefix year for the matricules and dossier numbers, e.g. "2025". */
   yearLabel: string;
   variant: number;
@@ -183,6 +189,18 @@ export function buildRoster({
       gender: isBoy ? "MALE" : "FEMALE",
       age: slot.age,
       birthCityCode: cityCode,
+      // By household, not by child: siblings live at the same address, and a
+      // family split across two bus lines is a bug the report would expose.
+      neighbourhoodCode:
+        neighbourhoodCodes.length > 0
+          ? neighbourhoodCodes[spread(familyIndex + variant * 37) % neighbourhoodCodes.length]
+          : "",
+      /*
+        A Massar number as the ministry issues them: the AREF letter, then the
+        province and a serial. Made up, but the right shape — the official lists
+        are checked against it column by column, and a blank one is untestable.
+      */
+      massarCode: `${variant === 0 ? "J" : "R"}${String(130_000_000 + index + variant * 500_000)}`,
     });
   }
 

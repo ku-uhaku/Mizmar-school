@@ -51,6 +51,14 @@ export const SCHEDULE_SEEDS: ScheduleSeed[] = [
 ];
 
 export type RouteSeed = {
+  /**
+   * The town the line runs in, by `City.code`.
+   *
+   * Every school seeds every quartier, so without this a Rabat school would be
+   * given Casablanca lines and its pupils would ride a bus that collects in
+   * Maârif. See `seedTransport`.
+   */
+  cityCode: string;
   code: string;
   name: string;
   nameAr: string;
@@ -75,6 +83,7 @@ export type RouteSeed = {
 export const ROUTE_SEEDS: RouteSeed[] = [
   {
     code: "L1",
+    cityCode: "CASA",
     name: "Ligne 1 — Maârif",
     nameAr: "الخط 1 — المعاريف",
     direction: "BOTH",
@@ -89,6 +98,7 @@ export const ROUTE_SEEDS: RouteSeed[] = [
   },
   {
     code: "L2",
+    cityCode: "CASA",
     name: "Ligne 2 — Ain Diab",
     nameAr: "الخط 2 — عين الذئاب",
     direction: "BOTH",
@@ -103,6 +113,7 @@ export const ROUTE_SEEDS: RouteSeed[] = [
   },
   {
     code: "L3",
+    cityCode: "CASA",
     name: "Ligne 3 — Sidi Maârouf",
     nameAr: "الخط 3 — سيدي معروف",
     direction: "MORNING",
@@ -114,6 +125,48 @@ export const ROUTE_SEEDS: RouteSeed[] = [
       { name: "Technopark", neighbourhoodCode: "SIDI-MAAROUF", nameAr: "تكنوبارك", landmark: "parking visiteurs", pickupTime: "07:05", dropoffTime: "" },
     ],
   },
+  {
+    code: "R1",
+    cityCode: "RABAT",
+    name: "Ligne 1 — Agdal",
+    nameAr: "الخط 1 — أكدال",
+    direction: "BOTH",
+    vehicleIndex: 0,
+    neighbourhoodCodes: ["AGDAL"],
+    scheduleCodes: ["M1", "S2"],
+    stops: [
+      { name: "Avenue de France", neighbourhoodCode: "AGDAL", nameAr: "شارع فرنسا", landmark: "devant la poste", pickupTime: "07:10", dropoffTime: "17:20" },
+      { name: "Gare Agdal", neighbourhoodCode: "AGDAL", nameAr: "محطة أكدال", landmark: "sortie voyageurs", pickupTime: "07:22", dropoffTime: "17:08" },
+    ],
+  },
+  {
+    code: "R2",
+    cityCode: "RABAT",
+    name: "Ligne 2 — Souissi",
+    nameAr: "الخط 2 — السويسي",
+    direction: "BOTH",
+    vehicleIndex: 1,
+    neighbourhoodCodes: ["SOUISSI"],
+    scheduleCodes: ["M1", "S1"],
+    stops: [
+      { name: "Souissi centre", neighbourhoodCode: "SOUISSI", nameAr: "السويسي المركز", landmark: "près de l'ambassade", pickupTime: "06:55", dropoffTime: "17:35" },
+      { name: "Zaers", neighbourhoodCode: "SOUISSI", nameAr: "الزعير", landmark: "rond-point", pickupTime: "07:08", dropoffTime: "17:22" },
+    ],
+  },
+  {
+    code: "R3",
+    cityCode: "RABAT",
+    name: "Ligne 3 — Hassan",
+    nameAr: "الخط 3 — حسان",
+    direction: "MORNING",
+    vehicleIndex: 2,
+    neighbourhoodCodes: ["HASSAN"],
+    scheduleCodes: ["M1"],
+    stops: [
+      { name: "Tour Hassan", neighbourhoodCode: "HASSAN", nameAr: "صومعة حسان", landmark: "esplanade", pickupTime: "06:50", dropoffTime: "" },
+      { name: "Bab Chellah", neighbourhoodCode: "HASSAN", nameAr: "باب شالة", landmark: "arrêt de tram", pickupTime: "07:04", dropoffTime: "" },
+    ],
+  },
 ];
 
 export async function seedTransport(
@@ -121,6 +174,8 @@ export async function seedTransport(
   input: {
     schoolId: string;
     schoolYearId: string;
+    /** The town the school is in — picks which lines it runs. */
+    cityCode: string;
     /**
      * The school's own drivers, by name, from `seedHr`. Empty is fine — the bus
      * keeps the typed name, which is the contractor case the column is for.
@@ -210,7 +265,11 @@ export async function seedTransport(
 
   let stopCount = 0;
 
-  for (const route of ROUTE_SEEDS) {
+  const routeSeeds = ROUTE_SEEDS.filter(
+    (route) => route.cityCode === input.cityCode,
+  );
+
+  for (const route of routeSeeds) {
     const vehicleId =
       route.vehicleIndex === null ? null : (vehicleIds[route.vehicleIndex] ?? null);
 
@@ -290,6 +349,210 @@ export async function seedTransport(
 
   log(
     "transport",
-    `${VEHICLE_SEEDS.length} vehicles, ${SCHEDULE_SEEDS.length} runs, ${ROUTE_SEEDS.length} lines, ${stopCount} stops`,
+    `${VEHICLE_SEEDS.length} vehicles, ${SCHEDULE_SEEDS.length} runs, ${routeSeeds.length} lines, ${stopCount} stops`,
   );
+}
+
+
+// ── Who actually rides, and what it costs to run ─────────────────────────────
+
+/**
+ * Abonnements against the lines, and the fuel log behind the buses.
+ *
+ * Separate from `seedTransport` and run much later, because both need things
+ * that do not exist when the lines are drawn: an abonnement hangs off an
+ * enrolment, and there is no enrolment until the pupil is inscribed.
+ *
+ * ── The route is chosen by quartier, not at random ──────────────────────────
+ * `RouteNeighbourhood` exists precisely so a line can be drawn against the
+ * quartiers it collects, and a seed that ignored it would produce a ramassage
+ * where the bus crosses Casablanca for one child. A pupil whose quartier no
+ * line covers simply has no abonnement — which is the honest answer, and the
+ * one the school gives that family too.
+ *
+ * Idempotent: upserted on `(enrollmentId, direction)` for the abonnements and
+ * on the vehicle-and-date pair for the pleins, so re-running changes nothing.
+ */
+export async function seedTransportRidership(
+  db: SeedDb,
+  {
+    schoolId,
+    schoolYearId,
+  }: { schoolId: string; schoolYearId: string },
+): Promise<void> {
+  const routes = await db.transportRoute.findMany({
+    where: { schoolYearId, isActive: true },
+    orderBy: { code: "asc" },
+    select: {
+      id: true,
+      direction: true,
+      capacity: true,
+      vehicle: { select: { seatCount: true } },
+      neighbourhoods: { select: { neighbourhoodId: true } },
+      stops: {
+        orderBy: { position: "asc" },
+        select: { id: true, neighbourhoodId: true },
+      },
+      schedules: { select: { scheduleId: true } },
+    },
+  });
+  if (routes.length === 0) return;
+
+  const riders = await db.enrollment.findMany({
+    where: {
+      schoolYearId,
+      usesTransport: true,
+      status: { in: ["ACTIVE", "PENDING"] },
+      student: { schoolId },
+    },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      student: { select: { neighbourhoodId: true } },
+    },
+  });
+
+  /*
+    A seat is a seat. Capped at whatever the line declares, or at the bus's own
+    seat count when it declares nothing — a ramassage list longer than the
+    vehicle is a list somebody stands up on.
+  */
+  const seatsLeft = new Map(
+    routes.map((route) => [
+      route.id,
+      route.capacity ?? route.vehicle?.seatCount ?? 0,
+    ]),
+  );
+
+  let subscribed = 0;
+
+  for (const rider of riders) {
+    const quartier = rider.student.neighbourhoodId;
+    if (!quartier) continue;
+
+    const route = routes.find(
+      (candidate) =>
+        candidate.neighbourhoods.some(
+          (link) => link.neighbourhoodId === quartier,
+        ) && (seatsLeft.get(candidate.id) ?? 0) > 0,
+    );
+    if (!route || route.stops.length === 0) continue;
+
+    // The stop in their own quartier, or the line's first — which is what a
+    // secretary does when the address is on the way but not at a stop.
+    const stop =
+      route.stops.find((candidate) => candidate.neighbourhoodId === quartier) ??
+      route.stops[0];
+
+    await db.transportSubscription.upsert({
+      where: {
+        enrollmentId_direction: {
+          enrollmentId: rider.id,
+          // The abonnement follows the line: a MORNING-only ramassage cannot
+          // carry an child home it never runs for.
+          direction: route.direction,
+        },
+      },
+      update: { routeId: route.id, stopId: stop.id },
+      create: {
+        enrollmentId: rider.id,
+        routeId: route.id,
+        stopId: stop.id,
+        direction: route.direction,
+        scheduleId: route.schedules[0]?.scheduleId ?? null,
+        status: "ACTIVE",
+      },
+    });
+
+    seatsLeft.set(route.id, (seatsLeft.get(route.id) ?? 1) - 1);
+    subscribed += 1;
+  }
+
+  /*
+    The fuel log: one plein a fortnight per bus across the school year.
+
+    The odometer advances, which is the whole point — consumption is the gap
+    between two readings, so a log of fills with a frozen meter reports nothing.
+    Litres are jittered off the distance so the L/100km column varies the way a
+    real fleet's does rather than reading the same figure down the page.
+  */
+  const vehicles = await db.vehicle.findMany({
+    where: { schoolId, status: "ACTIVE" },
+    orderBy: { registration: "asc" },
+    select: { id: true, registration: true, driverId: true, driverName: true },
+  });
+
+  const year = await db.schoolYear.findUnique({
+    where: { id: schoolYearId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!year) return;
+
+  let pleins = 0;
+
+  for (const [index, vehicle] of vehicles.entries()) {
+    let odometer = 40_000 + index * 17_500;
+    const date = new Date(year.startDate);
+
+    while (date <= year.endDate && date <= new Date()) {
+      // A fortnight of ramassage: two runs a day, five days a week.
+      const distance = 620 + ((index * 7 + date.getMonth()) % 5) * 40;
+      odometer += distance;
+      /*
+        Around 22 L/100 km for a minibus, wandering a little either side.
+
+        Read the units carefully: the rate is in *tenths* of a litre per 100 km
+        (220 = 22,0 L), so the divisor is 100 and not 1000. Getting it wrong
+        produced a fleet averaging 2,5 L/100 km — which the report rendered
+        perfectly, and which is the point of checking the figures and not only
+        the columns.
+      */
+      const litresTenths = Math.round(
+        (distance * (220 + ((index + date.getMonth()) % 9) * 6)) / 100,
+      );
+
+      const occurredOn = new Date(date);
+      const data = {
+        schoolId,
+        vehicleId: vehicle.id,
+        requestedById: vehicle.driverId,
+        requestedByName: vehicle.driverName,
+        occurredOn,
+        litresTenths,
+        odometerKm: odometer,
+        // Around 15 MAD the litre, in centimes.
+        amountCentimes: Math.round((litresTenths / 10) * 1_500),
+        // The last fortnight is still awaiting a decision; everything older has
+        // been paid, which is what a settled log looks like.
+        status:
+          occurredOn > new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+            ? "PENDING"
+            : "PAID",
+      };
+
+      /*
+        Written rather than only created-if-absent. `FuelRequest` has no unique
+        constraint to upsert on — a bus may legitimately be filled twice in a
+        day — so the vehicle-and-date pair stands in for one here, and the row
+        is brought back to what the formula says. Same inputs, same values, so
+        re-running still changes nothing; but a figure this seed once got wrong
+        gets corrected instead of surviving forever.
+      */
+      const existing = await db.fuelRequest.findFirst({
+        where: { vehicleId: vehicle.id, occurredOn },
+        select: { id: true },
+      });
+
+      if (existing) {
+        await db.fuelRequest.update({ where: { id: existing.id }, data });
+      } else {
+        await db.fuelRequest.create({ data });
+        pleins += 1;
+      }
+
+      date.setDate(date.getDate() + 14);
+    }
+  }
+
+  log("ramassage", `${subscribed} abonnements, ${pleins} pleins`);
 }

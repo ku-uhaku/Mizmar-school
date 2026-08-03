@@ -1,5 +1,5 @@
 import { dueDayOf, settingsOf } from "@/lib/school-settings";
-import { monthsOfYear, startOfMonth } from "@/modules/enrolment/enums";
+import { monthsOfYear, netAmount, startOfMonth } from "@/modules/enrolment/enums";
 import { buildScheduleLines } from "@/modules/enrolment/schedule";
 import { deriveStudentStatus } from "@/modules/students/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
@@ -251,5 +251,175 @@ export async function seedEnrolments(
   log(
     "enrolments",
     `${enrolled} inscribed (${unseated} awaiting a class), ${feeLines} fee lines`,
+  );
+}
+
+
+// ── Adjustments to a schedule already written ────────────────────────────────
+
+/**
+ * The two things that happen to an échéancier after it is drawn up: a reduction
+ * granted, and a charge struck off.
+ *
+ * Both are seeded because both have reports pointing at them — "réductions par
+ * service" and the "journal des annulations" read nothing else — and a report
+ * that can only ever be empty is one nobody can tell is working. Run *before*
+ * any receipt is written: a payment settles `amountCentimes`, so reducing a line
+ * after it has been paid would leave the family in credit.
+ *
+ * Idempotent. A line that already carries a reduction, or that has already been
+ * struck off, is skipped rather than adjusted again — applying 20% twice is how
+ * a seed quietly halves a school's turnover on the third run.
+ */
+export async function seedFeeAdjustments(
+  db: SeedDb,
+  {
+    schoolId,
+    schoolYearId,
+    actorId,
+  }: { schoolId: string; schoolYearId: string; actorId: string },
+): Promise<void> {
+  const sibling = await db.discount.findFirst({
+    where: { schoolYearId, reason: "SIBLING", isActive: true },
+    select: { id: true, kind: true, percentBps: true, amountCentimes: true },
+  });
+
+  let reduced = 0;
+
+  if (sibling) {
+    /*
+      Réduction fratrie: the commonest reduction a Moroccan private school
+      grants, and it goes to the *younger* children — the eldest pays full
+      tuition. Ordered by birth date so "second child onwards" means the same
+      thing on every run.
+    */
+    const families = await db.family.findMany({
+      where: {
+        schoolId,
+        children: { some: { enrollments: { some: { schoolYearId } } } },
+      },
+      orderBy: { code: "asc" },
+      select: {
+        children: {
+          orderBy: { birthDate: "asc" },
+          select: {
+            enrollments: {
+              where: { schoolYearId },
+              select: {
+                fees: {
+                  where: {
+                    status: "DUE",
+                    discountId: null,
+                    discountBps: 0,
+                    discountCentimes: 0,
+                    feeType: { kind: "TUITION" },
+                    // Never retro-discount a settled line: the receipt paid
+                    // `amountCentimes`, and lowering it afterwards would leave
+                    // the family in credit against a charge it has met.
+                    allocations: { none: {} },
+                  },
+                  select: { id: true, baseAmountCentimes: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const discountBps =
+      sibling.kind === "PERCENTAGE" ? (sibling.percentBps ?? 0) : 0;
+    const discountCentimes =
+      sibling.kind === "PERCENTAGE" ? 0 : (sibling.amountCentimes ?? 0);
+
+    if (discountBps !== 0 || discountCentimes !== 0) {
+      /*
+        Collected by base amount, then written one `updateMany` per distinct
+        base rather than one `update` per line. The net has to be computed from
+        each line's own base — but two lines with the same base get the same
+        net, and a school's price list has a dozen figures in it, not a
+        thousand. Nine hundred round trips became nine.
+      */
+      const byBase = new Map<number, string[]>();
+      for (const family of families) {
+        const enrolled = family.children.filter(
+          (child) => child.enrollments.length > 0,
+        );
+        if (enrolled.length < 2) continue;
+
+        for (const child of enrolled.slice(1)) {
+          for (const enrolment of child.enrollments) {
+            for (const line of enrolment.fees) {
+              byBase.set(line.baseAmountCentimes, [
+                ...(byBase.get(line.baseAmountCentimes) ?? []),
+                line.id,
+              ]);
+              reduced += 1;
+            }
+          }
+        }
+      }
+
+      for (const [base, ids] of byBase) {
+        await db.enrollmentFee.updateMany({
+          where: { id: { in: ids } },
+          data: {
+            discountId: sibling.id,
+            discountBps,
+            discountCentimes,
+            // Through the same helper an action would use, so the net can never
+            // disagree with the base and the reduction beside it.
+            amountCentimes: netAmount(base, discountBps, discountCentimes),
+          },
+        });
+      }
+    }
+  }
+
+  /*
+    A handful of annulations. Optional charges a family declined after the
+    schedule was written — a pupil who never took the bus, a club dropped at the
+    rentrée — which is exactly what the status is for and what the journal
+    reports. Struck off, never deleted: the trail is the point.
+  */
+  const optional = await db.enrollmentFee.findMany({
+    where: {
+      enrollment: { schoolYearId, student: { schoolId } },
+      status: "DUE",
+      cancelledAt: null,
+      feeType: { kind: { in: ["TRANSPORT", "CANTEEN", "CLUB"] } },
+      allocations: { none: {} },
+    },
+    orderBy: { id: "asc" },
+    select: { id: true },
+  });
+
+  /*
+    Chosen by the line's own id, never by its position in this list.
+
+    The query only returns lines still DUE, so a positional rule would pick a
+    *different* set on every run — each one striking off another few per cent
+    until the whole cantine had been cancelled. Keyed to the row, the second run
+    finds the same lines already struck and nothing left to do.
+  */
+  const struck = optional.filter((line) => line.id.charCodeAt(4) % 23 === 0);
+  for (const [index, line] of struck.entries()) {
+    const waived = index % 3 === 0;
+    await db.enrollmentFee.update({
+      where: { id: line.id },
+      data: {
+        status: waived ? "WAIVED" : "CANCELLED",
+        cancelledAt: new Date(),
+        cancelReason: waived
+          ? "Geste commercial accordé par la direction"
+          : "Service non retenu par la famille",
+        cancelledById: actorId,
+      },
+    });
+  }
+
+  log(
+    "ajustements",
+    `${reduced} réductions fratrie, ${struck.length} annulations`,
   );
 }

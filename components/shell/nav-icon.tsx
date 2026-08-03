@@ -1,4 +1,5 @@
 import {
+  FileBarChartIcon,
   ArrowLeftRightIcon,
   BackpackIcon,
   BanknoteArrowDownIcon,
@@ -46,6 +47,7 @@ import type { NavIcon } from "@/lib/module";
  */
 export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   dashboard: LayoutDashboardIcon,
+  reports: FileBarChartIcon,
   organization: BuildingIcon,
   schools: SchoolIcon,
   schoolYears: CalendarRangeIcon,

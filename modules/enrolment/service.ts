@@ -367,17 +367,33 @@ export async function repriceFeeLine(
     discountId: string | null;
     status: string;
     notes: string | null;
+    /** Required when the line stops being owed. Ignored when it stays DUE. */
+    cancelReason?: string | null;
+    /** Who decided. Stamped alongside the reason. */
+    actorId?: string | null;
   },
 ): Promise<void> {
+  const { cancelReason, actorId, ...fields } = input;
+  const cancelled = input.status !== "DUE";
+
   await db.enrollmentFee.update({
     where: { id: feeLineId },
     data: {
-      ...input,
+      ...fields,
       amountCentimes: netAmount(
         input.baseAmountCentimes,
         input.discountBps,
         input.discountCentimes,
       ),
+      /*
+        The trail is written and cleared by the same statement that moves the
+        status, so the two can never disagree. Reinstating a line wipes it
+        rather than leaving a stale "cancelled by" on a charge that is owed
+        again — a half-cleared row is what makes the annulations journal lie.
+      */
+      cancelledAt: cancelled ? new Date() : null,
+      cancelReason: cancelled ? (cancelReason ?? null) : null,
+      cancelledById: cancelled ? (actorId ?? null) : null,
     },
   });
 }

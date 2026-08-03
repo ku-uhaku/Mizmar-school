@@ -7,7 +7,7 @@ import {
   seedFeeTypes,
 } from "@/modules/billing/seed";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
-import { seedEnrolments } from "@/modules/enrolment/seed";
+import { seedEnrolments, seedFeeAdjustments } from "@/modules/enrolment/seed";
 import {
   PART_TIME_FACTOR,
   PART_TIME_SHARE,
@@ -16,14 +16,18 @@ import {
   seedTeacherSubjects,
 } from "@/modules/hr/seed";
 import { DEFAULT_SETTINGS } from "@/lib/school-settings";
-import { seedTreasury } from "@/modules/treasury/seed";
-import { seedTransport } from "@/modules/transport/seed";
+import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
+import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
 import { seedSupplyArticles } from "@/modules/supplies/seed";
 import { seedDocumentTypes } from "@/modules/documents/seed";
 import { seedFamilies } from "@/modules/families/seed";
 import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
-import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
+import {
+  MOROCCAN_NEIGHBOURHOODS,
+  seedCities,
+  seedNeighbourhoods,
+} from "@/modules/geography/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
@@ -296,6 +300,14 @@ async function main() {
     adminPassword: ADMIN_PASSWORD,
   });
 
+  // Whoever signed the adjustments below. The annulations journal names a
+  // person, and a trail with nobody on it is the thing it exists to prevent.
+  const admin = await db.user.findUniqueOrThrow({
+    where: { email: ADMIN_EMAIL },
+    select: { id: true },
+  });
+  const adminId = admin.id;
+
   const subjectMinutes = subjectMinutesByLevel();
   const labSubjectCodes = MOROCCAN_CURSUS.subjects
     .filter((subject) => subject.requiresLab)
@@ -312,7 +324,11 @@ async function main() {
     const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
     // Towns before pupils: a birthplace is now a reference, not a string.
     const cityIdByCode = await seedCities(db, school.id);
-    await seedNeighbourhoods(db, school.id, cityIdByCode);
+    const neighbourhoodIdByCode = await seedNeighbourhoods(
+      db,
+      school.id,
+      cityIdByCode,
+    );
     const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
 
     // The tills and expense rubriques. Year-independent, like the fee
@@ -358,6 +374,7 @@ async function main() {
       await seedTransport(db, {
         schoolId: school.id,
         schoolYearId: year.id,
+        cityCode: plan.cityCode,
         driverIdByName,
       });
       await seedFeeRatesAndDiscounts(db, {
@@ -404,6 +421,13 @@ async function main() {
         cohorts: COHORTS,
         cityCode: plan.cityCode,
         cityName: plan.cityName,
+        // Only this town's quartiers: a Casablanca household does not live in
+        // Agdal, and a bus line drawn against one could never collect it.
+        neighbourhoodCodes: MOROCCAN_NEIGHBOURHOODS.filter(
+          (quartier) =>
+            quartier.cityCode === plan.cityCode &&
+            neighbourhoodIdByCode[quartier.code],
+        ).map((quartier) => quartier.code),
         yearLabel: year.name.slice(0, 4),
         variant: plan.variant,
       });
@@ -415,6 +439,7 @@ async function main() {
         yearStart: year.startDate,
         familyIdByCode,
         cityIdByCode,
+        neighbourhoodIdByCode,
         students: roster.students,
       });
 
@@ -425,6 +450,30 @@ async function main() {
         schoolYearId: year.id,
         students,
         unseatedEvery: null,
+      });
+
+      // Who rides which bus, once there are enrolments to hang an abonnement
+      // off — the lines themselves were drawn well before the pupils existed.
+      await seedTransportRidership(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+      });
+
+      // Reductions and annulations before any money moves: a receipt settles
+      // `amountCentimes`, so discounting a line after it has been paid would
+      // leave the family in credit.
+      await seedFeeAdjustments(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        actorId: adminId,
+      });
+
+      // After the enrolments, because a receipt settles a schedule line and
+      // there is no schedule until the pupil is enrolled.
+      await seedPayments(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        variant: PLANS.indexOf(plan),
       });
     }
 

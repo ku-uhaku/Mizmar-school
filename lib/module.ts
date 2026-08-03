@@ -24,6 +24,7 @@ import type { Dictionary } from "@/lib/i18n/types";
  */
 export type NavIcon =
   | "dashboard"
+  | "reports"
   | "organization"
   | "schools"
   | "schoolYears"

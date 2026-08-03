@@ -64,6 +64,10 @@ import supplies, {
 import documents, {
   permissions as documentsPermissions,
 } from "@/modules/documents/i18n/fr";
+import reports, {
+  nav as reportsNav,
+  permissions as reportsPermissions,
+} from "@/modules/reports/i18n/fr";
 import students, {
   nav as studentsNav,
   permissions as studentsPermissions,
@@ -107,6 +111,7 @@ const fr: Dictionary = {
   ...students,
   ...supplies,
   ...documents,
+  ...reports,
   ...enrolment,
   ...classes,
   ...assessments,
@@ -135,6 +140,7 @@ const fr: Dictionary = {
     ...familiesNav,
     ...studentsNav,
     ...suppliesNav,
+    ...reportsNav,
     ...classesNav,
     ...assessmentsNav,
     ...classroomNav,
@@ -156,6 +162,7 @@ const fr: Dictionary = {
       ...studentsPermissions.groups,
       ...suppliesPermissions.groups,
       ...documentsPermissions.groups,
+      ...reportsPermissions.groups,
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
@@ -177,6 +184,7 @@ const fr: Dictionary = {
       ...studentsPermissions.codes,
       ...suppliesPermissions.codes,
       ...documentsPermissions.codes,
+      ...reportsPermissions.codes,
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,
