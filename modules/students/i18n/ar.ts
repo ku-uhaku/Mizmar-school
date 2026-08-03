@@ -10,6 +10,7 @@ const ar = {
     title: "التلاميذ",
     subtitle: "جميع الأطفال المسجّلين في سجلات المدرسة.",
     newStudent: "تلميذ جديد",
+    importExport: "استيراد / تصدير",
     editStudent: "تعديل التلميذ",
     createStudent: "إنشاء التلميذ",
     identity: "الهوية",

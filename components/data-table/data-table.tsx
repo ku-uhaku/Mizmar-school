@@ -96,6 +96,7 @@ export function DataTable<TData>({
   emptyState,
   toolbar,
   facets,
+  initialColumnVisibility = {},
   pageSize = 10,
   rowClassName,
 }: {
@@ -117,6 +118,16 @@ export function DataTable<TData>({
    * into the search box.
    */
   facets?: FacetDef[];
+  /**
+   * Columns hidden on first render, keyed by column id.
+   *
+   * For a column that exists to be *filtered* rather than read — a facet needs
+   * a real column to attach to, and a value already shown inside another cell
+   * does not need a second column of its own. The reader can still turn it on
+   * from the Columns menu, which is why this seeds the state rather than
+   * suppressing the column outright.
+   */
+  initialColumnVisibility?: VisibilityState;
   pageSize?: number;
 }) {
   const t = useT();
@@ -126,7 +137,7 @@ export function DataTable<TData>({
     [],
   );
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>(initialColumnVisibility);
 
   const table = useReactTable({
     data,

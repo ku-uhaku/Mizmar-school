@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
+  FileSpreadsheetIcon,
   GraduationCapIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -289,6 +290,25 @@ export function StudentsManager({
     </Button>
   ) : undefined;
 
+  /*
+    Import and export sit next to "new pupil" rather than under a settings menu.
+    The moment a school reaches for them is the moment it is looking at an empty
+    or half-entered list, which is this screen — and the empty state below offers
+    the same link, because "add them one by one" is the wrong first answer for
+    somebody holding a spreadsheet of four hundred.
+  */
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button asChild variant="outline">
+        <Link href="/students/import">
+          <FileSpreadsheetIcon />
+          {t.student.importExport}
+        </Link>
+      </Button>
+      {newButton}
+    </div>
+  );
+
   return (
     <>
       <DataTable
@@ -302,10 +322,10 @@ export function StudentsManager({
             icon={<GraduationCapIcon className="size-5" />}
             title={t.student.noStudents}
             description={t.student.subtitle}
-            action={newButton}
+            action={toolbar}
           />
         }
-        toolbar={newButton}
+        toolbar={toolbar}
       />
 
       {deleting ? (

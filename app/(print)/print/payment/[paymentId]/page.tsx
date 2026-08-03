@@ -54,9 +54,31 @@ export default async function ReceiptPage({
       {/* A voided receipt stays readable — somebody holding the paper copy has
           to be able to look it up and be told it no longer stands. */}
       {receipt.status !== "POSTED" ? (
-        <p className="mb-4 border-2 border-current p-2 text-center text-sm font-bold">
-          {t.print.receiptCancelled}
-        </p>
+        <div className="mb-4 border-2 border-current p-2 text-center">
+          <p className="text-sm font-bold">{t.print.receiptCancelled}</p>
+          {/* The motif and the name, on the paper. A parent disputing a voided
+              receipt is holding this sheet, and "cancelled" on its own is what
+              makes them come back to the desk to ask why. */}
+          {receipt.cancelReason ? (
+            <p className="mt-1 text-[11px] font-normal">
+              {receipt.cancelReason}
+            </p>
+          ) : null}
+          {receipt.cancelledByName || receipt.cancelledAt ? (
+            <p className="mt-0.5 text-[10px] font-normal">
+              {[
+                receipt.cancelledByName
+                  ? `${t.treasury.cancelledBy} ${receipt.cancelledByName}`
+                  : null,
+                receipt.cancelledAt
+                  ? formatDate(receipt.cancelledAt, locale)
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       <dl className="mb-5 grid grid-cols-2 gap-x-6 gap-y-1 text-[11px]">

@@ -13,6 +13,7 @@ const en = {
     title: "Students",
     subtitle: "Every child on the school's books, enrolled or not.",
     newStudent: "New student",
+    importExport: "Import / export",
     editStudent: "Edit student",
     createStudent: "Create student",
     identity: "Identity",

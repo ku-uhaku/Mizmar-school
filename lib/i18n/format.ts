@@ -125,9 +125,16 @@ export function formatMoney(
   return `${formatAmount(centimes, locale)} ${currencyCode}`;
 }
 
-/** `<input type="date">` needs a plain YYYY-MM-DD value, never a localised one. */
-export function toDateInputValue(value: Date | string): string {
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
-}
+/*
+  `toDateInputValue` deliberately does not live here.
+
+  There were two of it: this file's, which read the date in UTC, and the one in
+  lib/utils.ts, which reads it in local time and carries the note explaining why
+  that is the only correct frame for a wall-calendar date. Both were imported
+  around the app, so which one a screen got — and whether its dates were a day
+  out — depended on nothing more than which import somebody reached for.
+
+  Re-exported rather than redefined, so there is one implementation and this
+  module stays the obvious place to look for it.
+*/
+export { toDateInputValue } from "@/lib/utils";

@@ -12,6 +12,8 @@ const fr = {
     language: "Langue",
     languageHint: "L'arabe bascule toute l'interface de droite à gauche.",
     themeMode: "Thème",
+    enterFullscreen: "Plein écran",
+    exitFullscreen: "Quitter le plein écran",
     accent: "Couleur d'accentuation",
     fontFamily: "Police",
     fontSize: "Taille du texte",

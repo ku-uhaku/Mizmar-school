@@ -12,6 +12,8 @@ const ar = {
     language: "اللغة",
     languageHint: "العربية تحوّل الواجهة بالكامل من اليمين إلى اليسار.",
     themeMode: "السمة",
+    enterFullscreen: "ملء الشاشة",
+    exitFullscreen: "الخروج من ملء الشاشة",
     accent: "لون التمييز",
     fontFamily: "الخط",
     fontSize: "حجم النص",

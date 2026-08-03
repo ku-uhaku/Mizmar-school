@@ -40,7 +40,16 @@ export function SectionLinks({
   return (
     <div className={cn("grid gap-4 sm:grid-cols-2 xl:grid-cols-3", className)}>
       {links.map((link) => (
-        <Link key={link.href} href={link.href} className="group">
+        // Keyed on the label as well as the href, because two cards legitimately
+        // lead to the same screen: vie scolaire offers both "Élèves" and
+        // "Assiduité", and the register has no whole-school page of its own to
+        // point at. The href alone was a duplicate key, which React answers by
+        // dropping one of the two cards.
+        <Link
+          key={`${link.href}:${link.label}`}
+          href={link.href}
+          className="group"
+        >
           <Card className="hover:border-primary/40 h-full gap-0 py-4 transition-colors">
             <CardContent className="flex items-start gap-3 px-4">
               <span className="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors">

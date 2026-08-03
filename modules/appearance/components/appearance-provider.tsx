@@ -53,27 +53,40 @@ export function AppearanceProvider({
     root.style.colorScheme = resolvedMode;
   }, [prefs, resolvedMode]);
 
-  const persist = React.useCallback((next: UiPrefs) => {
-    // Fire-and-forget: the UI has already updated optimistically, and a failed
-    // write only means the preference is not remembered next visit.
-    void saveAppearanceAction(next);
-  }, []);
+  /*
+    Persistence is an effect, not part of the state update.
 
-  const setPrefs = React.useCallback(
-    (patch: Partial<UiPrefs>) => {
-      setPrefsState((current) => {
-        const next = { ...current, ...patch };
-        persist(next);
-        return next;
-      });
-    },
-    [persist],
-  );
+    It used to run inside the `setPrefsState` updater, which looked like the
+    tidy place to catch the merged value. But an updater has to be a pure
+    function: React calls it while rendering, and twice under StrictMode. Firing
+    a Server Action from in there updated the Router mid-render — "Cannot update
+    a component (Router) while rendering a different component" — and sent the
+    write twice on top of it.
+
+    Fire-and-forget, as before: the UI has already changed, and a failed write
+    only means the preference is not remembered next visit.
+  */
+  // What the stored copy holds. Starts at `initial`, which is the identical
+  // object `useState` is holding, so the first run compares equal and writes
+  // nothing — the server rendered this page from the cookie, so a write at
+  // mount would be one pointless request per page load. Comparing by reference
+  // rather than counting renders also survives StrictMode's remount, which
+  // would defeat a first-render flag.
+  const lastPersisted = React.useRef(initial);
+
+  React.useEffect(() => {
+    if (prefs === lastPersisted.current) return;
+    lastPersisted.current = prefs;
+    void saveAppearanceAction(prefs);
+  }, [prefs]);
+
+  const setPrefs = React.useCallback((patch: Partial<UiPrefs>) => {
+    setPrefsState((current) => ({ ...current, ...patch }));
+  }, []);
 
   const reset = React.useCallback(() => {
     setPrefsState(DEFAULT_UI_PREFS);
-    persist(DEFAULT_UI_PREFS);
-  }, [persist]);
+  }, []);
 
   const value = React.useMemo<AppearanceValue>(
     () => ({ prefs, resolvedMode, setPrefs, reset }),

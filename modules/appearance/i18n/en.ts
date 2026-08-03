@@ -12,6 +12,8 @@ const en = {
     language: "Language",
     languageHint: "Arabic switches the whole interface to right-to-left.",
     themeMode: "Theme",
+    enterFullscreen: "Full screen",
+    exitFullscreen: "Exit full screen",
     accent: "Accent colour",
     fontFamily: "Font",
     fontSize: "Text size",

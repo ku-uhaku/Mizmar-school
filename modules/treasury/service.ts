@@ -509,11 +509,20 @@ export async function recordPayment(
  * the money lands back on the schedule lines the moment this runs, without a
  * single row being edited. A mirror operation carries the reversal into the
  * ledger, dated today, because that is when the correction was made.
+ *
+ * `reason` is written onto the receipt alongside the name of whoever cancelled
+ * it, and both are required of every caller. A cancellation is the one movement
+ * in this ledger with no paper behind it, so the note and the name are the only
+ * account of it that will exist when a parent disputes the receipt in June.
+ *
+ * The text arrives already in the reader's language: the service layer holds no
+ * dictionary, so an automatic cancellation — a cheque that bounced — has its
+ * sentence composed by the action that triggers it.
  */
 export async function cancelPayment(
   paymentId: string,
   cancelledById: string,
-  reason: string | null,
+  reason: string,
 ): Promise<boolean> {
   const payment = await db.payment.findFirst({
     where: { id: paymentId, status: "POSTED" },
@@ -546,6 +555,7 @@ export async function cancelPayment(
         status: "CANCELLED",
         cancelledAt: new Date(),
         cancelReason: reason,
+        cancelledById,
       },
     });
 
@@ -779,7 +789,16 @@ export async function setChequeStatus(
   chequeId: string,
   status: string,
   actedById: string,
-  options: { settledOn?: Date | null; bounceReason?: string | null } = {},
+  options: {
+    settledOn?: Date | null;
+    bounceReason?: string | null;
+    /**
+     * The sentence written onto the receipt this cheque settled, when bouncing
+     * it cancels one. Composed by the caller because it is read by a parent at
+     * the desk and this layer has no dictionary to write it in their language.
+     */
+    cancelReason?: string;
+  } = {},
 ): Promise<boolean> {
   const cheque = await db.cheque.findUnique({
     where: { id: chequeId },
@@ -820,7 +839,15 @@ export async function setChequeStatus(
   });
 
   if (status === "BOUNCED" && cheque.direction === "INCOMING" && cheque.tender) {
-    await cancelPayment(cheque.tender.paymentId, actedById, "CHEQUE_BOUNCED");
+    // The note used to be the bare token "CHEQUE_BOUNCED", which is what a
+    // parent then saw printed beside their cancelled receipt. The caller hands
+    // down a written sentence instead, and the fallback is only ever reached by
+    // a caller that forgot one.
+    await cancelPayment(
+      cheque.tender.paymentId,
+      actedById,
+      options.cancelReason ?? "Chèque impayé",
+    );
   }
 
   return true;

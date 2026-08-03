@@ -2,6 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { outstandingOf, sumCentimes } from "@/modules/treasury/enums";
 
 /**
@@ -901,25 +902,49 @@ export type PaymentRow = {
   methods: string[];
   createdByName: string;
   allocationCount: number;
+  /**
+   * The cancellation trail, null on a receipt still standing. Carried on the
+   * row rather than fetched when a cancelled line is expanded: the question
+   * "who struck this out and why" is asked of a list, usually with a parent
+   * waiting at the desk, and it should not cost a round trip to answer.
+   */
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  /** Null when the account that cancelled it has since been deleted. */
+  cancelledByName: string | null;
 };
 
-export async function listPayments(
-  context: AuthContext,
-  limit = 100,
-): Promise<PaymentRow[]> {
-  const payments = await db.payment.findMany({
-    where: schoolScope(context),
-    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-    take: limit,
-    include: {
-      family: { select: { name: true } },
-      createdBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
-      tenders: { select: { method: true } },
-      _count: { select: { allocations: true } },
+/**
+ * What a receipt row needs, in one place.
+ *
+ * The caisse ledger and a pupil's own file render the same `PaymentRow` from
+ * two different `where` clauses, so the shape is declared once — a column added
+ * to one list and forgotten in the other is exactly the drift this avoids.
+ */
+const paymentRowInclude = {
+  family: { select: { name: true } },
+  createdBy: {
+    select: {
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
     },
-  });
+  },
+  cancelledBy: {
+    select: {
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  },
+  tenders: { select: { method: true } },
+  _count: { select: { allocations: true } },
+} as const;
 
-  return payments.map((payment) => ({
+type PaymentWithRowIncludes = Prisma.PaymentGetPayload<{
+  include: typeof paymentRowInclude;
+}>;
+
+function toPaymentRow(payment: PaymentWithRowIncludes): PaymentRow {
+  return {
     id: payment.id,
     code: payment.code,
     familyName: payment.family?.name ?? null,
@@ -929,7 +954,26 @@ export async function listPayments(
     methods: Array.from(new Set(payment.tenders.map((t) => t.method))),
     createdByName: displayName(payment.createdBy),
     allocationCount: payment._count.allocations,
-  }));
+    cancelledAt: payment.cancelledAt?.toISOString() ?? null,
+    cancelReason: payment.cancelReason,
+    cancelledByName: payment.cancelledBy
+      ? displayName(payment.cancelledBy)
+      : null,
+  };
+}
+
+export async function listPayments(
+  context: AuthContext,
+  limit = 100,
+): Promise<PaymentRow[]> {
+  const payments = await db.payment.findMany({
+    where: schoolScope(context),
+    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+    include: paymentRowInclude,
+  });
+
+  return payments.map(toPaymentRow);
 }
 
 /**
@@ -958,30 +1002,10 @@ export async function listStudentPayments(
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
     take: limit,
-    include: {
-      family: { select: { name: true } },
-      createdBy: {
-        select: {
-          email: true,
-          profile: { select: { firstName: true, lastName: true } },
-        },
-      },
-      tenders: { select: { method: true } },
-      _count: { select: { allocations: true } },
-    },
+    include: paymentRowInclude,
   });
 
-  return payments.map((payment) => ({
-    id: payment.id,
-    code: payment.code,
-    familyName: payment.family?.name ?? null,
-    paidAt: payment.paidAt.toISOString(),
-    totalCentimes: payment.totalCentimes,
-    status: payment.status,
-    methods: Array.from(new Set(payment.tenders.map((t) => t.method))),
-    createdByName: displayName(payment.createdBy),
-    allocationCount: payment._count.allocations,
-  }));
+  return payments.map(toPaymentRow);
 }
 
 export type TreasurySummary = {
@@ -1119,6 +1143,14 @@ export type Receipt = {
   familyCode: string | null;
   createdByName: string;
   registerName: string | null;
+  /**
+   * The cancellation trail, printed under the void stamp. Null on a receipt
+   * still standing; `cancelledByName` is null on one whose author has since
+   * been removed, which the motif and the date survive.
+   */
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  cancelledByName: string | null;
   /** What the money settled, one row per schedule line. */
   allocations: ReceiptAllocation[];
   tenders: ReceiptTender[];
@@ -1142,6 +1174,9 @@ export async function findReceipt(
     include: {
       family: { select: { name: true, code: true } },
       createdBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      cancelledBy: {
         select: { email: true, profile: { select: { firstName: true, lastName: true } } },
       },
       cashSession: { select: { cashRegister: { select: { name: true } } } },
@@ -1179,6 +1214,14 @@ export async function findReceipt(
     familyName: payment.family?.name ?? null,
     familyCode: payment.family?.code ?? null,
     createdByName: displayName(payment.createdBy),
+    // Printed under the void stamp. Somebody holding a cancelled receipt is
+    // usually holding it because they are disputing it, and "cancelled" without
+    // a reason is what turns that into an argument.
+    cancelledAt: payment.cancelledAt?.toISOString() ?? null,
+    cancelReason: payment.cancelReason,
+    cancelledByName: payment.cancelledBy
+      ? displayName(payment.cancelledBy)
+      : null,
     registerName: payment.cashSession?.cashRegister.name ?? null,
     allocations: payment.allocations.map((allocation) => ({
       studentName: `${allocation.enrollmentFee.enrollment.student.firstName} ${allocation.enrollmentFee.enrollment.student.lastName}`,
@@ -1561,25 +1604,8 @@ export async function listFamilyReceipts(
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
     take: limit,
-    include: {
-      family: { select: { name: true } },
-      createdBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
-      },
-      tenders: { select: { method: true } },
-      _count: { select: { allocations: true } },
-    },
+    include: paymentRowInclude,
   });
 
-  return payments.map((payment) => ({
-    id: payment.id,
-    code: payment.code,
-    familyName: payment.family?.name ?? null,
-    paidAt: payment.paidAt.toISOString(),
-    totalCentimes: payment.totalCentimes,
-    status: payment.status,
-    methods: Array.from(new Set(payment.tenders.map((tender) => tender.method))),
-    createdByName: displayName(payment.createdBy),
-    allocationCount: payment._count.allocations,
-  }));
+  return payments.map(toPaymentRow);
 }

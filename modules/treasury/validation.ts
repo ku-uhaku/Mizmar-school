@@ -231,6 +231,23 @@ export function chequeStatusSchema(t: Dictionary) {
   });
 }
 
+/**
+ * Cancelling a receipt.
+ *
+ * The motif is required, and required to be a sentence rather than a keystroke.
+ * Cancelling puts charges back onto a family's account with no counter-document
+ * to explain it, so the ten-character floor is there to stop "ok" and "erreur"
+ * — the two things a hurried cashier types — from becoming the permanent record
+ * of why a parent's balance changed.
+ */
+export function cancelPaymentSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    paymentId: requiredText(v, { max: 40 }),
+    reason: requiredText(v, { min: 10, max: 300 }),
+  });
+}
+
 /** A till. `code` is what the unique index per school is on. */
 export function cashRegisterSchema(t: Dictionary) {
   const v = t.validation;

@@ -118,6 +118,19 @@ export function AssessmentsManager({
         ),
       },
       {
+        // The subject facet needs a column of its own to filter: it used to
+        // point at an id nothing declared, so the filter did nothing and
+        // TanStack logged "Column with id 'subjectName' does not exist".
+        // Hidden by default because the subject is already printed under the
+        // title in `paper` — the Columns menu can bring it out as its own.
+        id: "subjectName",
+        accessorFn: (row) => row.subjectName,
+        header: t.assessment.subject,
+        cell: ({ row }) => (
+          <span className="text-sm">{row.original.subjectName}</span>
+        ),
+      },
+      {
         id: "scheduled",
         accessorFn: (row) => row.scheduledOn ?? "",
         header: t.assessment.scheduledOn,
@@ -306,6 +319,7 @@ export function AssessmentsManager({
         data={assessments}
         searchPlaceholder={t.assessment.searchPlaceholder}
         facets={facets}
+        initialColumnVisibility={{ subjectName: false }}
         pageSize={20}
         emptyState={
           <EmptyState

@@ -88,6 +88,9 @@ model User {
   paymentsCreated   Payment[]       @relation("PaymentCreatedBy")
   reportFavourites  ReportFavourite[] @relation("ReportFavourites")
   feeLinesCancelled EnrollmentFee[] @relation("FeeLineCancelledBy")
+  /// SetNull on the other side, unlike the Restrict above: cancellations must
+  /// outlive the cashier who made them, and the note explains itself.
+  paymentsCancelled Payment[]       @relation("PaymentCancelledBy")
 
   // ── Logistique ────────────────────────────────────────────────────────────
   /// Fuel requests this account decided. SetNull on the other side: an approval

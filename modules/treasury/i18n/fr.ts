@@ -178,6 +178,16 @@ const fr = {
     paymentCancelled: "Reçu annulé.",
     alreadyCancelled: "Ce reçu est déjà annulé.",
     cancelReason: "Motif",
+    cancelReasonLabel: "Pourquoi ce reçu est-il annulé ?",
+    cancelReasonPlaceholder:
+      "ex. Montant saisi deux fois — la famille a payé 1 200 DH et non 2 400 DH.",
+    cancelReasonHint:
+      "Inscrit sur le reçu avec votre nom. C'est la seule trace de l'annulation : écrivez-la pour celui qui la lira en juin.",
+    cancelReasonRequired: "Indiquez un motif avant d'annuler.",
+    cancelledBy: "Annulé par",
+    cancelledOn: "Annulé le",
+    cancelledChequeBounced: "Chèque impayé",
+    cancellationTrail: "Annulation",
     notes: "Remarques",
 
     // ── Décaissement ────────────────────────────────────────────────────────

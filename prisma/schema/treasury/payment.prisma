@@ -46,8 +46,19 @@ model Payment {
   /// "POSTED" | "CANCELLED" — see modules/treasury/enums.ts.
   status String @default("POSTED")
 
-  cancelledAt   DateTime?
-  cancelReason  String?
+  cancelledAt DateTime?
+
+  /// Why it was struck out, in the words of whoever struck it out. Required by
+  /// the action — a cancellation is the one movement in the ledger with no
+  /// paper behind it, so the note is the only account of it that will exist
+  /// when a parent disputes the receipt months later.
+  cancelReason String?
+
+  /// Who cancelled it. SetNull rather than Restrict: a cashier who leaves the
+  /// school must be removable without erasing the record that the cancellation
+  /// happened — the reason and the date survive them.
+  cancelledById String?
+  cancelledBy   User?   @relation("PaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   /// The till session the money was taken in. Null when no drawer was involved
   /// — a virement that landed in the bank account.
@@ -74,5 +85,6 @@ model Payment {
   @@index([cashSessionId])
   @@index([schoolId, paidAt])
   @@index([schoolId, status])
+  @@index([cancelledById])
   @@map("payments")
 }

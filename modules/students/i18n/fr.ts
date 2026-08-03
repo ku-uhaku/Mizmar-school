@@ -10,6 +10,7 @@ const fr = {
     title: "Élèves",
     subtitle: "Tous les enfants inscrits sur les registres de l'école.",
     newStudent: "Nouvel élève",
+    importExport: "Importer / exporter",
     editStudent: "Modifier l'élève",
     createStudent: "Créer l'élève",
     identity: "Identité",

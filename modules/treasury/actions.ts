@@ -25,6 +25,7 @@ import {
 } from "@/modules/treasury/service";
 import {
   quickSpendSchema,
+  cancelPaymentSchema,
   cashRegisterSchema,
   chequeStatusSchema,
   closeSessionSchema,
@@ -373,9 +374,17 @@ export async function recordPaymentAction(
   });
 }
 
+/**
+ * Cancels a receipt, on the record.
+ *
+ * The motif is validated here rather than trusted from the dialog: the dialog's
+ * required-field check is a courtesy to the cashier, and this is the rule. What
+ * lands on the row is the note plus the name of whoever wrote it, which is the
+ * only account of the reversal that will exist once the day is closed.
+ */
 export async function cancelPaymentAction(
   paymentId: string,
-  reason: string | null,
+  reason: string,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
     const { t, context, schoolId } = await currentSchool();
@@ -383,14 +392,23 @@ export async function cancelPaymentAction(
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_CANCEL);
 
+    const parsed = cancelPaymentSchema(t).safeParse({ paymentId, reason });
+    if (!parsed.success) {
+      return failure(t.errors.invalid, fieldErrors(parsed.error));
+    }
+
     // Scoped by school: a receipt id alone must not reach another tenant's.
     const payment = await db.payment.findFirst({
-      where: { id: paymentId, schoolId },
+      where: { id: parsed.data.paymentId, schoolId },
       select: { id: true },
     });
     if (!payment) return failure(t.errors.notFound);
 
-    const cancelled = await cancelPayment(payment.id, context.user.id, reason);
+    const cancelled = await cancelPayment(
+      payment.id,
+      context.user.id,
+      parsed.data.reason,
+    );
     if (!cancelled) return failure(t.treasury.alreadyCancelled);
 
     refresh();
@@ -718,6 +736,12 @@ export async function setChequeStatusAction(
     await setChequeStatus(cheque.id, parsed.data.status, context.user.id, {
       settledOn: parsed.data.settledOn,
       bounceReason: parsed.data.bounceReason,
+      // Composed here because this layer has the dictionary. The cashier's own
+      // words about why it bounced are appended when they gave any, so the
+      // cancelled receipt explains itself without anyone opening the cheque.
+      cancelReason: parsed.data.bounceReason
+        ? `${t.treasury.cancelledChequeBounced} — ${parsed.data.bounceReason}`
+        : t.treasury.cancelledChequeBounced,
     });
 
     refresh();

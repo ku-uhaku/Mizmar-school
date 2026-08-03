@@ -169,6 +169,16 @@ const ar = {
     paymentCancelled: "تم إلغاء الوصل.",
     alreadyCancelled: "هذا الوصل ملغى بالفعل.",
     cancelReason: "السبب",
+    cancelReasonLabel: "لماذا يُلغى هذا الوصل؟",
+    cancelReasonPlaceholder:
+      "مثال: المبلغ سُجّل مرّتين — الأسرة أدّت 1 200 درهم لا 2 400 درهم.",
+    cancelReasonHint:
+      "يُكتب على الوصل مع اسمك. هذا هو الأثر الوحيد للإلغاء، فاكتبه لمن سيقرؤه في يونيو.",
+    cancelReasonRequired: "بيّن السبب قبل الإلغاء.",
+    cancelledBy: "ألغاه",
+    cancelledOn: "تاريخ الإلغاء",
+    cancelledChequeBounced: "شيك بدون رصيد",
+    cancellationTrail: "الإلغاء",
     notes: "ملاحظات",
 
     // ── Décaissement ────────────────────────────────────────────────────────

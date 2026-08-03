@@ -23,6 +23,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { cancelPaymentAction } from "@/modules/treasury/actions";
@@ -244,18 +251,31 @@ export function ReceiptsTable({
   const t = useT();
   const locale = useLocale();
   const [pending, setPending] = React.useState<PaymentSummary | null>(null);
+  const [reason, setReason] = React.useState("");
   const [isCancelling, startCancelling] = React.useTransition();
 
+  // Mirrors `cancelPaymentSchema`. The server is the rule; this only stops the
+  // cashier discovering the rule by having the dialog rejected.
+  const MIN_REASON = 10;
+  const reasonIsUsable = reason.trim().length >= MIN_REASON;
+
+  function closeDialog() {
+    setPending(null);
+    setReason("");
+  }
+
   function confirmCancel() {
-    if (!pending) return;
+    if (!pending || !reasonIsUsable) return;
     startCancelling(async () => {
-      const result = await cancelPaymentAction(pending.id, null);
+      const result = await cancelPaymentAction(pending.id, reason.trim());
       if (result.status === "success") {
         toast.success(result.message ?? t.treasury.paymentCancelled);
-      } else {
-        toast.error(result.message ?? t.errors.unexpected);
+        closeDialog();
+        return;
       }
-      setPending(null);
+      // Kept open on failure: the motif the cashier just typed is the one thing
+      // in this dialog that is expensive to retype, and a closed dialog loses it.
+      toast.error(result.message ?? t.errors.unexpected);
     });
   }
 
@@ -264,16 +284,38 @@ export function ReceiptsTable({
       {
         accessorKey: "code",
         header: t.treasury.receipt,
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "font-medium",
-              row.original.status === "CANCELLED" && "line-through",
-            )}
-          >
-            {row.original.code}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const payment = row.original;
+          if (payment.status !== "CANCELLED") {
+            return <span className="font-medium">{payment.code}</span>;
+          }
+
+          // A struck-out receipt used to say only that it was struck out. The
+          // motif and the name travel on the row, so the answer to "who did
+          // this and why" is a hover away instead of a trip to whoever was on
+          // the desk that morning.
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="font-medium line-through decoration-destructive/60 underline-offset-2 cursor-help">
+                  {payment.code}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs space-y-1">
+                <p className="font-medium">{t.treasury.cancellationTrail}</p>
+                {payment.cancelReason ? (
+                  <p className="text-xs">{payment.cancelReason}</p>
+                ) : null}
+                <p className="text-xs opacity-80">
+                  {payment.cancelledByName ?? "—"}
+                  {payment.cancelledAt
+                    ? ` · ${formatDate(payment.cancelledAt, locale)}`
+                    : ""}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        },
       },
       {
         id: "family",
@@ -387,7 +429,7 @@ export function ReceiptsTable({
       <AlertDialog
         open={pending !== null}
         onOpenChange={(open) => {
-          if (!open) setPending(null);
+          if (!open && !isCancelling) closeDialog();
         }}
       >
         <AlertDialogContent>
@@ -399,8 +441,50 @@ export function ReceiptsTable({
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {/* The sum being put back, stated plainly. The receipt code alone does
+              not tell a cashier which of two similar receipts is in front of
+              them, and this is the number the family will hear about. */}
+          {pending ? (
+            <div className="flex items-baseline justify-between rounded-lg bg-muted px-3 py-2">
+              <span className="text-sm text-muted-foreground">
+                {pending.familyName ?? "—"}
+              </span>
+              <span className="font-medium tabular-nums">
+                {formatAmount(pending.totalCentimes, locale)}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="cancel-reason">
+              {t.treasury.cancelReasonLabel}
+            </Label>
+            <Textarea
+              id="cancel-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={t.treasury.cancelReasonPlaceholder}
+              rows={3}
+              maxLength={300}
+              disabled={isCancelling}
+              aria-describedby="cancel-reason-hint"
+              // Autofocus is right here and wrong on most dialogs: the note is
+              // the only thing to fill in, and the cashier has a parent waiting.
+              autoFocus
+            />
+            <p
+              id="cancel-reason-hint"
+              className="text-xs text-muted-foreground"
+            >
+              {t.treasury.cancelReasonHint}
+            </p>
+          </div>
+
           <AlertDialogFooter>
-            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isCancelling}>
+              {t.common.cancel}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={(event) => {
                 // Cancelling is async; letting the dialog close itself would
@@ -408,9 +492,10 @@ export function ReceiptsTable({
                 event.preventDefault();
                 confirmCancel();
               }}
-              disabled={isCancelling}
+              disabled={isCancelling || !reasonIsUsable}
+              className="bg-destructive text-white hover:bg-destructive/90"
             >
-              {t.common.confirm}
+              {isCancelling ? t.common.saving : t.treasury.cancelPayment}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

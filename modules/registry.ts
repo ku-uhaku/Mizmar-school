@@ -21,6 +21,8 @@ import { ENROLMENT_PERMISSIONS } from "@/modules/enrolment/permissions";
 import { facilitiesModule } from "@/modules/facilities/module";
 import { geographyModule } from "@/modules/geography/module";
 import { hrModule } from "@/modules/hr/module";
+import { importsModule } from "@/modules/imports/module";
+import { IMPORT_PERMISSIONS } from "@/modules/imports/permissions";
 import { HR_PERMISSIONS } from "@/modules/hr/permissions";
 import { familiesModule } from "@/modules/families/module";
 import { FAMILY_PERMISSIONS } from "@/modules/families/permissions";
@@ -104,6 +106,7 @@ export const MODULES: readonly AppModule[] = [
   timetableModule,
   suppliesModule,
   documentsModule,
+  importsModule,
   reportsModule,
 
   // ── Caisse ────────────────────────────────────────────────────────────────
@@ -157,6 +160,7 @@ export const PERMISSIONS = {
   ...TIMETABLE_PERMISSIONS,
   ...SUPPLY_PERMISSIONS,
   ...DOCUMENT_PERMISSIONS,
+  ...IMPORT_PERMISSIONS,
   ...REPORT_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
   ...TRANSPORT_PERMISSIONS,

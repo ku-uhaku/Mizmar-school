@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { FullscreenToggle } from "@/components/shell/fullscreen-toggle";
 import { SettingsProvider } from "@/components/providers/settings-provider";
 import { ContextSwitcher } from "@/modules/context/components/context-switcher";
 import { GlobalSearch } from "@/modules/school-life/components/global-search";
@@ -79,6 +80,7 @@ export default async function DashboardLayout({
               {/* Scoped to the working context and filtered by permission inside
                 the action — see modules/school-life/actions.ts. */}
               <GlobalSearch />
+              <FullscreenToggle />
               <LocaleSwitcher />
               <ThemeModeToggle />
               <UserMenu

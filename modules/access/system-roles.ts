@@ -134,6 +134,9 @@ export const SYSTEM_ROLES: {
       // school accepted and for waiving a pièce a family cannot produce.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // Loading the year's list from a spreadsheet. Held with STUDENT_CREATE
+      // and FAMILY_CREATE above, which the import action asserts alongside it.
+      PERMISSIONS.IMPORT_STUDENTS,
       // The reporting screen. What it actually shows is still gated report by
       // report on the data's own code — see modules/reports/catalogue.ts.
       PERMISSIONS.REPORT_VIEW,
@@ -191,6 +194,9 @@ export const SYSTEM_ROLES: {
       // proceed yet.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // Rentrée is a spreadsheet from the previous school or from MASSAR, and
+      // typing four hundred pupils by hand is this desk's worst week.
+      PERMISSIONS.IMPORT_STUDENTS,
       // The reporting screen. What it actually shows is still gated report by
       // report on the data's own code — see modules/reports/catalogue.ts.
       PERMISSIONS.REPORT_VIEW,

@@ -179,6 +179,16 @@ const en = {
     paymentCancelled: "Receipt cancelled.",
     alreadyCancelled: "That receipt is already cancelled.",
     cancelReason: "Reason",
+    cancelReasonLabel: "Why is it being cancelled?",
+    cancelReasonPlaceholder:
+      "e.g. Amount entered twice — the family paid 1 200 DH, not 2 400 DH.",
+    cancelReasonHint:
+      "Written on the receipt with your name. This is the only record of the reversal — write it for whoever reads it in June.",
+    cancelReasonRequired: "Give a reason before cancelling.",
+    cancelledBy: "Cancelled by",
+    cancelledOn: "Cancelled on",
+    cancelledChequeBounced: "Cheque returned unpaid",
+    cancellationTrail: "Cancellation",
     notes: "Notes",
 
     // ── Décaissement ────────────────────────────────────────────────────────
