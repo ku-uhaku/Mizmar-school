@@ -323,3 +323,73 @@ export function consumptionPer100km(
   if (distanceKm <= 0 || litresTenths <= 0) return null;
   return Math.round((litresTenths * 100) / distanceKm);
 }
+
+// ── Le voyage ────────────────────────────────────────────────────────────────
+
+/**
+ * Where a run has got to on the day. See prisma/schema/transport/trip-run.prisma.
+ *
+ * PLANNED is what generation writes: the horaire says this circuit goes out this
+ * morning, and nobody has touched it yet. It is deliberately a real row rather
+ * than an absence, because "the 07:00 never left" is the thing an office needs
+ * to see, and a missing row looks exactly like a screen nobody opened.
+ */
+export const TRIP_RUN_STATUSES = [
+  "PLANNED",
+  "EN_ROUTE",
+  "ARRIVED",
+  "CANCELLED",
+] as const;
+export type TripRunStatus = (typeof TRIP_RUN_STATUSES)[number];
+
+/**
+ * The moves a run may make, consulted rather than trusted.
+ *
+ * A voyage goes out and comes back, or it does not go. What is deliberately
+ * absent is the way back from ARRIVED: a bus that has returned has returned, and
+ * "un-arriving" it would leave the morning's timings meaning nothing. A run
+ * closed by mistake is corrected the way a receipt is — by cancelling it with a
+ * reason, which is a record rather than an erasure.
+ *
+ * A run already under way may still be cancelled: a breakdown halfway round is
+ * exactly the case, and it is the only honest thing to call it.
+ */
+export const TRIP_RUN_TRANSITIONS: Record<string, readonly TripRunStatus[]> = {
+  PLANNED: ["EN_ROUTE", "CANCELLED"],
+  EN_ROUTE: ["ARRIVED", "CANCELLED"],
+  ARRIVED: [],
+  CANCELLED: [],
+};
+
+/** Whether a run may move to `next` from where it is now. */
+export function canMoveTripRun(from: string, next: string): boolean {
+  return (TRIP_RUN_TRANSITIONS[from] ?? []).includes(next as TripRunStatus);
+}
+
+/** Runs a bus is out on right now — what the board shows at the top. */
+export const ACTIVE_TRIP_RUN_STATUSES: readonly TripRunStatus[] = ["EN_ROUTE"];
+
+/**
+ * How late the bus pulled out, in minutes, or null when it has not.
+ *
+ * Measured against `plannedDepartureTime` as copied onto the run, never against
+ * the horaire as it reads today — see the note on that column. Negative means
+ * early, and is kept rather than clamped: a circuit that habitually leaves four
+ * minutes early is a finding, not a rounding error.
+ */
+export function departureDelayMinutes(
+  plannedDepartureTime: string,
+  startedAt: Date | null,
+): number | null {
+  if (!startedAt) return null;
+
+  const [hours, minutes] = plannedDepartureTime.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+
+  // Compared in the run's own local day: the planned time is wall-clock text
+  // and the stamp is an instant, so the two only line up on the same date.
+  const planned = new Date(startedAt);
+  planned.setHours(hours, minutes, 0, 0);
+
+  return Math.round((startedAt.getTime() - planned.getTime()) / 60_000);
+}

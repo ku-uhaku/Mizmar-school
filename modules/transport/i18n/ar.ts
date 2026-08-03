@@ -4,6 +4,32 @@
  */
 const ar = {
   transport: {
+    voyages: "الرحلات",
+    voyagesHint: "كل الرحلات المقررة اليوم، وأين وصلت كل واحدة.",
+    runStart: "انطلاق",
+    runArrive: "وصل",
+    runCancel: "إلغاء الرحلة",
+    runStarted: "انطلقت الرحلة.",
+    runArrived: "أُقفلت الرحلة.",
+    runCancelled: "أُلغيت الرحلة.",
+    runAlreadyMoved: "تغيّرت حالة هذه الرحلة سلفًا — أعد تحميل اللوحة.",
+    cancelRunReasonRequired: "بيّن سبب عدم إجراء الرحلة.",
+    cancelRunTitle: "إلغاء هذه الرحلة؟",
+    cancelRunHint: "تبقى في اللوحة كملغاة مع سببك. بيّن ما وقع: عطب، أو غياب سائق، أو طريق مقطوعة.",
+    myVoyages: "رحلاتي",
+    myVoyagesHint: "رحلات اليوم للحافلة التي تسوقها.",
+    noRunsToday: "لا رحلة مقررة اليوم.",
+    noRunsForDriver: "لا حافلة مسندة إليك اليوم.",
+    plannedAt: "الانطلاق المقرر {time}",
+    leftAt: "انطلقت {time}",
+    arrivedAt: "رجعت {time}",
+    lateBy: "تأخر {count} د",
+    earlyBy: "تقدم {count} د",
+    onTime: "في الوقت",
+    runsEnRoute: "{count} في الطريق",
+    runsEnRouteOne: "في الطريق",
+    runsPending: "{count} لم تنطلق",
+    riderCount: "{count} مشترك",
     title: "النقل",
     subtitle: "الحظيرة، والخطوط التي تخدمها، والتلاميذ المنقولون.",
 
@@ -302,6 +328,8 @@ const ar = {
 };
 
 export const nav = {
+  transportVoyages: "الرحلات",
+  transportMyVoyages: "رحلاتي",
   transportSchedules: "\u0645\u0648\u0627\u0639\u064a\u062f \u0627\u0644\u0646\u0642\u0644",
   transportConsumption: "\u0627\u0644\u0648\u0642\u0648\u062f",
   transportAttendance: "نداء الحافلة",

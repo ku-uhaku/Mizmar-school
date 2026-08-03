@@ -9,6 +9,7 @@ import {
   seatsOnRoute,
   seatsRemaining,
   busRegisterScopeKey,
+  canMoveTripRun,
   type TransportDirection,
   tenthsToLitres,
   type FuelRequestStatus,
@@ -842,4 +843,134 @@ export async function copyTransportConfiguration(
     routes: routesAfter - routesBefore,
     stops: stopsAfter - stopsBefore,
   };
+}
+
+// ── Le voyage ────────────────────────────────────────────────────────────────
+
+/**
+ * Makes sure the day's board exists, and returns nothing.
+ *
+ * Every (circuit, horaire) pair the school has declared gets a `PLANNED` row for
+ * the date, so the board opens already showing what is *meant* to happen. That
+ * is the whole reason generation exists rather than creating runs on first
+ * press: a morning that never left the yard has to be visible, and a missing row
+ * is indistinguishable from a screen nobody opened.
+ *
+ * Called on the way into the board rather than from a cron. A school opens the
+ * screen every morning by definition, there is no scheduler in this deployment,
+ * and the unique index makes a second call on the same day write nothing.
+ *
+ * Retired circuits and horaires are skipped: `isActive` is how a school stops
+ * running a line, and generating for it would put a run on the board that
+ * nobody is expected to make.
+ */
+export async function ensureDayRuns(
+  schoolYearId: string,
+  date: Date,
+): Promise<number> {
+  const pairs = await db.routeSchedule.findMany({
+    where: {
+      route: { schoolYearId, isActive: true },
+      schedule: { schoolYearId, isActive: true },
+    },
+    select: {
+      routeId: true,
+      scheduleId: true,
+      schedule: { select: { departureTime: true } },
+    },
+  });
+  if (pairs.length === 0) return 0;
+
+  const existing = await db.tripRun.findMany({
+    where: { date, routeId: { in: pairs.map((pair) => pair.routeId) } },
+    select: { routeId: true, scheduleId: true },
+  });
+  const taken = new Set(
+    existing.map((run) => `${run.routeId}:${run.scheduleId}`),
+  );
+
+  const missing = pairs.filter(
+    (pair) => !taken.has(`${pair.routeId}:${pair.scheduleId}`),
+  );
+  if (missing.length === 0) return 0;
+
+  /*
+    `createMany` without skipDuplicates, which the SQLite connector does not
+    support — so a second caller racing this one would collide on the unique
+    index. Swallowed rather than surfaced: both callers wanted the same rows to
+    exist, and they now do. Any other failure still throws.
+  */
+  try {
+    const created = await db.tripRun.createMany({
+      data: missing.map((pair) => ({
+        routeId: pair.routeId,
+        scheduleId: pair.scheduleId,
+        date,
+        // Copied, not joined — see the note on the column.
+        plannedDepartureTime: pair.schedule.departureTime,
+        status: "PLANNED",
+      })),
+    });
+    return created.count;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Moves a run along, if the move is one the table allows.
+ *
+ * The status is re-read inside the write rather than taken from the caller, so
+ * two people pressing "démarrer" at the same moment — the driver on the yard and
+ * the office on the board — produce one departure and one refusal rather than
+ * two stamps, the second overwriting the first.
+ *
+ * Returns false when the move is not allowed from where the run actually is,
+ * which the action turns into a message rather than an error.
+ */
+export async function moveTripRun(
+  runId: string,
+  next: "EN_ROUTE" | "ARRIVED" | "CANCELLED",
+  actedById: string,
+  options: { cancelReason?: string; vehicleId?: string | null } = {},
+): Promise<boolean> {
+  return db.$transaction(async (tx) => {
+    const run = await tx.tripRun.findUnique({
+      where: { id: runId },
+      select: {
+        id: true,
+        status: true,
+        route: { select: { vehicleId: true } },
+      },
+    });
+    if (!run) return false;
+
+    if (!canMoveTripRun(run.status, next)) return false;
+
+    const now = new Date();
+
+    await tx.tripRun.update({
+      where: { id: runId },
+      data: {
+        status: next,
+        ...(next === "EN_ROUTE"
+          ? {
+              startedAt: now,
+              startedById: actedById,
+              // The bus that actually went. Falls back to the circuit's usual
+              // one, which is right on any morning nobody swapped it.
+              vehicleId: options.vehicleId ?? run.route.vehicleId ?? null,
+            }
+          : {}),
+        ...(next === "ARRIVED"
+          ? { arrivedAt: now, arrivedById: actedById }
+          : {}),
+        ...(next === "CANCELLED"
+          ? { cancelReason: options.cancelReason ?? null }
+          : {}),
+      },
+    });
+
+    return true;
+  });
 }

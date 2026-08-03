@@ -31,6 +31,25 @@ export const transportModule = defineModule({
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
     },
     {
+      href: "/transport/voyages",
+      icon: "routes",
+      section: "logistique",
+      labelKey: "transportVoyages",
+      order: 25,
+      // The board is a read of the day; starting a run is gated inside it.
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
+    },
+    {
+      href: "/transport/mon-voyage",
+      icon: "fleet",
+      section: "logistique",
+      labelKey: "transportMyVoyages",
+      order: 26,
+      // The driver's own code, so a chauffeur's role shows this and nothing
+      // else of the logistics section — see modules/transport/permissions.ts.
+      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_ATTENDANCE,
+    },
+    {
       href: "/transport/fleet",
       icon: "fleet",
       section: "logistique",

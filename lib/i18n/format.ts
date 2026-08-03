@@ -56,6 +56,31 @@ export function formatDateTime(
   }).format(date);
 }
 
+/**
+ * The clock time alone — "07:03".
+ *
+ * For a stamp whose day is already established by the screen around it: a board
+ * showing today's voyages does not need to repeat today's date on every row, and
+ * the departure time is the thing being compared down the column.
+ *
+ * `hourCycle: "h23"` because a school's paperwork, its horaires and its bus
+ * timetable are all written 07:00 and 17:00 — letting the locale decide would
+ * put "5:00 PM" on an English screen beside a "17:00" horaire.
+ */
+export function formatTime(
+  value: Date | string | null | undefined,
+  locale: Locale,
+): string {
+  if (!value) return "—";
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(date);
+}
+
 export function formatNumber(value: number, locale: Locale): string {
   return new Intl.NumberFormat(intlLocale(locale)).format(value);
 }

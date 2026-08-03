@@ -112,6 +112,49 @@ export async function loadChoices(
     }));
   }
 
+  /*
+    A niveau ouvert, named.
+
+    `LevelOffering` carries no readable column of its own — it *is* a level plus,
+    in the qualifying cycle, a filière — so the generic `labelFields` mechanism
+    had nothing to point at and was set to `["id"]`. Every dropdown offering a
+    niveau therefore listed raw cuids, which is unusable: picking the right one
+    meant knowing which opaque string was 3AP.
+
+    A loader rather than wider `labelFields` for the same reason `@slots` is one:
+    the label lives across two joins, and `labelOf` only reads columns of the row
+    it is given. Scoped through the resource's own `where`, so this offers
+    exactly the rows the generic path would have.
+  */
+  if (referenceTo === "level-offerings") {
+    const offeringSchema = resourceSchema("level-offerings");
+    if (!offeringSchema) return [];
+
+    const offerings = await db.levelOffering.findMany({
+      where: offeringSchema.where(context),
+      orderBy: [{ level: { gradeYear: "asc" } }, { track: { position: "asc" } }],
+      select: {
+        id: true,
+        level: { select: { name: true, code: true } },
+        track: { select: { name: true } },
+      },
+    });
+
+    return offerings.map((offering) => ({
+      id: offering.id,
+      // The name leads, because that is what the reader is choosing between.
+      // The code follows in brackets: a school talks in codes ("3AP"), and two
+      // levels can share a name across cycles, so dropping it entirely would
+      // make some lists ambiguous.
+      label: [
+        offering.track
+          ? `${offering.level.name} — ${offering.track.name}`
+          : offering.level.name,
+        `(${offering.level.code})`,
+      ].join(" "),
+    }));
+  }
+
   const target = findResource(referenceTo);
   const schema = resourceSchema(referenceTo);
   if (!target || !schema) return [];
@@ -214,6 +257,30 @@ export async function findUnreachableReference(
         select: { id: true },
       });
       if (!user) return field.name;
+      continue;
+    }
+
+    /*
+      The bell schedule.
+
+      `@slots` is a loader id, not a resource id, so `resourceSchema` has nothing
+      under it and the fall-through below treated the field as unreachable — on
+      every save. That made `teacher-unavailability`, whose `timeSlotId` points
+      here, impossible to create or update at all: the form came back refusing
+      the one value the dropdown had just offered.
+
+      Checked against the year in context, which is the same clause the loader
+      builds its options from.
+    */
+    if (field.referenceTo === "@slots") {
+      const slot = await db.timeSlot.findFirst({
+        where: {
+          id: String(value),
+          schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+        },
+        select: { id: true },
+      });
+      if (!slot) return field.name;
       continue;
     }
 

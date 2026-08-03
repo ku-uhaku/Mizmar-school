@@ -1,0 +1,83 @@
+/// Un voyage: one circuit, one horaire, one day — as it actually happened.
+///
+/// ── Why this exists next to TransportSchedule ────────────────────────────────
+/// `TransportSchedule` is a *timetable entry*: "Matin, départ 07:00". It says
+/// what is meant to happen every day, and it says nothing about any particular
+/// morning. Attendance rows record who was on board, but a run nobody marked and
+/// a run that never left the yard look identical through them.
+///
+/// This row is the run itself. It is what lets the office answer the two
+/// questions a timetable cannot: *did the bus go*, and *was it late*.
+///
+/// ── One row per circuit per horaire per day ─────────────────────────────────
+/// The unique index below is load-bearing twice over. It makes generation
+/// idempotent — opening the board a second time adds nothing — and it is what
+/// stops a driver's phone and the office screen both creating a run when they
+/// press start in the same second.
+model TripRun {
+  id String @id @default(cuid())
+
+  /// Restrict: a circuit with runs behind it is a circuit with a history, and
+  /// deleting it would take the record of those mornings with it.
+  routeId String
+  route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
+
+  scheduleId String
+  schedule   TransportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+
+  /// The day this run belongs to, at midnight. Not derivable from `startedAt`:
+  /// a run that was never started still belongs to its day, and that is exactly
+  /// the row somebody needs to see.
+  date DateTime
+
+  /// "PLANNED" | "EN_ROUTE" | "ARRIVED" | "CANCELLED"
+  /// see modules/transport/enums.ts.
+  ///
+  /// INVARIANT (service layer): moves only along `TRIP_RUN_TRANSITIONS`. A
+  /// Server Function is reachable by direct POST, so the table of allowed moves
+  /// is consulted rather than trusted — the same rule cheques follow.
+  status String @default("PLANNED")
+
+  /// The departure the horaire called for, copied at generation.
+  ///
+  /// Denormalised on purpose. A school that moves its morning run from 07:00 to
+  /// 07:15 in November must not thereby make every October morning three
+  /// minutes early: lateness is measured against what was planned *that day*,
+  /// and a live join to the schedule would silently rewrite the past.
+  plannedDepartureTime String
+
+  /// When the driver actually pulled out, and who said so.
+  startedAt   DateTime?
+  startedById String?
+  startedBy   User?     @relation("TripRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
+
+  arrivedAt   DateTime?
+  arrivedById String?
+  arrivedBy   User?     @relation("TripRunArrivedBy", fields: [arrivedById], references: [id], onDelete: SetNull)
+
+  /// The bus that actually went, captured when the run starts rather than read
+  /// from the circuit: a breakdown means the spare goes out that morning, and
+  /// the circuit's usual vehicle is not what left the yard.
+  /// SetNull: retiring a bus must not erase the runs it made.
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  /// Why it did not run. Required by the action that cancels — a voyage struck
+  /// off with no reason is the gap nobody can explain a week later.
+  cancelReason String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Idempotent generation, and the race guard. See the note above.
+  @@unique([routeId, scheduleId, date])
+  @@index([routeId])
+  @@index([scheduleId])
+  @@index([vehicleId])
+  @@index([date, status])
+  @@index([startedById])
+  @@index([arrivedById])
+  @@map("trip_runs")
+}

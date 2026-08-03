@@ -62,6 +62,9 @@ model Vehicle {
   /// Every tank of fuel drawn for it. Restrict on the other side: a bus with
   /// spending history against it is not deletable.
   fuelRequests FuelRequest[]
+  /// Voyages this bus made. SetNull on the other side: retiring a bus must not
+  /// erase the mornings it ran.
+  tripRuns     TripRun[]
 
   @@unique([schoolId, registration])
   @@index([schoolId])

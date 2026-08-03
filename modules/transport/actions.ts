@@ -20,6 +20,7 @@ import { startOfDay } from "@/modules/hr/enums";
 import {
   decideFuelRequest,
   markBusRunInBulk,
+  moveTripRun,
   markRiderAttendance,
   setRouteNeighbourhoods,
   setRouteSchedules,
@@ -1041,6 +1042,85 @@ export async function markBusRunInBulkAction(
       written > 0
         ? interpolate(t.transport.bulkMarked, { count: written })
         : t.transport.nothingToMark,
+    );
+  });
+}
+
+// ── Le voyage ────────────────────────────────────────────────────────────────
+
+/**
+ * Re-derives a run from the year in context.
+ *
+ * The id arrives in the request, so it is never enough on its own: the run has
+ * to hang off a circuit of *this* school's year before anything is written to
+ * it. Same rule as `reachableRun` above, and the reason a crafted id reaches
+ * nothing rather than another school's morning.
+ */
+async function reachableTripRun(
+  schoolYearId: string,
+  runId: string,
+): Promise<{ id: string } | null> {
+  return db.tripRun.findFirst({
+    where: { id: runId, route: { schoolYearId } },
+    select: { id: true },
+  });
+}
+
+/**
+ * Starts a voyage, closes it, or calls it off.
+ *
+ * One action for the three moves rather than three, because they differ only in
+ * which stamp they write and they share every check: the same permission, the
+ * same re-derivation, and the same transition table underneath. Which move is
+ * legal from where the run actually stands is decided in `moveTripRun`, inside
+ * the transaction that performs it.
+ *
+ * Behind TRANSPORT_ATTENDANCE, which the module already describes as the
+ * driver's and the accompagnateur's code: starting the bus and marking who
+ * boarded are the same person's shift. Cancelling asks for TRANSPORT_MANAGE on
+ * top — striking a run off the day is a supervisory act, and it is the one that
+ * leaves a gap somebody will be asked about.
+ */
+export async function moveTripRunAction(
+  runId: string,
+  next: "EN_ROUTE" | "ARRIVED" | "CANCELLED",
+  cancelReason?: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_ATTENDANCE);
+    if (next === "CANCELLED") {
+      await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
+    }
+
+    const run = await reachableTripRun(schoolYearId, runId);
+    if (!run) return failure(t.errors.notFound);
+
+    // A run struck off with no reason is the gap nobody can explain in June.
+    const reason = (cancelReason ?? "").trim();
+    if (next === "CANCELLED" && reason.length < 3) {
+      return failure(t.transport.cancelRunReasonRequired);
+    }
+
+    const moved = await moveTripRun(run.id, next, context.user.id, {
+      cancelReason: next === "CANCELLED" ? reason : undefined,
+    });
+    // False means the run had already moved on — somebody else pressed first,
+    // which is a message rather than an error.
+    if (!moved) return failure(t.transport.runAlreadyMoved);
+
+    refresh();
+    return success(
+      next === "EN_ROUTE"
+        ? t.transport.runStarted
+        : next === "ARRIVED"
+          ? t.transport.runArrived
+          : t.transport.runCancelled,
     );
   });
 }

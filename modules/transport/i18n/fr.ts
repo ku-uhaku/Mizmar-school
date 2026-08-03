@@ -7,6 +7,32 @@
  */
 const fr = {
   transport: {
+    voyages: "Voyages",
+    voyagesHint: "Tous les voyages prévus aujourd'hui, et où en est chacun.",
+    runStart: "Démarrer",
+    runArrive: "Arrivé",
+    runCancel: "Annuler le voyage",
+    runStarted: "Voyage démarré.",
+    runArrived: "Voyage clôturé.",
+    runCancelled: "Voyage annulé.",
+    runAlreadyMoved: "Ce voyage a déjà changé d'état — rechargez le tableau.",
+    cancelRunReasonRequired: "Indiquez pourquoi le voyage n'a pas lieu.",
+    cancelRunTitle: "Annuler ce voyage ?",
+    cancelRunHint: "Il reste au tableau comme annulé, avec votre motif. Dites ce qui s'est passé : une panne, pas de chauffeur, une route coupée.",
+    myVoyages: "Mes voyages",
+    myVoyagesHint: "Les voyages du jour pour le bus que vous conduisez.",
+    noRunsToday: "Aucun voyage n'est prévu aujourd'hui.",
+    noRunsForDriver: "Aucun bus ne vous est affecté aujourd'hui.",
+    plannedAt: "Départ prévu {time}",
+    leftAt: "Parti {time}",
+    arrivedAt: "Rentré {time}",
+    lateBy: "{count} min de retard",
+    earlyBy: "{count} min d'avance",
+    onTime: "À l'heure",
+    runsEnRoute: "{count} en route",
+    runsEnRouteOne: "En route",
+    runsPending: "{count} à partir",
+    riderCount: "{count} abonnés",
     title: "Transport",
     subtitle: "Le parc, les lignes qu'il dessert et les élèves transportés.",
 
@@ -301,6 +327,8 @@ const fr = {
 };
 
 export const nav = {
+  transportVoyages: "Voyages",
+  transportMyVoyages: "Mes voyages",
   transportSchedules: "Horaires",
   transportConsumption: "Carburant",
   transportAttendance: "Appel du bus",

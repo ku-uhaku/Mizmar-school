@@ -47,6 +47,8 @@ model TransportSchedule {
   subscriptions TransportSubscription[]
   /// Registers taken on this run.
   attendance    TransportAttendance[]
+  /// The days this run actually went out — see trip-run.prisma.
+  tripRuns      TripRun[]
 
   @@unique([schoolYearId, code])
   @@index([schoolYearId])

@@ -1,12 +1,14 @@
 import "server-only";
 
-import type { AuthContext } from "@/lib/dal";
+import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import {
   COUNTED_FUEL_STATUSES,
   SEAT_HOLDING_STATUSES,
   busRegisterScopeKey,
   consumptionPer100km,
+  departureDelayMinutes,
   driverLabel,
   scheduleLabel,
   seatsOnRoute,
@@ -1110,4 +1112,125 @@ export async function loadBusRegister(
         reason: mark?.reason ?? null,
       };
     });
+}
+
+// ── Le voyage ────────────────────────────────────────────────────────────────
+
+export type TripRunRow = {
+  id: string;
+  routeId: string;
+  routeCode: string;
+  routeName: string;
+  scheduleName: string;
+  direction: string;
+  status: string;
+  /** As the horaire called for on the day — "07:00". */
+  plannedDepartureTime: string;
+  startedAt: string | null;
+  startedByName: string | null;
+  arrivedAt: string | null;
+  arrivedByName: string | null;
+  /** Minutes late leaving; negative is early, null before departure. */
+  delayMinutes: number | null;
+  vehicleRegistration: string | null;
+  driverName: string | null;
+  /** Riders holding a seat on this circuit — how many the bus is expected to carry. */
+  riderCount: number;
+  cancelReason: string | null;
+};
+
+const tripRunInclude = {
+  route: {
+    select: {
+      code: true,
+      name: true,
+      vehicle: { select: { registration: true, driverName: true, driver: { select: { firstName: true, lastName: true } } } },
+      _count: { select: { subscriptions: true } },
+    },
+  },
+  schedule: { select: { name: true, direction: true } },
+  vehicle: { select: { registration: true } },
+  startedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+  arrivedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+} as const;
+
+function toTripRunRow(
+  run: Prisma.TripRunGetPayload<{ include: typeof tripRunInclude }>,
+): TripRunRow {
+  return {
+    id: run.id,
+    routeId: run.routeId,
+    routeCode: run.route.code,
+    routeName: run.route.name,
+    scheduleName: run.schedule.name,
+    direction: run.schedule.direction,
+    status: run.status,
+    plannedDepartureTime: run.plannedDepartureTime,
+    startedAt: run.startedAt?.toISOString() ?? null,
+    startedByName: run.startedBy ? displayName(run.startedBy) : null,
+    arrivedAt: run.arrivedAt?.toISOString() ?? null,
+    arrivedByName: run.arrivedBy ? displayName(run.arrivedBy) : null,
+    delayMinutes: departureDelayMinutes(run.plannedDepartureTime, run.startedAt),
+    // The bus that went, falling back to the circuit's usual one for a run that
+    // has not started — the board should say which bus is *expected*.
+    vehicleRegistration:
+      run.vehicle?.registration ?? run.route.vehicle?.registration ?? null,
+    driverName: driverLabel(
+      run.route.vehicle?.driver
+        ? `${run.route.vehicle.driver.firstName} ${run.route.vehicle.driver.lastName}`.trim()
+        : null,
+      run.route.vehicle?.driverName ?? null,
+    ),
+    riderCount: run.route._count.subscriptions,
+    cancelReason: run.cancelReason,
+  };
+}
+
+/**
+ * The day's board: every voyage the school is meant to make, and where each is.
+ *
+ * Ordered by the time it was due out rather than by circuit, because the
+ * question this screen answers is "what is happening now" — a board sorted by
+ * line makes somebody read all of it to find the 07:00 that has not left.
+ */
+export async function listDayRuns(
+  context: AuthContext,
+  date: Date,
+): Promise<TripRunRow[]> {
+  const runs = await db.tripRun.findMany({
+    where: { date, route: { schoolYearId: yearId(context) } },
+    orderBy: [{ plannedDepartureTime: "asc" }, { route: { code: "asc" } }],
+    include: tripRunInclude,
+  });
+
+  return runs.map(toTripRunRow);
+}
+
+/**
+ * Today's voyages for the buses this account drives.
+ *
+ * Matched through `Vehicle.driver.userId` — the employment record is what links
+ * a login to a bus, and a driver who is not on the payroll (a contractor, whose
+ * name is free text on the vehicle) has no account to sign in with anyway.
+ *
+ * Returns an empty list rather than everything for an account that drives
+ * nothing: this screen must never become a way to read the whole fleet.
+ */
+export async function listMyRuns(
+  context: AuthContext,
+  date: Date,
+): Promise<TripRunRow[]> {
+  const runs = await db.tripRun.findMany({
+    where: {
+      date,
+      route: {
+        schoolYearId: yearId(context),
+        vehicle: { driver: { userId: context.user.id } },
+      },
+    },
+    orderBy: [{ plannedDepartureTime: "asc" }],
+    include: tripRunInclude,
+  });
+
+  return runs.map(toTripRunRow);
 }

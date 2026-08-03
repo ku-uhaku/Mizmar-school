@@ -91,6 +91,10 @@ model User {
   /// SetNull on the other side, unlike the Restrict above: cancellations must
   /// outlive the cashier who made them, and the note explains itself.
   paymentsCancelled Payment[]       @relation("PaymentCancelledBy")
+  /// Voyages this account started or closed. SetNull on the other side: a run
+  /// outlives the driver whose account was later removed.
+  tripRunsStarted   TripRun[]       @relation("TripRunStartedBy")
+  tripRunsArrived   TripRun[]       @relation("TripRunArrivedBy")
 
   // ── Logistique ────────────────────────────────────────────────────────────
   /// Fuel requests this account decided. SetNull on the other side: an approval

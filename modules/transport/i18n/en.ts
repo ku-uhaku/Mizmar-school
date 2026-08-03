@@ -7,6 +7,32 @@
  */
 const en = {
   transport: {
+    voyages: "Voyages",
+    voyagesHint: "Every run the school is due to make today, and where each has got to.",
+    runStart: "Start",
+    runArrive: "Arrived",
+    runCancel: "Call it off",
+    runStarted: "Voyage started.",
+    runArrived: "Voyage closed.",
+    runCancelled: "Voyage called off.",
+    runAlreadyMoved: "That voyage has already moved on — reload the board.",
+    cancelRunReasonRequired: "Say why the voyage is not running.",
+    cancelRunTitle: "Call off this voyage?",
+    cancelRunHint: "It stays on the board as called off, with your reason. Say what happened — a breakdown, no driver, a closed road.",
+    myVoyages: "My voyages",
+    myVoyagesHint: "Today's runs for the bus you drive.",
+    noRunsToday: "No voyage is scheduled for today.",
+    noRunsForDriver: "No bus is assigned to you today.",
+    plannedAt: "Due out {time}",
+    leftAt: "Left {time}",
+    arrivedAt: "Back {time}",
+    lateBy: "{count} min late",
+    earlyBy: "{count} min early",
+    onTime: "On time",
+    runsEnRoute: "{count} on the road",
+    runsEnRouteOne: "On the road",
+    runsPending: "{count} still to go",
+    riderCount: "{count} riders",
     title: "Transport",
     subtitle: "The fleet, the lines it runs, and who rides on them.",
 
@@ -294,6 +320,8 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
+  transportVoyages: "Voyages",
+  transportMyVoyages: "My voyages",
   transportSchedules: "Timetables",
   transportConsumption: "Fuel",
   transportAttendance: "Bus register",

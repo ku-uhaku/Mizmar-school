@@ -40,6 +40,8 @@ model TransportRoute {
   updatedAt DateTime @updatedAt
 
   stops         RouteStop[]
+  /// The mornings and evenings this circuit actually ran — see trip-run.prisma.
+  runs          TripRun[]
   subscriptions TransportSubscription[]
 
   /// The runs this line makes, and the quartiers it is advertised to serve.

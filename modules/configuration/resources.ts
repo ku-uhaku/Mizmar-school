@@ -992,6 +992,13 @@ export const RESOURCES: ResourceDef[] = [
     section: "classes",
     labelKey: "levelOfferings",
     scope: "YEAR",
+    /*
+      Unused: `loadChoices` intercepts this resource and builds the label from
+      the level's name and the filière's, which `labelFields` cannot reach
+      across a join. Left as `["id"]` — the fallback `labelOf` would produce
+      anyway — rather than a plausible-looking column name that would quietly
+      become the label if the loader were ever removed.
+    */
     labelFields: ["id"],
     fields: [
       {
