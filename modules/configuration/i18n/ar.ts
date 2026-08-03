@@ -34,6 +34,11 @@ const ar = {
       logistique: "النقل",
     },
 
+    scopeGroups: {
+      general: "الإعدادات العامة",
+      year: "السنة الدراسية",
+    },
+
     groups: {
       grading: "التنقيط",
       calendar: "الأسبوع الدراسي",

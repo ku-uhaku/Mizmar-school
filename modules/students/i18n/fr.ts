@@ -139,6 +139,28 @@ const fr = {
       FEES: "Échéancier généré",
       PAYMENT: "À jour",
     },
+    enrolWizard: {
+      title: "Nouvelle inscription",
+      subtitle:
+        "Famille, tuteur, élève et sa place pour l'année — un seul formulaire, un seul enregistrement. Tout ce qui est laissé de côté ici se complète ensuite depuis le dossier de l'élève.",
+      stepOf: "Étape {step} sur {total}",
+      previous: "Précédent",
+      next: "Suivant",
+      submit: "Inscrire l'élève",
+      stepFamily: "Famille",
+      stepGuardian: "Tuteur",
+      stepStudent: "Élève",
+      stepEnrolment: "Inscription",
+      familyExisting: "Famille existante",
+      familyNew: "Nouvelle famille",
+      familyExistingLabel: "Dossier familial",
+      familyExistingHint: "Recherchez par nom, numéro de dossier ou téléphone.",
+      guardianHint:
+        "Facultatif — peut être ajouté plus tard depuis le dossier familial.",
+      guardianRelationship: "Lien de parenté",
+      enrolmentHint:
+        "Attribue une place à l'élève pour {year} et génère l'échéancier de l'année.",
+    },
   },
   studentOptions: {
     genders: {

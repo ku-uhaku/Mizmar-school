@@ -37,6 +37,12 @@ const en = {
       logistique: "Transport",
     },
 
+    /** The two tabs `sections` are clustered under — see `SCOPE_GROUPS`. */
+    scopeGroups: {
+      general: "General configuration",
+      year: "School year",
+    },
+
     groups: {
       grading: "Marking",
       calendar: "Teaching week",

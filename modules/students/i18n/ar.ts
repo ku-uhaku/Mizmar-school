@@ -129,6 +129,26 @@ const ar = {
       FEES: "جدولة الرسوم",
       PAYMENT: "في وضعية سليمة",
     },
+    enrolWizard: {
+      title: "تسجيل جديد",
+      subtitle:
+        "الأسرة، الولي، التلميذ ومكانه لهذه السنة — استمارة واحدة، حفظ واحد. كل ما يُترك هنا يُستكمل لاحقًا من ملف التلميذ.",
+      stepOf: "الخطوة {step} من {total}",
+      previous: "السابق",
+      next: "التالي",
+      submit: "تسجيل التلميذ",
+      stepFamily: "الأسرة",
+      stepGuardian: "الولي",
+      stepStudent: "التلميذ",
+      stepEnrolment: "التسجيل",
+      familyExisting: "أسرة موجودة",
+      familyNew: "أسرة جديدة",
+      familyExistingLabel: "الملف العائلي",
+      familyExistingHint: "ابحث بالاسم أو رقم الملف أو الهاتف.",
+      guardianHint: "اختياري — يمكن إضافته لاحقًا من الملف العائلي.",
+      guardianRelationship: "صلة القرابة",
+      enrolmentHint: "يمنح التلميذ مكانًا في {year} وينشئ جدول رسوم السنة.",
+    },
   },
   studentOptions: {
     genders: {

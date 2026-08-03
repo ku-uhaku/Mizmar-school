@@ -36,6 +36,7 @@ const en = {
     status: "Status",
     isDefault: "Default year",
     makeDefault: "Set as default",
+    configure: "Configure",
     defaultBadge: "Default",
     created: "School year created.",
     updated: "School year updated.",

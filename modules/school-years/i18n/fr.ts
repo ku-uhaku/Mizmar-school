@@ -37,6 +37,7 @@ const fr = {
     status: "Statut",
     isDefault: "Année par défaut",
     makeDefault: "Définir par défaut",
+    configure: "Configurer",
     defaultBadge: "Par défaut",
     created: "Année scolaire créée.",
     updated: "Année scolaire mise à jour.",

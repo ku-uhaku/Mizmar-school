@@ -10,8 +10,8 @@ import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
+  GroupTabs,
   ResourceTabs,
-  SectionTabs,
 } from "@/modules/configuration/components/configuration-nav";
 import { ResourceManager } from "@/modules/configuration/components/resource-manager";
 import { SettingsForm } from "@/modules/configuration/components/settings-form";
@@ -98,7 +98,7 @@ export default async function ConfigurationResourcePage(
       />
 
       <div className="space-y-4">
-        <SectionTabs activeSection={sectionId} />
+        <GroupTabs activeSection={sectionId} />
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
           <ResourceTabs sectionId={sectionId} activeResource={resource.id} />

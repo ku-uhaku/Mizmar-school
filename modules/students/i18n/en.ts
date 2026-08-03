@@ -134,6 +134,27 @@ const en = {
       FEES: "Fees scheduled",
       PAYMENT: "Up to date",
     },
+    enrolWizard: {
+      title: "New enrolment",
+      subtitle:
+        "Family, guardian, pupil and their place for the year — one form, one save. Anything left out here is completed later from the pupil's file.",
+      stepOf: "Step {step} of {total}",
+      previous: "Previous",
+      next: "Next",
+      submit: "Register the pupil",
+      stepFamily: "Family",
+      stepGuardian: "Guardian",
+      stepStudent: "Pupil",
+      stepEnrolment: "Enrolment",
+      familyExisting: "Existing family",
+      familyNew: "New family",
+      familyExistingLabel: "Family file",
+      familyExistingHint: "Search by name, file number or phone.",
+      guardianHint: "Optional — can be added later from the family file.",
+      guardianRelationship: "Relationship",
+      enrolmentHint:
+        "Seats the pupil for {year} and writes the whole year's fee schedule.",
+    },
   },
   studentOptions: {
     genders: {

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   CalendarRangeIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
+  SettingsIcon,
   StarIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import {
   deleteSchoolYearAction,
   setDefaultSchoolYearAction,
 } from "@/modules/school-years/actions";
+import { switchSchoolYearAction } from "@/modules/context/actions";
 import { DataTable } from "@/components/data-table/data-table";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
@@ -51,6 +54,7 @@ export function SchoolYearsManager({
   currentYearId: string | null;
 }) {
   const { t, locale } = useI18n();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<SchoolYearRow | undefined>();
   const [deleting, setDeleting] = React.useState<SchoolYearRow | null>(null);
@@ -69,6 +73,21 @@ export function SchoolYearsManager({
       } else {
         toast.error(result.message ?? t.errors.unexpected);
       }
+    });
+  }
+
+  // The year-scoped configuration screens read the working context, so jump
+  // there by first switching to the year the row is for.
+  function configure(year: SchoolYearRow) {
+    startTransition(async () => {
+      if (year.id !== currentYearId) {
+        const result = await switchSchoolYearAction(year.id);
+        if (result.status === "error") {
+          toast.error(result.message ?? t.errors.unexpected);
+          return;
+        }
+      }
+      router.push("/configuration/year/time-slots");
     });
   }
 
@@ -156,6 +175,10 @@ export function SchoolYearsManager({
                           {t.schoolYear.makeDefault}
                         </DropdownMenuItem>
                       ) : null}
+                      <DropdownMenuItem onSelect={() => configure(year)}>
+                        <SettingsIcon />
+                        {t.schoolYear.configure}
+                      </DropdownMenuItem>
                     </>
                   ) : null}
 

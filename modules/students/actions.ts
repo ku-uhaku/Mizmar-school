@@ -11,9 +11,14 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
+import { allocateFamilyCode } from "@/modules/families/service";
+import { familySchema, guardianSchema } from "@/modules/families/validation";
+import { enrolmentSchema } from "@/modules/enrolment/validation";
+import { assignClass, generateFeeSchedule } from "@/modules/enrolment/service";
 import {
   allocateStudentCode,
   attachToFamily,
+  refreshStudentStatus,
 } from "@/modules/students/service";
 import { studentSchema } from "@/modules/students/validation";
 
@@ -216,6 +221,294 @@ export async function createStudentAction(
     // Straight to the new file rather than back to the list: the parcours
     // continues there — attach a family, enrol, seat, bill — and the id is only
     // known here. `redirect` throws, and `withActionErrors` lets it through.
+    redirect(`/students/${student.id}`);
+  });
+}
+
+/**
+ * Namespaces one schema's field errors onto the wizard's own field names —
+ * `name` becomes `familyName`, `lastName` becomes `guardianLastName` — so
+ * `family`, `guardian` and `student` can share a single
+ * `ActionState.fieldErrors` without colliding, using the exact key each
+ * `<FormField name>` in the wizard is rendered with.
+ */
+function prefixErrors(
+  errors: Record<string, string>,
+  prefix: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(errors).map(([key, message]) => [
+      `${prefix}${key[0].toUpperCase()}${key.slice(1)}`,
+      message,
+    ]),
+  );
+}
+
+/**
+ * Registers a pupil in one sitting: the dossier familial (new or existing),
+ * its first guardian, the pupil's identity, and the year's place — one submit
+ * from the wizard at `/students/new` instead of four separate screens.
+ *
+ * Deliberately thin on fields: only what decides *whether* a place exists
+ * (identity, level, class) is asked here. Santé, scolarité antérieure and the
+ * rest of the dossier are exactly as optional as they are on the full fiche —
+ * see student-form.tsx — and are filled in later from the pupil's own file,
+ * which this redirects to.
+ *
+ * Each step reuses its owning module's own schema and service functions
+ * (`familySchema`, `guardianSchema`, `assignClass`, `generateFeeSchedule`…)
+ * rather than re-deriving their rules, exactly as `copyYearConfiguration`
+ * orchestrates across modules for a new school year.
+ */
+export async function enrolNewStudentAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const schoolId = context.currentSchool?.id;
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    const familyMode =
+      field(formData, "familyMode") === "existing" ? "existing" : "new";
+
+    if (!context.canInSchool(schoolId, PERMISSIONS.STUDENT_CREATE)) {
+      return failure(t.errors.forbidden);
+    }
+    if (
+      familyMode === "new" &&
+      !context.canInSchool(schoolId, PERMISSIONS.FAMILY_CREATE)
+    ) {
+      return failure(t.errors.forbidden);
+    }
+    if (!context.canInSchool(schoolId, PERMISSIONS.ENROLMENT_CREATE)) {
+      return failure(t.errors.forbidden);
+    }
+
+    // ── Famille ──────────────────────────────────────────────────────────────
+    let familyId: string;
+
+    if (familyMode === "existing") {
+      const requestedId = optionalId(formData, "familyId");
+      if (!requestedId) {
+        return failure(
+          t.errors.invalid,
+          { familyId: t.validation.required },
+          formValues(formData),
+        );
+      }
+      const family = await db.family.findFirst({
+        where: { id: requestedId, schoolId },
+        select: { id: true },
+      });
+      if (!family) {
+        return failure(
+          t.errors.invalid,
+          { familyId: t.errors.notFound },
+          formValues(formData),
+        );
+      }
+      familyId = family.id;
+    } else {
+      const familyParsed = familySchema(t).safeParse({
+        code: "",
+        name: field(formData, "familyName"),
+        nameAr: "",
+        // Fixed to the same default the full family form offers — a guess no
+        // worse than asking a secretary mid-registration, and just as editable
+        // afterwards from the dossier.
+        situation: "MARRIED",
+        addressLine: field(formData, "familyAddressLine"),
+        city: field(formData, "familyCity"),
+        postalCode: "",
+        country: "",
+        phone: field(formData, "familyPhone"),
+        email: "",
+        notes: "",
+        isActive: true,
+      });
+      if (!familyParsed.success) {
+        return failure(
+          t.errors.invalid,
+          prefixErrors(fieldErrors(familyParsed.error), "family"),
+          formValues(formData),
+        );
+      }
+
+      const familyCode = await allocateFamilyCode(schoolId);
+      const familyDuplicate = await db.family.findUnique({
+        where: { schoolId_code: { schoolId, code: familyCode } },
+        select: { id: true },
+      });
+      if (familyDuplicate) return failure(t.family.codeTaken);
+
+      const family = await db.family.create({
+        data: { ...familyParsed.data, code: familyCode, schoolId },
+        select: { id: true },
+      });
+      familyId = family.id;
+
+      // ── Tuteur ─────────────────────────────────────────────────────────────
+      // Optional even for a new dossier: the file can be opened from a phone
+      // call before anyone has taken the parent's details down.
+      const guardianFirstName = field(formData, "guardianFirstName");
+      const guardianLastName = field(formData, "guardianLastName");
+      if (guardianFirstName || guardianLastName) {
+        const guardianParsed = guardianSchema(t).safeParse({
+          relationship: field(formData, "guardianRelationship") || "FATHER",
+          firstName: guardianFirstName,
+          lastName: guardianLastName,
+          nameAr: "",
+          nationalId: "",
+          phone: field(formData, "guardianPhone"),
+          phoneAlt: "",
+          email: "",
+          profession: "",
+          employer: "",
+          addressLine: "",
+          city: "",
+          isPrimaryContact: true,
+          isEmergencyContact: true,
+          canPickUp: true,
+          notes: "",
+          isActive: true,
+        });
+        if (!guardianParsed.success) {
+          return failure(
+            t.errors.invalid,
+            prefixErrors(fieldErrors(guardianParsed.error), "guardian"),
+            formValues(formData),
+          );
+        }
+        await db.guardian.create({
+          data: { ...guardianParsed.data, familyId },
+        });
+      }
+    }
+
+    // ── Élève ────────────────────────────────────────────────────────────────
+    const studentParsed = studentSchema(t).safeParse({
+      code: "",
+      massarCode: "",
+      firstName: field(formData, "studentFirstName"),
+      lastName: field(formData, "studentLastName"),
+      firstNameAr: "",
+      lastNameAr: "",
+      gender: field(formData, "studentGender") || "MALE",
+      birthDate: field(formData, "studentBirthDate"),
+      birthCityId: optionalId(formData, "studentBirthCityId"),
+      neighbourhoodId: optionalId(formData, "studentNeighbourhoodId"),
+      nationality: "",
+      nationalId: "",
+      photoUrl: "",
+      familyId,
+      entryDate: "",
+      bloodType: "",
+      allergies: "",
+      chronicCondition: "",
+      medications: "",
+      doctorName: "",
+      doctorPhone: "",
+      insurer: "",
+      hasDisability: false,
+      medicalNotes: "",
+      previousSchool: "",
+      previousSchoolCityId: "",
+      previousLevel: "",
+      schoolingType: "",
+      transferReason: "",
+      brotherCount: "",
+      sisterCount: "",
+      birthRank: "",
+      livesWith: "",
+      isOrphan: false,
+      notes: "",
+      isActive: true,
+    });
+    if (!studentParsed.success) {
+      return failure(
+        t.errors.invalid,
+        prefixErrors(fieldErrors(studentParsed.error), "student"),
+        formValues(formData),
+      );
+    }
+
+    const studentCode = await allocateStudentCode(schoolId);
+    const studentDuplicate = await db.student.findUnique({
+      where: { schoolId_code: { schoolId, code: studentCode } },
+      select: { id: true },
+    });
+    if (studentDuplicate) return failure(t.student.codeTaken);
+
+    const columns = await toColumns(studentParsed.data, schoolId);
+    const student = await db.student.create({
+      data: { ...columns, code: studentCode, schoolId },
+      select: { id: true },
+    });
+
+    // ── Inscription ──────────────────────────────────────────────────────────
+    const enrolmentParsed = enrolmentSchema(t).safeParse({
+      studentId: student.id,
+      levelOfferingId: field(formData, "levelOfferingId"),
+      schoolClassId: optionalId(formData, "schoolClassId"),
+      classGroupId: optionalId(formData, "classGroupId"),
+      status: "ACTIVE",
+      enrolledOn: "",
+      isRepeating: false,
+      usesTransport: false,
+      usesCanteen: false,
+      transportStartsOn: "",
+      canteenStartsOn: "",
+      notes: "",
+    });
+    if (!enrolmentParsed.success) {
+      return failure(
+        t.errors.invalid,
+        prefixErrors(fieldErrors(enrolmentParsed.error), "enrolment"),
+        formValues(formData),
+      );
+    }
+
+    const offering = await db.levelOffering.findFirst({
+      where: { id: enrolmentParsed.data.levelOfferingId, schoolYearId },
+      select: { id: true },
+    });
+    if (!offering) {
+      return failure(t.enrolment.offeringUnavailable, {
+        levelOfferingId: t.enrolment.offeringUnavailable,
+      });
+    }
+
+    const enrolment = await db.enrollment.create({
+      data: {
+        studentId: student.id,
+        schoolYearId,
+        levelOfferingId: offering.id,
+        status: enrolmentParsed.data.status,
+        enrolledOn: new Date(),
+        isRepeating: false,
+        usesTransport: false,
+        usesCanteen: false,
+      },
+      select: { id: true },
+    });
+
+    if (enrolmentParsed.data.schoolClassId) {
+      await assignClass(
+        enrolment.id,
+        enrolmentParsed.data.schoolClassId,
+        enrolmentParsed.data.classGroupId || null,
+      );
+    }
+
+    await generateFeeSchedule(enrolment.id);
+    await refreshStudentStatus(student.id);
+
+    refresh();
     redirect(`/students/${student.id}`);
   });
 }

@@ -146,7 +146,7 @@ export function TimetableCellDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {entry ? t.timetable.editLesson : t.timetable.addLesson}

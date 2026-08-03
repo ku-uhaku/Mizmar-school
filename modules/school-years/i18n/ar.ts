@@ -36,6 +36,7 @@ const ar = {
     status: "الحالة",
     isDefault: "السنة الافتراضية",
     makeDefault: "تعيين كافتراضية",
+    configure: "تهيئة",
     defaultBadge: "افتراضية",
     created: "تم إنشاء السنة الدراسية.",
     updated: "تم تحديث السنة الدراسية.",

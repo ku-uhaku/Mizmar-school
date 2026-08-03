@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SchoolForm } from "@/modules/schools/components/school-form";
+import { SchoolSetupCta } from "@/modules/schools/components/setup-cta";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
@@ -37,6 +38,12 @@ export default async function EditSchoolPage(
         backHref="/schools"
         backLabel={t.nav.schools}
       />
+      <div className="mb-6">
+        <SchoolSetupCta
+          schoolId={school.id}
+          isCurrent={context.currentSchool?.id === school.id}
+        />
+      </div>
       <SchoolForm school={school} />
     </>
   );

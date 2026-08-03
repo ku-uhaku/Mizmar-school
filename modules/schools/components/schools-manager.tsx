@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   CheckCircle2Icon,
@@ -9,6 +10,7 @@ import {
   PencilIcon,
   PlusIcon,
   SchoolIcon,
+  SettingsIcon,
   TargetIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -72,6 +74,7 @@ export function SchoolsManager({
   currentSchoolId: string | null;
 }) {
   const { t } = useI18n();
+  const router = useRouter();
   const [deleting, setDeleting] = React.useState<SchoolRow | null>(null);
   const [, startTransition] = React.useTransition();
 
@@ -88,6 +91,21 @@ export function SchoolsManager({
       } else {
         toast.error(result.message ?? t.errors.unexpected);
       }
+    });
+  }
+
+  // Configuration reads the working context, not a URL param, so getting there
+  // from another school's row means switching context first.
+  function configure(school: SchoolRow, isCurrent: boolean) {
+    startTransition(async () => {
+      if (!isCurrent) {
+        const result = await switchSchoolAction(school.id);
+        if (result.status === "error") {
+          toast.error(result.message ?? t.errors.unexpected);
+          return;
+        }
+      }
+      router.push("/configuration");
     });
   }
 
@@ -228,6 +246,15 @@ export function SchoolsManager({
                         <PencilIcon />
                         {t.common.edit}
                       </Link>
+                    </DropdownMenuItem>
+                  ) : null}
+
+                  {canEdit ? (
+                    <DropdownMenuItem
+                      onSelect={() => configure(school, isCurrent)}
+                    >
+                      <SettingsIcon />
+                      {t.school.configure}
                     </DropdownMenuItem>
                   ) : null}
 

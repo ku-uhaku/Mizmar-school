@@ -117,6 +117,19 @@ export type SectionDef = {
   labelKey: string;
 };
 
+/**
+ * The two top-level tabs the section tabs are clustered under — "what changes
+ * rarely" versus "what is redrawn every year". A section sits under whichever
+ * one its resources are mostly about; a section with one outlier (an absence
+ * log inside "École année", say) is not worth splitting over.
+ */
+export type ScopeGroupDef = {
+  id: string;
+  /** Key under `configuration.scopeGroups`. */
+  labelKey: string;
+  sectionIds: string[];
+};
+
 /** One row as the client sees it: primitives only, ready to serialise. */
 export type ResourceRow = {
   id: string;

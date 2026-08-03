@@ -41,6 +41,12 @@ const en = {
     massarTaken: "Another school is already mapped to that MASSAR code.",
     noSchools: "No schools yet. Create the first one.",
     searchPlaceholder: "Search by name, code or city…",
+    configure: "Configure",
+    setupTitle: "Set up this school",
+    setupBody:
+      "Calendar, time slots, academic structure, cities — everything a new school needs before enrolling pupils.",
+    setupGeneralAction: "General configuration",
+    setupYearsAction: "School years",
     levels: {
       PRESCHOOL: "Preschool",
       PRIMARY: "Primary",

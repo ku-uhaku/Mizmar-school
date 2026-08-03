@@ -34,6 +34,11 @@ const fr = {
       logistique: "Transport",
     },
 
+    scopeGroups: {
+      general: "Configuration générale",
+      year: "Année scolaire",
+    },
+
     groups: {
       grading: "Notation",
       calendar: "Semaine scolaire",

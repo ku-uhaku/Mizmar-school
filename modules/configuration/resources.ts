@@ -23,7 +23,11 @@ import {
   SCHEDULE_KINDS,
   TEACHING_DAYS,
 } from "@/modules/timetable/enums";
-import type { ResourceDef, SectionDef } from "@/modules/configuration/types";
+import type {
+  ResourceDef,
+  ScopeGroupDef,
+  SectionDef,
+} from "@/modules/configuration/types";
 
 /**
  * Every configurable table, described once.
@@ -52,6 +56,34 @@ export const SECTIONS: SectionDef[] = [
   // Last, and only the horaires: the quartiers stay under Établissement, where
   // an address belongs — see the note on the neighbourhoods resource below.
   { id: "logistique", labelKey: "logistique" },
+];
+
+/**
+ * The two tabs above `SECTIONS`. "École année" is the sections whose tables
+ * are redrawn every September — the calendar and the classes; everything
+ * else — the establishment, the academic structure, the price lists, the
+ * caisse, the logistics catalogues — sits under "Configuration générale"
+ * because it is set up once and rarely touched again, even where one table
+ * inside it (a fee rate, say) happens to be year-scoped underneath.
+ */
+export const SCOPE_GROUPS: ScopeGroupDef[] = [
+  {
+    id: "general",
+    labelKey: "general",
+    sectionIds: [
+      "school",
+      "academics",
+      "facilities",
+      "billing",
+      "treasury",
+      "logistique",
+    ],
+  },
+  {
+    id: "year",
+    labelKey: "year",
+    sectionIds: ["year", "classes"],
+  },
 ];
 
 /** Shared trailing fields — every resource that has them wants them last. */
@@ -1651,4 +1683,20 @@ export function resourcesInSection(sectionId: string): ResourceDef[] {
 
 export function findSection(id: string): SectionDef | undefined {
   return SECTIONS.find((section) => section.id === id);
+}
+
+/** The scope group a section is clustered under — see `SCOPE_GROUPS`. */
+export function groupOfSection(sectionId: string): ScopeGroupDef {
+  return (
+    SCOPE_GROUPS.find((group) => group.sectionIds.includes(sectionId)) ??
+    SCOPE_GROUPS[0]
+  );
+}
+
+export function sectionsInGroup(groupId: string): SectionDef[] {
+  const group = SCOPE_GROUPS.find((candidate) => candidate.id === groupId);
+  if (!group) return [];
+  return group.sectionIds
+    .map((sectionId) => findSection(sectionId))
+    .filter((section): section is SectionDef => Boolean(section));
 }

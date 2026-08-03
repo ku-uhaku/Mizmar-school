@@ -41,6 +41,12 @@ const fr = {
     massarTaken: "Une autre \u00e9cole est d\u00e9j\u00e0 rattach\u00e9e \u00e0 ce code MASSAR.",
     noSchools: "Aucune école pour le moment. Créez la première.",
     searchPlaceholder: "Rechercher par nom, code ou ville…",
+    configure: "Configurer",
+    setupTitle: "Configurer cette école",
+    setupBody:
+      "Calendrier, créneaux horaires, structure pédagogique, villes — tout ce dont une nouvelle école a besoin avant d'inscrire des élèves.",
+    setupGeneralAction: "Configuration générale",
+    setupYearsAction: "Années scolaires",
     levels: {
       PRESCHOOL: "Maternelle",
       PRIMARY: "Primaire",
