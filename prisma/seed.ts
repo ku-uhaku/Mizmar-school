@@ -18,6 +18,10 @@ import {
 import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
+import {
+  seedPortalAccounts,
+  type SeededPortalAccounts,
+} from "@/modules/portal/seed";
 import { seedSupplyArticles } from "@/modules/supplies/seed";
 import { seedDocumentTypes } from "@/modules/documents/seed";
 import { seedFamilies } from "@/modules/families/seed";
@@ -311,6 +315,9 @@ async function main() {
   await seedPermissions(db);
   const organization = await seedOrganization(db);
   const roles = await seedRoles(db, organization.id);
+
+  /** Mobile logins opened per school, reported at the end. */
+  const portalLogins: SeededPortalAccounts[] = [];
   const schools = await seedSchools(db, organization.id);
 
   // Years first: users land in a working context, and everything year-scoped
@@ -527,6 +534,28 @@ async function main() {
       teachers,
       fullServiceMinutes: FULL_SERVICE_MINUTES,
     });
+
+    // The native app's logins, last: a chauffeur needs the bus they drive to
+    // exist, and a parent needs a dossier with an enrolled child on it.
+    const defaultYear =
+      yearsBySchool[school.id].find((year) => year.status === "ACTIVE") ??
+      yearsBySchool[school.id][0];
+
+    if (defaultYear) {
+      const portal = await seedPortalAccounts(db, {
+        organizationId: organization.id,
+        schoolId: school.id,
+        schoolYearId: defaultYear.id,
+        roles,
+        password: ADMIN_PASSWORD,
+      });
+
+      console.log(
+        `  portail ✓ (${portal.driverEmail ? "1 chauffeur" : "aucun chauffeur"}, ` +
+          `${portal.parentEmails.length} familles)`,
+      );
+      portalLogins.push(portal);
+    }
   }
 
   console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);
@@ -534,6 +563,16 @@ async function main() {
     "Every other account shares the same password. Teachers use\n" +
       "firstname.lastname@almanar.ma — for example karim.bennis@almanar.ma.\n",
   );
+
+  const driverLogin = portalLogins.find((entry) => entry.driverEmail);
+  const parentLogin = portalLogins.flatMap((entry) => entry.parentEmails)[0];
+  if (driverLogin || parentLogin) {
+    console.log(
+      "Application mobile:\n" +
+        (driverLogin ? `  chauffeur — ${driverLogin.driverEmail}\n` : "") +
+        (parentLogin ? `  famille   — ${parentLogin}\n` : ""),
+    );
+  }
 }
 
 main()

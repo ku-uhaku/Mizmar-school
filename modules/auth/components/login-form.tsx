@@ -1,18 +1,20 @@
 "use client";
 
-import { useActionState } from "react";
-import { AlertCircleIcon } from "lucide-react";
+import { useActionState, useState } from "react";
+import { AlertCircleIcon, EyeIcon, EyeOffIcon } from "lucide-react";
 
 import { loginAction } from "@/modules/auth/actions";
 import { useT } from "@/components/providers/i18n-provider";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IDLE } from "@/lib/action-state";
 
 export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const t = useT();
   const [state, formAction] = useActionState(loginAction, IDLE);
+  const [revealed, setRevealed] = useState(false);
 
   return (
     <form action={formAction} className="grid gap-5">
@@ -53,13 +55,31 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         error={state.fieldErrors?.password}
         required
       >
-        <Input
-          {...controlProps("password", state.fieldErrors?.password)}
-          type="password"
-          autoComplete="current-password"
-          dir="ltr"
-          required
-        />
+        <div className="relative">
+          <Input
+            {...controlProps("password", state.fieldErrors?.password)}
+            type={revealed ? "text" : "password"}
+            autoComplete="current-password"
+            className="pe-10"
+            dir="ltr"
+            required
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground absolute end-1 top-1 size-8"
+            aria-label={revealed ? t.auth.hidePassword : t.auth.showPassword}
+            aria-pressed={revealed}
+            onClick={() => setRevealed((value) => !value)}
+          >
+            {revealed ? (
+              <EyeOffIcon className="size-4" />
+            ) : (
+              <EyeIcon className="size-4" />
+            )}
+          </Button>
+        </div>
       </FormField>
 
       <SubmitButton className="w-full" pendingLabel={t.auth.signingIn}>

@@ -1,10 +1,12 @@
 import "server-only";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { bearerToken, verifyMobileToken } from "@/lib/mobile-token";
 import { ALL_PERMISSION_CODES, type PermissionCode } from "@/lib/permissions";
 import {
   DEFAULT_SETTINGS,
@@ -25,10 +27,27 @@ import {
  * protects nothing.
  */
 
+/**
+ * The signed-in user's id, from the session cookie or — for the native app —
+ * from a Bearer token. Deliberately the *only* place the two differ: past this
+ * point every permission decision below is made the same way for both, so a
+ * mobile client can never reach anything the web session could not.
+ */
+async function currentUserId(): Promise<string | null> {
+  const session = await auth();
+  if (session?.user?.id) return session.user.id;
+
+  const token = bearerToken((await headers()).get("authorization"));
+  if (!token) return null;
+
+  // Only an access token authenticates a request; a refresh token is accepted
+  // by /api/mobile/v1/auth/refresh alone.
+  return verifyMobileToken(token, "access");
+}
+
 /** Loads the signed-in user with everything needed to resolve permissions. */
 const loadUser = cache(async () => {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await currentUserId();
   if (!userId) return null;
 
   const user = await db.user.findUnique({

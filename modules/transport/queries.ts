@@ -1234,3 +1234,34 @@ export async function listMyRuns(
 
   return runs.map(toTripRunRow);
 }
+
+/**
+ * A run and the sheet that goes with it, keyed by the run itself.
+ *
+ * The office screens hold the route, the horaire and the day separately and can
+ * pass all three; a driver's phone has a run id and nothing else. Rather than
+ * let a route handler take the run apart to find them — which would put a
+ * `where` clause in `app/` and re-derive the year scoping a third time — the
+ * lookup lives here, beside the register it feeds.
+ *
+ * Returns null when the run is not this year's, so a stale id from a phone that
+ * has been in a drawer since June reaches nothing.
+ */
+export async function loadRunRegister(
+  context: AuthContext,
+  runId: string,
+): Promise<{ run: TripRunRow; entries: BusRegisterEntry[] } | null> {
+  const run = await db.tripRun.findFirst({
+    where: { id: runId, route: { schoolYearId: yearId(context) } },
+    include: tripRunInclude,
+  });
+  if (!run) return null;
+
+  const entries = await loadBusRegister(context, {
+    routeId: run.routeId,
+    scheduleId: run.scheduleId,
+    date: run.date,
+  });
+
+  return { run: toTripRunRow(run), entries: entries ?? [] };
+}

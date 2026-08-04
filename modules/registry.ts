@@ -30,6 +30,7 @@ import { familiesModule } from "@/modules/families/module";
 import { FAMILY_PERMISSIONS } from "@/modules/families/permissions";
 import { organizationModule } from "@/modules/organization/module";
 import { ORGANIZATION_PERMISSIONS } from "@/modules/organization/permissions";
+import { portalModule } from "@/modules/portal/module";
 import { profileModule } from "@/modules/profile/module";
 import { schoolLifeModule } from "@/modules/school-life/module";
 import { SCHOOL_LIFE_PERMISSIONS } from "@/modules/school-life/permissions";
@@ -136,6 +137,7 @@ export const MODULES: readonly AppModule[] = [
   // No nav, no tables — registered so the registry is a complete inventory.
   authModule,
   contextModule,
+  portalModule,
 ];
 
 /**

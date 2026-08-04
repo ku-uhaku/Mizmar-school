@@ -59,6 +59,7 @@ has no write invariants, so it has no `service.ts`.
 | `appearance` | — (writes own `Profile` row) | `/appearance` |
 | `auth` | — (reads `User`) | `/login` |
 | `context` | — (writes own `User` row) | — (header) |
+| `portal` | — (the native app's read model) | — (`/api/mobile/v1`) |
 | **Vie scolaire** | | |
 | `school-life` | — (composes the others' counts) | `/school-life`, and the header search |
 | `families` | `Family`, `Guardian` | `/families`, `/families/[familyId]`, `/families/new` |
@@ -240,6 +241,28 @@ revoking access takes effect immediately instead of when a token expires.
 - Prefer `notFound()` over a forbidden state when revealing existence is itself a
   leak (see `findUser`).
 - `proxy.ts` is an optimistic cookie check only. It is never a real gate.
+
+# The native app
+
+`mobile/` is an Expo app — a separate project with its own `package.json`,
+excluded from the root `tsconfig` and from ESLint. It is **not** a second copy of
+the web app: four small read-mostly spaces (famille, enseignant, chauffeur,
+direction), decided by `modules/portal/identity.ts`.
+
+- It talks to `app/api/mobile/v1/**`, whose route handlers are as thin as the
+  pages: authorize, call a module's `queries.ts`, return the DTO. No `where`
+  clause in `app/api/`, for the same reason there is none in `app/`.
+- **Bearer tokens, one authorization path.** `lib/mobile-token.ts` signs an
+  access and a refresh token with `AUTH_SECRET`; `lib/dal.ts` accepts either the
+  session cookie or a Bearer access token and everything past that point is
+  identical. A mobile client can never reach what the web session could not, and
+  a deactivated account still loses access on its next request.
+- **A parent is not staff.** Guardians hold no membership and no permission, so
+  `modules/portal/queries.ts` scopes on the household instead — every read goes
+  through `householdScope`, and an id from a phone is only ever combined with it.
+  This is the one place a query takes a user id rather than an `AuthContext`.
+- DTO types are hand-mirrored in `mobile/src/api/types.ts`. Importing a module's
+  `queries.ts` would drag `server-only` and Prisma into a phone bundle.
 
 # i18n
 

@@ -280,4 +280,24 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.DOCUMENT_VIEW,
     ],
   },
+  {
+    name: "Chauffeur",
+    description: "Ses circuits du jour et l'appel au marchepied.",
+    scope: "SCHOOL",
+    permissions: [
+      // A membership at all, because the school year a run belongs to is
+      // resolved from the working context — a driver with no membership would
+      // see an empty day rather than their circuit.
+      PERMISSIONS.SCHOOL_VIEW,
+      PERMISSIONS.SCHOOL_YEAR_VIEW,
+      // Their own runs and the children holding a seat on them. Not
+      // TRANSPORT_MANAGE and not TRANSPORT_SUBSCRIBE: a chauffeur drives the
+      // line, they do not draw it or put a child on it.
+      PERMISSIONS.TRANSPORT_VIEW,
+      PERMISSIONS.TRANSPORT_ATTENDANCE,
+      // Posts what the bus drank, from the station. The bursar still approves —
+      // TRANSPORT_FUEL_APPROVE is deliberately not here.
+      PERMISSIONS.TRANSPORT_FUEL,
+    ],
+  },
 ];

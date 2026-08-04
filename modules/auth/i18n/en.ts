@@ -19,6 +19,13 @@ const en = {
     tooManyAttempts:
       "Too many failed sign-in attempts. Try again in {minutes} minutes.",
     brandTagline: "Multi-school administration, one organisation.",
+    panelHeadline: "Everything your schools run on, in one place.",
+    highlightSchools: "Every school, level and class of the group.",
+    highlightPeople: "Pupils, families and staff on a single record.",
+    highlightSecure: "Access granted role by role, school by school.",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    poweredBy: "Published by",
   },
 } as const;
 

@@ -19,6 +19,13 @@ const ar = {
     tooManyAttempts:
       "عدد كبير من محاولات تسجيل الدخول الفاشلة. أعد المحاولة بعد {minutes} دقيقة.",
     brandTagline: "إدارة عدة مدارس ضمن مؤسسة واحدة.",
+    panelHeadline: "كل ما تحتاجه مدارسكم في مكان واحد.",
+    highlightSchools: "كل مدرسة ومستوى وقسم في المجموعة.",
+    highlightPeople: "التلاميذ والأسر والموظفون في ملف واحد.",
+    highlightSecure: "صلاحيات تُمنح حسب الدور وحسب المدرسة.",
+    showPassword: "إظهار كلمة المرور",
+    hidePassword: "إخفاء كلمة المرور",
+    poweredBy: "نشر بواسطة",
   },
 };
 
