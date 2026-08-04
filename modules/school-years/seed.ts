@@ -21,7 +21,7 @@ export type YearSeed = {
 };
 
 export const YEARS: YearSeed[] = [
-  { name: "2025-2026", start: "2025-09-08", end: "2026-07-03", status: "ACTIVE", isDefault: true },
+  { name: "2026-2027", start: "2026-09-07", end: "2027-07-02", status: "ACTIVE", isDefault: true },
 ];
 
 /** Semesters, expressed as offsets so they follow whichever year they belong to. */

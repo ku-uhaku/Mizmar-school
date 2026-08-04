@@ -69,6 +69,7 @@ const core = {
     generatedBy: "Issued by the school administration system",
     signatureAndStamp: "Signature and stamp",
     receipt: "Payment receipt",
+    cashSession: "Cash session statement",
     receiptFor: "Received from",
     settles: "This receipt settles",
     tenders: "Paid by",

@@ -7,6 +7,7 @@ import { LAB_ROOM_KINDS } from "@/modules/facilities/enums";
 import { assignmentScopeKey } from "@/modules/classes/enums";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
+  addMinutesToTime,
   bookingKeyOf,
   minutesSinceMidnight,
   parityOverlaps,
@@ -619,6 +620,15 @@ export async function buildTimetableDraft(
   // slot at the end of Friday must not have every subject re-scaled by it.
   const periodMinutes = modalDuration(slots);
 
+  /**
+   * The week's own ceiling: no class or teacher can be given more minutes of
+   * lessons than there are teachable periods to hold them in. Used as both the
+   * class cap and the fallback teacher cap below, in place of a school-wide
+   * setting that could drift out of step with the bell schedule it was meant
+   * to describe — this always agrees with it, because it is read from it.
+   */
+  const weekCapacityMinutes = slots.length * periodMinutes;
+
   const levelIds = [
     ...new Set(classes.map((entry) => entry.levelOffering.levelId)),
   ];
@@ -764,7 +774,8 @@ export async function buildTimetableDraft(
     sizes.map((row) => [row.schoolClassId as string, row._count] as const),
   );
 
-  // Every teacher's ceiling: their contract's, or the school's standard service.
+  // Every teacher's ceiling: their contract's, or — with no contract on
+  // file — the week's own (see `weekCapacityMinutes`).
   const teacherCapacity: Record<string, number> = {};
   const cappedByContract = new Map(
     staffCaps.map((row) => [row.userId as string, row.maxWeeklyMinutes ?? 0]),
@@ -775,7 +786,7 @@ export async function buildTimetableDraft(
     ...Object.keys(teacherLoad),
   ])) {
     teacherCapacity[teacherId] =
-      cappedByContract.get(teacherId) ?? settings.teacherWeeklyMinutes;
+      cappedByContract.get(teacherId) ?? weekCapacityMinutes;
   }
 
   const demands: GeneratorDemand[] = [];
@@ -892,7 +903,7 @@ export async function buildTimetableDraft(
       sum +
       Math.max(
         0,
-        (teacherCapacity[teacherId] ?? settings.teacherWeeklyMinutes) -
+        (teacherCapacity[teacherId] ?? weekCapacityMinutes) -
           (teacherLoad[teacherId] ?? 0),
       ),
     0,
@@ -909,7 +920,7 @@ export async function buildTimetableDraft(
     periodMinutes,
     teacherCapacity,
     teacherLoad,
-    classCapacity: settings.classWeeklyMinutes,
+    classCapacity: weekCapacityMinutes,
     classLoad,
     labRoomKinds: LAB_ROOM_KINDS,
     seed: options.seed,
@@ -1389,6 +1400,107 @@ export async function copyTimeSlots(
   return (
     (await db.timeSlot.count({ where: { schoolYearId: targetYearId } })) - before
   );
+}
+
+export type GenerateTimeSlotsInput = {
+  schoolYearId: string;
+  /** ISO weekdays, 1–6, to lay the same block onto. */
+  days: number[];
+  session: string;
+  scheduleKind: string;
+  /** "HH:MM" — when the first period of the block starts. */
+  startTime: string;
+  periodMinutes: number;
+  periodCount: number;
+  /** Insert a break after this many periods (1-based), or null for none. */
+  breakAfterPeriod: number | null;
+  breakMinutes: number;
+};
+
+/**
+ * Lays out one block of consecutive periods — and, optionally, one break in
+ * the middle — on every day picked, in a single call.
+ *
+ * ── Why one block, not the whole day ────────────────────────────────────────
+ * A school's morning and afternoon are two separate decisions with two
+ * different start times, so a form asking for both at once would have most of
+ * its fields not apply to whichever half it was really describing. "Define the
+ * morning, tick every weekday, then do the same for the afternoon" is what
+ * this looks like at the desk — two calls, not one shape trying to be two
+ * things.
+ *
+ * ── Why it is safe to run more than once ────────────────────────────────────
+ * Upserted on the table's own key (see `TimeSlot`'s `@@unique`), so running it
+ * again with the same start times corrects those periods in place instead of
+ * laying a second set on top. `position` picks up after whatever a day
+ * already has — read fresh per day, not carried from the request — so calling
+ * this for the afternoon after the morning continues the day's numbering, and
+ * patching one day later does not renumber a session that was already right.
+ */
+export async function generateTimeSlots(
+  input: GenerateTimeSlotsInput,
+): Promise<number> {
+  let written = 0;
+
+  const upsertOne = async (
+    day: number,
+    startTime: string,
+    endTime: string,
+    position: number,
+    isBreak: boolean,
+  ) => {
+    await db.timeSlot.upsert({
+      where: {
+        schoolYearId_scheduleKind_dayOfWeek_startTime: {
+          schoolYearId: input.schoolYearId,
+          scheduleKind: input.scheduleKind,
+          dayOfWeek: day,
+          startTime,
+        },
+      },
+      update: { endTime, session: input.session, position, isBreak },
+      create: {
+        schoolYearId: input.schoolYearId,
+        dayOfWeek: day,
+        session: input.session,
+        startTime,
+        endTime,
+        scheduleKind: input.scheduleKind,
+        position,
+        isBreak,
+      },
+    });
+    written += 1;
+  };
+
+  for (const day of input.days) {
+    const last = await db.timeSlot.aggregate({
+      where: {
+        schoolYearId: input.schoolYearId,
+        scheduleKind: input.scheduleKind,
+        dayOfWeek: day,
+      },
+      _max: { position: true },
+    });
+    let position = (last._max.position ?? 0) + 1;
+    let time = input.startTime;
+
+    for (let period = 1; period <= input.periodCount; period += 1) {
+      const endTime = addMinutesToTime(time, input.periodMinutes);
+      await upsertOne(day, time, endTime, position, false);
+      position += 1;
+      time = endTime;
+
+      if (period === input.breakAfterPeriod && input.breakMinutes > 0) {
+        const breakEnd = addMinutesToTime(time, input.breakMinutes);
+        await upsertOne(day, time, breakEnd, position, true);
+        position += 1;
+        time = breakEnd;
+      }
+    }
+  }
+
+  return written;
 }
 
 /**

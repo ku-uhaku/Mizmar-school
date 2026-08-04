@@ -199,8 +199,16 @@ export async function requireAuth(): Promise<AuthContext> {
 
 /** Thrown by `authorize`; action wrappers turn it into a localised message. */
 export class ForbiddenError extends Error {
+  /**
+   * The code that was missing, kept as data rather than only in the message —
+   * the audit trail records which permission a refusal was about, and parsing
+   * that back out of an English sentence is not a way to record evidence.
+   */
+  readonly permission?: string;
+
   constructor(permission?: string) {
     super(permission ? `Missing permission: ${permission}` : "Forbidden");
+    this.permission = permission;
     this.name = "ForbiddenError";
   }
 }

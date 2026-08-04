@@ -1,4 +1,4 @@
-import { bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
+import { addMinutesToTime, bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
@@ -7,6 +7,21 @@ import { log, type SeedDb } from "@/prisma/seed/client";
  *
  * Two grids are seeded for every year: the standard one, and the compressed
  * continuous day Moroccan schools switch to during Ramadan.
+ *
+ * ── Why this does not call `generateTimeSlots` ──────────────────────────────
+ * `modules/timetable/service.ts` builds the same shape of block for the "lay
+ * out a block of periods" button, and reusing it here was the first draft —
+ * but a seed script runs under plain `tsx`, outside the Next.js bundler that
+ * makes a `server-only` import a no-op, and `service.ts` starts with one. That
+ * throws unconditionally under tsx (see `node_modules/server-only/index.js`),
+ * so no seed file may import a module's `service.ts`. `block` below is the
+ * same arithmetic, kept free-standing for that reason.
+ *
+ * Periods are **one hour**: 08h00, 09h00, 10h00 … the length a lesson actually
+ * runs, which is what a school picking its own bell schedule reaches for
+ * first. A subject that wants half an hour or ninety minutes is still exactly
+ * expressible — `TimeSlot.startTime`/`endTime` carry whatever is generated,
+ * one hour is only this seed's own choice of default.
  */
 
 type SlotSeed = {
@@ -20,97 +35,68 @@ type SlotSeed = {
 };
 
 /** How long one period rings for, in minutes. */
-const PERIOD_MINUTES = 30;
+const PERIOD_MINUTES = 60;
 
 /**
- * `08:00` + 90 minutes → `09:30`. Kept here rather than reaching for a date
- * library: the grid never crosses midnight and never leaves one day.
+ * One run of consecutive one-hour periods, with a single break after
+ * `breakAfterPeriod` of them, laid onto every day in `days` alike.
  */
-function plus(time: string, minutes: number): string {
-  const [hour, minute] = time.split(":").map(Number);
-  const total = hour * 60 + minute + minutes;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-/**
- * A run of consecutive periods, sliced at `PERIOD_MINUTES`.
- *
- * Adjacency matters: the generator groups a day into runs by `endTime ===
- * startTime`, so periods produced this way are genuinely back-to-back and a
- * double can be placed across them. A run is broken only by a récréation, which
- * is what stops a double straddling the break.
- */
-function run(
-  day: number,
+function block(
+  days: readonly number[],
   session: string,
   kind: string,
-  from: string,
-  count: number,
-  firstPosition: number,
+  startTime: string,
+  periodCount: number,
+  breakAfterPeriod: number,
+  breakMinutes: number,
 ): SlotSeed[] {
-  return Array.from({ length: count }, (_, index) => {
-    const startTime = plus(from, index * PERIOD_MINUTES);
-    return {
-      dayOfWeek: day,
-      session,
-      startTime,
-      endTime: plus(startTime, PERIOD_MINUTES),
-      scheduleKind: kind,
-      position: firstPosition + index,
-    };
-  });
-}
-
-/**
- * Monday–Friday full days, Saturday morning only — the Moroccan week.
- *
- * Periods are **half an hour**: 08h00, 08h30, 09h00, 09h30 … The bell is the
- * smallest unit the school timetables in, not the length of a lesson — an hour
- * of maths is two consecutive periods the school chooses to give one subject,
- * and a grid whose unit is the lesson can never express the difference between
- * that and a single 30-minute slot. Halving the unit doubles what the programme
- * can say without changing a single declared `weeklyMinutes`, since those are
- * minutes and not periods.
- *
- * The day: 08h00–12h00 with a récréation at 10h00, 14h00–18h00 with one at
- * 16h00. Fourteen teaching periods a day, seven on Saturday.
- */
-function standardSlots(): SlotSeed[] {
   const slots: SlotSeed[] = [];
 
-  const morning = (day: number): SlotSeed[] => [
-    ...run(day, "MORNING", "STANDARD", "08:00", 4, 1),
-    { dayOfWeek: day, session: "MORNING", startTime: "10:00", endTime: "10:30", scheduleKind: "STANDARD", position: 5, isBreak: true },
-    ...run(day, "MORNING", "STANDARD", "10:30", 3, 6),
-  ];
+  for (const day of days) {
+    let time = startTime;
+    let position = 1;
 
-  for (const day of [1, 2, 3, 4, 5]) {
-    slots.push(
-      ...morning(day),
-      ...run(day, "AFTERNOON", "STANDARD", "14:00", 4, 9),
-      { dayOfWeek: day, session: "AFTERNOON", startTime: "16:00", endTime: "16:30", scheduleKind: "STANDARD", position: 13, isBreak: true },
-      ...run(day, "AFTERNOON", "STANDARD", "16:30", 3, 14),
-    );
+    for (let period = 1; period <= periodCount; period += 1) {
+      const endTime = addMinutesToTime(time, PERIOD_MINUTES);
+      slots.push({ dayOfWeek: day, session, startTime: time, endTime, scheduleKind: kind, position });
+      position += 1;
+      time = endTime;
+
+      if (period === breakAfterPeriod) {
+        const breakEnd = addMinutesToTime(time, breakMinutes);
+        slots.push({
+          dayOfWeek: day,
+          session,
+          startTime: time,
+          endTime: breakEnd,
+          scheduleKind: kind,
+          position,
+          isBreak: true,
+        });
+        position += 1;
+        time = breakEnd;
+      }
+    }
   }
-
-  // Saturday is morning only.
-  slots.push(...morning(6));
 
   return slots;
 }
 
 /**
- * Ramadan: one continuous morning, no afternoon session.
- *
- * Same half-hour bell as the standard grid — the compressed day is shorter, not
- * differently divided — running 09h00 to 12h30 around a single short break.
+ * Monday–Saturday, 08h00–12h15 with a quarter-hour récréation; Monday–Friday
+ * again, 14h00–18h15 the same shape. Saturday is morning only — the Moroccan
+ * week.
  */
+function standardSlots(): SlotSeed[] {
+  return [
+    ...block([1, 2, 3, 4, 5, 6], "MORNING", "STANDARD", "08:00", 4, 2, 15),
+    ...block([1, 2, 3, 4, 5], "AFTERNOON", "STANDARD", "14:00", 4, 2, 15),
+  ];
+}
+
+/** Ramadan: one continuous morning, no afternoon session — 09h00–13h15. */
 function ramadanSlots(): SlotSeed[] {
-  return [1, 2, 3, 4, 5, 6].flatMap((day) => [
-    ...run(day, "MORNING", "RAMADAN", "09:00", 4, 1),
-    { dayOfWeek: day, session: "MORNING", startTime: "11:00", endTime: "11:15", scheduleKind: "RAMADAN", position: 5, isBreak: true },
-    ...run(day, "MORNING", "RAMADAN", "11:15", 3, 6),
-  ]);
+  return block([1, 2, 3, 4, 5, 6], "MORNING", "RAMADAN", "09:00", 4, 2, 15);
 }
 
 export type SeededSlot = {

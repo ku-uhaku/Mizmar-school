@@ -4,6 +4,10 @@ import access, {
   permissions as accessPermissions,
 } from "@/modules/access/i18n/en";
 import appearance, { nav as appearanceNav } from "@/modules/appearance/i18n/en";
+import audit, {
+  nav as auditNav,
+  permissions as auditPermissions,
+} from "@/modules/audit/i18n/en";
 import auth from "@/modules/auth/i18n/en";
 import configuration, {
   nav as configurationNav,
@@ -119,6 +123,7 @@ const en = {
   ...hr,
   ...profile,
   ...appearance,
+  ...audit,
 
   // Vie scolaire.
   ...schoolLife,
@@ -153,6 +158,7 @@ const en = {
     ...hrNav,
     ...profileNav,
     ...appearanceNav,
+    ...auditNav,
     ...schoolLifeNav,
     ...familiesNav,
     ...studentsNav,
@@ -173,6 +179,7 @@ const en = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...auditPermissions.groups,
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
@@ -196,6 +203,7 @@ const en = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...auditPermissions.codes,
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,

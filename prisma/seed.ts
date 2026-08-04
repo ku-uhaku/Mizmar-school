@@ -15,7 +15,6 @@ import {
   seedPartTimeContracts,
   seedTeacherSubjects,
 } from "@/modules/hr/seed";
-import { DEFAULT_SETTINGS } from "@/lib/school-settings";
 import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
@@ -50,16 +49,18 @@ import { buildRoster, type Cohort } from "@/prisma/seed/roster";
  * ids along, so a new module means a new `modules/<x>/seed.ts` and one call
  * here rather than another few hundred lines in a single script.
  *
- * What it builds, per school and to an exact shape:
+ * What it builds, to an exact shape:
  *
- *   2 schools  ×  1 school year  ×  3 cycles  ×  12 levels
- *              ×  2 classes a level  ×  21 pupils a class
+ *   1 school  ×  1 school year  ×  3 cycles  ×  12 levels  ×  2 classes a level
  *
- * — so 24 classes and 504 pupils each, 1 008 in all. Plus everything those need
- * to mean anything: subjects with their components, the programme that weights
- * them, rooms, semesters, the bell schedule (standard and Ramadan), teaching
- * assignments, a worked timetable, dossiers familiaux with siblings across
- * levels, fee catalogues, price lists, discounts and every pupil's échéancier.
+ * — 24 classes, 120 pupils across 50 dossiers rather than one apiece — see
+ * `OUJDA_HOUSEHOLD_SIZES` — which is what a demo of a class list, a mark sheet
+ * or a fee grid needs at a size a reader can actually hold in their head.
+ * Plus everything those need to mean anything: subjects with their
+ * components, the programme that weights them, rooms, semesters, the bell
+ * schedule (standard and Ramadan), teaching assignments, a worked timetable,
+ * dossiers familiaux with siblings across levels, fee catalogues, price
+ * lists, discounts and every pupil's échéancier.
  *
  * The staff is not a fixed roster: `teacherPlan` reads the declared programme
  * and sizes it, so changing the plan below changes the hiring rather than
@@ -100,6 +101,16 @@ const CLASSES_PER_LEVEL = 2;
 const PUPILS_PER_CLASS = 21;
 const CLASS_CAPACITY = 26;
 
+/**
+ * What a full-time teacher gives in a week, in minutes — 22h, the usual
+ * Moroccan secondary service. A staffing-planning constant of the seed's own:
+ * the live generator derives its own ceiling from the bell schedule (see
+ * `weekCapacityMinutes` in modules/timetable/service.ts), but sizing a demo
+ * staff still needs a number to divide the programme's demand by before any
+ * school, let alone a bell schedule, exists.
+ */
+const FULL_SERVICE_MINUTES = 1320;
+
 const PLANS_PER_SCHOOL: OfferingPlan[] = LEVEL_CODES.map((levelCode) => ({
   levelCode,
   trackCode: TRACK_FOR[levelCode] ?? null,
@@ -122,25 +133,52 @@ const AGE_AT_LEVEL: Record<string, number> = {
   TC: 15, "1BAC": 16, "2BAC": 17,
 };
 
-/** 42 pupils at each of the twelve levels — two classes of twenty-one. */
-const COHORTS: Cohort[] = LEVEL_CODES.map((levelCode) => ({
-  levelCode,
-  age: AGE_AT_LEVEL[levelCode],
-  count: CLASSES_PER_LEVEL * PUPILS_PER_CLASS,
-}));
+/**
+ * Pupils at each of the twelve levels, for a school filling its classes to
+ * `pupilsPerClass`. The class structure itself — `PLANS_PER_SCHOOL` — stays the
+ * same for every school in the network; only how full each seat is varies.
+ */
+function cohortsFor(pupilsPerClass: number): Cohort[] {
+  return LEVEL_CODES.map((levelCode) => ({
+    levelCode,
+    age: AGE_AT_LEVEL[levelCode],
+    count: CLASSES_PER_LEVEL * pupilsPerClass,
+  }));
+}
+
+/**
+ * Oujda's household sizes, cycled: mostly two children, a third of them three —
+ * averaging 2.4, so its 120 pupils land in 50 dossiers rather than the 60 a flat
+ * pairing gives. See `householdSize` on `buildRoster`.
+ */
+const OUJDA_HOUSEHOLD_SIZES = [2, 3, 2, 3, 2, 2, 3, 2, 3, 2];
+function oujdaHouseholdSize(familyIndex: number): number {
+  return OUJDA_HOUSEHOLD_SIZES[familyIndex % OUJDA_HOUSEHOLD_SIZES.length];
+}
 
 type SchoolPlan = {
   code: string;
   /** Town the pupils are born in and the dossiers are addressed in. */
   cityCode: string;
   cityName: string;
-  /** Offsets the name pools so the two schools get different rosters. */
+  /** Offsets the name pools so the schools do not produce the same roster. */
   variant: number;
+  /** Pupils enrolled per class, when it differs from the network default. */
+  pupilsPerClass?: number;
+  /** Children per dossier, when it differs from two apiece. */
+  householdSize?: (familyIndex: number) => number;
 };
 
 const PLANS: SchoolPlan[] = [
-  { code: "ALM-CASA", cityCode: "CASA", cityName: "Casablanca", variant: 0 },
-  { code: "ALM-RABAT", cityCode: "RABAT", cityName: "Rabat", variant: 1 },
+  {
+    code: "ALM-OUJDA",
+    cityCode: "OUJDA",
+    cityName: "Oujda",
+    variant: 0,
+    // 2 classes × 5 pupils × 12 levels = 120.
+    pupilsPerClass: 5,
+    householdSize: oujdaHouseholdSize,
+  },
 ];
 
 /**
@@ -242,8 +280,7 @@ function teacherPlan(): TeacherRequirement[] {
 
   // What one teacher gives on average, once the reduced contracts are counted.
   const effectiveService =
-    DEFAULT_SETTINGS.teacherWeeklyMinutes *
-    (1 - PART_TIME_SHARE * (1 - PART_TIME_FACTOR));
+    FULL_SERVICE_MINUTES * (1 - PART_TIME_SHARE * (1 - PART_TIME_FACTOR));
 
   return [...subjectDemand()]
     .sort((a, b) => b[1] - a[1])
@@ -418,7 +455,7 @@ async function main() {
         `buildRoster`.
       */
       const roster = buildRoster({
-        cohorts: COHORTS,
+        cohorts: cohortsFor(plan.pupilsPerClass ?? PUPILS_PER_CLASS),
         cityCode: plan.cityCode,
         cityName: plan.cityName,
         // Only this town's quartiers: a Casablanca household does not live in
@@ -430,6 +467,7 @@ async function main() {
         ).map((quartier) => quartier.code),
         yearLabel: year.name.slice(0, 4),
         variant: plan.variant,
+        householdSize: plan.householdSize,
       });
 
       // Families before children: a pupil hangs off a dossier.
@@ -487,7 +525,7 @@ async function main() {
     await seedPartTimeContracts(db, {
       schoolId: school.id,
       teachers,
-      fullServiceMinutes: DEFAULT_SETTINGS.teacherWeeklyMinutes,
+      fullServiceMinutes: FULL_SERVICE_MINUTES,
     });
   }
 

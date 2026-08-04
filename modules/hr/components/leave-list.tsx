@@ -14,6 +14,7 @@ import * as React from "react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import type { FacetDef } from "@/components/data-table/data-table-facet";
+import { Combobox } from "@/components/form/combobox";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
@@ -361,21 +362,16 @@ function LeaveDialog({
           ) : null}
 
           <Field label={t.hr.employee} name="staffId" error={errors.staffId}>
-            <Select
+            <Combobox
+              id="staffId"
               name="staffId"
               defaultValue={valueOf(state, "staffId", request?.staffId)}
-            >
-              <SelectTrigger id="staffId" className="w-full">
-                <SelectValue placeholder={t.hr.employee} />
-              </SelectTrigger>
-              <SelectContent>
-                {staffOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={t.hr.employee}
+              options={staffOptions.map((option) => ({
+                value: option.id,
+                label: option.label,
+              }))}
+            />
           </Field>
 
           <Field label={t.hr.leaveKind} name="kind">

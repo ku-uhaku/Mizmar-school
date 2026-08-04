@@ -68,10 +68,24 @@ model TransportSubscription {
   /// prisma/schema/transport/transport-attendance.prisma.
   attendance TransportAttendance[]
 
-  /// One subscription per direction per enrolment. A pupil taking one line in
-  /// the morning and another in the afternoon has two rows; a pupil on the same
-  /// line both ways has one, with direction BOTH.
-  @@unique([enrollmentId, direction])
+  /// Mirror of `scheduleId`, so the unique index below actually distinguishes
+  /// two named runs in the same half of the day — SQLite treats NULLs as
+  /// distinct, so `[enrollmentId, direction]` alone let a line with a midday
+  /// return and a separate afternoon pickup, both tagged AFTERNOON, take only
+  /// one of them. A run that was named wins outright; a line with no horaire
+  /// declared falls back to the direction, which is the single-departure case
+  /// `scheduleId` is null for. See lib/db-keys.ts and
+  /// `subscriptionScopeKey` in modules/transport/enums.ts.
+  ///
+  /// INVARIANT (service layer): always `subscriptionScopeKey(direction,
+  /// scheduleId)`, recomputed on every write that touches either column.
+  scopeKey String
+
+  /// One subscription per run per enrolment — a pupil boards the 07:00 and the
+  /// 12:00 as two abonnements, both perfectly ordinary on a school that sends
+  /// children home for lunch. A line with no horaire declared falls back to one
+  /// row per direction, which is what a single-departure line still needs.
+  @@unique([enrollmentId, scopeKey])
   @@index([enrollmentId])
   @@index([routeId])
   @@index([stopId])

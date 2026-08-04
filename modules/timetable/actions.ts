@@ -25,16 +25,22 @@ import {
   entriesInBlock,
   findClash,
   generateSchoolWeeks,
+  generateTimeSlots,
   saveLessonBlock,
   setTeacherAvailability,
   type GeneratorRequest,
   type PreviewResult,
 } from "@/modules/timetable/service";
 import {
+  generateTimeSlotsSchema,
   timetableEntrySchema,
   timetableExceptionSchema,
 } from "@/modules/timetable/validation";
-import { bookingKeyOf, MAX_LESSON_SPAN } from "@/modules/timetable/enums";
+import {
+  bookingKeyOf,
+  MAX_LESSON_SPAN,
+  TEACHING_DAYS,
+} from "@/modules/timetable/enums";
 import { schoolWeeks, startOfWeek } from "@/modules/timetable/weeks";
 
 /**
@@ -618,6 +624,77 @@ export async function generateSchoolWeeksAction(
     refresh();
     return success(
       interpolate(t.timetable.weeksGenerated, { count: result.written }),
+    );
+  });
+}
+
+/**
+ * Lays one block of periods — a morning, an afternoon — onto every day ticked,
+ * in one act. TIMETABLE_MANAGE, the same code the grid itself is gated on: the
+ * bell schedule is what the grid is drawn against.
+ */
+export async function generateTimeSlotsAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+
+    const schoolId = context.currentSchool?.id;
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    const year = await db.schoolYear.findFirst({
+      where: { id: schoolYearId, schoolId },
+      select: { id: true },
+    });
+    if (!year) return failure(t.errors.notFound);
+
+    // A day list with nothing ticked would otherwise parse as a valid, empty
+    // request — said plainly here rather than silently writing nothing.
+    const days = listField(formData, "days")
+      .map((value) => Number(value))
+      .filter((value) => (TEACHING_DAYS as readonly number[]).includes(value));
+    if (days.length === 0) return failure(t.timetable.chooseAtLeastOneDay);
+
+    const parsed = generateTimeSlotsSchema(t).safeParse({
+      session: field(formData, "session"),
+      scheduleKind: field(formData, "scheduleKind"),
+      startTime: field(formData, "startTime"),
+      periodMinutes: field(formData, "periodMinutes"),
+      periodCount: field(formData, "periodCount"),
+      breakAfterPeriod: field(formData, "breakAfterPeriod") || "0",
+      breakMinutes: field(formData, "breakMinutes") || "0",
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const written = await generateTimeSlots({
+      schoolYearId: year.id,
+      days,
+      session: parsed.data.session,
+      scheduleKind: parsed.data.scheduleKind,
+      startTime: parsed.data.startTime,
+      periodMinutes: parsed.data.periodMinutes,
+      periodCount: parsed.data.periodCount,
+      breakAfterPeriod:
+        parsed.data.breakAfterPeriod > 0 ? parsed.data.breakAfterPeriod : null,
+      breakMinutes: parsed.data.breakMinutes,
+    });
+
+    refresh();
+    return success(
+      interpolate(t.timetable.timeSlotsGenerated, { count: written }),
     );
   });
 }

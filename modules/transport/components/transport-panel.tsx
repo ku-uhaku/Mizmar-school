@@ -247,15 +247,17 @@ function SubscribeCard({
     React.useState<TransportDirection>("BOTH");
 
   /**
-   * The runs the family boards — at most one per direction, which is what the
-   * abonnement's `@@unique([enrollmentId, direction])` allows and what a child
-   * physically does: one bus in the morning, one in the evening.
+   * The runs the family boards — any number of them, including more than one
+   * in the same half of the day.
    *
-   * Held as a map keyed by direction rather than a set of ids, so ticking a
-   * second morning run replaces the first instead of submitting a pair the
-   * server would have to refuse.
+   * A school with a lunch break commonly runs two AFTERNOON departures — the
+   * midday return and the afternoon pickup — and a full-day rider is expected
+   * on both, not one or the other. Held as a set of schedule ids rather than a
+   * map keyed by direction, so ticking a second run in a column adds it
+   * instead of replacing the first. Each ticked run becomes its own
+   * abonnement — see `subscribeRiderToRuns`.
    */
-  const [runs, setRuns] = React.useState<Partial<Record<string, string>>>({});
+  const [runs, setRuns] = React.useState<Set<string>>(() => new Set());
 
   const errors = state.fieldErrors ?? {};
 
@@ -266,9 +268,7 @@ function SubscribeCard({
   const stops = route?.stops ?? [];
 
   const schedules = route?.schedules ?? [];
-  const chosenRuns = SCHEDULE_DIRECTIONS.map((way) => runs[way]).filter(
-    (id): id is string => Boolean(id),
-  );
+  const chosenRuns = Array.from(runs);
 
   // One stop in the quartier is not a decision — it is the answer. Resolved
   // here so the hidden input carries it even though no select is drawn.
@@ -319,7 +319,7 @@ function SubscribeCard({
                   // submit a stop the server will refuse.
                   setRouteId(NONE);
                   setStopId(NONE);
-                  setRuns({});
+                  setRuns(new Set());
                 }}
               >
                 <SelectTrigger id="neighbourhoodId" className="w-full">
@@ -349,7 +349,7 @@ function SubscribeCard({
                   setStopId(NONE);
                   // The runs belong to the old line; keeping them would submit
                   // horaires this bus does not make.
-                  setRuns({});
+                  setRuns(new Set());
                 }}
                 disabled={routes.length === 0}
               >
@@ -383,8 +383,10 @@ function SubscribeCard({
             The runs, one column per direction, ticked rather than chosen from a
             dropdown: a family says "the 7:30 out and the 17:00 back", which is
             two answers, and the old single select made that two trips through
-            the same form. Each ticked run becomes its own abonnement — see
-            `subscribeRiderToRuns`.
+            the same form. More than one run may be ticked in the same column —
+            a lunch-break schedule sends a full-day rider home at midday and
+            back out in the afternoon, both AFTERNOON. Each ticked run becomes
+            its own abonnement — see `subscribeRiderToRuns`.
 
             The direction is not asked separately when there are runs to tick,
             because each run already carries it and two controls that can
@@ -421,14 +423,14 @@ function SubscribeCard({
                           className="hover:bg-muted/50 flex cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1 text-sm"
                         >
                           <Checkbox
-                            checked={runs[way] === schedule.id}
+                            checked={runs.has(schedule.id)}
                             onCheckedChange={(checked) =>
-                              setRuns((current) => ({
-                                ...current,
-                                // Ticking replaces this direction's run;
-                                // unticking leaves the family off that bus.
-                                [way]: checked ? schedule.id : undefined,
-                              }))
+                              setRuns((current) => {
+                                const next = new Set(current);
+                                if (checked) next.add(schedule.id);
+                                else next.delete(schedule.id);
+                                return next;
+                              })
                             }
                           />
                           <span className="min-w-0 flex-1 truncate">

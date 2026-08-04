@@ -36,10 +36,6 @@ export type SchoolSettingsValues = {
   gradingMaxScore: number;
   passMarkBps: number;
   teachingDays: string;
-  /** Minutes of class a week a teacher may be given — see SchoolSettings. */
-  teacherWeeklyMinutes: number;
-  /** Minutes of lessons a week a class may be given. */
-  classWeeklyMinutes: number;
   currencyCode: string;
   defaultLocale: string;
   defaultAccent: string;
@@ -71,8 +67,6 @@ export const DEFAULT_SETTINGS: SchoolSettingsValues = {
   gradingMaxScore: 20,
   passMarkBps: 5000,
   teachingDays: "1,2,3,4,5,6",
-  teacherWeeklyMinutes: 1320,
-  classWeeklyMinutes: 1800,
   currencyCode: "MAD",
   defaultLocale: "fr",
   defaultAccent: "blue",

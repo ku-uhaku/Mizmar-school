@@ -16,6 +16,19 @@ const fr = {
     generateWeeks: "Caler les semaines de l'année",
     generateWeeksHint:
       "Numérote chaque semaine effectivement enseignée, saute les vacances et alterne A et B. Relançable sans risque — cela renumérote au lieu de dupliquer.",
+    generateTimeSlots: "Caler un bloc de créneaux",
+    generateTimeSlotsHint:
+      "Une heure de début, une durée de créneau, une pause — appliquées à l'identique sur chaque jour coché. Relancez pour l'après-midi, ou pour corriger un jour. Sans risque à relancer : cela corrige les créneaux au lieu de les dupliquer.",
+    timeSlotsGenerated: "{count} créneaux calés.",
+    session: "Séance",
+    startTime: "Débute à",
+    periodMinutes: "Durée d'un créneau (minutes)",
+    periodCount: "Nombre de créneaux",
+    breakAfterPeriod: "Pause après le créneau",
+    breakAfterPeriodHint: "0 pour aucune pause dans ce bloc.",
+    breakMinutes: "Durée de la pause (minutes)",
+    daysToApply: "Jours",
+    chooseAtLeastOneDay: "Cochez au moins un jour.",
     weekParity: "Semaines",
     weekParityHint:
       "Les semaines de la rotation où cette séance a lieu. À laisser sur « toutes » sauf si elle est en quinzaine.",

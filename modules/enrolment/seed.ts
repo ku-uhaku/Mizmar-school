@@ -111,6 +111,7 @@ export async function seedEnrolments(
         feeTypeId: true,
         amountCentimes: true,
         instalmentCount: true,
+        perInstalment: true,
         scopeKey: true,
       },
     }),

@@ -62,6 +62,7 @@ export async function copyFeeConfiguration(
         levelId: rate.levelId,
         amountCentimes: rate.amountCentimes,
         instalmentCount: rate.instalmentCount,
+        perInstalment: rate.perInstalment,
         isActive: rate.isActive,
         notes: rate.notes,
         scopeKey: rate.scopeKey,

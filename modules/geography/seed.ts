@@ -83,6 +83,11 @@ export const MOROCCAN_NEIGHBOURHOODS: NeighbourhoodSeed[] = [
   { cityCode: "RABAT", code: "AGDAL", name: "Agdal", nameAr: "أكدال" },
   { cityCode: "RABAT", code: "HASSAN", name: "Hassan", nameAr: "حسان" },
   { cityCode: "RABAT", code: "SOUISSI", name: "Souissi", nameAr: "السويسي" },
+  { cityCode: "OUJDA", code: "SIDI-YAHYA", name: "Sidi Yahya", nameAr: "سيدي يحيى" },
+  { cityCode: "OUJDA", code: "AL-QODS", name: "Al Qods", nameAr: "القدس" },
+  { cityCode: "OUJDA", code: "LAZARET", name: "Lazaret", nameAr: "لازاريت" },
+  { cityCode: "OUJDA", code: "HAY-SALAM", name: "Hay Salam", nameAr: "حي السلام" },
+  { cityCode: "OUJDA", code: "AL-MASSIRA", name: "Al Massira", nameAr: "المسيرة" },
 ];
 
 export async function seedNeighbourhoods(

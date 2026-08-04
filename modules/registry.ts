@@ -6,6 +6,8 @@ import { ASSESSMENT_PERMISSIONS } from "@/modules/assessments/permissions";
 import { accessModule } from "@/modules/access/module";
 import { ROLE_PERMISSIONS } from "@/modules/access/permissions";
 import { appearanceModule } from "@/modules/appearance/module";
+import { auditModule } from "@/modules/audit/module";
+import { AUDIT_PERMISSIONS } from "@/modules/audit/permissions";
 import { authModule } from "@/modules/auth/module";
 import { billingModule } from "@/modules/billing/module";
 import { classesModule } from "@/modules/classes/module";
@@ -89,6 +91,9 @@ export const MODULES: readonly AppModule[] = [
   hrModule,
   profileModule,
   appearanceModule,
+  // The trail of everything the modules below do. Registered here rather than
+  // beside them because it is a reading of the whole app, not a domain of it.
+  auditModule,
 
   // ── Vie scolaire ──────────────────────────────────────────────────────────
   // The running of a year: the families, the children, their inscriptions and
@@ -149,6 +154,7 @@ export const PERMISSIONS = {
   ...USER_PERMISSIONS,
   ...ROLE_PERMISSIONS,
   ...CONFIGURATION_PERMISSIONS,
+  ...AUDIT_PERMISSIONS,
   ...HR_PERMISSIONS,
   ...SCHOOL_LIFE_PERMISSIONS,
   ...FAMILY_PERMISSIONS,

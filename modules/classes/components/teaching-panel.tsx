@@ -10,6 +10,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
+import { Combobox } from "@/components/form/combobox";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -289,21 +290,15 @@ function AssignmentDialog({
               error={errors.teacherId}
               required
             >
-              <Select
+              <Combobox
+                id="teacherId"
                 name="teacherId"
                 defaultValue={assignment?.teacherId ?? choices.teachers[0]?.id}
-              >
-                <SelectTrigger id="teacherId" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {choices.teachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={choices.teachers.map((teacher) => ({
+                  value: teacher.id,
+                  label: teacher.label,
+                }))}
+              />
             </FormField>
 
             <div className="grid gap-5 sm:grid-cols-2">

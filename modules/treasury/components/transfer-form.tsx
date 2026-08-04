@@ -77,7 +77,7 @@ export function TransferForm({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="grid max-w-3xl gap-5">
+    <form ref={formRef} action={formAction} className="grid gap-5">
       <FormSection
         title={t.treasury.transfert}
         description={t.treasury.transfertSubtitle}

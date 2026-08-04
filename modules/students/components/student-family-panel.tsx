@@ -16,14 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Combobox } from "@/components/form/combobox";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { GuardiansPanel } from "@/modules/families/components/guardians-panel";
 import type { GuardianRow } from "@/modules/families/queries";
 import { attachStudentToFamilyAction } from "@/modules/students/actions";
@@ -85,18 +79,16 @@ export function StudentFamilyPanel({
                     <Label htmlFor="attach-family">
                       {t.student.attachFamily}
                     </Label>
-                    <Select value={choice} onValueChange={setChoice}>
-                      <SelectTrigger id="attach-family" className="w-full">
-                        <SelectValue placeholder={t.family.attachTitle} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {families.map((entry) => (
-                          <SelectItem key={entry.id} value={entry.id}>
-                            {entry.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Combobox
+                      id="attach-family"
+                      value={choice}
+                      onValueChange={setChoice}
+                      placeholder={t.family.attachTitle}
+                      options={families.map((entry) => ({
+                        value: entry.id,
+                        label: entry.label,
+                      }))}
+                    />
                   </div>
                   <div className="flex justify-center gap-2">
                     <Button

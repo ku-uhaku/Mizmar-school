@@ -7,9 +7,11 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RegistersManager } from "@/modules/treasury/components/registers-manager";
 import { SessionBar } from "@/modules/treasury/components/session-bar";
+import { SessionsHistory } from "@/modules/treasury/components/sessions-history";
 import {
   listCashierChoices,
   listRegisters,
+  listSessions,
 } from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Caisses" };
@@ -30,9 +32,10 @@ export default async function CashRegistersPage() {
     return <ForbiddenState />;
   }
 
-  const [registers, cashiers] = await Promise.all([
+  const [registers, cashiers, sessions] = await Promise.all([
     listRegisters(context),
     listCashierChoices(context),
+    listSessions(context),
   ]);
   const canManage = context.can(PERMISSIONS.TREASURY_SESSION);
 
@@ -61,6 +64,13 @@ export default async function CashRegistersPage() {
             <SessionBar registers={registers} canManage={canManage} />
           </section>
         ) : null}
+
+        {/* Every opening, closed or still open — `listSessions` has always
+            read this, nothing rendered it until now. */}
+        <section className="grid gap-3">
+          <h2 className="text-sm font-medium">{t.treasury.sessionHistory}</h2>
+          <SessionsHistory sessions={sessions} />
+        </section>
       </div>
     </>
   );

@@ -4,6 +4,7 @@ import { Loader2Icon, PlusIcon, TrashIcon, WalletIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
+import { Combobox } from "@/components/form/combobox";
 import { FormField } from "@/components/form/form-field";
 import { FormSection } from "@/components/form/form-page";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -298,25 +299,20 @@ export function PaymentConsole({
           description={t.treasury.selectFamilyHint}
         >
           <FormField name="familyId" label={t.treasury.selectFamily}>
-            <Select
+            <Combobox
+              id="familyId"
               value={family?.familyId ?? ""}
               // Navigating rather than fetching: the payable schedule is a
               // permission-scoped server read, and the URL then survives a reload.
               onValueChange={(value) =>
                 router.push(`/caisse/encaissement?family=${value}`)
               }
-            >
-              <SelectTrigger id="familyId" className="w-full">
-                <SelectValue placeholder={t.treasury.selectFamily} />
-              </SelectTrigger>
-              <SelectContent>
-                {families.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name} · {option.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={t.treasury.selectFamily}
+              options={families.map((option) => ({
+                value: option.id,
+                label: `${option.name} · ${option.code}`,
+              }))}
+            />
           </FormField>
           <input type="hidden" name="familyId" value={family?.familyId ?? ""} />
         </FormSection>

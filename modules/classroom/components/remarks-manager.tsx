@@ -9,6 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
+import { Combobox } from "@/components/form/combobox";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -229,24 +230,16 @@ export function RemarksManager({
 
             <div className="grid gap-4 py-4">
               <FormField name="enrollmentId" label={t.classroom.remarkAbout}>
-                <Select
+                <Combobox
+                  id="enrollmentId"
                   name="enrollmentId"
                   defaultValue={pupils[0]?.enrollmentId}
-                >
-                  <SelectTrigger id="enrollmentId" className="w-full">
-                    <SelectValue placeholder={t.classroom.remarkAbout} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pupils.map((pupil) => (
-                      <SelectItem
-                        key={pupil.enrollmentId}
-                        value={pupil.enrollmentId}
-                      >
-                        {pupil.label} · {pupil.classCode}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder={t.classroom.remarkAbout}
+                  options={pupils.map((pupil) => ({
+                    value: pupil.enrollmentId,
+                    label: `${pupil.label} · ${pupil.classCode}`,
+                  }))}
+                />
               </FormField>
 
               <div className="grid gap-4 sm:grid-cols-3">

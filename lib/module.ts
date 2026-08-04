@@ -57,7 +57,8 @@ export type NavIcon =
   | "leave"
   | "teacher"
   | "homework"
-  | "remarks";
+  | "remarks"
+  | "audit";
 
 /**
  * Where a nav entry sits in the sidebar. Rendered in this order.

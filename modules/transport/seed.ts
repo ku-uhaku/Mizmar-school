@@ -1,4 +1,5 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
+import { subscriptionScopeKey } from "@/modules/transport/enums";
 
 /**
  * The fleet, the runs and the lines — the arrangement, not the passengers.
@@ -165,6 +166,47 @@ export const ROUTE_SEEDS: RouteSeed[] = [
     stops: [
       { name: "Tour Hassan", neighbourhoodCode: "HASSAN", nameAr: "صومعة حسان", landmark: "esplanade", pickupTime: "06:50", dropoffTime: "" },
       { name: "Bab Chellah", neighbourhoodCode: "HASSAN", nameAr: "باب شالة", landmark: "arrêt de tram", pickupTime: "07:04", dropoffTime: "" },
+    ],
+  },
+  {
+    code: "O1",
+    cityCode: "OUJDA",
+    name: "Ligne 1 — Sidi Yahya",
+    nameAr: "الخط 1 — سيدي يحيى",
+    direction: "BOTH",
+    vehicleIndex: 0,
+    neighbourhoodCodes: ["SIDI-YAHYA", "AL-QODS"],
+    scheduleCodes: ["M1", "S2"],
+    stops: [
+      { name: "Place Sidi Yahya", neighbourhoodCode: "SIDI-YAHYA", nameAr: "ساحة سيدي يحيى", landmark: "devant la mosquée", pickupTime: "07:05", dropoffTime: "17:25" },
+      { name: "Avenue Al Qods", neighbourhoodCode: "AL-QODS", nameAr: "شارع القدس", landmark: "près du marché", pickupTime: "07:20", dropoffTime: "17:10" },
+    ],
+  },
+  {
+    code: "O2",
+    cityCode: "OUJDA",
+    name: "Ligne 2 — Lazaret",
+    nameAr: "الخط 2 — لازاريت",
+    direction: "BOTH",
+    vehicleIndex: 1,
+    neighbourhoodCodes: ["LAZARET", "HAY-SALAM"],
+    scheduleCodes: ["M1", "S1"],
+    stops: [
+      { name: "Lazaret centre", neighbourhoodCode: "LAZARET", nameAr: "لازاريت المركز", landmark: "arrêt de bus", pickupTime: "06:55", dropoffTime: "17:30" },
+      { name: "Hay Salam", neighbourhoodCode: "HAY-SALAM", nameAr: "حي السلام", landmark: "devant l'école primaire", pickupTime: "07:10", dropoffTime: "17:15" },
+    ],
+  },
+  {
+    code: "O3",
+    cityCode: "OUJDA",
+    name: "Ligne 3 — Al Massira",
+    nameAr: "الخط 3 — المسيرة",
+    direction: "MORNING",
+    vehicleIndex: 2,
+    neighbourhoodCodes: ["AL-MASSIRA"],
+    scheduleCodes: ["M1"],
+    stops: [
+      { name: "Al Massira centre", neighbourhoodCode: "AL-MASSIRA", nameAr: "المسيرة المركز", landmark: "rond-point", pickupTime: "06:50", dropoffTime: "" },
     ],
   },
 ];
@@ -370,7 +412,7 @@ export async function seedTransport(
  * line covers simply has no abonnement — which is the honest answer, and the
  * one the school gives that family too.
  *
- * Idempotent: upserted on `(enrollmentId, direction)` for the abonnements and
+ * Idempotent: upserted on `(enrollmentId, scopeKey)` for the abonnements and
  * on the vehicle-and-date pair for the pleins, so re-running changes nothing.
  */
 export async function seedTransportRidership(
@@ -444,13 +486,14 @@ export async function seedTransportRidership(
       route.stops.find((candidate) => candidate.neighbourhoodId === quartier) ??
       route.stops[0];
 
+    const scheduleId = route.schedules[0]?.scheduleId ?? null;
+    const scopeKey = subscriptionScopeKey(route.direction, scheduleId);
+
     await db.transportSubscription.upsert({
       where: {
-        enrollmentId_direction: {
+        enrollmentId_scopeKey: {
           enrollmentId: rider.id,
-          // The abonnement follows the line: a MORNING-only ramassage cannot
-          // carry an child home it never runs for.
-          direction: route.direction,
+          scopeKey,
         },
       },
       update: { routeId: route.id, stopId: stop.id },
@@ -459,7 +502,8 @@ export async function seedTransportRidership(
         routeId: route.id,
         stopId: stop.id,
         direction: route.direction,
-        scheduleId: route.schedules[0]?.scheduleId ?? null,
+        scheduleId,
+        scopeKey,
         status: "ACTIVE",
       },
     });

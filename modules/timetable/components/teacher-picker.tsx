@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { Combobox } from "@/components/form/combobox";
 import { useT } from "@/components/providers/i18n-provider";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,26 +49,21 @@ export function TeacherPicker({
     <div className="mb-4 flex flex-wrap items-end gap-4">
       <div className="grid min-w-64 gap-2">
         <Label htmlFor="availability-teacher">{t.timetable.pickTeacher}</Label>
-        <Select
+        <Combobox
+          id="availability-teacher"
           value={teacherId}
           onValueChange={(value) => navigate("teacherId", value)}
-        >
-          <SelectTrigger id="availability-teacher" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {teachers.map((teacher) => (
-              <SelectItem key={teacher.id} value={teacher.id}>
-                {teacher.label}
-                {teacher.blockedCount > 0
-                  ? ` · ${interpolate(t.timetable.periodsOff, {
-                      count: teacher.blockedCount,
-                    })}`
-                  : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={teachers.map((teacher) => ({
+            value: teacher.id,
+            label: teacher.label,
+            hint:
+              teacher.blockedCount > 0
+                ? interpolate(t.timetable.periodsOff, {
+                    count: teacher.blockedCount,
+                  })
+                : undefined,
+          }))}
+        />
       </div>
 
       <div className="grid min-w-40 gap-2">

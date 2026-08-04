@@ -2,12 +2,14 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 
+import { recordEvent } from "@/lib/audit";
 import { db } from "@/lib/db";
 import {
   checkLoginThrottle,
   clearLoginAttempts,
   recordFailedLogin,
 } from "@/lib/login-throttle";
+import { SESSION_ENTITY } from "@/modules/audit/enums";
 
 /**
  * Auth.js v5. Sessions are JWT-based: the token carries only the user id, and
@@ -54,6 +56,9 @@ export async function checkCredentials(
   // Before the hash comparison, so a locked address costs no bcrypt work.
   const throttle = await checkLoginThrottle(normalizedEmail);
   if (throttle.locked) {
+    await recordAttempt(normalizedEmail, "LOGIN_BLOCKED", {
+      retryAfterSeconds: throttle.retryAfterSeconds,
+    });
     return {
       ok: false,
       reason: "throttled",
@@ -69,12 +74,19 @@ export async function checkCredentials(
   if (!user) {
     await bcrypt.compare(plainPassword, DUMMY_HASH);
     await recordFailedLogin(normalizedEmail);
+    // Recorded as an address, not as an account: there is no account. Which is
+    // itself worth having in the trail — a run of these against invented
+    // addresses is somebody guessing who works here.
+    await recordAttempt(normalizedEmail, "LOGIN_FAILED", { reason: "unknown" });
     return { ok: false, reason: "invalid" };
   }
 
   const matches = await verifyPassword(plainPassword, user.passwordHash);
   if (!matches) {
     await recordFailedLogin(normalizedEmail);
+    await recordAttempt(normalizedEmail, "LOGIN_FAILED", {
+      reason: "password",
+    });
     return { ok: false, reason: "invalid" };
   }
 
@@ -82,9 +94,39 @@ export async function checkCredentials(
   // against — clear it even when the account turns out to be deactivated.
   await clearLoginAttempts(normalizedEmail);
 
-  if (!user.isActive) return { ok: false, reason: "disabled" };
+  if (!user.isActive) {
+    await recordAttempt(normalizedEmail, "LOGIN_FAILED", { reason: "disabled" });
+    return { ok: false, reason: "disabled" };
+  }
 
   return { ok: true, userId: user.id };
+}
+
+/**
+ * Puts a refused sign-in in the trail.
+ *
+ * The actor is the address that was typed, because that is all there is — there
+ * is no session, and often no account either. `checkCredentials` is the one
+ * funnel both sign-in paths go through, which is why the recording sits here
+ * rather than in the login action.
+ *
+ * Successes are *not* recorded here: this function runs twice for one
+ * successful sign-in — once from the action and once from Auth.js re-verifying
+ * — and a trail that shows every login twice is a trail nobody trusts. The
+ * success is recorded in `authorize` below, which runs once.
+ */
+async function recordAttempt(
+  email: string,
+  action: "LOGIN_FAILED" | "LOGIN_BLOCKED",
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  await recordEvent({
+    action,
+    entity: SESSION_ENTITY,
+    entityLabel: email,
+    metadata,
+    actor: { actorId: null, actorLabel: email, actorEmail: email },
+  });
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -115,9 +157,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const result = await checkCredentials(email, plain);
         if (!result.ok) return null;
 
-        await db.user.update({
+        const account = await db.user.update({
           where: { id: result.userId },
           data: { lastLoginAt: new Date() },
+          include: { profile: true },
+        });
+
+        // Once per sign-in, whichever path it came in by. The name is copied in
+        // as it reads now, like every other entry — see the ActivityLog schema.
+        await recordEvent({
+          action: "LOGIN",
+          entity: SESSION_ENTITY,
+          entityId: account.id,
+          entityLabel: account.email,
+          actor: {
+            actorId: account.id,
+            actorLabel: account.profile
+              ? `${account.profile.firstName} ${account.profile.lastName}`.trim() ||
+                account.email
+              : account.email,
+            actorEmail: account.email,
+            organizationId: account.organizationId,
+            schoolId: account.currentSchoolId,
+            schoolYearId: account.currentSchoolYearId,
+          },
         });
 
         return { id: result.userId };

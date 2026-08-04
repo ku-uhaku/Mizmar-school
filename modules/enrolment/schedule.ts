@@ -31,6 +31,9 @@ export type FeeRateInput = {
   feeTypeId: string;
   amountCentimes: number;
   instalmentCount: number | null;
+  /** True: `amountCentimes` is owed on every instalment, not divided across
+   * them. See the note on the column. */
+  perInstalment: boolean;
   /** `feeRateScopeKey(levelId)` — "" for the every-level price. */
   scopeKey: string;
 };
@@ -165,7 +168,9 @@ export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
         input.instalmentsPerYear,
       );
 
-    const amounts = splitIntoInstalments(rate.amountCentimes, count);
+    const amounts = rate.perInstalment
+      ? Array.from({ length: count }, () => rate.amountCentimes)
+      : splitIntoInstalments(rate.amountCentimes, count);
     const dueDates = instalmentDueDates(
       input.yearStart,
       input.yearEnd,

@@ -5,6 +5,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { toast } from "sonner";
 
+import { Combobox } from "@/components/form/combobox";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -734,21 +735,16 @@ function RiderDialog({
             error={errors.enrollmentId}
             required
           >
-            <Select name="enrollmentId" required>
-              <SelectTrigger id="enrollmentId" className="w-full">
-                <SelectValue placeholder={t.transport.pupil} />
-              </SelectTrigger>
-              <SelectContent>
-                {subscribable.map((option) => (
-                  <SelectItem
-                    key={option.enrollmentId}
-                    value={option.enrollmentId}
-                  >
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              id="enrollmentId"
+              name="enrollmentId"
+              required
+              placeholder={t.transport.pupil}
+              options={subscribable.map((option) => ({
+                value: option.enrollmentId,
+                label: option.label,
+              }))}
+            />
           </Field>
 
           <Field

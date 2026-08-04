@@ -6,6 +6,10 @@ import access, {
   permissions as accessPermissions,
 } from "@/modules/access/i18n/fr";
 import appearance, { nav as appearanceNav } from "@/modules/appearance/i18n/fr";
+import audit, {
+  nav as auditNav,
+  permissions as auditPermissions,
+} from "@/modules/audit/i18n/fr";
 import auth from "@/modules/auth/i18n/fr";
 import configuration, {
   nav as configurationNav,
@@ -107,6 +111,7 @@ const fr: Dictionary = {
   ...hr,
   ...profile,
   ...appearance,
+  ...audit,
 
   // Vie scolaire.
   ...schoolLife,
@@ -140,6 +145,7 @@ const fr: Dictionary = {
     ...hrNav,
     ...profileNav,
     ...appearanceNav,
+    ...auditNav,
     ...schoolLifeNav,
     ...familiesNav,
     ...studentsNav,
@@ -160,6 +166,7 @@ const fr: Dictionary = {
       ...usersPermissions.groups,
       ...accessPermissions.groups,
       ...configurationPermissions.groups,
+      ...auditPermissions.groups,
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...familiesPermissions.groups,
@@ -183,6 +190,7 @@ const fr: Dictionary = {
       ...usersPermissions.codes,
       ...accessPermissions.codes,
       ...configurationPermissions.codes,
+      ...auditPermissions.codes,
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...familiesPermissions.codes,

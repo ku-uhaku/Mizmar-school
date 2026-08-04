@@ -43,19 +43,24 @@ export const SCHEDULE_DIRECTIONS = ["MORNING", "AFTERNOON"] as const;
 export type ScheduleDirection = (typeof SCHEDULE_DIRECTIONS)[number];
 
 /**
- * The runs worth offering for one abonnement direction.
+ * Mirror for the nullable `scheduleId`, so a pupil may hold one abonnement per
+ * *run* rather than one per half of the day.
  *
- * A one-way rider is only shown the runs that go their way. A BOTH rider is
- * shown every run the line makes and picks the one they board in the morning —
- * the return follows from the line, and a family genuinely needing two named
- * runs takes two one-way abonnements, which is what `@@unique([enrollmentId,
- * direction])` already allows for.
+ * A school that sends children home for lunch commonly runs two departures in
+ * the same half — a midday return and a separate afternoon pickup, both
+ * AFTERNOON — and a full-day rider is expected on both. Keying the unique
+ * index on `direction` alone could not tell those two runs apart; keying it on
+ * the named run does. A line with no horaire declared has no run to name, so
+ * it falls back to `direction` — the single-departure case `scheduleId` is
+ * null for, where one abonnement per half of the day is still the right limit.
+ * See lib/db-keys.ts, and `busRegisterScopeKey` below, which mirrors the same
+ * column for the same reason.
  */
-export function schedulesForDirection(
-  direction: TransportDirection,
-): readonly ScheduleDirection[] {
-  if (direction === "BOTH") return SCHEDULE_DIRECTIONS;
-  return [direction];
+export function subscriptionScopeKey(
+  direction: string,
+  scheduleId: string | null | undefined,
+): string {
+  return scheduleId ? `run:${scheduleId}` : `direction:${direction}`;
 }
 
 /**

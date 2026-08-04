@@ -20,8 +20,8 @@ const fr = {
       "Ce choix n'appartient pas à l'école dans laquelle vous travaillez.",
 
     arrivalBeforeDeparture: "L'arrivée doit suivre le départ.",
-    codeFormatNeedsSequence:
-      "Incluez {seq} — sans lui, toutes les références de l'année seraient identiques.",
+    inUse:
+      "Impossible de supprimer — {count} autre(s) fiche(s) l'utilisent encore. Retirez-les ou réaffectez-les d'abord.",
 
     sections: {
       school: "Établissement",
@@ -39,15 +39,7 @@ const fr = {
       year: "Année scolaire",
     },
 
-    groups: {
-      grading: "Notation",
-      calendar: "Semaine scolaire",
-      regional: "Langue et monnaie",
-      codes: "Matricules",
-      billing: "Échéanciers",
-      payroll: "Paie",
-      other: "Autres",
-    },
+    groups: {},
 
     resources: {
       schoolWeeks: "Semaines de l'année",
@@ -60,7 +52,6 @@ const fr = {
       operationCategories: "Rubriques",
       operationSubcategories: "Sous-rubriques",
       operationMotifs: "Motifs",
-      schoolSettings: "Réglages",
       educationLevels: "Cycles",
       levels: "Niveaux",
       tracks: "Filières",
@@ -99,26 +90,8 @@ const fr = {
       accountNumber: "Numéro de compte",
       categoryKind: "Sens",
       operationCategory: "Rubrique",
-      gradingMaxScore: "Notes sur",
-      passMark: "Moyenne de passage",
-      teachingDays: "Jours de classe",
-      currencyCode: "Monnaie",
-      defaultLocale: "Langue par défaut",
-      defaultAccent: "Couleur par défaut",
-      studentCodeFormat: "Matricule élève",
-      familyCodeFormat: "Numéro de dossier",
-      staffCodeFormat: "Matricule personnel",
-      defaultInstalmentCount: "Échéances par an",
-      feeDueDayOfMonth: "Exigible le",
-      teacherWeeklyMinutes: "Service par enseignant (minutes/semaine)",
-      classWeeklyMinutes: "Volume horaire par classe (minutes/semaine)",
       teacherSubjects: "Qui enseigne quoi",
       preferenceRank: "Priorité",
-      payrollWorkingDays: "Jours ouvrables par mois",
-      cnssRate: "CNSS (part salariale)",
-      cnssCeiling: "Plafond CNSS",
-      amoRate: "AMO (part salariale)",
-      irRate: "Imp\u00f4t sur le revenu (IR)",
       name: "Nom",
       nameAr: "Nom (arabe)",
       code: "Code",
@@ -185,6 +158,7 @@ const fr = {
       feeType: "Frais",
       amount: "Montant (MAD)",
       instalmentCount: "Échéances",
+      perInstalment: "Même montant à chaque échéance",
       discountKind: "Type",
       percentBps: "Pourcentage",
       discountReason: "Motif",
@@ -198,13 +172,6 @@ const fr = {
         "La rubrique sur laquelle ses paiements sont imput\u00e9s. Pr\u00e9-remplie, pour n\u2019avoir plus \u00e0 la choisir.",
       accountRef:
         "Le num\u00e9ro de contrat ou de police \u2014 affich\u00e9 \u00e0 c\u00f4t\u00e9 du montant pour v\u00e9rifier la facture.",
-      cnssRate:
-        "Sugg\u00e9r\u00e9e sur le bulletin, jamais appliqu\u00e9e d\u2019office. 4,48 % est la part salariale usuelle.",
-      cnssCeiling:
-        "Le salaire mensuel sur lequel la CNSS est calcul\u00e9e. Au-del\u00e0, la part salariale n\u2019augmente plus. 0 pour aucun plafond.",
-      amoRate: "Sugg\u00e9r\u00e9e sur le bulletin, jamais appliqu\u00e9e d\u2019office. 2,26 % est la part usuelle.",
-      irRate:
-        "Simple suggestion \u00e0 taux fixe. Le bar\u00e8me r\u00e9el est progressif avec une d\u00e9duction par personne \u00e0 charge : laissez 0 sauf si un taux unique convient vraiment.",
       isRequiredDocument:
         "Seule une pi\u00e8ce obligatoire peut bloquer une inscription. Une pi\u00e8ce facultative est tout de m\u00eame demand\u00e9e et affich\u00e9e.",
       copies:
@@ -240,26 +207,6 @@ const fr = {
       subcategoryParent:
         "La rubrique dont elle dépend. Une sous-rubrique ne se choisit jamais seule.",
       motifCategory: "Laissez vide pour le proposer sous toutes les rubriques.",
-      gradingMaxScore:
-        "Le barème par défaut d'un nouveau devoir. Un devoir peut toujours être noté autrement.",
-      passMark:
-        "En pourcentage du barème : 50 % font 10 sur 20. Détermine les notes affichées en échec.",
-      teachingDays: "Jours affichés sur l'emploi du temps et au pointage.",
-      currencyCode:
-        "Ne change que le libellé — les montants restent enregistrés au centime.",
-      defaultLocale:
-        "Langue de départ des nouveaux utilisateurs de cette école. Ils peuvent en changer.",
-      defaultAccent:
-        "Couleur de départ des nouveaux utilisateurs. Ils peuvent en changer.",
-      codeFormat:
-        "{year} vaut 2025, {yy} vaut 25, {seq:4} vaut 0007. Le reste est repris tel quel.",
-      defaultInstalmentCount:
-        "Utilisé lorsque un tarif du barème n'en fixe pas lui-même.",
-      feeDueDayOfMonth: "Jour du mois où tombe une échéance. Plafonné au 28.",
-      teacherWeeklyMinutes:
-        "Le service standard. Un contrat peut en décider autrement pour un employé. Seul le générateur d'emploi du temps le lit — rien ne refuse une affectation au-delà.",
-      classWeeklyMinutes:
-        "Le volume réellement donné à une classe, inférieur aux séances qu'offre la grille horaire. Sans lui, le générateur remplit toutes les cases libres.",
       preferenceRank:
         "Le plus bas passe en premier quand plusieurs enseignants peuvent prendre la matière. 0 pour un spécialiste, plus haut pour un remplaçant.",
       payrollWorkingDays:
@@ -306,6 +253,8 @@ const fr = {
         "Laissez vide pour appliquer le même tarif à tous les niveaux.",
       amount: "En dirhams. Enregistré au centime près.",
       instalmentCount: "Répartir le montant sur ce nombre de versements.",
+      perInstalment:
+        "Désactivé : le montant ci-dessus est le total, réparti sur les échéances (scolarité). Activé : il est facturé en entier à chacune (cantine ou transport à tarif mensuel fixe).",
       discountKind: "Pourcentage, ou montant fixe en dirhams.",
       percentBps: "En pourcentage : 12,5 correspond à un huitième de remise.",
       discountFeeType: "Laissez vide pour l'autoriser sur tous les frais.",
@@ -382,25 +331,6 @@ const fr = {
       // Proposé pour l'école qui fait classe le dimanche. Le choix des
       // créneaux ne liste que les jours effectivement déclarés.
       "7": "Dimanche",
-    },
-    currencies: {
-      MAD: "Dirham (MAD)",
-      EUR: "Euro (EUR)",
-      USD: "Dollar US (USD)",
-    },
-    locales: {
-      fr: "Français",
-      en: "English",
-      ar: "العربية",
-    },
-    accents: {
-      blue: "Bleu",
-      emerald: "Émeraude",
-      violet: "Violet",
-      amber: "Ambre",
-      rose: "Rose",
-      teal: "Sarcelle",
-      neutral: "Neutre",
     },
     sessions: {
       MORNING: "Matin",

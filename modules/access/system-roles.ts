@@ -166,6 +166,12 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TRANSPORT_ATTENDANCE,
       PERMISSIONS.TRANSPORT_FUEL,
       PERMISSIONS.TRANSPORT_FUEL_APPROVE,
+      // The trail of their own school. A head is who a family asks "who changed
+      // my child's fee?", so they are who has to be able to answer it —
+      // narrowed to their school by the read itself, since the code is not held
+      // org-wide. Not AUDIT_SECURITY: who tried to sign in is the
+      // administrator's business, not the school's.
+      PERMISSIONS.AUDIT_VIEW,
     ],
   },
   {

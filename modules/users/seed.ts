@@ -110,11 +110,10 @@ export async function seedUsers(
 ): Promise<Record<string, SeededTeacher[]>> {
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   const schoolByCode = Object.fromEntries(schools.map((s) => [s.code, s]));
-  const casa = schoolByCode["ALM-CASA"];
-  const rabat = schoolByCode["ALM-RABAT"];
+  const oujda = schoolByCode["ALM-OUJDA"];
 
   const defaultYear = await db.schoolYear.findFirst({
-    where: { schoolId: casa.id, isDefault: true },
+    where: { schoolId: oujda.id, isDefault: true },
   });
 
   // The super administrator. Deliberately keeps `isSuperAdmin` so the org can
@@ -130,7 +129,7 @@ export async function seedUsers(
       passwordHash,
       isSuperAdmin: true,
       orgRoleId: roles["Administrateur"],
-      currentSchoolId: casa.id,
+      currentSchoolId: oujda.id,
       currentSchoolYearId: defaultYear?.id,
       profile: {
         create: {
@@ -156,31 +155,33 @@ export async function seedUsers(
       memberships: [] as { schoolId: string; role: string }[],
     },
     {
-      email: "directeur.casa@almanar.ma",
-      firstName: "Nadia",
-      lastName: "Benali",
-      jobTitle: "Directrice",
-      birthDate: new Date("1981-01-27"),
-      orgRole: null,
-      memberships: [{ schoolId: casa.id, role: "Directeur d'école" }],
-    },
-    {
-      email: "directeur.rabat@almanar.ma",
-      firstName: "Youssef",
-      lastName: "El Amrani",
+      email: "directeur.oujda@almanar.ma",
+      firstName: "Abdellah",
+      lastName: "Berrada",
       jobTitle: "Directeur",
-      birthDate: new Date("1976-11-15"),
+      birthDate: new Date("1979-05-22"),
       orgRole: null,
-      memberships: [{ schoolId: rabat.id, role: "Directeur d'école" }],
+      memberships: [{ schoolId: oujda.id, role: "Directeur d'école" }],
+    },
+    // Two gestionnaires rather than one, since even a small school runs its
+    // front desk in shifts.
+    {
+      email: "gestion1.oujda@almanar.ma",
+      firstName: "Salma",
+      lastName: "Ziani",
+      jobTitle: "Gestionnaire",
+      birthDate: new Date("1990-02-14"),
+      orgRole: null,
+      memberships: [{ schoolId: oujda.id, role: "Secrétaire" }],
     },
     {
-      email: "secretariat.casa@almanar.ma",
-      firstName: "Imane",
-      lastName: "Ouazzani",
-      jobTitle: "Secrétaire",
-      birthDate: new Date("1993-06-08"),
+      email: "gestion2.oujda@almanar.ma",
+      firstName: "Yassine",
+      lastName: "Rifai",
+      jobTitle: "Gestionnaire",
+      birthDate: new Date("1988-11-30"),
       orgRole: null,
-      memberships: [{ schoolId: casa.id, role: "Secrétaire" }],
+      memberships: [{ schoolId: oujda.id, role: "Secrétaire" }],
     },
   ];
 
@@ -195,7 +196,7 @@ export async function seedUsers(
     orgRole: string | null;
     memberships: { schoolId: string; role: string }[];
   }) => {
-    const firstSchool = person.memberships[0]?.schoolId ?? casa.id;
+    const firstSchool = person.memberships[0]?.schoolId ?? oujda.id;
     const year = await db.schoolYear.findFirst({
       where: { schoolId: firstSchool, isDefault: true },
     });

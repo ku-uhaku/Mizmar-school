@@ -2,7 +2,6 @@ import * as z from "zod";
 
 import type { Dictionary } from "@/lib/i18n/types";
 import { interpolate } from "@/lib/i18n/format";
-import { codeFormatHasSequence } from "@/lib/school-settings";
 import type { FieldDef, ResourceDef } from "@/modules/configuration/types";
 
 /**
@@ -186,24 +185,21 @@ const REFINEMENTS: Record<
       },
       { error: t.configuration.arrivalBeforeDeparture, path: ["arrivalTime"] },
     ),
-  "school-settings": (schema, t) =>
-    // A matricule format with no sequence gives every pupil admitted this year
-    // the same code. The unique index would then reject them one at a time,
-    // mid-enrolment — better to refuse the setting than to break the desk.
-    (["studentCodeFormat", "familyCodeFormat", "staffCodeFormat"] as const).reduce(
-      (current, name) =>
-        current.refine(
-          (values) => codeFormatHasSequence(String(values[name] ?? "")),
-          { path: [name], error: t.configuration.codeFormatNeedsSequence },
-        ),
-      schema as unknown as z.ZodType<Record<string, unknown>>,
-    ),
 };
 
 export function resourceSchemaFor(resource: ResourceDef, t: Dictionary) {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const field of resource.fields) {
-    shape[field.name] = fieldSchema(field, t);
+    const schema = fieldSchema(field, t);
+    // An optional field left blank parses to null — right for a column that is
+    // genuinely nullable, wrong for one like `position` that is NOT NULL with
+    // its own `@default`. `defaultValue` is declared on exactly those columns
+    // (and matches the Prisma default itself), so null becomes it rather than
+    // reaching the database as a value the column cannot hold.
+    shape[field.name] =
+      field.defaultValue === undefined
+        ? schema
+        : schema.transform((value) => value ?? field.defaultValue);
   }
 
   const object = z.object(shape);

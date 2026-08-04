@@ -22,9 +22,9 @@
 /// the qualification on the half of the pair the timetable never looks at.
 ///
 /// The workload cap lives on `Staff.maxWeeklyMinutes` for the opposite reason:
-/// how many hours somebody may be given is a term of their employment, and it
-/// falls back to `SchoolSettings.teacherWeeklyMinutes` for anybody without a
-/// contract row.
+/// how many hours somebody may be given is a term of their employment. Anybody
+/// without a contract row falls back to the week's own ceiling — see
+/// `weekCapacityMinutes` in modules/timetable/service.ts.
 model TeacherSubject {
   id       String @id @default(cuid())
   schoolId String

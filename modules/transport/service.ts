@@ -10,6 +10,7 @@ import {
   seatsRemaining,
   busRegisterScopeKey,
   canMoveTripRun,
+  subscriptionScopeKey,
   type TransportDirection,
   tenthsToLitres,
   type FuelRequestStatus,
@@ -138,11 +139,17 @@ export async function subscribeRider(
   });
   if (!enrolment) return { ok: false, reason: "STOP_UNREACHABLE" };
 
+  const resolvedScheduleId = await resolveSchedule(
+    stop.routeId,
+    input.scheduleId,
+  );
+  const scopeKey = subscriptionScopeKey(input.direction, resolvedScheduleId);
+
   const existing = await db.transportSubscription.findUnique({
     where: {
-      enrollmentId_direction: {
+      enrollmentId_scopeKey: {
         enrollmentId: input.enrollmentId,
-        direction: input.direction,
+        scopeKey,
       },
     },
     select: { id: true },
@@ -164,7 +171,8 @@ export async function subscribeRider(
       routeId: stop.routeId,
       stopId: stop.id,
       direction: input.direction,
-      scheduleId: await resolveSchedule(stop.routeId, input.scheduleId),
+      scheduleId: resolvedScheduleId,
+      scopeKey,
       status: input.status,
       startsOn: input.startsOn,
       endsOn: input.endsOn,
@@ -197,17 +205,19 @@ export type SubscribeRunsResult = {
  * Puts a pupil on several runs of one line in a single act.
  *
  * A child collected in the morning and taken home in the evening is the normal
- * arrangement, and it is two abonnements — one per direction, which is what
- * `@@unique([enrollmentId, direction])` says. Asking the secretary to fill the
- * same form twice for it was the whole friction.
+ * arrangement, and each run they board is its own abonnement — see
+ * `subscriptionScopeKey`. Asking the secretary to fill the same form once per
+ * run was the whole friction. It is also what a school with a lunch break
+ * needs: a child home at midday and back for the afternoon rides two runs
+ * tagged AFTERNOON, and both are taken, not just the first.
  *
  * The direction is read off each run rather than asked for: a TransportSchedule
  * is MORNING or AFTERNOON and cannot be both (see its note), so the run the
  * family boards already answers the question. That also makes the two
  * impossible to contradict, which a separate direction select could.
  *
- * Runs sharing a direction are refused after the first, by the unique index and
- * by `subscribeRider` before it — a child boards one morning bus.
+ * Only an exact repeat of the same run is refused, by the unique index and by
+ * `subscribeRider` before it — a child cannot board the same departure twice.
  */
 export async function subscribeRiderToRuns(
   base: Omit<SubscribeInput, "direction" | "scheduleId">,
@@ -309,13 +319,33 @@ export async function updateRider(
   });
   if (!stop) return { ok: false, reason: "STOP_UNREACHABLE" };
 
+  const resolvedScheduleId = await resolveSchedule(
+    stop.routeId,
+    input.scheduleId,
+  );
+  const scopeKey = subscriptionScopeKey(input.direction, resolvedScheduleId);
+
+  // Moving this abonnement onto a run another one of the pupil's already holds
+  // would collide on the unique index — checked here, rather than left to
+  // throw, for the same reason `subscribeRider` checks it up front.
+  const conflict = await db.transportSubscription.findFirst({
+    where: {
+      enrollmentId: subscription.enrollmentId,
+      scopeKey,
+      NOT: { id: subscriptionId },
+    },
+    select: { id: true },
+  });
+  if (conflict) return { ok: false, reason: "ALREADY_ON_BOARD" };
+
   await db.transportSubscription.update({
     where: { id: subscriptionId },
     data: {
       routeId: stop.routeId,
       stopId: stop.id,
       direction: input.direction,
-      scheduleId: await resolveSchedule(stop.routeId, input.scheduleId),
+      scheduleId: resolvedScheduleId,
+      scopeKey,
       status: input.status,
       startsOn: input.startsOn,
       endsOn: input.endsOn,

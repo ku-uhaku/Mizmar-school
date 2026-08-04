@@ -1,41 +1,22 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
- * Two groupes scolaires, each running the whole Moroccan cursus.
- *
- * Two rather than one because almost everything in the app is school-scoped, and
- * a single-school database cannot show the one bug that matters: a query that
- * forgot its `where`. The two carry the same cursus but their own configuration
- * rows — their own levels, subjects, rooms, prices and staff — so a leak between
- * them is visible on any screen rather than only in a test.
+ * One groupe scolaire, running the whole Moroccan cursus.
  */
 
 export const SCHOOLS = [
   {
-    code: "ALM-CASA",
-    name: "Al Manar Casablanca",
+    code: "ALM-OUJDA",
+    name: "Al Manar Oujda",
     level: "GROUP",
-    city: "Casablanca",
-    region: "Casablanca-Settat",
-    postalCode: "20250",
-    addressLine: "12, Boulevard Zerktouni",
-    directorName: "Nadia Benali",
-    capacity: 1200,
-    phone: "+212 522 45 67 90",
-    email: "casablanca@almanar.ma",
-  },
-  {
-    code: "ALM-RABAT",
-    name: "Al Manar Rabat Agdal",
-    level: "GROUP",
-    city: "Rabat",
-    region: "Rabat-Salé-Kénitra",
-    postalCode: "10090",
-    addressLine: "45, Avenue de France, Agdal",
-    directorName: "Youssef El Amrani",
-    capacity: 1200,
-    phone: "+212 537 77 12 34",
-    email: "rabat@almanar.ma",
+    city: "Oujda",
+    region: "Oriental",
+    postalCode: "60000",
+    addressLine: "8, Boulevard Mohammed V",
+    directorName: "Abdellah Berrada",
+    capacity: 400,
+    phone: "+212 536 68 90 12",
+    email: "oujda@almanar.ma",
   },
 ] as const;
 

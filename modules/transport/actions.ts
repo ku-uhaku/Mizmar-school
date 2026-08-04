@@ -587,7 +587,13 @@ export async function updateRiderAction(
       endsOn: parsed.data.endsOn,
       notes: parsed.data.notes,
     });
-    if (!result.ok) return failure(t.errors.notFound);
+    if (!result.ok) {
+      return failure(
+        result.reason === "ALREADY_ON_BOARD"
+          ? t.transport.alreadySubscribed
+          : t.errors.notFound,
+      );
+    }
 
     refresh();
     return success(t.transport.riderUpdated);

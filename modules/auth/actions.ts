@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import * as z from "zod";
 
 import { failure, type ActionState } from "@/lib/action-state";
+import { recordEvent } from "@/lib/audit";
+import { getAuthContext } from "@/lib/dal";
 import {
   serializeUiPrefs,
   UI_PREFS_COOKIE,
@@ -16,6 +18,7 @@ import { isLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { safeCallbackPath } from "@/lib/safe-redirect";
+import { SESSION_ENTITY } from "@/modules/audit/enums";
 import { fieldErrors } from "@/lib/validation";
 import { field, withActionErrors } from "@/lib/server-action";
 
@@ -123,5 +126,18 @@ export async function loginAction(
 }
 
 export async function logoutAction(): Promise<void> {
+  // Before the sign-out, while there is still a session for the trail to name.
+  // Silent when nobody is signed in: a logout with no session is a stale tab,
+  // not an event.
+  const context = await getAuthContext();
+  if (context) {
+    await recordEvent({
+      action: "LOGOUT",
+      entity: SESSION_ENTITY,
+      entityId: context.user.id,
+      entityLabel: context.user.email,
+    });
+  }
+
   await signOut({ redirectTo: "/login" });
 }

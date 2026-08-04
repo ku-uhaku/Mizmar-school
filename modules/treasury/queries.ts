@@ -198,6 +198,57 @@ export type SessionRow = {
   operationCount: number;
 };
 
+export type SessionDetail = SessionRow & {
+  registerCode: string;
+  notes: string | null;
+};
+
+/**
+ * One session's own record — the opening, the closing, and everything
+ * counted against it — scoped by the register's school so a session id from
+ * another tenant resolves to nothing rather than another school's drawer.
+ */
+export async function findSessionDetail(
+  context: AuthContext,
+  sessionId: string,
+): Promise<SessionDetail | null> {
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return null;
+
+  const session = await db.cashSession.findFirst({
+    where: { id: sessionId, cashRegister: { schoolId } },
+    include: {
+      cashRegister: { select: { code: true, name: true } },
+      openedBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      closedBy: {
+        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+      },
+      _count: { select: { operations: true } },
+    },
+  });
+  if (!session) return null;
+
+  return {
+    id: session.id,
+    registerName: session.cashRegister.name,
+    registerCode: session.cashRegister.code,
+    openedAt: session.openedAt.toISOString(),
+    openedByName: displayName(session.openedBy),
+    closedAt: session.closedAt?.toISOString() ?? null,
+    closedByName: session.closedBy ? displayName(session.closedBy) : null,
+    openingFloatCentimes: session.openingFloatCentimes,
+    countedCentimes: session.countedCentimes,
+    expectedCentimes: session.expectedCentimes,
+    varianceCentimes: session.varianceCentimes,
+    status: session.status,
+    wasAutoClosed: session.wasAutoClosed,
+    operationCount: session._count.operations,
+    notes: session.notes,
+  };
+}
+
 export async function listSessions(
   context: AuthContext,
   limit = 30,

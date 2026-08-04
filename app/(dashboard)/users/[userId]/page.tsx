@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
+import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import { UserForm } from "@/modules/users/components/user-form";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
@@ -42,6 +43,12 @@ export default async function EditUserPage(props: PageProps<"/users/[userId]">) 
         canManageSuperAdmin={context.isSuperAdmin}
         canAssignOrgRole={context.canOrg(PERMISSIONS.USER_ASSIGN_ROLE)}
         user={user}
+      />
+
+      <RecordHistoryPanel
+        context={context}
+        entity="User"
+        entityId={user.id}
       />
     </>
   );

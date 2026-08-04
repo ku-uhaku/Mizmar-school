@@ -29,11 +29,13 @@ import {
  * same roster every time, which is the whole contract of an idempotent seed.
  *
  * ── Siblings ────────────────────────────────────────────────────────────────
- * Children are paired onto one dossier two at a time, and the pupil list is
- * built by rotating through the levels rather than filling one level at a time,
- * so the two children of a household land in different levels. That is what
- * makes the sibling reduction demonstrable and the family screen worth opening —
- * a database where every family has one only child cannot show either.
+ * Children are grouped onto one dossier a few at a time — two by default, or
+ * however many `householdSize` returns for a school that wants a different
+ * mix — and the pupil list is built by rotating through the levels rather than
+ * filling one level at a time, so the children of a household land in
+ * different levels. That is what makes the sibling reduction demonstrable and
+ * the family screen worth opening — a database where every family has one only
+ * child cannot show either.
  */
 
 export type Cohort = {
@@ -80,6 +82,33 @@ function situationFor(index: number): string {
   return "MARRIED";
 }
 
+/**
+ * Assigns each pupil slot to a household, `householdSize(familyIndex)` at a
+ * time.
+ *
+ * A generator rather than a fixed array so the default — a constant two — needs
+ * no caller to know about it, and a school after a different mix (a rounder
+ * family count against a fixed pupil count, say) supplies one function and
+ * nothing else changes. The odd slots left after the last full household simply
+ * get a smaller one, which is the ordinary case `Math.floor` used to handle on
+ * its own.
+ */
+function assignFamilies(
+  totalSlots: number,
+  householdSize: (familyIndex: number) => number,
+): number[] {
+  const assignment: number[] = [];
+  let familyIndex = 0;
+  while (assignment.length < totalSlots) {
+    const size = Math.max(1, householdSize(familyIndex));
+    for (let taken = 0; taken < size && assignment.length < totalSlots; taken += 1) {
+      assignment.push(familyIndex);
+    }
+    familyIndex += 1;
+  }
+  return assignment;
+}
+
 export function buildRoster({
   cohorts,
   cityCode,
@@ -88,6 +117,8 @@ export function buildRoster({
   yearLabel,
   /** Offsets the name pools so the two schools do not produce the same roster. */
   variant,
+  /** Children per dossier, by household index. Two apiece unless told otherwise. */
+  householdSize = () => 2,
 }: {
   cohorts: Cohort[];
   /** `City.code` the children are born in — see modules/geography/seed.ts. */
@@ -102,13 +133,15 @@ export function buildRoster({
   /** Prefix year for the matricules and dossier numbers, e.g. "2025". */
   yearLabel: string;
   variant: number;
+  householdSize?: (familyIndex: number) => number;
 }): Roster {
   /*
     The pupils to produce, level by level, interleaved.
 
     Rotating through the cohorts rather than draining one at a time is what puts
-    the two children of a dossier in different levels — the pairing below takes
-    them two at a time, and a level-major order would make every pair twins.
+    the children of a dossier in different levels — households are grouped from
+    this list in order below, and a level-major order would make every sibling
+    group land in one level instead of spreading across them.
   */
   const slots: { levelCode: string; age: number }[] = [];
   const remaining = cohorts.map((cohort) => cohort.count);
@@ -123,13 +156,13 @@ export function buildRoster({
     }
   }
 
+  const familyIndexForSlot = assignFamilies(slots.length, householdSize);
+
   const families: FamilySeed[] = [];
   const students: StudentSeed[] = [];
 
   for (const [index, slot] of slots.entries()) {
-    // Two children per dossier. The odd pupil at the end of the list simply gets
-    // a file of their own, which is an ordinary case and not worth special-casing.
-    const familyIndex = Math.floor(index / 2);
+    const familyIndex = familyIndexForSlot[index];
     const surname = pick(SURNAMES, spread(familyIndex + variant * 977));
     const familyCode = `F-${yearLabel}-${String(familyIndex + 1).padStart(4, "0")}`;
 

@@ -3,8 +3,10 @@ import * as z from "zod";
 import type { Dictionary } from "@/lib/i18n/types";
 import { enumField, optionalText, requiredText } from "@/lib/validation";
 import {
+  DAY_SESSIONS,
   EXCEPTION_KINDS,
   MAX_LESSON_SPAN,
+  SCHEDULE_KINDS,
   WEEK_PARITIES,
 } from "@/modules/timetable/enums";
 
@@ -46,6 +48,43 @@ export function timetableEntrySchema(t: Dictionary) {
  * week by the action, so a mid-week date typed into a URL cannot open a second
  * override keyed on a Wednesday.
  */
+/**
+ * One block of consecutive periods, to lay onto whichever days the form ticks.
+ *
+ * `days` is deliberately absent, exactly as on `timetableEntrySchema`: the
+ * action reads the ticked days itself and refuses a request with none, rather
+ * than this schema accepting an empty list as a shape that parses.
+ */
+export function generateTimeSlotsSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    session: enumField(DAY_SESSIONS, v),
+    scheduleKind: enumField(SCHEDULE_KINDS, v),
+    startTime: requiredText(v, { max: 5 }),
+    periodMinutes: z.coerce
+      .number({ error: v.invalidNumber })
+      .int({ error: v.invalidNumber })
+      .min(15, { error: v.invalidNumber })
+      .max(180, { error: v.invalidNumber }),
+    periodCount: z.coerce
+      .number({ error: v.invalidNumber })
+      .int({ error: v.invalidNumber })
+      .min(1, { error: v.invalidNumber })
+      .max(12, { error: v.invalidNumber }),
+    /** 0 means no break. */
+    breakAfterPeriod: z.coerce
+      .number({ error: v.invalidNumber })
+      .int({ error: v.invalidNumber })
+      .min(0, { error: v.invalidNumber })
+      .max(12, { error: v.invalidNumber }),
+    breakMinutes: z.coerce
+      .number({ error: v.invalidNumber })
+      .int({ error: v.invalidNumber })
+      .min(0, { error: v.invalidNumber })
+      .max(60, { error: v.invalidNumber }),
+  });
+}
+
 export function timetableExceptionSchema(t: Dictionary) {
   const v = t.validation;
   return z.object({

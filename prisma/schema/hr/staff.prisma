@@ -89,10 +89,9 @@ model Staff {
   ///
   /// A term of their employment, which is why it sits here and not in the
   /// school's settings: a full-timer, a part-timer and a vacataire are on
-  /// different loads in the same school. Null falls back to
-  /// `SchoolSettings.teacherWeeklyMinutes`, so a school that treats everyone
-  /// the same never fills this in — the same default-plus-override the fee
-  /// schedule uses for instalments.
+  /// different loads in the same school. Null falls back to the week's own
+  /// ceiling — see `weekCapacityMinutes` in modules/timetable/service.ts — so
+  /// a school that treats everyone the same never fills this in.
   ///
   /// Read by the timetable generator, which will not hand somebody a
   /// twenty-fifth hour. It does not stop a human doing so by hand: an

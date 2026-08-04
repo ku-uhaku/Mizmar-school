@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { CalendarClockIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
+import { Combobox } from "@/components/form/combobox";
 import { FormField } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -195,23 +196,17 @@ export function TimetableCellDialog({
               hint={t.timetable.teacherHint}
               error={errors.teacherId}
             >
-              <Select
+              <Combobox
+                id="teacherId"
                 name="teacherId"
                 value={teacherId}
                 onValueChange={setTeacherId}
-              >
-                <SelectTrigger id="teacherId" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t.common.none}</SelectItem>
-                  {choices.teachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                emptyOption={{ value: "__none__", label: t.common.none }}
+                options={choices.teachers.map((teacher) => ({
+                  value: teacher.id,
+                  label: teacher.label,
+                }))}
+              />
             </FormField>
 
             <div className="grid gap-5 sm:grid-cols-2">

@@ -73,6 +73,7 @@ export async function buildFeeSchedule(
         feeTypeId: true,
         amountCentimes: true,
         instalmentCount: true,
+        perInstalment: true,
         scopeKey: true,
       },
     }),

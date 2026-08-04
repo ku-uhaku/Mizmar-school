@@ -13,6 +13,7 @@ import * as React from "react";
 
 import { DataTable } from "@/components/data-table/data-table";
 import type { FacetDef } from "@/components/data-table/data-table-facet";
+import { Combobox } from "@/components/form/combobox";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
@@ -496,24 +497,18 @@ function StaffDialog({
           {linkableUsers.length > 0 ? (
             <div className="grid gap-1.5">
               <Field label={t.hr.account} name="userId">
-                <Select
+                <Combobox
+                  id="userId"
                   name="userId"
                   defaultValue={
                     valueOf(state, "userId", person?.userId) || "__none__"
                   }
-                >
-                  <SelectTrigger id="userId" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{t.hr.noAccount}</SelectItem>
-                    {linkableUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  emptyOption={{ value: "__none__", label: t.hr.noAccount }}
+                  options={linkableUsers.map((user) => ({
+                    value: user.id,
+                    label: user.label,
+                  }))}
+                />
               </Field>
               <p className="text-muted-foreground text-xs">
                 {t.hr.accountHint}

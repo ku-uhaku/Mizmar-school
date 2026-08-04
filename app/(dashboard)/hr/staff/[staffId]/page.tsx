@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import { StaffPanel } from "@/modules/hr/components/staff-panel";
 import { findStaff } from "@/modules/hr/queries";
 
@@ -51,6 +52,12 @@ export default async function StaffPage({
         person={person}
         canPayroll={context.can(PERMISSIONS.HR_PAYROLL)}
         canManage={context.can(PERMISSIONS.HR_MANAGE)}
+      />
+
+      <RecordHistoryPanel
+        context={context}
+        entity="Staff"
+        entityId={person.id}
       />
     </>
   );

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import { FamilyDetail } from "@/modules/families/components/family-detail";
 import { listFamilyReceipts } from "@/modules/treasury/queries";
 import { findFamily } from "@/modules/families/queries";
@@ -54,6 +55,12 @@ export default async function FamilyPage({
         family={family}
         receipts={receipts}
         canManage={context.can(PERMISSIONS.FAMILY_UPDATE)}
+      />
+
+      <RecordHistoryPanel
+        context={context}
+        entity="Family"
+        entityId={family.id}
       />
     </>
   );

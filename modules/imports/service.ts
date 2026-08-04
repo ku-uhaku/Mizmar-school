@@ -16,6 +16,7 @@ import { loadSchoolSettings } from "@/lib/school-settings-server";
 // is bound by both exactly as the enrolment form is.
 import { generateFeeSchedule } from "@/modules/enrolment/service";
 import { refreshStudentStatus } from "@/modules/students/service";
+import { subscriptionScopeKey } from "@/modules/transport/enums";
 import { IMPORT_COLUMNS, matchHeaders, type ImportColumn } from "@/modules/imports/columns";
 import {
   parseBoolean,
@@ -717,11 +718,15 @@ export async function commitImport(
         // charge on the échéancier and leaves the seat to be assigned — which
         // is better than refusing the pupil over a missing bus stop.
         if (row.refs.routeId && row.refs.stopId) {
+          // No column in the file names a run, so this always falls back to
+          // the direction — BOTH, the model's default, exactly as a manual
+          // rentrée subscription with no horaire declared would.
           await tx.transportSubscription.create({
             data: {
               enrollmentId: enrolment.id,
               routeId: row.refs.routeId,
               stopId: row.refs.stopId,
+              scopeKey: subscriptionScopeKey("BOTH", null),
             },
           });
         }

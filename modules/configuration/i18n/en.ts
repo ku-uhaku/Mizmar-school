@@ -23,8 +23,8 @@ const en = {
     outOfContext:
       "That choice does not belong to the school you are working in.",
     arrivalBeforeDeparture: "The arrival must come after the departure.",
-    codeFormatNeedsSequence:
-      "Include {seq} — without it every reference this year would be identical.",
+    inUse:
+      "Can't delete this — {count} other record(s) still use it. Remove or reassign those first.",
 
     sections: {
       school: "Establishment",
@@ -43,15 +43,13 @@ const en = {
       year: "School year",
     },
 
-    groups: {
-      grading: "Marking",
-      calendar: "Teaching week",
-      regional: "Language and currency",
-      codes: "Reference numbers",
-      billing: "Fee schedules",
-      payroll: "Payroll",
-      other: "Other",
-    },
+    /**
+     * Fieldset headings for a singleton's form — see `FieldDef.groupKey`.
+     * Empty for now: no resource is a singleton since Settings was removed
+     * (it did not work and nobody used it — see the note on `RESOURCES`), but
+     * the shape stays so the next one does not have to rebuild it.
+     */
+    groups: {},
 
     resources: {
       schoolWeeks: "Weeks of the year",
@@ -64,7 +62,6 @@ const en = {
       operationCategories: "Rubrics",
       operationSubcategories: "Sub-rubrics",
       operationMotifs: "Reasons",
-      schoolSettings: "Settings",
       educationLevels: "Cycles",
       levels: "Levels",
       tracks: "Tracks",
@@ -103,26 +100,8 @@ const en = {
       accountNumber: "Account number",
       categoryKind: "Side",
       operationCategory: "Rubric",
-      gradingMaxScore: "Marks are out of",
-      passMark: "Pass mark",
-      teachingDays: "Teaching days",
-      currencyCode: "Currency",
-      defaultLocale: "Default language",
-      defaultAccent: "Default colour",
-      studentCodeFormat: "Pupil reference",
-      familyCodeFormat: "Family reference",
-      staffCodeFormat: "Staff reference",
-      defaultInstalmentCount: "Instalments per year",
-      feeDueDayOfMonth: "Due on the",
-      teacherWeeklyMinutes: "Teaching load per teacher (minutes/week)",
-      classWeeklyMinutes: "Lesson time per class (minutes/week)",
       teacherSubjects: "Who teaches what",
       preferenceRank: "Priority",
-      payrollWorkingDays: "Working days per month",
-      cnssRate: "CNSS (employee share)",
-      cnssCeiling: "CNSS ceiling",
-      amoRate: "AMO (employee share)",
-      irRate: "Income tax (IR)",
       name: "Name",
       nameAr: "Name (Arabic)",
       code: "Code",
@@ -189,6 +168,7 @@ const en = {
       feeType: "Fee",
       amount: "Amount (MAD)",
       instalmentCount: "Instalments",
+      perInstalment: "Same amount each instalment",
       discountKind: "Kind",
       percentBps: "Percentage",
       discountReason: "Reason",
@@ -202,13 +182,6 @@ const en = {
         "The rubrique this supplier\u2019s payments are filed under. Filled in automatically, so nobody has to choose it each time.",
       accountRef:
         "The contract or police number the school is billed under \u2014 shown beside the amount so a facture can be checked against it.",
-      cnssRate:
-        "Suggested on a bulletin, never applied. 4.48% is the ordinary employee share.",
-      cnssCeiling:
-        "The monthly pay CNSS is computed on. Above it the employee\u2019s share stops growing. 0 for no ceiling.",
-      amoRate: "Suggested on a bulletin, never applied. 2.26% is the ordinary employee share.",
-      irRate:
-        "A flat suggestion only. The real bar\u00e8me is progressive with a deduction per dependant, so leave it at 0 unless a single rate genuinely fits your staff.",
       isRequiredDocument:
         "Only a required piece can hold an inscription up. An optional one is still asked for and still listed.",
       copies:
@@ -243,26 +216,6 @@ const en = {
       subcategoryParent:
         "The rubric this sits under. A sub-rubric is never chosen on its own.",
       motifCategory: "Leave empty to offer it under every rubric.",
-      gradingMaxScore:
-        "The scale a new paper starts on. A single paper may still be set out of something else.",
-      passMark:
-        "As a percentage of the scale: 50% is 10 out of 20. Decides which marks show as a fail.",
-      teachingDays: "Days that appear on the timetable and in the register.",
-      currencyCode:
-        "Changes the label only — amounts are always stored to the centime.",
-      defaultLocale:
-        "What new users of this school start in. They may change it.",
-      defaultAccent: "The colour new users start with. They may change it.",
-      codeFormat:
-        "{year} is 2025, {yy} is 25, {seq:4} is 0007. Anything else is copied as written.",
-      defaultInstalmentCount:
-        "Used when a price on the list does not set its own.",
-      feeDueDayOfMonth:
-        "Day of the month an instalment falls due. Capped at 28.",
-      teacherWeeklyMinutes:
-        "The standard service. A contract may say otherwise for one employee. Only the timetable generator reads it — nothing refuses a booking over the line.",
-      classWeeklyMinutes:
-        "How much a class is actually given, which is less than the periods the bell schedule offers. Without it the generator fills every free slot.",
       preferenceRank:
         "Lower goes first when several teachers could take a subject. 0 for a specialist, higher for somebody covering.",
       payrollWorkingDays:
@@ -301,6 +254,8 @@ const en = {
       feeRateLevel: "Leave empty to price it the same at every level.",
       amount: "In dirhams. Stored to the centime.",
       instalmentCount: "Split the amount over this many payments.",
+      perInstalment:
+        "Off: the amount above is the total, divided over the instalments (scolarité). On: it is charged in full on every one (a flat monthly cantine or transport fee).",
       discountKind: "Percentage, or a fixed number of dirhams.",
       percentBps: "As a percentage: 12.5 is an eighth off.",
       discountFeeType: "Leave empty to allow it against any fee.",
@@ -377,25 +332,6 @@ const en = {
       // Offered so a school that teaches Sunday can say so. The time-slot
       // picker only lists the days the school actually declared.
       "7": "Sunday",
-    },
-    currencies: {
-      MAD: "Dirham (MAD)",
-      EUR: "Euro (EUR)",
-      USD: "US dollar (USD)",
-    },
-    locales: {
-      fr: "Français",
-      en: "English",
-      ar: "العربية",
-    },
-    accents: {
-      blue: "Blue",
-      emerald: "Emerald",
-      violet: "Violet",
-      amber: "Amber",
-      rose: "Rose",
-      teal: "Teal",
-      neutral: "Neutral",
     },
     sessions: {
       MORNING: "Morning",

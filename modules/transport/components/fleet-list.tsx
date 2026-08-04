@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
 import type { FacetDef } from "@/components/data-table/data-table-facet";
+import { Combobox } from "@/components/form/combobox";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useLocale, useT } from "@/components/providers/i18n-provider";
@@ -496,26 +497,21 @@ function VehicleDialog({
           {driverOptions.length > 0 ? (
             <div className="grid gap-1.5">
               <Field label={t.transport.driverStaff} name="driverId">
-                <Select
+                <Combobox
+                  id="driverId"
                   name="driverId"
                   defaultValue={
                     valueOf(state, "driverId", vehicle?.driverId) || "__none__"
                   }
-                >
-                  <SelectTrigger id="driverId" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">
-                      {t.transport.driverExternal}
-                    </SelectItem>
-                    {driverOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  emptyOption={{
+                    value: "__none__",
+                    label: t.transport.driverExternal,
+                  }}
+                  options={driverOptions.map((option) => ({
+                    value: option.id,
+                    label: option.label,
+                  }))}
+                />
               </Field>
               <p className="text-muted-foreground text-xs">
                 {t.transport.driverStaffHint}

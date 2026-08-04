@@ -68,6 +68,7 @@ const core = {
     generatedBy: "Émis par le système d'administration scolaire",
     signatureAndStamp: "Signature et cachet",
     receipt: "Reçu de paiement",
+    cashSession: "Relevé de session de caisse",
     receiptFor: "Reçu de",
     settles: "Ce reçu solde",
     tenders: "Réglé par",

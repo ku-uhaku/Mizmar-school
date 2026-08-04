@@ -31,6 +31,14 @@ model FeeRate {
   /// say, 9 months rather than the whole year.
   instalmentCount Int?
 
+  /// Whether `amountCentimes` is the *total* to divide across the instalments
+  /// (false — 24 000 MAD scolarité over 9 months is 2 667 MAD each, the last
+  /// ones a centime heavier so the sum still lands on 24 000) or the amount
+  /// owed on *each* one (true — 300 MAD cantine is 300 MAD every month, not
+  /// 300 divided by 9). See `splitIntoInstalments` and the branch in
+  /// `buildScheduleLines` that reads this.
+  perInstalment Boolean @default(false)
+
   isActive Boolean @default(true)
   notes    String?
 

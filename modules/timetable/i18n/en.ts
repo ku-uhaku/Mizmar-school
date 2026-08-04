@@ -17,6 +17,19 @@ const en = {
     generateWeeks: "Lay out the year's weeks",
     generateWeeksHint:
       "Numbers every week the school teaches in, skipping the holidays, and alternates A and B. Safe to run again — it renumbers rather than duplicates.",
+    generateTimeSlots: "Lay out a block of periods",
+    generateTimeSlotsHint:
+      "One start time, one period length, one break — written the same way onto every day you tick. Run it again for the afternoon, or to correct a day. Safe to repeat: it corrects the periods in place rather than duplicating them.",
+    timeSlotsGenerated: "{count} periods laid out.",
+    session: "Session",
+    startTime: "Starts at",
+    periodMinutes: "Period length (minutes)",
+    periodCount: "Number of periods",
+    breakAfterPeriod: "Break after period",
+    breakAfterPeriodHint: "0 for no break in this block.",
+    breakMinutes: "Break length (minutes)",
+    daysToApply: "Days",
+    chooseAtLeastOneDay: "Tick at least one day.",
     weekParity: "Weeks",
     weekParityHint:
       "Which weeks of the rotation this lesson runs in. Leave it on every week unless it is fortnightly.",

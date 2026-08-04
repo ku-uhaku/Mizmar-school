@@ -1,0 +1,86 @@
+/// One line in the trail: something happened, somebody did it, here is what
+/// changed.
+///
+/// ── Why every column here is a plain String and not a relation ───────────────
+/// A trail that a deletion can erase is not a trail. If `actorId` were a real
+/// foreign key, removing a user would either cascade their history away or be
+/// blocked by it; if `schoolId` were one, closing a school would take the record
+/// of how it was run with it. So the scope columns are ids without relations,
+/// and everything a reader needs to make sense of a line — who the actor was,
+/// what the row was called — is *copied in at write time*. The line stays
+/// readable when the user, the school and the row it describes are all gone,
+/// which is the entire point of writing it.
+///
+/// It also means no other table gains a back-relation to this one, so nothing
+/// in the app can accidentally read or delete the trail through a cascade.
+///
+/// ── Written by the client extension, not by a service ───────────────────────
+/// Rows arrive from `lib/audit.ts`, which sits inside the Prisma client itself
+/// and sees every write in the app. No module has to remember to log; adding a
+/// table logs it. See that file for the actor lookup and the diffing.
+///
+/// Append-only by convention: nothing in the app updates or deletes a row here.
+model ActivityLog {
+  id String @id @default(cuid())
+
+  // ── Where it happened ─────────────────────────────────────────────────────
+  /// The tenant. Null only for events that precede a session — a failed login
+  /// against an address that matches no account.
+  organizationId String?
+  /// The school in context when the write happened, or the school the affected
+  /// row belongs to when it has one. Null for org-wide acts and for events with
+  /// no school at all.
+  schoolId       String?
+  schoolYearId   String?
+
+  // ── Who did it ────────────────────────────────────────────────────────────
+  /// The signed-in user, when there was one. Null for anonymous events (a
+  /// failed login) and for writes made outside a request (the seed).
+  actorId    String?
+  /// The actor's name as it read at the time, or the address typed into the
+  /// login form. Never rewritten when the account is renamed: the trail records
+  /// what was true then, not what is true now.
+  actorLabel String
+  /// Denormalised for the same reason. "—" when there was no session.
+  actorEmail String?
+
+  // ── What happened ─────────────────────────────────────────────────────────
+  /// "CREATE" | "UPDATE" | "DELETE" | "CREATE_MANY" | "UPDATE_MANY" |
+  /// "DELETE_MANY" | "LOGIN" | "LOGIN_FAILED" | "LOGIN_BLOCKED" | "LOGOUT" |
+  /// "DENIED" — see modules/audit/enums.ts.
+  action String
+  /// The Prisma model the write landed on ("Student", "Payment"), or the
+  /// pseudo-entity an auth event carries ("Session", "Access"). Kept as the
+  /// model name rather than the table name so it matches what the code says.
+  entity String
+  /// The affected row. Null for the many-row operations and for auth events.
+  entityId String?
+  /// How the row read at the time — a pupil's name, a receipt's number. Null
+  /// when the entity has no sensible label.
+  entityLabel String?
+
+  // ── The detail ────────────────────────────────────────────────────────────
+  /// JSON: `{ "field": { "from": …, "to": … } }` for an update, the created
+  /// values for a create, the last known values for a delete. Secrets never
+  /// reach it — see REDACTED_FIELDS in modules/audit/entities.ts. Null when
+  /// nothing comparable changed.
+  ///
+  /// A String because SQLite has no JSON column; read it through
+  /// `parseChanges` rather than `JSON.parse` at the call site.
+  changes String?
+  /// JSON: anything the action itself wanted recorded — the permission code a
+  /// denial was refused for, the number of rows a bulk write touched.
+  metadata String?
+
+  createdAt DateTime @default(now())
+
+  // The trail is read newest-first and filtered by scope, so every index here
+  // leads with the scope and ends with the clock.
+  @@index([organizationId, createdAt])
+  @@index([schoolId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  /// The per-record history panel: one row's own timeline.
+  @@index([entity, entityId, createdAt])
+  @@map("activity_logs")
+}

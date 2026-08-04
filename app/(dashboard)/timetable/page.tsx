@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClassPicker } from "@/modules/timetable/components/class-picker";
+import { GenerateTimeSlotsButton } from "@/modules/timetable/components/generate-time-slots-button";
 import { GenerateWeeksButton } from "@/modules/timetable/components/generate-weeks-button";
 import { TimetableGenerator } from "@/modules/timetable/components/timetable-generator";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
@@ -121,6 +122,7 @@ export default async function TimetablePage({
           them out belongs here rather than three screens away. */}
         {context.can(PERMISSIONS.TIMETABLE_MANAGE) ? (
           <>
+            <GenerateTimeSlotsButton />
             <GenerateWeeksButton />
             {/* Beside the grid it fills in, and carrying the bell schedule the
               page is showing — generating the standard week from the Ramadan

@@ -1,8 +1,10 @@
 import "server-only";
 
+import { recordEvent } from "@/lib/audit";
 import { failure, type ActionState } from "@/lib/action-state";
 import { ForbiddenError } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
+import { ACCESS_ENTITY } from "@/modules/audit/enums";
 
 /**
  * Wraps a Server Action body so authorization failures become a localised
@@ -28,6 +30,16 @@ export async function withActionErrors(
     const t = await getDictionary();
 
     if (error instanceof ForbiddenError) {
+      // A refusal is the one kind of failure the trail has to hear about: it is
+      // either somebody who needs a permission they have not been given, or
+      // somebody reaching for a Server Function they were never shown. Recorded
+      // where the refusal is caught, so every action gets it for free.
+      await recordEvent({
+        action: "DENIED",
+        entity: ACCESS_ENTITY,
+        metadata: error.permission ? { permission: error.permission } : null,
+      });
+
       return failure(t.errors.forbidden);
     }
 

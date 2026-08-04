@@ -68,6 +68,7 @@ const core = {
     generatedBy: "صادر عن نظام الإدارة المدرسية",
     signatureAndStamp: "التوقيع والخاتم",
     receipt: "وصل أداء",
+    cashSession: "كشف جلسة الصندوق",
     receiptFor: "توصلنا من",
     settles: "هذا الوصل يسدد",
     tenders: "أُدي بواسطة",

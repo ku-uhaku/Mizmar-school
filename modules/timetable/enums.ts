@@ -257,6 +257,18 @@ export function minutesSinceMidnight(time: string): number {
   return hours * 60 + minutes;
 }
 
+/**
+ * `08:00` + 60 → `09:00`. The inverse of `minutesSinceMidnight`, kept beside
+ * it for the same reason: a bell schedule never crosses midnight, so plain
+ * integer arithmetic on the stored "HH:MM" text is enough and a date library
+ * would be answering a question about calendars this never asks.
+ */
+export function addMinutesToTime(time: string, minutes: number): string {
+  const total = minutesSinceMidnight(time) + minutes;
+  const hours = Math.floor(total / 60);
+  return `${String(hours).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 /** True when two `HH:MM` ranges overlap. Touching ends do not count. */
 export function slotsOverlap(
   a: { startTime: string; endTime: string },
