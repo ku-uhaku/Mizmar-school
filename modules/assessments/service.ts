@@ -445,7 +445,43 @@ export async function saveMarks(
 }
 
 /**
- * Moves a paper's status, refusing the transitions that would lose marks.
+ * Pupils on the roster with neither a mark nor an absence against them.
+ *
+ * Counted from the roster rather than from the grades, because a pupil enrolled
+ * after the paper was set has no grade row at all and is exactly the kind of
+ * gap "is this finished?" has to catch.
+ */
+async function countPendingMarks(assessmentId: string): Promise<number> {
+  const assessment = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: {
+      schoolClassId: true,
+      classGroupId: true,
+      term: { select: { schoolYearId: true } },
+      grades: {
+        where: { OR: [{ score: { not: null } }, { isAbsent: true }] },
+        select: { enrollmentId: true },
+      },
+    },
+  });
+  if (!assessment) return 0;
+
+  const roster = await db.enrollment.count({
+    where: {
+      schoolYearId: assessment.term.schoolYearId,
+      schoolClassId: assessment.schoolClassId,
+      ...(assessment.classGroupId
+        ? { classGroupId: assessment.classGroupId }
+        : {}),
+    },
+  });
+
+  return Math.max(0, roster - assessment.grades.length);
+}
+
+/**
+ * Moves a paper's status, refusing the transitions that would lose marks or
+ * declare a sheet finished when it is not.
  *
  * Going back to DRAFT once anything has been entered is refused rather than
  * silently allowed: DRAFT means "not sat", and a paper that is not sat with
@@ -454,7 +490,15 @@ export async function saveMarks(
 export async function setAssessmentStatus(
   assessmentId: string,
   status: string,
-): Promise<{ ok: boolean; reason?: "has-marks" }> {
+): Promise<{ ok: boolean; reason?: "has-marks" | "incomplete" }> {
+  if (status === "GRADED") {
+    // Accepting a paper is the office agreeing the marking is done, so it may
+    // not be done over an unfinished sheet. Absences count as accounted for —
+    // a pupil who did not sit it has been dealt with.
+    const pending = await countPendingMarks(assessmentId);
+    if (pending > 0) return { ok: false, reason: "incomplete" };
+  }
+
   if (status === "DRAFT") {
     const marked = await db.assessmentGrade.count({
       where: {

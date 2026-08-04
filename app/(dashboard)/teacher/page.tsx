@@ -28,9 +28,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { requireAuth } from "@/lib/dal";
-import { interpolate } from "@/lib/i18n/format";
+import { formatDate, interpolate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { listAssessments } from "@/modules/assessments/queries";
+import { StatusBadge } from "@/modules/assessments/components/assessments-manager";
 import {
   listMyLessons,
   listMyTeaching,
@@ -59,10 +61,24 @@ export default async function TeacherPage() {
 
   const today = new Date();
 
-  const [summary, teaching, lessons] = await Promise.all([
+  const [summary, teaching, lessons, papers] = await Promise.all([
     teacherSummary(context, today),
     listMyTeaching(context),
     listMyLessons(context, today),
+    /*
+      The contrôles the office has published for this teacher's classes.
+
+      Set by the head of studies, not here, so they appear nowhere else in the
+      workspace — and a paper a teacher cannot find is a paper that does not get
+      marked. Read through the assessments module's own query, which scopes it
+      to the school and year; `teacherId` is what makes it *theirs*.
+    */
+    context.can(PERMISSIONS.ASSESSMENT_VIEW)
+      ? listAssessments(context, {
+          teacherId: context.user.id,
+          statuses: ["PUBLISHED", "SUBMITTED"],
+        })
+      : [],
   ]);
 
   const links: SectionLink[] = [];
@@ -222,6 +238,79 @@ export default async function TeacherPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/*
+              Everything of this teacher's that is still open: the contrôles the
+              office published for their classes, and the devoirs they set
+              themselves. Both are marked the same way and both are theirs, so
+              they are one list rather than two — the kind badge says which is
+              which.
+
+              Hidden entirely when there are none: an empty card headed "to
+              mark" is a reproach, and the stat tile above already says zero.
+            */}
+            {papers.length > 0 ? (
+              <Card className="gap-4 lg:col-span-3">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {t.classroom.papersToMark}
+                  </CardTitle>
+                  <CardDescription>
+                    {t.classroom.papersToMarkHint}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="divide-y">
+                    {papers.map((paper) => {
+                      const accounted = paper.markedCount + paper.absentCount;
+                      return (
+                        <li
+                          key={paper.id}
+                          className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0 last:pb-0"
+                        >
+                          <span
+                            aria-hidden
+                            className="h-8 w-1 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor:
+                                paper.subjectColorHex ??
+                                paper.typeColorHex ??
+                                undefined,
+                            }}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                              {paper.title}
+                            </span>
+                            <span className="text-muted-foreground block truncate text-xs">
+                              {paper.classCode} · {paper.subjectName}
+                              {paper.scheduledOn
+                                ? ` · ${formatDate(paper.scheduledOn, locale)}`
+                                : ""}
+                            </span>
+                          </span>
+                          <Badge variant="secondary" className="shrink-0">
+                            {paper.typeCode}
+                          </Badge>
+                          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                            {interpolate(t.assessment.markedOf, {
+                              marked: accounted,
+                              total: paper.rosterCount,
+                            })}
+                          </span>
+                          <StatusBadge status={paper.status} />
+                          <Button asChild size="sm" className="shrink-0">
+                            <Link href={`/assessments/${paper.id}`}>
+                              {t.classroom.openMarkSheet}
+                            </Link>
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card className="gap-4">
               <CardHeader>

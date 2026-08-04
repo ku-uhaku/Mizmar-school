@@ -9,6 +9,14 @@ const ar = {
     title: "الحياة المدرسية",
     subtitle: "{school} — {year}، إلى حدود اليوم.",
     noYear: "اختر سنة دراسية لعرض أرقام هذه السنة.",
+
+    // ── ما سجّله الأساتذة ───────────────────────────────────────────────────
+    absencesToday: "غيابات اليوم",
+    absencesTodayHint: "من أصل {registers} تسجيلًا اليوم، مع السبب الذي ذكره الأستاذ.",
+    latestRemarks: "آخر الملاحظات",
+    latestRemarksHint: "ما كتبه الأساتذة عن التلاميذ.",
+    awaitingValidation: "نقط مُسلَّمة",
+    awaitingValidationHint: "أوراق أنهى الأستاذ تصحيحها. صادِق عليها لتصبح النقط نهائية.",
     students: "التلاميذ",
     studentsDetail: "{count} مسجّلين",
     families: "الملفات الأسرية",

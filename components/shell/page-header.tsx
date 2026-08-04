@@ -52,11 +52,11 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         {avatar ? <div className="shrink-0">{avatar}</div> : null}
         {/*
-          The section's colour, on the one element every screen has. It is a
-          rule beside the title rather than coloured type: the title is the
-          thing being read, and tinting it would trade legibility for a signal
-          the rule carries just as well. `--section` is bound by the layout —
-          see components/shell/section-scope.tsx.
+          The section's colour, on the one element every screen has — carried by
+          the rule and the title together, so the heading reads as belonging to
+          its section at a glance rather than only the hairline beside it.
+          `--section` is bound by the layout — see
+          components/shell/section-scope.tsx.
         */}
         <div className="flex min-w-0 flex-1 gap-3">
           {/* A bar rather than a `border-s`, so the shape matches the sidebar's
@@ -66,7 +66,7 @@ export function PageHeader({
             className="bg-section mt-1 w-[3px] shrink-0 self-stretch rounded-full"
           />
           <div className="min-w-0 flex-1 space-y-1">
-            <h1 className="font-heading truncate text-2xl font-semibold tracking-tight">
+            <h1 className="font-heading text-section truncate text-2xl font-semibold tracking-tight">
               {title}
             </h1>
             {description ? (

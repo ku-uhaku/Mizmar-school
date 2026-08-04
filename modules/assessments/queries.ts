@@ -6,6 +6,8 @@ import { toDateInputValue } from "@/lib/utils";
 import {
   COUNTED_STATUSES,
   markStatistics,
+  quartersToPoints,
+  questionsTotal,
   type MarkStatistics,
 } from "@/modules/assessments/enums";
 
@@ -336,6 +338,15 @@ export type AssessmentFilters = {
    * scolaire screen and the teacher's own list never show each other's work.
    */
   kind?: "CONTROLE" | "DEVOIR";
+  /**
+   * Keeps only papers in these statuses.
+   *
+   * What the teacher's "to mark" list is: a paper is theirs to do something
+   * about while it is PUBLISHED or SUBMITTED, and a GRADED one is finished.
+   * Expressed as a filter rather than a second query so the row shape, the
+   * roster counts and the scoping stay in one place.
+   */
+  statuses?: readonly string[];
 };
 
 /**
@@ -359,6 +370,7 @@ export async function listAssessments(
       ...(filters.classId ? { schoolClassId: filters.classId } : {}),
       ...(filters.termId ? { termId: filters.termId } : {}),
       ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
+      ...(filters.statuses ? { status: { in: [...filters.statuses] } } : {}),
       ...(filters.kind
         ? {
             assessmentType: {
@@ -512,10 +524,32 @@ export type MarkRow = {
   comment: string | null;
 };
 
+/** One numbered question of the paper, in points rather than quarters. */
+export type PaperQuestion = {
+  id: string;
+  position: number;
+  text: string;
+  points: number;
+};
+
 export type MarkSheet = {
   assessment: AssessmentRow & { notes: string | null };
   rows: MarkRow[];
   statistics: MarkStatistics;
+  /** Whether the reader is the teacher answerable for these marks. */
+  isMine: boolean;
+  /**
+   * A kind the teacher sets themselves — `AssessmentType.allowTeacherCreate`.
+   *
+   * Nobody validates a devoir: the teacher sets it, marks it and is done. So
+   * the hand-in/accept pair is not offered on one, which would otherwise be a
+   * button whose other half nobody can press.
+   */
+  isDevoir: boolean;
+  /** The paper itself, in order. Empty when none was written. */
+  questions: PaperQuestion[];
+  /** What the questions add up to — see `questionsTotal`. */
+  questionsTotal: number;
 };
 
 /**
@@ -524,6 +558,18 @@ export type MarkSheet = {
  * The roster is the source of the rows, not the existing grades: a pupil
  * enrolled after the paper was generated must appear on the sheet waiting to be
  * marked rather than be silently missing from it.
+ *
+ * ── Why a devoir is narrower than a contrôle ────────────────────────────────
+ * A contrôle is the school's: the office plans it, a teacher marks it, and the
+ * office accepts the marks, so anyone holding ASSESSMENT_VIEW in the school may
+ * read it. A devoir is the teacher's own — they set it, they mark it, and
+ * nobody validates it — so it is confined to them here, as a `where` rather
+ * than a check afterwards. The caller turns the miss into `notFound()`, which
+ * is also all a colleague is entitled to learn about it.
+ *
+ * The split is `AssessmentType.allowTeacherCreate`, exactly as it is in
+ * `listAssessments` — the same column decides who may set a kind of paper and
+ * who may read one.
  */
 export async function findMarkSheet(
   context: AuthContext,
@@ -534,6 +580,13 @@ export async function findMarkSheet(
     where: {
       id: assessmentId,
       ...schoolScope(context),
+      OR: [
+        // Anybody's to read: the kinds only the office may set.
+        { assessmentType: { allowTeacherCreate: false } },
+        // A devoir: its own teacher, or whoever set it when the post is vacant.
+        { teacherId: context.user.id },
+        { createdById: context.user.id },
+      ],
       term: yearScope(context),
     },
     select: {
@@ -546,13 +599,24 @@ export async function findMarkSheet(
       coefficient: true,
       notes: true,
       classGroupId: true,
+      teacherId: true,
       subject: { select: { id: true, code: true, name: true, colorHex: true } },
       assessmentType: {
-        select: { id: true, code: true, name: true, colorHex: true },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          colorHex: true,
+          allowTeacherCreate: true,
+        },
       },
       schoolClass: { select: { id: true, code: true } },
       classGroup: { select: { code: true, name: true } },
       term: { select: { id: true, name: true } },
+      questions: {
+        orderBy: { position: "asc" },
+        select: { id: true, position: true, text: true, pointsQuarters: true },
+      },
       teacher: {
         select: {
           email: true,
@@ -657,6 +721,17 @@ export async function findMarkSheet(
     },
     rows,
     statistics,
+    isMine: assessment.teacherId === context.user.id,
+    isDevoir: assessment.assessmentType.allowTeacherCreate,
+    // Converted out of quarter-points once, here, so no screen has to know the
+    // column is stored that way — see modules/assessments/enums.ts.
+    questions: assessment.questions.map((question) => ({
+      id: question.id,
+      position: question.position,
+      text: question.text,
+      points: quartersToPoints(question.pointsQuarters),
+    })),
+    questionsTotal: questionsTotal(assessment.questions),
   };
 }
 

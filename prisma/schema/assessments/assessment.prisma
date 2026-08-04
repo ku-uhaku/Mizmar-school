@@ -92,7 +92,10 @@ model Assessment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  grades AssessmentGrade[]
+  grades    AssessmentGrade[]
+  /// The paper itself, in order. Empty for a contrôle planned by the office
+  /// before anybody has written it — see AssessmentQuestion.
+  questions AssessmentQuestion[]
 
   @@unique([schoolClassId, subjectId, termId, assessmentTypeId, sequence, scopeKey])
   @@index([schoolId])

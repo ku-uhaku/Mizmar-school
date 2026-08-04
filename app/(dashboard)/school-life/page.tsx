@@ -37,6 +37,7 @@ import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { centimesToDirhams } from "@/modules/classes/enums";
+import { TeacherActivity } from "@/modules/school-life/components/teacher-activity";
 import { loadSchoolLifeStats } from "@/modules/school-life/queries";
 
 export const metadata: Metadata = { title: "Vie scolaire" };
@@ -208,6 +209,16 @@ export default async function SchoolLifePage() {
       </div>
 
       <SectionLinks links={links} className="mt-4" />
+
+      {/* Above the year's shape on purpose: the figures below describe the
+          year, while this is the day — the absences a teacher marked an hour
+          ago and the marks somebody is waiting to have accepted. */}
+      <div className="mt-4">
+        <TeacherActivity
+          classroom={stats.classroom}
+          awaitingValidation={stats.awaitingValidation}
+        />
+      </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         {/* The ring and the gauge lead: they are the shape of the year, and the

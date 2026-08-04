@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { NotebookPenIcon, PlusIcon } from "lucide-react";
+import { NotebookPenIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
 import { SubmitButton } from "@/components/form/submit-button";
@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,18 @@ import type {
   TermOption,
 } from "@/modules/assessments/queries";
 import type { TeachingSlot } from "@/modules/classroom/queries";
+import {
+  MAX_QUESTIONS,
+  QUESTION_MAX_LENGTH,
+} from "@/modules/assessments/enums";
+
+/**
+ * One row of the question editor.
+ *
+ * `points` stays a string: it is what a number input holds, and coercing it on
+ * every keystroke would fight the teacher clearing the box to retype it.
+ */
+type QuestionDraft = { key: string; text: string; points: string };
 
 /**
  * The work a teacher has set, and the button that sets more.
@@ -77,6 +90,37 @@ export function DevoirsManager({
   );
   const [typeId, setTypeId] = React.useState(types[0]?.id ?? "");
   const [classId, subjectId] = pair.split(":");
+
+  /*
+    The paper being written. Held here rather than left to the DOM because two
+    things are derived from it as it is typed — the running total and the
+    barème — and a value that is read while it is being edited has to be state.
+
+    Keyed rows, not array indices: removing question 2 of five must not make
+    React redraw 3, 4 and 5 with the wrong text in them.
+  */
+  const [questions, setQuestions] = React.useState<QuestionDraft[]>([]);
+  const total = questions.reduce(
+    (sum, question) => sum + (Number(question.points) || 0),
+    0,
+  );
+
+  function addQuestion() {
+    setQuestions((rows) => [
+      ...rows,
+      { key: crypto.randomUUID(), text: "", points: "" },
+    ]);
+  }
+
+  function updateQuestion(key: string, patch: Partial<QuestionDraft>) {
+    setQuestions((rows) =>
+      rows.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function removeQuestion(key: string) {
+    setQuestions((rows) => rows.filter((row) => row.key !== key));
+  }
 
   const openTerms = terms.filter((term) => term.status !== "CLOSED");
   const selectedType = types.find((type) => type.id === typeId);
@@ -193,7 +237,7 @@ export function DevoirsManager({
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <form action={formAction}>
             <DialogHeader>
               <DialogTitle>{t.classroom.newDevoirTitle}</DialogTitle>
@@ -202,7 +246,7 @@ export function DevoirsManager({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-4 py-4">
+            <div className="grid max-h-[65vh] gap-4 overflow-y-auto py-4">
               {/* The class and the subject are one choice, because an
                   assignment is one row: a teacher does not pick a class and
                   then a subject they may not teach in it. */}
@@ -301,11 +345,17 @@ export function DevoirsManager({
                 >
                   <Input
                     {...controlProps("maxScore", state.fieldErrors?.maxScore)}
-                    key={`max-${typeId}`}
+                    // Re-keyed so the box follows what it is derived from: the
+                    // chosen kind while there is no paper, and the barème once
+                    // there is. Remounting is what lets it keep a value the
+                    // teacher typed over until the thing behind it moves again.
+                    key={`max-${typeId}-${total > 0 ? total : ""}`}
                     type="number"
                     min={1}
                     max={100}
-                    defaultValue={selectedType?.defaultMaxScore ?? 20}
+                    defaultValue={
+                      total > 0 ? total : (selectedType?.defaultMaxScore ?? 20)
+                    }
                     dir="ltr"
                   />
                 </FormField>
@@ -328,6 +378,97 @@ export function DevoirsManager({
                     dir="ltr"
                   />
                 </FormField>
+              </div>
+
+              {/*
+                The paper.
+
+                Optional on purpose — "exercices p.42" is a devoir too — so it
+                opens as a single button rather than an empty table demanding to
+                be filled. Each row posts as `questionText` / `questionPoints`,
+                two parallel lists the action zips back together.
+              */}
+              <div className="grid gap-2">
+                <div className="flex items-end justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {t.classroom.questions}
+                    </p>
+                    <p className="text-muted-foreground text-xs text-pretty">
+                      {t.classroom.questionsHint}
+                    </p>
+                  </div>
+                  {questions.length > 0 ? (
+                    <p className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                      {interpolate(t.classroom.questionsTotal, {
+                        total: formatNumber(total, locale),
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+
+                {questions.map((question, index) => (
+                  <div key={question.key} className="flex items-start gap-2">
+                    <span className="text-muted-foreground w-5 shrink-0 pt-2.5 text-xs tabular-nums">
+                      {index + 1}.
+                    </span>
+                    <Textarea
+                      name="questionText"
+                      value={question.text}
+                      onChange={(event) =>
+                        updateQuestion(question.key, {
+                          text: event.target.value,
+                        })
+                      }
+                      placeholder={t.classroom.questionPlaceholder}
+                      maxLength={QUESTION_MAX_LENGTH}
+                      rows={2}
+                      className="min-h-16 flex-1"
+                    />
+                    <Input
+                      name="questionPoints"
+                      value={question.points}
+                      onChange={(event) =>
+                        updateQuestion(question.key, {
+                          points: event.target.value,
+                        })
+                      }
+                      // Quarter points, because that is the grid a Moroccan
+                      // barème is written on — see pointsToQuarters.
+                      step={0.25}
+                      min={0.25}
+                      max={100}
+                      type="number"
+                      placeholder={t.classroom.questionPoints}
+                      aria-label={t.classroom.questionPoints}
+                      className="w-20 shrink-0"
+                      dir="ltr"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => removeQuestion(question.key)}
+                      aria-label={t.classroom.removeQuestion}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </div>
+                ))}
+
+                {questions.length < MAX_QUESTIONS ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="justify-self-start"
+                    onClick={addQuestion}
+                  >
+                    <PlusIcon />
+                    {t.classroom.addQuestion}
+                  </Button>
+                ) : null}
               </div>
             </div>
 

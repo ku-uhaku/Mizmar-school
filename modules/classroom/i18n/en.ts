@@ -87,6 +87,19 @@ const en = {
     kindNotAllowed: "Your school does not let teachers set that kind of work.",
     noTeacherKinds:
       "Your school has not made any kind of work teacher-settable. Ask for one under Configuration.",
+    papersToMarkHint:
+      "Your contrôles and your own homework. Enter the marks, then hand the contrôles in.",
+
+    // ── The paper ───────────────────────────────────────────────────────────
+    questions: "Questions",
+    questionsHint:
+      "Optional. Write the paper here and the mark it is out of follows the marks you give each question.",
+    questionPlaceholder: "Wording of the question",
+    questionPoints: "Points",
+    addQuestion: "Add a question",
+    removeQuestion: "Remove this question",
+    questionsTotal: "Total: {total} points",
+    noQuestions: "No paper was written for this piece of work.",
 
     // ── Remarks ─────────────────────────────────────────────────────────────
     remarks: "Remarks",

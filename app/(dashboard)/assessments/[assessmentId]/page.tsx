@@ -10,6 +10,7 @@ import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { StatusBadge } from "@/modules/assessments/components/assessments-manager";
 import { MarkSheet } from "@/modules/assessments/components/mark-sheet";
+import { PaperCard } from "@/modules/assessments/components/paper-card";
 import { PublishBar } from "@/modules/assessments/components/publish-bar";
 import { acceptsMarks } from "@/modules/assessments/enums";
 import { findMarkSheet } from "@/modules/assessments/queries";
@@ -73,6 +74,19 @@ export default async function AssessmentPage({
           status={assessment.status}
           teacherName={assessment.teacherName}
           canPublish={context.can(PERMISSIONS.ASSESSMENT_PUBLISH)}
+          canGrade={context.can(PERMISSIONS.ASSESSMENT_GRADE)}
+          // Whose marking this is. Handing a paper back is the one move the
+          // office cannot make for the teacher, so the bar has to know.
+          isMine={sheet.isMine}
+          isDevoir={sheet.isDevoir}
+        />
+
+        {/* Above the roster: the paper is what the marks are marks *of*, and a
+            teacher opening this to grade wants to reread it first. */}
+        <PaperCard
+          questions={sheet.questions}
+          total={sheet.questionsTotal}
+          maxScore={assessment.maxScore}
         />
 
         <MarkSheet

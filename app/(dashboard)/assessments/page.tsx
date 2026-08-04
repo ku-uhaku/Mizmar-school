@@ -59,10 +59,16 @@ export default async function AssessmentsPage({
     terms[0] ??
     null;
 
+  // Contrôles only. A devoir belongs to the teacher who set it and is read in
+  // their own space — see `listAssessments` and the note on `kind`. Without
+  // this the office's round of contrôles is interleaved with every piece of
+  // homework every teacher of the class has set, which is neither their
+  // business nor a list anybody can read.
   const assessments = selectedClass
     ? await listAssessments(context, {
         classId: selectedClass.id,
         termId: selectedTerm?.id,
+        kind: "CONTROLE",
       })
     : [];
 

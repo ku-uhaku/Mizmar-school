@@ -115,6 +115,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   StudentRemark: "vieScolaire",
   Assessment: "vieScolaire",
   AssessmentGrade: "vieScolaire",
+  AssessmentQuestion: "vieScolaire",
   SupplyList: "vieScolaire",
   SupplyItem: "vieScolaire",
   StudentDocument: "vieScolaire",

@@ -22,7 +22,10 @@ import {
   generateSchema,
   statusSchema,
 } from "@/modules/assessments/validation";
-import { assessmentScopeKey } from "@/modules/assessments/enums";
+import {
+  assessmentScopeKey,
+  pointsToQuarters,
+} from "@/modules/assessments/enums";
 import { devoirSchema } from "@/modules/classroom/validation";
 
 /**
@@ -46,13 +49,24 @@ async function schoolContext() {
  * what the callers need. Returns null when it does not — the action then
  * reports "not found" rather than revealing that it exists elsewhere.
  */
-async function findScopedAssessment(schoolId: string, assessmentId: string) {
+async function findScopedAssessment(
+  schoolId: string,
+  assessmentId: string,
+  /**
+   * Narrows to one teacher's own papers. Used by the moves a teacher may make
+   * on their own marking — a `where` rather than a check afterwards, so asking
+   * about a colleague's paper is indistinguishable from asking about one that
+   * does not exist.
+   */
+  scope: { teacherId?: string } = {},
+) {
   const context = await requireAuth();
   return db.assessment.findFirst({
     where: {
       id: assessmentId,
       schoolId,
       term: { schoolYearId: context.currentSchoolYear?.id ?? "__none__" },
+      ...(scope.teacherId ? { teacherId: scope.teacherId } : {}),
     },
     select: { id: true, status: true, maxScore: true },
   });
@@ -314,15 +328,10 @@ export async function setAssessmentStatusAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, schoolId } = await schoolContext();
+    const { t, context, schoolId } = await schoolContext();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
-    await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_PUBLISH);
-
     const id = field(formData, "id");
-    const existing = await findScopedAssessment(schoolId, id);
-    if (!existing) return failure(t.errors.notFound);
-
     const parsed = statusSchema(t).safeParse({
       status: field(formData, "status"),
     });
@@ -334,8 +343,56 @@ export async function setAssessmentStatusAction(
       );
     }
 
+    /*
+      Two different acts share this one entry point, and they are not the same
+      permission.
+
+      Handing a paper back (PUBLISHED → SUBMITTED, and taking it back again) is
+      the teacher's move, so it needs only the code they already hold to type
+      the marks — and it is confined to their own paper below, because "their
+      own" is the whole meaning of the handshake. Everything else — announcing
+      a paper, accepting the marks, cancelling — is the office's, and stays on
+      ASSESSMENT_PUBLISH.
+
+      Authorized before the row is read, and the ownership check is a `where`
+      rather than an `if`: a teacher asking after somebody else's paper gets
+      "not found", which is also all they are entitled to know.
+    */
+    const handingBack =
+      parsed.data.status === "SUBMITTED" || parsed.data.status === "PUBLISHED";
+    const asOffice = context.can(PERMISSIONS.ASSESSMENT_PUBLISH);
+
+    if (!asOffice) {
+      if (!handingBack) return failure(t.errors.forbidden);
+      await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_GRADE);
+    } else {
+      await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_PUBLISH);
+    }
+
+    const existing = await findScopedAssessment(schoolId, id, {
+      teacherId: asOffice ? undefined : context.user.id,
+    });
+    if (!existing) return failure(t.errors.notFound);
+
+    // A teacher may only hand back a paper that is open, and take back one they
+    // have handed in. They may not reach past the office's own moves — a
+    // GRADED paper is finished, and reopening it is the office's decision.
+    if (
+      !asOffice &&
+      existing.status !== "PUBLISHED" &&
+      existing.status !== "SUBMITTED"
+    ) {
+      return failure(t.errors.forbidden);
+    }
+
     const result = await setAssessmentStatus(existing.id, parsed.data.status);
-    if (!result.ok) return failure(t.assessment.cannotUnpublish);
+    if (!result.ok) {
+      return failure(
+        result.reason === "incomplete"
+          ? t.assessment.cannotValidateIncomplete
+          : t.assessment.cannotUnpublish,
+      );
+    }
 
     refresh();
     return success(t.assessment.statusChanged);
@@ -445,6 +502,32 @@ export async function deleteAssessmentAction(
 }
 
 /**
+ * The paper as it comes off the form: one `questionText` and one
+ * `questionPoints` per row, in the order the rows are rendered.
+ *
+ * Read as two parallel lists rather than as JSON because that is what a plain
+ * `<form>` posts — the editor stays a set of inputs, which keeps it working
+ * before hydration and keeps every value visible to `formValues` when the
+ * action comes back with an error.
+ *
+ * Rows the teacher left completely blank are dropped here rather than refused:
+ * an empty last line is how somebody stops typing, not a mistake to report.
+ */
+function readQuestions(
+  formData: FormData,
+): { text: string; points: string }[] {
+  const texts = formData.getAll("questionText");
+  const points = formData.getAll("questionPoints");
+
+  return texts
+    .map((text, index) => ({
+      text: String(text),
+      points: String(points[index] ?? ""),
+    }))
+    .filter((row) => row.text.trim() !== "" || row.points.trim() !== "");
+}
+
+/**
  * A devoir, set by the teacher for their own class.
  *
  * The counterpart to the generator: that one is a head of studies planning a
@@ -482,6 +565,7 @@ export async function createDevoirAction(
       scheduledOn: field(formData, "scheduledOn"),
       maxScore: field(formData, "maxScore"),
       coefficient: field(formData, "coefficient"),
+      questions: readQuestions(formData),
     });
     if (!parsed.success) {
       return failure(
@@ -575,6 +659,15 @@ export async function createDevoirAction(
         teacherId: assignment.teacherId ?? context.user.id,
         createdById: context.user.id,
         scopeKey: assessmentScopeKey(assignment.classGroupId),
+        // Numbered here, from the order they were typed in — `position` is the
+        // paper's own order and must not depend on how the rows come back.
+        questions: {
+          create: parsed.data.questions.map((question, index) => ({
+            position: index + 1,
+            text: question.text,
+            pointsQuarters: pointsToQuarters(question.points),
+          })),
+        },
       },
     });
 

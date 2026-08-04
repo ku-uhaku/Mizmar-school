@@ -9,6 +9,14 @@ const fr = {
     title: "Vie scolaire",
     subtitle: "{school} — {year}, à ce jour.",
     noYear: "Sélectionnez une année scolaire pour voir les chiffres.",
+
+    // ── Ce que les enseignants ont saisi ────────────────────────────────────
+    absencesToday: "Absences du jour",
+    absencesTodayHint: "Sur {registers} relevés faits aujourd'hui, avec le motif donné par l'enseignant.",
+    latestRemarks: "Dernières remarques",
+    latestRemarksHint: "Ce que les enseignants ont écrit sur les élèves.",
+    awaitingValidation: "Notes remises",
+    awaitingValidationHint: "Copies terminées par un enseignant. Validez-les pour rendre les notes définitives.",
     students: "Élèves",
     studentsDetail: "{count} inscrits",
     families: "Dossiers familiaux",

@@ -1,0 +1,53 @@
+/// One numbered question on a paper — its wording and what it is worth.
+///
+/// ── Why a table and not a text column on Assessment ──────────────────────────
+/// A paper's questions are read back one at a time: printed as a numbered list,
+/// and — the reason this is structured at all — added up. `points` is what makes
+/// the barème checkable, so a paper marked out of 20 whose questions total 18
+/// can say so instead of leaving the teacher to notice at the bottom of a pile
+/// of copies. A single block of text could hold the wording but not the sum.
+///
+/// It also keeps the wording out of the row every list screen reads: a term's
+/// contrôles are listed constantly, and none of those screens want the paper.
+///
+/// ── What it deliberately is not ─────────────────────────────────────────────
+/// Not a question *bank*: a row belongs to one paper and dies with it. Reusing
+/// a question across papers is a different feature with a different owner (the
+/// question would outlive the paper, and would need a subject and a level of
+/// its own). Nothing here forecloses that; it simply is not this.
+///
+/// Marks stay per paper, not per question. `AssessmentGrade` holds one score for
+/// the whole copy, which is how a Moroccan bulletin is computed — per-question
+/// marking would be a second, heavier way to grade and is not what the barème is
+/// for.
+model AssessmentQuestion {
+  id String @id @default(cuid())
+
+  assessmentId String
+  /// Cascade: the questions are the paper. Nothing reads them without it.
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  /// Where it comes on the paper. 1-based, contiguous, and rewritten whenever
+  /// the list is saved — the order is the teacher's, not the insertion order.
+  position Int
+
+  /// The wording, as it will be read by the pupil. Plain text: a paper that
+  /// carries markup is a paper that renders differently everywhere it is shown.
+  text String
+
+  /// What this question is worth, in the same unit as `Assessment.maxScore`.
+  /// Halves are ordinary on a Moroccan barème ("2,5 pts"), so this is stored in
+  /// quarter-points as an integer rather than as a float — see
+  /// modules/assessments/enums.ts, which owns the conversion both ways.
+  ///
+  /// INVARIANT (service layer): > 0. A question worth nothing is a rubric line,
+  /// and those go in the wording.
+  pointsQuarters Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assessmentId, position])
+  @@index([assessmentId])
+  @@map("assessment_questions")
+}

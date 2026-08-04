@@ -1064,6 +1064,15 @@ function modalDuration(slots: GeneratorSlot[]): number {
  * then edits, and edits made from a given week already know how to close the
  * old row and open a new one; see `closeEntriesFromWeek`.
  */
+
+/**
+ * Longer than Prisma's 5s default, because a whole-school apply is one
+ * transaction holding roughly six hundred lessons — and each one is three
+ * statements by the time the audit trail has read the row it replaces and
+ * written its entry. Five seconds is a limit set for a handful of writes; this
+ * is deliberately several hundred, and it must not half-write a school's week.
+ */
+const APPLY_TIMEOUT = { timeout: 60_000, maxWait: 10_000 } as const;
 export async function applyTimetableDraft(
   schoolId: string,
   schoolYearId: string,
@@ -1184,7 +1193,7 @@ export async function applyTimetableDraft(
     }
 
     return { written, cleared, assigned, draft };
-  });
+  }, APPLY_TIMEOUT);
 }
 
 // ── The year's weeks ─────────────────────────────────────────────────────────

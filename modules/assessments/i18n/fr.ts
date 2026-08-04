@@ -93,6 +93,18 @@ const fr = {
     publish: "Publier",
     unpublish: "Repasser en brouillon",
 
+    // ── La remise des notes ─────────────────────────────────────────────────
+    submitMarks: "Remettre les notes",
+    takeBack: "Reprendre",
+    acceptMarks: "Valider les notes",
+    reopen: "Rouvrir",
+    awaitingValidation:
+      "Remis. La direction doit encore valider ces notes.",
+    awaitingYourValidation:
+      "L'enseignant a remis sa correction — validez-la pour rendre les notes définitives.",
+    cannotValidateIncomplete:
+      "Des élèves n'ont ni note ni absence. Terminez la feuille avant de la valider.",
+
     // ── La feuille de notes ─────────────────────────────────────────────────
     markSheet: "Feuille de notes",
     pupil: "Élève",
@@ -127,6 +139,7 @@ const fr = {
     statuses: {
       DRAFT: "Brouillon",
       PUBLISHED: "Publié",
+      SUBMITTED: "Remis",
       GRADED: "Corrigé",
       CANCELLED: "Annulé",
     },

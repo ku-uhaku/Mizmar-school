@@ -167,6 +167,14 @@ export type TimetableClass = {
  * Deliberately conflict-free: the allocator tracks which teacher and which room
  * is already busy in each slot and skips rather than double-book, so the seeded
  * data satisfies the two clash rules the database cannot enforce itself.
+ *
+ * Those three "busy" sets are primed from the grid that is already there, not
+ * just from what this run places. A week laid out in the app — by the generator
+ * or by hand — is written with `termId: null`, so its rows carry a different
+ * `bookingKey` from the seed's and the upsert below cannot see them: without
+ * the priming, re-seeding lays a second week over the first and puts teachers
+ * in two classrooms at once. Filling only what is genuinely free is also the
+ * only reading of "idempotent" that holds once somebody has used the app.
  */
 export async function seedTimetable(
   db: SeedDb,
@@ -218,10 +226,39 @@ export async function seedTimetable(
   const busyTeacher = new Set<string>();
   const busyRoom = new Set<string>();
   const busyClass = new Set<string>();
+
+  // Whatever already stands on these periods, whichever term or booking key it
+  // was written under — see the note above.
+  const standing = await db.timetableEntry.findMany({
+    where: { timeSlotId: { in: teachable.map((slot) => slot.id) } },
+    select: {
+      schoolClassId: true,
+      timeSlotId: true,
+      teacherId: true,
+      roomId: true,
+    },
+  });
+
+  const alreadyTimetabled = new Set<string>();
+  for (const entry of standing) {
+    alreadyTimetabled.add(entry.schoolClassId);
+    busyClass.add(`${entry.schoolClassId}:${entry.timeSlotId}`);
+    if (entry.teacherId) {
+      busyTeacher.add(`${entry.teacherId}:${entry.timeSlotId}`);
+    }
+    if (entry.roomId) busyRoom.add(`${entry.roomId}:${entry.timeSlotId}`);
+  }
+
   let created = 0;
 
   for (const [classIndex, klass] of classes.entries()) {
     if (klass.assignments.length === 0) continue;
+    // A class that already has a week keeps it, untouched. Filling its gaps
+    // would be the seed editing a grid somebody laid out — and since the rows
+    // it writes carry a booking key of their own, "filling a gap" on re-run
+    // means adding lessons, not settling on the same ones. Nothing to add is
+    // what makes re-seeding a used database change nothing.
+    if (alreadyTimetabled.has(klass.id)) continue;
 
     // Start each class at a different point in the week, so the early slots are
     // not all taken by the first classes seeded.

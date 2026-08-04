@@ -90,6 +90,19 @@ const fr = {
       "Votre école n'autorise pas les enseignants à donner ce type de travail.",
     noTeacherKinds:
       "Aucun type de travail n'est ouvert aux enseignants. Demandez-en un dans la configuration.",
+    papersToMarkHint:
+      "Vos contrôles et vos propres devoirs. Saisissez les notes, puis remettez les contrôles.",
+
+    // ── Le sujet ────────────────────────────────────────────────────────────
+    questions: "Questions",
+    questionsHint:
+      "Facultatif. Rédigez le sujet ici : la note maximale suit le barème que vous donnez à chaque question.",
+    questionPlaceholder: "Énoncé de la question",
+    questionPoints: "Points",
+    addQuestion: "Ajouter une question",
+    removeQuestion: "Supprimer cette question",
+    questionsTotal: "Barème : {total} points",
+    noQuestions: "Aucun sujet n'a été rédigé pour ce devoir.",
 
     // ── Remarques ───────────────────────────────────────────────────────────
     remarks: "Remarques",

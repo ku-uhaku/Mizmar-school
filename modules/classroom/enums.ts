@@ -7,6 +7,8 @@
  * counts its own totals from these helpers, so they must cross the boundary.
  */
 
+import { minutesSinceMidnight } from "@/modules/timetable/enums";
+
 /**
  * Whether a pupil was in the room.
  *
@@ -81,6 +83,43 @@ export function startOfDay(date: Date): Date {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
   return copy;
+}
+
+/**
+ * Which of a day's lessons a register should open on at `now`: the one being
+ * taught, else the one about to be, else the last of the day.
+ *
+ * A teacher opening the appel is standing in front of a class, so "which class"
+ * is a question the clock can answer and should not be asked. Between two
+ * periods it looks *forward* — a register is taken at the start of a lesson,
+ * not after the previous one has ended — and once the school day is over it
+ * stops at the last lesson, which is what somebody marking up in the evening
+ * means. Before the first bell, "the one about to be" is that first lesson.
+ *
+ * Sorted here rather than trusting the caller's order, so the rule cannot
+ * quietly become a rule about list position.
+ */
+export function lessonAt<T extends { startTime: string; endTime: string }>(
+  lessons: readonly T[],
+  now: Date,
+): T | null {
+  if (lessons.length === 0) return null;
+
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const byStart = [...lessons].sort(
+    (a, b) =>
+      minutesSinceMidnight(a.startTime) - minutesSinceMidnight(b.startTime),
+  );
+
+  return (
+    byStart.find(
+      (lesson) =>
+        minutesSinceMidnight(lesson.startTime) <= minutes &&
+        minutes < minutesSinceMidnight(lesson.endTime),
+    ) ??
+    byStart.find((lesson) => minutesSinceMidnight(lesson.startTime) > minutes) ??
+    byStart[byStart.length - 1]
+  );
 }
 
 export type AttendanceTally = {

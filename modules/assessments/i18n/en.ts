@@ -90,6 +90,18 @@ const en = {
     publish: "Publish",
     unpublish: "Back to draft",
 
+    // ── Handing the marking back and forth ──────────────────────────────────
+    submitMarks: "Hand in the marks",
+    takeBack: "Take back",
+    acceptMarks: "Accept the marks",
+    reopen: "Reopen",
+    awaitingValidation:
+      "Handed in. The office has still to accept these marks.",
+    awaitingYourValidation:
+      "The teacher has handed in their marking — accept it to make the marks final.",
+    cannotValidateIncomplete:
+      "Some pupils have neither a mark nor an absence. Finish the sheet before accepting it.",
+
     // ── The mark sheet ──────────────────────────────────────────────────────
     markSheet: "Mark sheet",
     pupil: "Pupil",
@@ -124,6 +136,7 @@ const en = {
     statuses: {
       DRAFT: "Draft",
       PUBLISHED: "Published",
+      SUBMITTED: "Handed in",
       GRADED: "Marked",
       CANCELLED: "Cancelled",
     },

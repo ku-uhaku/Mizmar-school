@@ -3,7 +3,9 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { PERMISSIONS } from "@/lib/permissions";
 import {
+  MISSING_STATUSES,
   startOfDay,
   tallyAttendance,
   type AttendanceTally,
@@ -711,4 +713,196 @@ export async function loadPupilRemarks(
     authorName: remark.author ? displayName(remark.author) : null,
     isVisibleToFamily: remark.isVisibleToFamily,
   }));
+}
+
+// ── What the teachers have recorded, seen from the office ────────────────────
+
+export type ClassroomActivityMark = {
+  id: string;
+  status: string;
+  minutesLate: number | null;
+  isJustified: boolean;
+  /** The teacher's own note — the reason typed on the register. */
+  reason: string | null;
+  studentId: string;
+  studentName: string;
+  classCode: string;
+  /** Null for a whole-day register rather than one lesson. */
+  subjectName: string | null;
+  /** `HH:MM`, null for a whole-day register. */
+  startTime: string | null;
+  recordedByName: string | null;
+};
+
+export type ClassroomActivityRemark = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  classCode: string;
+  kind: string;
+  tone: string;
+  body: string;
+  occurredOn: string;
+  isVisibleToFamily: boolean;
+  authorName: string | null;
+};
+
+export type ClassroomActivity = {
+  /** Absences and lateness marked on the chosen day, newest first. */
+  marks: ClassroomActivityMark[];
+  absentToday: number;
+  lateToday: number;
+  /** Of those, the ones with no justification on file — what a school chases. */
+  unjustifiedToday: number;
+  /** How many registers were taken that day at all. */
+  registersTaken: number;
+  remarks: ClassroomActivityRemark[];
+};
+
+const EMPTY_ACTIVITY: ClassroomActivity = {
+  marks: [],
+  absentToday: 0,
+  lateToday: 0,
+  unjustifiedToday: 0,
+  registersTaken: 0,
+  remarks: [],
+};
+
+/**
+ * The day's registers and the latest remarks, across the whole school.
+ *
+ * ── Why this is not `listRemarks` with a wider scope ─────────────────────────
+ * Everything else in this file answers "what may *this teacher* reach", and is
+ * confined to their own assignments. This one answers the opposite question —
+ * "what have the teachers recorded" — and is confined by *permission* instead,
+ * which is the rule stated at the top of the file. A director holds no teaching
+ * assignments, so the teacher-scoped reads would return them nothing at all.
+ *
+ * The two halves are gated separately because they are separately grantable: an
+ * office that may chase absences is not automatically one that may read a
+ * colleague's carnet. Each comes back empty rather than throwing, so the caller
+ * composes one object and the screen simply shows less.
+ */
+export async function loadClassroomActivity(
+  context: AuthContext,
+  date: Date,
+  options: { remarkLimit?: number } = {},
+): Promise<ClassroomActivity> {
+  const canSeeAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW);
+  const canSeeRemarks = context.can(PERMISSIONS.CLASSROOM_REMARK_VIEW);
+  if (!canSeeAttendance && !canSeeRemarks) return EMPTY_ACTIVITY;
+
+  const day = startOfDay(date);
+
+  const [marks, registersTaken, remarks] = await Promise.all([
+    canSeeAttendance
+      ? db.studentAttendance.findMany({
+          where: {
+            date: day,
+            // Absences and lateness only: a dashboard listing every pupil who
+            // turned up is a list nobody reads.
+            status: { in: [...MISSING_STATUSES, "LATE"] },
+            enrollment: { ...yearScope(context), student: schoolScope(context) },
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: 100,
+          select: {
+            id: true,
+            status: true,
+            minutesLate: true,
+            isJustified: true,
+            reason: true,
+            subject: { select: { name: true } },
+            timeSlot: { select: { startTime: true } },
+            recordedBy: {
+              select: {
+                email: true,
+                profile: { select: { firstName: true, lastName: true } },
+              },
+            },
+            enrollment: {
+              select: {
+                schoolClass: { select: { code: true } },
+                student: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            },
+          },
+        })
+      : [],
+    canSeeAttendance
+      ? db.studentAttendance.count({
+          where: {
+            date: day,
+            enrollment: { ...yearScope(context), student: schoolScope(context) },
+          },
+        })
+      : 0,
+    canSeeRemarks
+      ? db.studentRemark.findMany({
+          where: {
+            enrollment: { ...yearScope(context), student: schoolScope(context) },
+          },
+          orderBy: [{ createdAt: "desc" }],
+          take: options.remarkLimit ?? 8,
+          select: {
+            id: true,
+            kind: true,
+            tone: true,
+            body: true,
+            occurredOn: true,
+            isVisibleToFamily: true,
+            author: {
+              select: {
+                email: true,
+                profile: { select: { firstName: true, lastName: true } },
+              },
+            },
+            enrollment: {
+              select: {
+                schoolClass: { select: { code: true } },
+                student: {
+                  select: { id: true, firstName: true, lastName: true },
+                },
+              },
+            },
+          },
+        })
+      : [],
+  ]);
+
+  return {
+    marks: marks.map((mark) => ({
+      id: mark.id,
+      status: mark.status,
+      minutesLate: mark.minutesLate,
+      isJustified: mark.isJustified,
+      reason: mark.reason,
+      studentId: mark.enrollment.student.id,
+      studentName: `${mark.enrollment.student.firstName} ${mark.enrollment.student.lastName}`,
+      classCode: mark.enrollment.schoolClass?.code ?? "—",
+      subjectName: mark.subject?.name ?? null,
+      startTime: mark.timeSlot?.startTime ?? null,
+      recordedByName: mark.recordedBy ? displayName(mark.recordedBy) : null,
+    })),
+    absentToday: marks.filter((mark) =>
+      MISSING_STATUSES.includes(mark.status as (typeof MISSING_STATUSES)[number]),
+    ).length,
+    lateToday: marks.filter((mark) => mark.status === "LATE").length,
+    unjustifiedToday: marks.filter((mark) => !mark.isJustified).length,
+    registersTaken,
+    remarks: remarks.map((remark) => ({
+      id: remark.id,
+      studentId: remark.enrollment.student.id,
+      studentName: `${remark.enrollment.student.firstName} ${remark.enrollment.student.lastName}`,
+      classCode: remark.enrollment.schoolClass?.code ?? "—",
+      kind: remark.kind,
+      tone: remark.tone,
+      body: remark.body,
+      occurredOn: toDateInputValue(remark.occurredOn),
+      isVisibleToFamily: remark.isVisibleToFamily,
+      authorName: remark.author ? displayName(remark.author) : null,
+    })),
+  };
 }

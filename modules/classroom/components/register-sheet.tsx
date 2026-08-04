@@ -259,22 +259,29 @@ function PupilRow({
 
   return (
     <TableRow>
-      {/*
-        Parallel arrays indexed by pupil, so every row contributes exactly one
-        value to every field — the same shape as the mark sheet, and for the same
-        reason: a blank reason must not shift the next pupil's status onto the
-        wrong child.
-      */}
-      <input type="hidden" name="enrollmentId" value={pupil.enrollmentId} />
-      <input type="hidden" name="status" value={entry.status} />
-      <input
-        type="hidden"
-        name="minutesLate"
-        value={entry.status === "LATE" ? entry.minutesLate : ""}
-      />
-      <input type="hidden" name="reason" value={entry.reason} />
-
       <TableCell>
+        {/*
+          Parallel arrays indexed by pupil, so every row contributes exactly one
+          value to every field — the same shape as the mark sheet, and for the
+          same reason: a blank reason must not shift the next pupil's status onto
+          the wrong child.
+
+          Inside the cell rather than directly under the row: `<tr>` may only
+          hold `<td>`, so a browser parsing the markup hoists a stray `<input>`
+          out of the table altogether — which both loses the field and makes the
+          parsed DOM differ from what React rendered, i.e. a hydration error.
+          Document order across rows is unchanged, which is all the parallel
+          arrays depend on.
+        */}
+        <input type="hidden" name="enrollmentId" value={pupil.enrollmentId} />
+        <input type="hidden" name="status" value={entry.status} />
+        <input
+          type="hidden"
+          name="minutesLate"
+          value={entry.status === "LATE" ? entry.minutesLate : ""}
+        />
+        <input type="hidden" name="reason" value={entry.reason} />
+
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-8 shrink-0">
             {pupil.photoUrl ? (

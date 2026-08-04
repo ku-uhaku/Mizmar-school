@@ -11,7 +11,7 @@ import { clampToSchoolYear } from "@/lib/school-year";
 import { toDateInputValue } from "@/lib/utils";
 import { LessonPicker } from "@/modules/classroom/components/lesson-picker";
 import { RegisterSheet } from "@/modules/classroom/components/register-sheet";
-import { startOfDay } from "@/modules/classroom/enums";
+import { lessonAt, startOfDay } from "@/modules/classroom/enums";
 import {
   findRegister,
   listMyLessons,
@@ -47,10 +47,11 @@ export default async function TeacherAttendancePage({
   }
 
   const params = await searchParams;
+  const now = new Date();
   // A date the user asked for is honoured as typed; only the *default* is
   // clamped into the year, so the register never opens on a day in August that
   // the school year does not contain. See lib/school-year.ts.
-  const defaultDay = clampToSchoolYear(new Date(), context.currentSchoolYear);
+  const defaultDay = clampToSchoolYear(now, context.currentSchoolYear);
   const requested = params.date ? new Date(params.date) : defaultDay;
   const day = Number.isNaN(requested.getTime())
     ? startOfDay(defaultDay)
@@ -61,17 +62,34 @@ export default async function TeacherAttendancePage({
     listMyLessons(context, day),
   ]);
 
-  // Default to the first class they teach, so the screen is never empty for a
-  // teacher who has simply not chosen yet.
+  // Nothing chosen yet, so the clock chooses: the teacher is standing in front
+  // of a class and means that one. A click — the "prendre l'appel" links on
+  // /teacher, or the picker below — travels in the query string and always
+  // wins, which is why this is skipped the moment `class` is present.
+  //
+  // On another day there is no "now" to read, so it asks the same question at
+  // midnight, which answers with that day's first lesson.
+  const chosen = params.class
+    ? null
+    : lessonAt(lessons, day.getTime() === startOfDay(now).getTime() ? now : day);
+
+  // Only when the timetable offers nothing at all — a teacher with no lessons
+  // that day — does it fall back to the first class they teach, so the screen
+  // is never empty for somebody who has simply not chosen yet.
   const fallback = teaching[0] ?? null;
-  const schoolClassId = params.class ?? fallback?.schoolClassId ?? null;
-  const subjectId = params.subject ?? fallback?.subjectId ?? null;
+  const schoolClassId =
+    params.class ?? chosen?.schoolClassId ?? fallback?.schoolClassId ?? null;
+  const subjectId =
+    params.subject ?? chosen?.subjectId ?? fallback?.subjectId ?? null;
+  // The period comes with the lesson: defaulting to the whole day would mark a
+  // pupil present for a morning the teacher only had them for one hour of.
+  const timeSlotId = params.slot ?? chosen?.timeSlotId ?? null;
 
   const register = schoolClassId
     ? await findRegister(context, {
         schoolClassId,
         subjectId,
-        timeSlotId: params.slot ?? null,
+        timeSlotId,
         date: day,
       })
     : null;
@@ -102,7 +120,7 @@ export default async function TeacherAttendancePage({
             selected={{
               schoolClassId,
               subjectId,
-              timeSlotId: params.slot ?? null,
+              timeSlotId,
               date: toDateInputValue(day),
             }}
           />

@@ -287,6 +287,7 @@ function delegateName(model: string): string {
 
 type Delegate = {
   findFirst: (args: unknown) => Promise<Row | null>;
+  findUnique: (args: unknown) => Promise<Row | null>;
   findMany: (args: unknown) => Promise<Row[]>;
 };
 
@@ -301,10 +302,19 @@ function delegateFor(base: BaseClient, model: string): Delegate | null {
  * Reads the rows an operation is about to change, so the entry can say what it
  * changed *from*.
  *
- * `findFirst` rather than `findUnique`: the app's own security rule is to scope
- * a write by more than its id (`where: { id, organizationId }`), and that where
- * clause is not a unique input. Bulk operations read ids only, and only up to a
- * cap — a `deleteMany` across a whole year must not pull the year into memory.
+ * `findFirst` rather than `findUnique` for an update or a delete: the app's own
+ * security rule is to scope a write by more than its id
+ * (`where: { id, organizationId }`), and that where clause is not a unique
+ * input. An upsert is the opposite case — its `where` *is* a unique input, and
+ * a compound one (`{ schoolClassId_timeSlotId_bookingKey: {…} }`) is an
+ * argument `findFirst` rejects outright. Sending it there cost a thrown query
+ * on every upsert in the app: swallowed by the catch below, so nothing broke
+ * visibly, but the entry lost its "before" and the write was recorded as if it
+ * had created the row. It also logged a full Prisma error each time, which is
+ * what pushed `applyTimetableDraft` past its transaction timeout.
+ *
+ * Bulk operations read ids only, and only up to a cap — a `deleteMany` across a
+ * whole year must not pull the year into memory.
  */
 async function readBefore(
   base: BaseClient,
@@ -316,7 +326,10 @@ async function readBefore(
   if (!delegate || !args?.where) return { before: null, bulk: [] };
 
   try {
-    if (operation === "update" || operation === "delete" || operation === "upsert") {
+    if (operation === "upsert") {
+      return { before: await delegate.findUnique({ where: args.where }), bulk: [] };
+    }
+    if (operation === "update" || operation === "delete") {
       return { before: await delegate.findFirst({ where: args.where }), bulk: [] };
     }
     if (operation.startsWith("updateMany") || operation === "deleteMany") {

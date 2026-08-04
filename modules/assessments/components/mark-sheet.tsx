@@ -305,28 +305,35 @@ function MarkRowCells({
 
   return (
     <TableRow className={cn(entry.isAbsent && "opacity-60")}>
-      {/*
-        The action reads these as parallel arrays indexed by pupil, so every row
-        must contribute exactly one value to every field — including the ones it
-        is not using. Emitting the whole block here, once, is what makes that
-        structural: a blank comment cannot shift the next pupil's mark onto the
-        wrong child.
-      */}
-      <input type="hidden" name="enrollmentId" value={row.enrollmentId} />
-      <input
-        type="hidden"
-        name="score"
-        value={entry.isAbsent ? "" : entry.score}
-      />
-      <input type="hidden" name="absent" value={entry.isAbsent ? "1" : "0"} />
-      <input
-        type="hidden"
-        name="excused"
-        value={entry.isAbsent && entry.isExcused ? "1" : "0"}
-      />
-      <input type="hidden" name="comment" value={entry.comment} />
-
       <TableCell>
+        {/*
+          The action reads these as parallel arrays indexed by pupil, so every
+          row must contribute exactly one value to every field — including the
+          ones it is not using. Emitting the whole block here, once, is what
+          makes that structural: a blank comment cannot shift the next pupil's
+          mark onto the wrong child.
+
+          Inside the cell rather than directly under the row: `<tr>` may only
+          hold `<td>`, so a browser parsing the markup hoists a stray `<input>`
+          out of the table altogether — which both loses the field and makes the
+          parsed DOM differ from what React rendered, i.e. a hydration error.
+          Document order across rows is unchanged, which is all the parallel
+          arrays depend on.
+        */}
+        <input type="hidden" name="enrollmentId" value={row.enrollmentId} />
+        <input
+          type="hidden"
+          name="score"
+          value={entry.isAbsent ? "" : entry.score}
+        />
+        <input type="hidden" name="absent" value={entry.isAbsent ? "1" : "0"} />
+        <input
+          type="hidden"
+          name="excused"
+          value={entry.isAbsent && entry.isExcused ? "1" : "0"}
+        />
+        <input type="hidden" name="comment" value={entry.comment} />
+
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-8 shrink-0">
             {row.photoUrl ? <AvatarImage src={row.photoUrl} alt="" /> : null}

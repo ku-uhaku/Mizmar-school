@@ -12,6 +12,14 @@ const en = {
     title: "School life",
     subtitle: "{school} — {year}, as it stands today.",
     noYear: "Select a school year to see this year's figures.",
+
+    // ── What the teachers have recorded ─────────────────────────────────────
+    absencesToday: "Today's absences",
+    absencesTodayHint: "From {registers} marks taken today, with the reason the teacher gave.",
+    latestRemarks: "Latest remarks",
+    latestRemarksHint: "What the teaching staff has written about pupils.",
+    awaitingValidation: "Marks handed in",
+    awaitingValidationHint: "Papers a teacher has finished. Accept them to make the marks final.",
     students: "Students",
     studentsDetail: "{count} enrolled",
     families: "Family files",
