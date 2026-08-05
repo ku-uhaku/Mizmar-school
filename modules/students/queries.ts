@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import {
   siblingCountOf,
   workflowStateOf,
@@ -20,10 +21,6 @@ import { studentPaymentStanding } from "@/modules/treasury/queries";
  * belong to the enrolment module and are composed by the page, so a pupil's
  * screen and the class roster cannot disagree about who sits where.
  */
-
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
 
 /** The shape the students table renders. Primitives only — it crosses to the client. */
 export type StudentRow = {
@@ -172,7 +169,9 @@ export async function findStudent(
       birthCity: { select: { name: true } },
       // The town comes with it: "Centre-ville" alone names four different
       // places — the same reason `listNeighbourhoodChoices` labels them that way.
-      neighbourhood: { select: { name: true, city: { select: { name: true } } } },
+      neighbourhood: {
+        select: { name: true, city: { select: { name: true } } },
+      },
       previousSchoolCity: { select: { name: true } },
       enrollments: enrolmentInclude(context.currentSchoolYear?.id),
     },
@@ -255,7 +254,7 @@ export async function loadStudentWorkflow(
   context: AuthContext,
   studentId: string,
 ): Promise<Record<StudentWorkflowStep, boolean>> {
-  const yearId = context.currentSchoolYear?.id ?? "__none__";
+  const yearId = currentSchoolYearId(context);
 
   const student = await db.student.findFirst({
     where: { id: studentId, ...schoolScope(context) },
@@ -299,7 +298,7 @@ export async function listUnassignedStudents(
 ): Promise<{ id: string; enrollmentId: string; label: string }[]> {
   const enrollments = await db.enrollment.findMany({
     where: {
-      schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+      schoolYearId: currentSchoolYearId(context),
       levelOfferingId,
       schoolClassId: null,
       status: { in: ["ACTIVE", "PENDING"] },
@@ -307,7 +306,9 @@ export async function listUnassignedStudents(
     orderBy: [{ student: { lastName: "asc" } }],
     select: {
       id: true,
-      student: { select: { id: true, code: true, firstName: true, lastName: true } },
+      student: {
+        select: { id: true, code: true, firstName: true, lastName: true },
+      },
     },
   });
 
@@ -417,17 +418,11 @@ export async function countStudentsByStanding(context: AuthContext): Promise<{
   return { enrolled, preRegistered, left, total };
 }
 
-/** Live counts for the school-life dashboard, scoped like the list. */
-export async function countStudents(
-  context: AuthContext,
-): Promise<{ total: number; enrolled: number; preRegistered: number }> {
-  const scope = schoolScope(context);
-
-  const [total, enrolled, preRegistered] = await Promise.all([
-    db.student.count({ where: scope }),
-    db.student.count({ where: { ...scope, status: "ENROLLED" } }),
-    db.student.count({ where: { ...scope, status: "PRE_REGISTERED" } }),
-  ]);
-
-  return { total, enrolled, preRegistered };
-}
+/*
+  There was a `countStudents` here too, taking the same scope and returning
+  { total, enrolled, preRegistered } — three of the four figures above, from
+  three more COUNTs. Its one caller asked for both, so the school-life dashboard
+  ran seven counts over one table where four would do, and two independent
+  queries were free to disagree about what "enrolled" meant. Callers derive the
+  smaller shape from this one.
+*/

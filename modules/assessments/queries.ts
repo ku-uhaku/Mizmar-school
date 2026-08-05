@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import {
   COUNTED_STATUSES,
   markStatistics,
@@ -20,14 +21,6 @@ import {
  * teacher entering this year's, which is the one mistake nobody would notice
  * until a report card came out wrong.
  */
-
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
-
-function yearScope(context: AuthContext) {
-  return { schoolYearId: context.currentSchoolYear?.id ?? "__none__" };
-}
 
 export type AssessmentTypeOption = {
   id: string;
@@ -116,7 +109,9 @@ export async function listAssessableClasses(
       code: true,
       name: true,
       levelOfferingId: true,
-      levelOffering: { select: { level: { select: { code: true, name: true } } } },
+      levelOffering: {
+        select: { level: { select: { code: true, name: true } } },
+      },
     },
   });
 
@@ -182,7 +177,7 @@ export async function loadProgrammesByClass(
   const classes = await db.schoolClass.findMany({
     where: {
       levelOffering: yearScope(context),
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
       isActive: true,
     },
     select: {
@@ -347,7 +342,50 @@ export type AssessmentFilters = {
    * roster counts and the scoping stay in one place.
    */
   statuses?: readonly string[];
+  /**
+   * Caps the list. Absent means the whole matching set, which is right for a
+   * class-and-term screen and wrong for anything school-wide: this read pulls
+   * every paper's grades to compute its statistics, so an uncapped
+   * school-wide call is one query plus one class's marks per paper set all
+   * year. Callers that only want the first few pass a limit and take the
+   * remainder from `countAssessments`.
+   */
+  take?: number;
 };
+
+function assessmentWhere(context: AuthContext, filters: AssessmentFilters) {
+  return {
+    ...schoolScope(context),
+    // Bound to the selected year through the term, never by an id from the
+    // request alone.
+    term: yearScope(context),
+    ...(filters.classId ? { schoolClassId: filters.classId } : {}),
+    ...(filters.termId ? { termId: filters.termId } : {}),
+    ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
+    ...(filters.statuses ? { status: { in: [...filters.statuses] } } : {}),
+    ...(filters.kind
+      ? {
+          assessmentType: {
+            allowTeacherCreate: filters.kind === "DEVOIR",
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * How many papers match, ignoring `take`.
+ *
+ * Shares `assessmentWhere` with the list rather than restating the clauses, so
+ * a screen showing "8 of 47" cannot end up counting a different set from the
+ * one it is showing.
+ */
+export async function countAssessments(
+  context: AuthContext,
+  filters: AssessmentFilters = {},
+): Promise<number> {
+  return db.assessment.count({ where: assessmentWhere(context, filters) });
+}
 
 /**
  * The papers of a class and term, with how far along the marking is.
@@ -362,23 +400,8 @@ export async function listAssessments(
   filters: AssessmentFilters = {},
 ): Promise<AssessmentRow[]> {
   const assessments = await db.assessment.findMany({
-    where: {
-      ...schoolScope(context),
-      // Bound to the selected year through the term, never by an id from the
-      // request alone.
-      term: yearScope(context),
-      ...(filters.classId ? { schoolClassId: filters.classId } : {}),
-      ...(filters.termId ? { termId: filters.termId } : {}),
-      ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
-      ...(filters.statuses ? { status: { in: [...filters.statuses] } } : {}),
-      ...(filters.kind
-        ? {
-            assessmentType: {
-              allowTeacherCreate: filters.kind === "DEVOIR",
-            },
-          }
-        : {}),
-    },
+    where: assessmentWhere(context, filters),
+    ...(filters.take === undefined ? {} : { take: filters.take }),
     orderBy: [
       { term: { number: "asc" } },
       { sequence: "asc" },
@@ -400,7 +423,12 @@ export async function listAssessments(
       schoolClass: { select: { id: true, code: true } },
       classGroup: { select: { code: true, name: true } },
       term: { select: { id: true, name: true } },
-      teacher: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
       grades: { select: { score: true, isAbsent: true } },
     },
   });
@@ -447,9 +475,7 @@ export async function listAssessments(
       groupLabel: groupLabel(assessment.classGroup),
       termId: assessment.term.id,
       termName: assessment.term.name,
-      teacherName: assessment.teacher
-        ? displayName(assessment.teacher)
-        : null,
+      teacherName: assessment.teacher ? displayName(assessment.teacher) : null,
       rosterCount:
         rosterCounts.get(
           rosterKey(assessment.schoolClass.id, assessment.classGroupId),
@@ -736,7 +762,7 @@ export async function findMarkSheet(
 }
 
 export type AssessmentSummary = {
-  total: number
+  total: number;
   /** Papers announced but not yet fully marked. */
   awaitingMarks: number;
   /** Papers still to be announced. */

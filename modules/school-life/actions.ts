@@ -14,17 +14,22 @@ import { searchStudents } from "@/modules/students/queries";
  * confined to the working context. Results are filtered by permission
  * *per kind*: a bursar with no access to family files gets pupils and classes
  * and nothing else, rather than an empty box or a forbidden error.
+ *
+ * A failure comes back as no results rather than as a throw. The caller is a
+ * `useTransition` in a dialog with nowhere to render an error, and a search box
+ * that goes quiet on a hiccup is better than an unhandled rejection. Only the
+ * expected failure is swallowed here — `requireAuth` still throws, because a
+ * signed-out user has to be sent to the login screen and not shown an empty
+ * list.
  */
 
+/** One row, whatever kind it is — the box renders all three the same way. */
+export type SearchHit = { id: string; label: string; detail: string };
+
 export type SearchResults = {
-  students: {
-    id: string;
-    label: string;
-    detail: string;
-    status: string;
-  }[];
-  families: { id: string; label: string; detail: string }[];
-  classes: { id: string; label: string; detail: string }[];
+  students: SearchHit[];
+  families: SearchHit[];
+  classes: SearchHit[];
 };
 
 const EMPTY: SearchResults = { students: [], families: [], classes: [] };
@@ -38,12 +43,14 @@ export async function globalSearchAction(term: string): Promise<SearchResults> {
 
   const [students, families, classes] = await Promise.all([
     context.can(PERMISSIONS.STUDENT_VIEW)
-      ? searchStudents(context, trimmed)
+      ? searchStudents(context, trimmed).catch(() => [])
       : [],
     context.can(PERMISSIONS.FAMILY_VIEW)
-      ? searchFamilies(context, trimmed)
+      ? searchFamilies(context, trimmed).catch(() => [])
       : [],
-    context.can(PERMISSIONS.CLASS_VIEW) ? searchClasses(context, trimmed) : [],
+    context.can(PERMISSIONS.CLASS_VIEW)
+      ? searchClasses(context, trimmed).catch(() => [])
+      : [],
   ]);
 
   return {
@@ -53,7 +60,6 @@ export async function globalSearchAction(term: string): Promise<SearchResults> {
       detail: [student.code, student.className ?? student.levelName]
         .filter(Boolean)
         .join(" · "),
-      status: student.status,
     })),
     families: families.map((family) => ({
       id: family.id,

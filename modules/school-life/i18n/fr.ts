@@ -12,11 +12,13 @@ const fr = {
 
     // ── Ce que les enseignants ont saisi ────────────────────────────────────
     absencesToday: "Absences du jour",
-    absencesTodayHint: "Sur {registers} relevés faits aujourd'hui, avec le motif donné par l'enseignant.",
+    absencesTodayHint:
+      "Sur {registers} relevés faits aujourd'hui, avec le motif donné par l'enseignant.",
     latestRemarks: "Dernières remarques",
     latestRemarksHint: "Ce que les enseignants ont écrit sur les élèves.",
     awaitingValidation: "Notes remises",
-    awaitingValidationHint: "Copies terminées par un enseignant. Validez-les pour rendre les notes définitives.",
+    awaitingValidationHint:
+      "Copies terminées par un enseignant. Validez-les pour rendre les notes définitives.",
     students: "Élèves",
     studentsDetail: "{count} inscrits",
     families: "Dossiers familiaux",
@@ -26,7 +28,6 @@ const fr = {
     unplaced: "En attente de classe",
     unplacedDetail: "Inscrits mais non affectés",
     billed: "Facturé cette année",
-    billedDetail: "Net de réductions",
     discounted: "Réductions accordées",
     standing: "L'effectif",
     standingHint: "Où en est chaque dossier ouvert sur les registres.",
@@ -36,6 +37,7 @@ const fr = {
     pupilsTotal: "élèves",
     standingColumn: "Situation",
     occupancy: "Places occupées",
+    occupancyHint: "Sur les classes dont la capacité est renseignée.",
     occupancyCaption: "{taken} sur {total} places",
     byLevel: "Élèves par niveau",
     byLevelHint: "Sur les niveaux ouverts par cette école cette année.",
@@ -52,7 +54,7 @@ const fr = {
     timetableHint: "La semaine que suit chaque classe, heure par heure.",
     unplacedCount: "{count} à affecter",
     openStudents: "Ouvrir la liste des élèves",
-    openClasses: "Ouvrir la liste des classes",
+    andMore: "et {count} de plus",
 
     search: "Rechercher",
     searchPlaceholder: "Rechercher élèves, familles, classes…",
@@ -64,8 +66,7 @@ const fr = {
   },
 };
 
-export const nav = {
-};
+export const nav = {};
 
 export const permissions = {
   groups: {

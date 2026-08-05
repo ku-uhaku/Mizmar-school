@@ -16,6 +16,7 @@ import {
 } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
+import { currentSchoolYearId } from "@/lib/scope";
 import { startOfDay } from "@/modules/hr/enums";
 import {
   decideFuelRequest,
@@ -260,7 +261,7 @@ export async function deleteRouteAction(routeId: string): Promise<ActionState> {
     const route = await db.transportRoute.findFirst({
       where: {
         id: routeId,
-        schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+        schoolYearId: currentSchoolYearId(context),
       },
       select: { id: true, _count: { select: { subscriptions: true } } },
     });
@@ -380,7 +381,7 @@ export async function deleteStopAction(stopId: string): Promise<ActionState> {
     const stop = await db.routeStop.findFirst({
       where: {
         id: stopId,
-        route: { schoolYearId: context.currentSchoolYear?.id ?? "__none__" },
+        route: { schoolYearId: currentSchoolYearId(context) },
       },
       select: { id: true, _count: { select: { subscriptions: true } } },
     });
@@ -613,7 +614,7 @@ export async function unsubscribeRiderAction(
       where: {
         id: subscriptionId,
         enrollment: {
-          schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+          schoolYearId: currentSchoolYearId(context),
           student: { schoolId },
         },
       },

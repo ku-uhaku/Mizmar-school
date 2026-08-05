@@ -15,6 +15,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { displayName, requireAuth } from "@/lib/dal";
+import { PERMISSIONS } from "@/lib/permissions";
 
 function initialsOf(name: string, email: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -35,6 +36,15 @@ export default async function DashboardLayout({
 
   const sections = visibleSections(context.canOrg, context.can);
   const name = displayName(context.user);
+
+  // The box searches pupils, dossiers and classes, and each kind is filtered by
+  // its own permission inside the action. A reader holding none of the three
+  // would get a control that can only ever answer "nothing found", so they get
+  // no control at all.
+  const canSearch =
+    context.can(PERMISSIONS.STUDENT_VIEW) ||
+    context.can(PERMISSIONS.FAMILY_VIEW) ||
+    context.can(PERMISSIONS.CLASS_VIEW);
 
   return (
     // The working school's policies, for the screens that need them where there
@@ -79,7 +89,7 @@ export default async function DashboardLayout({
             <div className="ms-auto flex items-center gap-1">
               {/* Scoped to the working context and filtered by permission inside
                 the action — see modules/school-life/actions.ts. */}
-              <GlobalSearch />
+              {canSearch ? <GlobalSearch /> : null}
               <FullscreenToggle />
               <LocaleSwitcher />
               <ThemeModeToggle />

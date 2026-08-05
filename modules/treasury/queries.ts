@@ -2,6 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import {
   categoryKindsFor,
@@ -22,24 +23,6 @@ import { isOverdue } from "@/modules/treasury/payment-state";
  * same clauses, which is what stops the encaissement screen offering a line the
  * ledger would then refuse.
  */
-
-/**
- * An id no row can carry, for the "nothing is in context" case.
- *
- * Scoping to it matches nothing; leaving the clause out would match everything,
- * which on these tables means one school's caisse rendered for another's.
- */
-const NO_MATCH = "__none__";
-
-/** No school selected: match nothing rather than everything. */
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? NO_MATCH };
-}
-
-/** The same, for the year — see `listFamilyReceipts`. */
-function yearScope(context: AuthContext): string {
-  return context.currentSchoolYear?.id ?? NO_MATCH;
-}
 
 /** Posted rows only — cancelled movements stay in the ledger but count nowhere. */
 const POSTED = { status: "POSTED" } as const;
@@ -88,13 +71,21 @@ export async function listRegisters(
     orderBy: [{ position: "asc" }, { name: "asc" }],
     include: {
       holder: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       _count: { select: { sessions: true } },
       sessions: {
         where: { status: "OPEN" },
         include: {
-          openedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+          openedBy: {
+            select: {
+              email: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
           operations: {
             where: POSTED,
             select: { cashImpactCentimes: true },
@@ -165,7 +156,12 @@ export async function findOpenSession(context: AuthContext) {
     },
     include: {
       cashRegister: { select: { id: true, name: true, code: true } },
-      openedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      openedBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
     },
     orderBy: { openedAt: "desc" },
   });
@@ -240,10 +236,16 @@ export async function findSessionDetail(
     include: {
       cashRegister: { select: { code: true, name: true } },
       openedBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       closedBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       _count: { select: { operations: true } },
     },
@@ -282,8 +284,18 @@ export async function listSessions(
     take: limit,
     include: {
       cashRegister: { select: { name: true } },
-      openedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
-      closedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      openedBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      closedBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
       _count: { select: { operations: true } },
     },
   });
@@ -294,9 +306,7 @@ export async function listSessions(
     openedAt: session.openedAt.toISOString(),
     openedByName: displayName(session.openedBy),
     closedAt: session.closedAt?.toISOString() ?? null,
-    closedByName: session.closedBy
-      ? displayName(session.closedBy)
-      : null,
+    closedByName: session.closedBy ? displayName(session.closedBy) : null,
     openingFloatCentimes: session.openingFloatCentimes,
     countedCentimes: session.countedCentimes,
     expectedCentimes: session.expectedCentimes,
@@ -356,7 +366,12 @@ export async function listOperations(
       cashSession: { select: { cashRegister: { select: { name: true } } } },
       category: { select: { name: true } },
       subcategory: { select: { name: true } },
-      createdBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      createdBy: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
       payment: { select: { id: true, code: true } },
       reversedBy: { select: { id: true } },
     },
@@ -1196,7 +1211,9 @@ export async function treasurySummary(
             return operation.amountCentimes;
           }
           const original = operation.reversesOperation?.occurredAt;
-          return original && original >= dayStart ? -operation.amountCentimes : 0;
+          return original && original >= dayStart
+            ? -operation.amountCentimes
+            : 0;
         }),
     );
 
@@ -1275,10 +1292,16 @@ export async function findReceipt(
     include: {
       family: { select: { name: true, code: true } },
       createdBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       cancelledBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       cashSession: { select: { cashRegister: { select: { name: true } } } },
       tenders: { include: { cheque: true } },
@@ -1505,7 +1528,11 @@ export async function listSuppliers(
   kinds: readonly string[],
 ): Promise<SupplierOption[]> {
   const suppliers = await db.supplier.findMany({
-    where: { ...schoolScope(context), isActive: true, kind: { in: [...kinds] } },
+    where: {
+      ...schoolScope(context),
+      isActive: true,
+      kind: { in: [...kinds] },
+    },
     orderBy: [{ position: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -1610,7 +1637,12 @@ export async function listFamilyPayments(
       },
     }),
     db.payment.findMany({
-      where: { schoolId, schoolYearId, status: "POSTED", familyId: { not: null } },
+      where: {
+        schoolId,
+        schoolYearId,
+        status: "POSTED",
+        familyId: { not: null },
+      },
       select: { familyId: true, paidAt: true },
     }),
   ]);
@@ -1705,7 +1737,7 @@ export async function listFamilyReceipts(
     // under this year's total.
     where: {
       ...schoolScope(context),
-      schoolYearId: yearScope(context),
+      schoolYearId: currentSchoolYearId(context),
       familyId,
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],

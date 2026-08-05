@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
-import { centimesToDirhams } from "@/modules/classes/enums";
+import { centimesToDirhams } from "@/modules/treasury/enums";
 import { regenerateFeesAction } from "@/modules/enrolment/actions";
 import { FeeCellDialog } from "@/modules/enrolment/components/fee-cell-dialog";
 import type {

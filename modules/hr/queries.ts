@@ -2,6 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { schoolScope } from "@/lib/scope";
 import {
   advanceInstalment,
   outstandingAdvance,
@@ -29,10 +30,6 @@ import {
  * `listStaffOptions` is this module's lending library: the fleet and the caisse
  * both pick an employee from it rather than repeating a name.
  */
-
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
 
 // ── The people ───────────────────────────────────────────────────────────────
 

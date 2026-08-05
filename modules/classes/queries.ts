@@ -3,6 +3,8 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { currentSchoolId, yearScope } from "@/lib/scope";
+import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 
 /**
  * Reads for the classes module.
@@ -12,8 +14,25 @@ import { toDateInputValue } from "@/lib/utils";
  * outside the selected year would show last year's cohort.
  */
 
-function yearScope(context: AuthContext) {
-  return { schoolYearId: context.currentSchoolYear?.id ?? "__none__" };
+/**
+ * How many pupils a class actually holds.
+ *
+ * Only enrolments that still hold a place: a child who transferred out in
+ * November keeps their `Enrollment` row seated in the class — that is the point
+ * of the row — but they are not occupying a chair in December. Counting them
+ * put the vie scolaire occupancy gauge above 100% for a school with any
+ * turnover at all, and made this module's roll disagree with
+ * `loadEnrolmentStats`, which has always counted ACTIVE and PENDING only.
+ *
+ * The roster on the class detail screen is deliberately *not* filtered this way
+ * — it shows the year's whole history with a status against each name.
+ */
+function seated() {
+  return {
+    select: {
+      enrollments: { where: { status: { in: [...LIVE_ENROLMENT_STATUSES] } } },
+    },
+  };
 }
 
 export type ClassRow = {
@@ -64,7 +83,12 @@ export type AssignmentRow = {
 
 export type ClassDetail = ClassRow & {
   levelOfferingId: string;
-  groups: { id: string; code: string; label: string; capacity: number | null }[];
+  groups: {
+    id: string;
+    code: string;
+    label: string;
+    capacity: number | null;
+  }[];
   roster: RosterEntry[];
   assignments: AssignmentRow[];
 };
@@ -73,12 +97,17 @@ const levelLabelOf = (offering: {
   level: { code: string };
   track: { code: string } | null;
 }) =>
-  offering.track ? `${offering.level.code} ${offering.track.code}` : offering.level.code;
+  offering.track
+    ? `${offering.level.code} ${offering.track.code}`
+    : offering.level.code;
 
 export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context) },
-    orderBy: [{ levelOffering: { level: { gradeYear: "asc" } } }, { code: "asc" }],
+    orderBy: [
+      { levelOffering: { level: { gradeYear: "asc" } } },
+      { code: "asc" },
+    ],
     include: {
       levelOffering: {
         select: {
@@ -98,7 +127,7 @@ export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
           groups: true,
           assignments: true,
           timetableEntries: true,
-          enrollments: true,
+          ...seated().select,
         },
       },
     },
@@ -136,7 +165,7 @@ export async function findClass(
     where: {
       id: schoolClassId,
       levelOffering: yearScope(context),
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
     },
     include: {
       levelOffering: {
@@ -158,7 +187,10 @@ export async function findClass(
         select: { id: true, code: true, name: true, capacity: true },
       },
       enrollments: {
-        orderBy: [{ student: { lastName: "asc" } }, { student: { firstName: "asc" } }],
+        orderBy: [
+          { student: { lastName: "asc" } },
+          { student: { firstName: "asc" } },
+        ],
         select: {
           id: true,
           status: true,
@@ -202,7 +234,7 @@ export async function findClass(
           groups: true,
           assignments: true,
           timetableEntries: true,
-          enrollments: true,
+          ...seated().select,
         },
       },
     },
@@ -268,17 +300,22 @@ export async function findClass(
 }
 
 /** Live figures for the school-life dashboard: how full each class is. */
-export async function loadClassFill(context: AuthContext): Promise<
+export async function loadClassFill(
+  context: AuthContext,
+): Promise<
   { id: string; code: string; enrolled: number; capacity: number | null }[]
 > {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context), isActive: true },
-    orderBy: [{ levelOffering: { level: { gradeYear: "asc" } } }, { code: "asc" }],
+    orderBy: [
+      { levelOffering: { level: { gradeYear: "asc" } } },
+      { code: "asc" },
+    ],
     select: {
       id: true,
       code: true,
       capacity: true,
-      _count: { select: { enrollments: true } },
+      _count: seated(),
     },
   });
 
@@ -295,7 +332,9 @@ export async function searchClasses(
   context: AuthContext,
   term: string,
   take = 4,
-): Promise<{ id: string; code: string; levelLabel: string; enrolled: number }[]> {
+): Promise<
+  { id: string; code: string; levelLabel: string; enrolled: number }[]
+> {
   const trimmed = term.trim();
   if (trimmed.length < 2) return [];
 
@@ -315,7 +354,7 @@ export async function searchClasses(
           track: { select: { code: true } },
         },
       },
-      _count: { select: { enrollments: true } },
+      _count: seated(),
     },
   });
 

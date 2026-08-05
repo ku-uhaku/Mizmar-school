@@ -175,25 +175,34 @@ export type RunRegister = { run: TripRun; entries: RegisterEntry[] };
 
 // ── Direction ────────────────────────────────────────────────────────────────
 
+/**
+ * Mirrors what `app/api/mobile/v1/director/dashboard` returns.
+ *
+ * Every block is nullable because the server gates each on the permission that
+ * opens the screen it summarises: `schoolLife.view` grants the overview, not
+ * the households or what the school has billed. A null means "not yours to
+ * see", and the space omits that card rather than drawing a zero.
+ */
 export type DirectorDashboard = {
   schoolName: string | null;
   schoolYearName: string | null;
   stats: {
-    students: { total: number; enrolled: number; preRegistered: number };
     standing: {
       enrolled: number;
       preRegistered: number;
       left: number;
       total: number;
-    };
-    families: number;
+    } | null;
+    families: number | null;
     enrolment: {
       enrolled: number;
       pending: number;
       unplaced: number;
+    } | null;
+    billing: {
       billedCentimes: number;
       discountedCentimes: number;
-    };
+    } | null;
     byLevel: { label: string; levelCode: string; value: number }[];
   };
 };

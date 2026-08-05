@@ -48,6 +48,17 @@ export function GlobalSearch() {
   const [open, setOpen] = React.useState(false);
   const [term, setTerm] = React.useState("");
   const [results, setResults] = React.useState<SearchResults>(EMPTY);
+  /**
+   * The term `results` actually answers.
+   *
+   * `useTransition`'s pending flag is false during the debounce window, so
+   * between the keystroke and the query firing the box had a term worth
+   * searching, no results, and nothing claiming to be busy — and rendered
+   * "Nothing found." for a fifth of a second before showing the matches. This
+   * is what tells the two apart: while it lags `term`, no answer has come back
+   * yet for what the user has typed.
+   */
+  const [answered, setAnswered] = React.useState("");
   const [pending, startTransition] = React.useTransition();
 
   // ⌘K / Ctrl-K, the shortcut every search box of this shape has.
@@ -69,31 +80,53 @@ export function GlobalSearch() {
    */
   function changeTerm(value: string) {
     setTerm(value);
-    if (value.trim().length < 2) setResults(EMPTY);
+    if (value.trim().length < 2) {
+      setResults(EMPTY);
+      setAnswered(value);
+    }
   }
 
   // Debounced: a query per keystroke would be a query per keystroke.
   React.useEffect(() => {
     if (term.trim().length < 2) return;
 
+    /*
+      Guards against an out-of-order answer.
+
+      Two requests can be in flight across the debounce boundary, and nothing
+      makes the network return them in the order they were sent: a slow "mar"
+      landing after a fast "mart" used to overwrite the newer results with the
+      older ones, leaving the box showing matches for a term the user had
+      already finished typing past.
+    */
+    let cancelled = false;
+
     const timer = setTimeout(() => {
       startTransition(async () => {
-        setResults(await globalSearchAction(term));
+        const next = await globalSearchAction(term);
+        if (cancelled) return;
+        setResults(next);
+        setAnswered(term);
       });
     }, 200);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [term]);
 
   function go(href: string) {
     setOpen(false);
     setTerm("");
     setResults(EMPTY);
+    setAnswered("");
     router.push(href);
   }
 
   const total =
     results.students.length + results.families.length + results.classes.length;
+  const searching = pending || answered !== term;
 
   return (
     <>
@@ -128,7 +161,7 @@ export function GlobalSearch() {
               <CommandEmpty>
                 {term.trim().length < 2
                   ? t.schoolLife.searchHint
-                  : pending
+                  : searching
                     ? t.common.loading
                     : t.schoolLife.searchEmpty}
               </CommandEmpty>

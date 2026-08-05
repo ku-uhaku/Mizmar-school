@@ -15,11 +15,13 @@ const en = {
 
     // ── What the teachers have recorded ─────────────────────────────────────
     absencesToday: "Today's absences",
-    absencesTodayHint: "From {registers} marks taken today, with the reason the teacher gave.",
+    absencesTodayHint:
+      "From {registers} marks taken today, with the reason the teacher gave.",
     latestRemarks: "Latest remarks",
     latestRemarksHint: "What the teaching staff has written about pupils.",
     awaitingValidation: "Marks handed in",
-    awaitingValidationHint: "Papers a teacher has finished. Accept them to make the marks final.",
+    awaitingValidationHint:
+      "Papers a teacher has finished. Accept them to make the marks final.",
     students: "Students",
     studentsDetail: "{count} enrolled",
     families: "Family files",
@@ -29,7 +31,6 @@ const en = {
     unplaced: "Awaiting a class",
     unplacedDetail: "Enrolled but not seated",
     billed: "Billed this year",
-    billedDetail: "Net of reductions",
     discounted: "Reductions granted",
     standing: "The pupil body",
     standingHint: "Where every file on the books currently stands.",
@@ -39,6 +40,7 @@ const en = {
     pupilsTotal: "pupils",
     standingColumn: "Standing",
     occupancy: "Places filled",
+    occupancyHint: "Across the classes that declare a capacity.",
     occupancyCaption: "{taken} of {total} places",
     byLevel: "Pupils by level",
     byLevelHint: "Across the levels this school opened this year.",
@@ -55,7 +57,7 @@ const en = {
     timetableHint: "The week each class follows, lesson by lesson.",
     unplacedCount: "{count} to place",
     openStudents: "Open the student list",
-    openClasses: "Open the class list",
+    andMore: "and {count} more",
 
     search: "Search",
     searchPlaceholder: "Search students, families, classes…",
@@ -68,8 +70,7 @@ const en = {
 } as const;
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
-export const nav = {
-} as const;
+export const nav = {} as const;
 
 /** Permission matrix labels for this module's own codes. */
 export const permissions = {

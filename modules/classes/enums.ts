@@ -24,17 +24,16 @@ export const GROUP_PURPOSES = [
 ] as const;
 export type GroupPurpose = (typeof GROUP_PURPOSES)[number];
 
-/**
- * Tuition is stored as integer centimes of dirham so sums never drift.
- *
- * Only the reading direction lives here; the caisse owns the writing one, in
- * `modules/treasury/enums.ts`, because that is where money is taken in. There
- * was a second `dirhamsToCentimes` here that nothing imported — two definitions
- * of one rounding rule, which is exactly how the two come to disagree.
- */
-export function centimesToDirhams(centimes: number): number {
-  return centimes / 100;
-}
+/*
+  `centimesToDirhams` deliberately does not live here.
+
+  It used to, alongside the note that only the *reading* direction belonged in
+  this module and the caisse owned the writing one. That split was the problem:
+  one rounding rule with two homes, and the pairing that has to agree —
+  `centimesToDirhams` and `dirhamsToCentimes` — living in different files. Both
+  are in `modules/treasury/enums.ts` now, because the caisse is where money is
+  taken in, and it is pure data so a client component may reach for it.
+*/
 
 /**
  * Builds `LevelOffering.scopeKey`, which is what stops a track-less level being

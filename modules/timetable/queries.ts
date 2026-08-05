@@ -4,6 +4,7 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { displayName } from "@/lib/dal";
 import { teachingDaysOf } from "@/lib/school-settings";
+import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
 import {
   addDays,
   isWithin,
@@ -21,10 +22,6 @@ import { runsInWeekNumber } from "@/modules/timetable/enums";
  * renegotiated each year, and reading last year's slots against this year's
  * classes would draw a grid out of nothing.
  */
-
-function yearScope(context: AuthContext) {
-  return { schoolYearId: context.currentSchoolYear?.id ?? "__none__" };
-}
 
 /** One column of the grid — a period, as it recurs across the week. */
 export type SlotColumn = {
@@ -150,7 +147,7 @@ export async function loadClassTimetable(
     where: {
       id: schoolClassId,
       levelOffering: yearScope(context),
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
     },
     select: { id: true },
   });
@@ -349,7 +346,7 @@ export async function loadTimetableChoices(
     where: {
       id: schoolClassId,
       levelOffering: yearScope(context),
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
     },
     select: {
       id: true,
@@ -404,7 +401,7 @@ export async function loadTimetableChoices(
         organizationId: context.organization.id,
         isActive: true,
         memberships: {
-          some: { schoolId: context.currentSchool?.id ?? "__none__" },
+          some: { schoolId: currentSchoolId(context) },
         },
       },
       orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
@@ -415,7 +412,7 @@ export async function loadTimetableChoices(
       },
     }),
     db.room.findMany({
-      where: { schoolId: context.currentSchool?.id ?? "__none__", isActive: true },
+      where: { schoolId: currentSchoolId(context), isActive: true },
       orderBy: { code: "asc" },
       select: { id: true, code: true, name: true, capacity: true },
     }),
@@ -560,7 +557,7 @@ export async function loadTeacherTimetable(
         // through the class — a teacher who moved schools does not carry last
         // year's grid with them.
         timeSlot: { ...yearScope(context), scheduleKind },
-        schoolClass: { schoolId: context.currentSchool?.id ?? "__none__" },
+        schoolClass: { schoolId: currentSchoolId(context) },
       },
       select: {
         id: true,
@@ -872,8 +869,8 @@ export async function listTeacherOptions(
   context: AuthContext,
   scheduleKind = "STANDARD",
 ): Promise<TeacherOption[]> {
-  const schoolId = context.currentSchool?.id ?? "__none__";
-  const schoolYearId = context.currentSchoolYear?.id ?? "__none__";
+  const schoolId = currentSchoolId(context);
+  const schoolYearId = currentSchoolYearId(context);
 
   const teachers = await db.user.findMany({
     where: {
@@ -928,8 +925,8 @@ export async function loadTeacherAvailability(
   teacherId: string,
   scheduleKind = "STANDARD",
 ): Promise<AvailabilityGrid | null> {
-  const schoolId = context.currentSchool?.id ?? "__none__";
-  const schoolYearId = context.currentSchoolYear?.id ?? "__none__";
+  const schoolId = currentSchoolId(context);
+  const schoolYearId = currentSchoolYearId(context);
 
   // The teacher must belong to this school; one from elsewhere reads as absent.
   const teacher = await db.user.findFirst({

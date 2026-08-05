@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { currentSchoolId } from "@/lib/scope";
 
 /**
  * Reads for the geography module.
@@ -30,7 +31,7 @@ export async function listCityChoices(
 
   const cities = await db.city.findMany({
     where: {
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
       ...(kept.length > 0
         ? { OR: [{ isActive: true }, { id: { in: kept } }] }
         : { isActive: true }),
@@ -62,7 +63,7 @@ export async function listNeighbourhoodChoices(
 
   const neighbourhoods = await db.neighbourhood.findMany({
     where: {
-      schoolId: context.currentSchool?.id ?? "__none__",
+      schoolId: currentSchoolId(context),
       ...(kept.length > 0
         ? { OR: [{ isActive: true }, { id: { in: kept } }] }
         : { isActive: true }),

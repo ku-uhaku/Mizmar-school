@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 
 /**
  * Reads for the supplies module.
@@ -20,8 +21,8 @@ import { toDateInputValue } from "@/lib/utils";
 
 function scope(context: AuthContext) {
   return {
-    schoolId: context.currentSchool?.id ?? "__none__",
-    schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+    schoolId: currentSchoolId(context),
+    schoolYearId: currentSchoolYearId(context),
   };
 }
 
@@ -202,7 +203,7 @@ export async function listSupplyArticles(
   context: AuthContext,
 ): Promise<SupplyArticleChoice[]> {
   const articles = await db.supplyArticle.findMany({
-    where: { schoolId: context.currentSchool?.id ?? "__none__", isActive: true },
+    where: { schoolId: currentSchoolId(context), isActive: true },
     orderBy: [{ category: "asc" }, { position: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -229,7 +230,7 @@ export async function listSubjectChoices(
   context: AuthContext,
 ): Promise<{ id: string; label: string }[]> {
   const subjects = await db.subject.findMany({
-    where: { schoolId: context.currentSchool?.id ?? "__none__", isActive: true },
+    where: { schoolId: currentSchoolId(context), isActive: true },
     orderBy: [{ code: "asc" }],
     select: { id: true, name: true, code: true },
   });

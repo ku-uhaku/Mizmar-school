@@ -30,7 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
 import { BPS_PER_PERCENT } from "@/modules/billing/enums";
-import { centimesToDirhams } from "@/modules/classes/enums";
+import { centimesToDirhams } from "@/modules/treasury/enums";
 import { updateFeeLineAction } from "@/modules/enrolment/actions";
 import { FEE_LINE_STATUSES, netAmount } from "@/modules/enrolment/enums";
 import type { FeeCell } from "@/modules/enrolment/queries";

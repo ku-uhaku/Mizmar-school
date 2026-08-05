@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
 import {
   monthKeyOf,
   monthKeyString,
@@ -17,10 +18,6 @@ import {
  * `context.currentSchool`: an enrolment is a fact about one year, and reading
  * one outside the selected year would show a pupil in a class they left.
  */
-
-function yearScope(context: AuthContext) {
-  return { schoolYearId: context.currentSchoolYear?.id ?? "__none__" };
-}
 
 /** `YYYY-MM` for a start-month picker; "" for "from the start of the year". */
 function toMonthInputValue(date: Date | null): string {
@@ -105,7 +102,7 @@ export async function findEnrolment(
       ...yearScope(context),
       // The pupil must belong to the school in context — an id from another
       // tenant simply matches nothing.
-      student: { schoolId: context.currentSchool?.id ?? "__none__" },
+      student: { schoolId: currentSchoolId(context) },
     },
     include: {
       schoolYear: { select: { name: true } },
@@ -168,7 +165,7 @@ export async function loadFeeGrid(
     where: {
       id: enrollmentId,
       ...yearScope(context),
-      student: { schoolId: context.currentSchool?.id ?? "__none__" },
+      student: { schoolId: currentSchoolId(context) },
     },
     select: {
       schoolYear: { select: { startDate: true, endDate: true } },
@@ -263,7 +260,7 @@ export async function loadFeeGrid(
  * `assignClass` re-derives it from the same year.
  */
 export async function loadEnrolmentChoices(context: AuthContext) {
-  const yearId = context.currentSchoolYear?.id ?? "__none__";
+  const yearId = currentSchoolYearId(context);
 
   const [offerings, discounts, year] = await Promise.all([
     db.levelOffering.findMany({

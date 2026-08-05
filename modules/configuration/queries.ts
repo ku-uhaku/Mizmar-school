@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
+import { currentSchoolYearId } from "@/lib/scope";
 import { findResource } from "@/modules/configuration/resources";
 import { resourceSchema } from "@/modules/configuration/resource-schema";
 import type {
@@ -91,7 +92,7 @@ export async function loadChoices(
 
     const slots = await db.timeSlot.findMany({
       where: {
-        schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+        schoolYearId: currentSchoolYearId(context),
         isActive: true,
       },
       orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
@@ -276,7 +277,7 @@ export async function findUnreachableReference(
       const slot = await db.timeSlot.findFirst({
         where: {
           id: String(value),
-          schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+          schoolYearId: currentSchoolYearId(context),
         },
         select: { id: true },
       });

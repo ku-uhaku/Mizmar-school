@@ -11,6 +11,7 @@ import {
   sequenceFromCode,
 } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
+import { currentSchoolId } from "@/lib/scope";
 // The owners of these invariants, called rather than reimplemented: the fee
 // schedule comes from the price list and the status is derived, and the import
 // is bound by both exactly as the enrolment form is.
@@ -363,7 +364,7 @@ export async function planImport(
   csvText: string,
   t: Dictionary,
 ): Promise<ImportPlan> {
-  const schoolId = context.currentSchool?.id ?? "__none__";
+  const schoolId = currentSchoolId(context);
   const grid = parseCsv(csvText);
 
   if (grid.length === 0) {

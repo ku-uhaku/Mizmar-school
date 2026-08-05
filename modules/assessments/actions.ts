@@ -11,6 +11,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
+import { currentSchoolYearId } from "@/lib/scope";
 import {
   generateAssessments,
   saveMarks,
@@ -65,7 +66,7 @@ async function findScopedAssessment(
     where: {
       id: assessmentId,
       schoolId,
-      term: { schoolYearId: context.currentSchoolYear?.id ?? "__none__" },
+      term: { schoolYearId: currentSchoolYearId(context) },
       ...(scope.teacherId ? { teacherId: scope.teacherId } : {}),
     },
     select: { id: true, status: true, maxScore: true },

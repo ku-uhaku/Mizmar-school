@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import {
   COUNTED_FUEL_STATUSES,
   SEAT_HOLDING_STATUSES,
@@ -22,14 +23,6 @@ import {
  * subscriptions are scoped to the year as well, since all three are year-shaped
  * facts. Both come from the working context and never from the request.
  */
-
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
-
-function yearId(context: AuthContext): string {
-  return context.currentSchoolYear?.id ?? "__none__";
-}
 
 export type VehicleRow = {
   id: string;
@@ -59,8 +52,14 @@ export async function listVehicles(
     where: schoolScope(context),
     orderBy: [{ status: "asc" }, { registration: "asc" }],
     include: {
-      driver: { select: { id: true, firstName: true, lastName: true, phone: true } },
-      _count: { select: { routes: { where: { schoolYearId: yearId(context) } } } },
+      driver: {
+        select: { id: true, firstName: true, lastName: true, phone: true },
+      },
+      _count: {
+        select: {
+          routes: { where: { schoolYearId: currentSchoolYearId(context) } },
+        },
+      },
     },
   });
 
@@ -99,7 +98,9 @@ function routeDriverName(
 ): string | null {
   if (!vehicle) return null;
   return driverLabel(
-    vehicle.driver ? `${vehicle.driver.firstName} ${vehicle.driver.lastName}` : null,
+    vehicle.driver
+      ? `${vehicle.driver.firstName} ${vehicle.driver.lastName}`
+      : null,
     vehicle.driverName,
   );
 }
@@ -124,7 +125,7 @@ export type RouteRow = {
 /** The lines running this year, each with how full it is. */
 export async function listRoutes(context: AuthContext): Promise<RouteRow[]> {
   const routes = await db.transportRoute.findMany({
-    where: { schoolYearId: yearId(context) },
+    where: { schoolYearId: currentSchoolYearId(context) },
     orderBy: [{ code: "asc" }],
     include: {
       vehicle: {
@@ -139,14 +140,19 @@ export async function listRoutes(context: AuthContext): Promise<RouteRow[]> {
       _count: {
         select: {
           stops: true,
-          subscriptions: { where: { status: { in: [...SEAT_HOLDING_STATUSES] } } },
+          subscriptions: {
+            where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
+          },
         },
       },
     },
   });
 
   return routes.map((route) => {
-    const seats = seatsOnRoute(route.capacity, route.vehicle?.seatCount ?? null);
+    const seats = seatsOnRoute(
+      route.capacity,
+      route.vehicle?.seatCount ?? null,
+    );
     const taken = route._count.subscriptions;
 
     return {
@@ -201,7 +207,7 @@ export async function listScheduleOptions(
   context: AuthContext,
 ): Promise<{ id: string; label: string; name: string; direction: string }[]> {
   const schedules = await db.transportSchedule.findMany({
-    where: { schoolYearId: yearId(context), isActive: true },
+    where: { schoolYearId: currentSchoolYearId(context), isActive: true },
     orderBy: [{ direction: "asc" }, { departureTime: "asc" }],
     select: {
       id: true,
@@ -241,7 +247,7 @@ export async function findRoute(
   const route = await db.transportRoute.findFirst({
     // Scoped by the year in context — a route id alone must not reach another
     // year's line, let alone another school's.
-    where: { id: routeId, schoolYearId: yearId(context) },
+    where: { id: routeId, schoolYearId: currentSchoolYearId(context) },
     include: {
       vehicle: {
         select: {
@@ -288,7 +294,12 @@ export async function findRoute(
             select: {
               schoolClass: { select: { code: true } },
               student: {
-                select: { id: true, code: true, firstName: true, lastName: true },
+                select: {
+                  id: true,
+                  code: true,
+                  firstName: true,
+                  lastName: true,
+                },
               },
             },
           },
@@ -297,7 +308,9 @@ export async function findRoute(
       _count: {
         select: {
           stops: true,
-          subscriptions: { where: { status: { in: [...SEAT_HOLDING_STATUSES] } } },
+          subscriptions: {
+            where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
+          },
         },
       },
     },
@@ -391,13 +404,16 @@ export async function listSubscribableStudents(
 ): Promise<SubscribableStudent[]> {
   const enrollments = await db.enrollment.findMany({
     where: {
-      schoolYearId: yearId(context),
+      schoolYearId: currentSchoolYearId(context),
       student: { ...schoolScope(context), isActive: true },
       transportSubscriptions: {
         none: { status: { in: [...SEAT_HOLDING_STATUSES] } },
       },
     },
-    orderBy: [{ student: { lastName: "asc" } }, { student: { firstName: "asc" } }],
+    orderBy: [
+      { student: { lastName: "asc" } },
+      { student: { firstName: "asc" } },
+    ],
     select: {
       id: true,
       schoolClass: { select: { code: true } },
@@ -472,7 +488,7 @@ export async function studentTransport(
     where: {
       enrollment: {
         studentId,
-        schoolYearId: yearId(context),
+        schoolYearId: currentSchoolYearId(context),
         student: schoolScope(context),
       },
     },
@@ -516,7 +532,7 @@ export async function listRouteOptions(
   context: AuthContext,
 ): Promise<{ id: string; label: string }[]> {
   const routes = await db.transportRoute.findMany({
-    where: { schoolYearId: yearId(context), isActive: true },
+    where: { schoolYearId: currentSchoolYearId(context), isActive: true },
     orderBy: { code: "asc" },
     select: { id: true, code: true, name: true },
   });
@@ -599,7 +615,7 @@ export async function loadTransportChoices(
       select: { id: true, name: true, city: { select: { name: true } } },
     }),
     db.transportRoute.findMany({
-      where: { schoolYearId: yearId(context), isActive: true },
+      where: { schoolYearId: currentSchoolYearId(context), isActive: true },
       orderBy: [{ code: "asc" }],
       include: {
         vehicle: { select: { seatCount: true } },
@@ -873,7 +889,7 @@ export async function listBusRuns(
   context: AuthContext,
 ): Promise<BusRunOption[]> {
   const routes = await db.transportRoute.findMany({
-    where: { schoolYearId: yearId(context), isActive: true },
+    where: { schoolYearId: currentSchoolYearId(context), isActive: true },
     orderBy: [{ code: "asc" }],
     include: {
       schedules: {
@@ -1024,7 +1040,7 @@ export async function loadBusRegister(
   // Scoped by the year in context: a route id alone must never reach another
   // year's line, let alone another school's.
   const route = await db.transportRoute.findFirst({
-    where: { id: input.routeId, schoolYearId: yearId(context) },
+    where: { id: input.routeId, schoolYearId: currentSchoolYearId(context) },
     select: { id: true, direction: true },
   });
   if (!route) return null;
@@ -1144,14 +1160,30 @@ const tripRunInclude = {
     select: {
       code: true,
       name: true,
-      vehicle: { select: { registration: true, driverName: true, driver: { select: { firstName: true, lastName: true } } } },
+      vehicle: {
+        select: {
+          registration: true,
+          driverName: true,
+          driver: { select: { firstName: true, lastName: true } },
+        },
+      },
       _count: { select: { subscriptions: true } },
     },
   },
   schedule: { select: { name: true, direction: true } },
   vehicle: { select: { registration: true } },
-  startedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
-  arrivedBy: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+  startedBy: {
+    select: {
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  },
+  arrivedBy: {
+    select: {
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  },
 } as const;
 
 function toTripRunRow(
@@ -1170,7 +1202,10 @@ function toTripRunRow(
     startedByName: run.startedBy ? displayName(run.startedBy) : null,
     arrivedAt: run.arrivedAt?.toISOString() ?? null,
     arrivedByName: run.arrivedBy ? displayName(run.arrivedBy) : null,
-    delayMinutes: departureDelayMinutes(run.plannedDepartureTime, run.startedAt),
+    delayMinutes: departureDelayMinutes(
+      run.plannedDepartureTime,
+      run.startedAt,
+    ),
     // The bus that went, falling back to the circuit's usual one for a run that
     // has not started — the board should say which bus is *expected*.
     vehicleRegistration:
@@ -1198,7 +1233,7 @@ export async function listDayRuns(
   date: Date,
 ): Promise<TripRunRow[]> {
   const runs = await db.tripRun.findMany({
-    where: { date, route: { schoolYearId: yearId(context) } },
+    where: { date, route: { schoolYearId: currentSchoolYearId(context) } },
     orderBy: [{ plannedDepartureTime: "asc" }, { route: { code: "asc" } }],
     include: tripRunInclude,
   });
@@ -1224,7 +1259,7 @@ export async function listMyRuns(
     where: {
       date,
       route: {
-        schoolYearId: yearId(context),
+        schoolYearId: currentSchoolYearId(context),
         vehicle: { driver: { userId: context.user.id } },
       },
     },
@@ -1252,7 +1287,7 @@ export async function loadRunRegister(
   runId: string,
 ): Promise<{ run: TripRunRow; entries: BusRegisterEntry[] } | null> {
   const run = await db.tripRun.findFirst({
-    where: { id: runId, route: { schoolYearId: yearId(context) } },
+    where: { id: runId, route: { schoolYearId: currentSchoolYearId(context) } },
     include: tripRunInclude,
   });
   if (!run) return null;

@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { assignmentScopeKey, offeringScopeKey } from "@/modules/classes/enums";
@@ -64,10 +65,10 @@ export type ResourceSchema = {
 };
 
 const bySchool = (context: AuthContext) => ({
-  schoolId: context.currentSchool?.id ?? "__none__",
+  schoolId: currentSchoolId(context),
 });
 const byYear = (context: AuthContext) => ({
-  schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+  schoolYearId: currentSchoolYearId(context),
 });
 
 export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {

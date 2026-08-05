@@ -4,6 +4,7 @@ import { parseChanges, parseMetadata, type ChangeSet } from "@/lib/audit";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { PERMISSIONS } from "@/lib/permissions";
+import { currentSchoolId } from "@/lib/scope";
 import { domainOf, hrefFor, modelsInDomain } from "@/modules/audit/entities";
 import {
   ACTIVITY_DOMAINS,
@@ -101,7 +102,7 @@ function readableScope(context: AuthContext): Where | null {
       // no school — those are org-level acts.
       {
         organizationId: context.organization.id,
-        schoolId: context.currentSchool?.id ?? "__none__",
+        schoolId: currentSchoolId(context),
       };
 
   if (canSeeSecurity) return scope;

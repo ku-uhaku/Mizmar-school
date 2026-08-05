@@ -12,11 +12,13 @@ const ar = {
 
     // ── ما سجّله الأساتذة ───────────────────────────────────────────────────
     absencesToday: "غيابات اليوم",
-    absencesTodayHint: "من أصل {registers} تسجيلًا اليوم، مع السبب الذي ذكره الأستاذ.",
+    absencesTodayHint:
+      "من أصل {registers} تسجيلًا اليوم، مع السبب الذي ذكره الأستاذ.",
     latestRemarks: "آخر الملاحظات",
     latestRemarksHint: "ما كتبه الأساتذة عن التلاميذ.",
     awaitingValidation: "نقط مُسلَّمة",
-    awaitingValidationHint: "أوراق أنهى الأستاذ تصحيحها. صادِق عليها لتصبح النقط نهائية.",
+    awaitingValidationHint:
+      "أوراق أنهى الأستاذ تصحيحها. صادِق عليها لتصبح النقط نهائية.",
     students: "التلاميذ",
     studentsDetail: "{count} مسجّلين",
     families: "الملفات الأسرية",
@@ -26,7 +28,6 @@ const ar = {
     unplaced: "في انتظار قسم",
     unplacedDetail: "مسجّلون وغير مسندين",
     billed: "المفوتر هذه السنة",
-    billedDetail: "صافي التخفيضات",
     discounted: "التخفيضات الممنوحة",
     standing: "عدد التلاميذ",
     standingHint: "أين وصل كل ملف مفتوح في السجلات.",
@@ -36,6 +37,7 @@ const ar = {
     pupilsTotal: "تلميذ",
     standingColumn: "الوضعية",
     occupancy: "المقاعد المشغولة",
+    occupancyHint: "في الأقسام التي حُدّدت طاقتها الاستيعابية.",
     occupancyCaption: "{taken} من {total} مقعد",
     byLevel: "التلاميذ حسب المستوى",
     byLevelHint: "في المستويات التي فتحتها هذه المدرسة هذه السنة.",
@@ -52,7 +54,7 @@ const ar = {
     timetableHint: "الأسبوع الذي يتبعه كل قسم، حصة بحصة.",
     unplacedCount: "{count} في انتظار الإسناد",
     openStudents: "فتح لائحة التلاميذ",
-    openClasses: "فتح لائحة الأقسام",
+    andMore: "و{count} أخرى",
 
     search: "بحث",
     searchPlaceholder: "ابحث عن تلاميذ أو أسر أو أقسام…",
@@ -64,8 +66,7 @@ const ar = {
   },
 };
 
-export const nav = {
-};
+export const nav = {};
 
 export const permissions = {
   groups: {

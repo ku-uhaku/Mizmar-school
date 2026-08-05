@@ -7,7 +7,7 @@ import { countEnrolmentsByLevel } from "@/modules/enrolment/queries";
 import { hrSummary } from "@/modules/hr/queries";
 import { countSchoolYears } from "@/modules/school-years/queries";
 import { countActiveSchools } from "@/modules/schools/queries";
-import { loadSchoolLifeStats } from "@/modules/school-life/queries";
+import { loadSchoolLifeSummary } from "@/modules/school-life/queries";
 import { transportSummary } from "@/modules/transport/queries";
 import {
   collectionsByMonth,
@@ -83,7 +83,7 @@ export async function loadSectionHeadlines(
 
   const [life, treasury, transport, hr] = await Promise.all([
     context.can(PERMISSIONS.SCHOOL_LIFE_VIEW)
-      ? loadSchoolLifeStats(context)
+      ? loadSchoolLifeSummary(context)
       : null,
     context.can(PERMISSIONS.TREASURY_VIEW) ? treasurySummary(context) : null,
     context.can(PERMISSIONS.TRANSPORT_VIEW) ? transportSummary(context) : null,
@@ -95,9 +95,9 @@ export async function loadSectionHeadlines(
   return {
     vieScolaire: life
       ? {
-          value: life.students.total,
-          detail: life.enrolment.enrolled,
-          attention: life.enrolment.unplaced,
+          value: life.students,
+          detail: life.enrolled,
+          attention: life.unplaced,
         }
       : null,
     finance: treasury

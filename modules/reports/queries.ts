@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 
 /**
  * The choices the report filter bar offers.
@@ -34,8 +35,8 @@ export type ReportFilterChoices = {
 export async function loadFilterChoices(
   context: AuthContext,
 ): Promise<ReportFilterChoices> {
-  const schoolId = context.currentSchool?.id ?? "__none__";
-  const schoolYearId = context.currentSchoolYear?.id ?? "__none__";
+  const schoolId = currentSchoolId(context);
+  const schoolYearId = currentSchoolYearId(context);
 
   const [levels, classes, cycles, staff, feeTypes] = await Promise.all([
     db.levelOffering.findMany({

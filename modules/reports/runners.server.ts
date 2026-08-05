@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import {
   consumptionPer100km,
   tenthsToLitres,
@@ -39,9 +40,9 @@ type Runner = (
 ) => Promise<ReportRow[]>;
 
 const schoolId = (context: AuthContext) =>
-  context.currentSchool?.id ?? "__none__";
+  currentSchoolId(context);
 const yearId = (context: AuthContext) =>
-  context.currentSchoolYear?.id ?? "__none__";
+  currentSchoolYearId(context);
 
 /** The enrolment filter every pupil-shaped report shares. */
 function pupilScope(context: AuthContext, params: ReportParams) {

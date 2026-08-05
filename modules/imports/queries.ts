@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import type { Dictionary } from "@/lib/i18n/types";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import { IMPORT_COLUMNS } from "@/modules/imports/columns";
 
 /**
@@ -30,7 +31,7 @@ export async function exportStudentRows(
   t: Dictionary,
 ): Promise<string[][]> {
   const students = await db.student.findMany({
-    where: { schoolId: context.currentSchool?.id ?? "__none__" },
+    where: { schoolId: currentSchoolId(context) },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     select: {
       code: true,
@@ -51,7 +52,7 @@ export async function exportStudentRows(
         re-imports as exactly that same state.
       */
       enrollments: {
-        where: { schoolYearId: context.currentSchoolYear?.id ?? "__none__" },
+        where: { schoolYearId: currentSchoolYearId(context) },
         take: 1,
         select: {
           isRepeating: true,

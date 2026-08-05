@@ -2,6 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { schoolScope } from "@/lib/scope";
 
 /**
  * Reads for the families module.
@@ -14,10 +15,6 @@ import { db } from "@/lib/db";
  */
 
 /** No school selected: match nothing rather than everything. */
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
-
 /** The shape the families table renders. Primitives only — it crosses to the client. */
 export type FamilyRow = {
   id: string;

@@ -13,13 +13,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatDate, interpolate } from "@/lib/i18n/format";
+import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
-import type { AssessmentRow } from "@/modules/assessments/queries";
 import type {
   ClassroomActivity,
   ClassroomActivityMark,
 } from "@/modules/classroom/queries";
+import type { AwaitingValidation } from "@/modules/school-life/queries";
 
 /**
  * What the teaching staff has recorded, as the office reads it.
@@ -39,13 +39,13 @@ export function TeacherActivity({
   awaitingValidation,
 }: {
   classroom: ClassroomActivity;
-  awaitingValidation: AssessmentRow[];
+  awaitingValidation: AwaitingValidation;
 }) {
   const { t, locale } = useI18n();
 
   const hasMarks = classroom.marks.length > 0;
   const hasRemarks = classroom.remarks.length > 0;
-  const hasPapers = awaitingValidation.length > 0;
+  const hasPapers = awaitingValidation.rows.length > 0;
   if (!hasMarks && !hasRemarks && !hasPapers) return null;
 
   return (
@@ -80,6 +80,14 @@ export function TeacherActivity({
                 <MarkLine key={mark.id} mark={mark} />
               ))}
             </ul>
+            {/* The list is capped; saying so beats implying it is the whole day. */}
+            {classroom.moreMarks > 0 ? (
+              <p className="text-muted-foreground pt-3 text-xs">
+                {interpolate(t.schoolLife.andMore, {
+                  count: formatNumber(classroom.moreMarks, locale),
+                })}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -96,7 +104,7 @@ export function TeacherActivity({
           </CardHeader>
           <CardContent>
             <ul className="divide-y">
-              {awaitingValidation.map((paper) => (
+              {awaitingValidation.rows.map((paper) => (
                 <li
                   key={paper.id}
                   className="flex flex-wrap items-center gap-3 py-2.5 first:pt-0 last:pb-0"
@@ -119,6 +127,15 @@ export function TeacherActivity({
                 </li>
               ))}
             </ul>
+            {awaitingValidation.more > 0 ? (
+              <p className="text-muted-foreground pt-3 text-xs">
+                <Link href="/assessments" className="hover:underline">
+                  {interpolate(t.schoolLife.andMore, {
+                    count: formatNumber(awaitingValidation.more, locale),
+                  })}
+                </Link>
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
+import { schoolScope } from "@/lib/scope";
 import { dossierStandingOf, type DossierStanding } from "@/modules/documents/enums";
 
 /**
@@ -11,10 +12,6 @@ import { dossierStandingOf, type DossierStanding } from "@/modules/documents/enu
  * Confined to `context.currentSchool` throughout — a dossier belongs to a pupil
  * of one school, and the catalogue it is read against is that school's own.
  */
-
-function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
-}
 
 /** One line of a dossier: the pièce asked for, and where it has got to. */
 export type DossierPiece = {
