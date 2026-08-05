@@ -183,8 +183,14 @@ function VoyageCard({
   const t = useT();
   const done = run.status === "ARRIVED" || run.status === "CANCELLED";
 
+  // A crew member may only move a voyage around its own hour — the same rule
+  // the phone follows, and the one `moveTripRunAction` enforces whatever this
+  // renders. The office board keeps every button, since a correction made at
+  // four o'clock is exactly what it is for.
+  const outOfHours = driverMode && run.window !== "OPEN";
+
   return (
-    <Card className={cn(done && "opacity-70")}>
+    <Card className={cn((done || outOfHours) && "opacity-70")}>
       <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-3">
         {/* A colour bar rather than only a badge: a board is read across a room,
             and the state has to survive being glanced at. */}
@@ -217,7 +223,17 @@ function VoyageCard({
         <TripState run={run} locale={locale} />
 
         <div className="flex shrink-0 items-center gap-2">
-          {run.status === "PLANNED" ? (
+          {/* Said rather than left blank: a driver looking at a card with no
+              button needs to know it is the clock, not a fault. */}
+          {outOfHours && !done ? (
+            <p className="text-muted-foreground text-xs">
+              {run.window === "UPCOMING"
+                ? t.transport.runUpcoming
+                : t.transport.runWindowClosed}
+            </p>
+          ) : null}
+
+          {run.status === "PLANNED" && !outOfHours ? (
             <Button
               onClick={() => onMove("EN_ROUTE")}
               disabled={busy}
@@ -228,7 +244,7 @@ function VoyageCard({
             </Button>
           ) : null}
 
-          {run.status === "EN_ROUTE" ? (
+          {run.status === "EN_ROUTE" && !outOfHours ? (
             <Button
               onClick={() => onMove("ARRIVED")}
               disabled={busy}

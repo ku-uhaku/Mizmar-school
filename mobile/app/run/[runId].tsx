@@ -1,11 +1,13 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useRunRegister } from "../../src/api/hooks";
+import { useMarkRider, useMoveRun, useRunRegister } from "../../src/api/hooks";
 import {
   Badge,
   Body,
+  Button,
   Caption,
   Card,
   Divider,
@@ -19,34 +21,107 @@ import {
 import {
   ATTENDANCE_LABELS,
   DIRECTION_LABELS,
+  clock,
   label,
   longDate,
 } from "../../src/ui/format";
-import { spacing, useTheme } from "../../src/ui/theme";
+import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /**
- * The register for one run.
+ * One voyage, from the kerb.
  *
- * Ordered as the server sends it — by pick-up time, the order the bus meets
- * them — and it shows who has *not* been accounted for as prominently as who
- * has, because that is the question at the kerb before pulling away.
+ * The screen has three states and shows exactly one of them, because that is
+ * how the morning actually goes:
+ *
+ *   1. **Before the départ** — no names at all, just the one button. The server
+ *      withholds the register until the run is under way (see
+ *      `loadRunRegister`), so there is nothing here to mark from the yard, and
+ *      pressing "démarrer" is what declares which voyage is being made.
+ *   2. **En route** — the sheet, in the order the bus meets them, three taps
+ *      per child. Each mark is posted on its own: a bus marks a child as it
+ *      reaches them, and a payload carrying the whole register would let the
+ *      last write undo the absence flagged three stops back.
+ *   3. **Au terminus** — clôturer, with a warning if anybody is still
+ *      unaccounted for. Warned, not blocked: a voyage that happened has to be
+ *      closeable, and a driver whose phone lost signal at a stop must not be
+ *      stranded on this screen.
+ *
+ * Outside the run's hour none of it is offered — the server refuses the départ
+ * and the marks anyway, so the screen says why rather than presenting a button
+ * that is going to fail.
  */
 export default function RunScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { runId } = useLocalSearchParams<{ runId: string }>();
-  const register = useRunRegister(runId);
 
+  const register = useRunRegister(runId);
+  const move = useMoveRun(runId);
+  const mark = useMarkRider(runId);
+
+  /** Which child is being written, so only their row shows as busy. */
+  const [marking, setMarking] = useState<string | null>(null);
+
+  const run = register.data?.run ?? null;
   const entries = register.data?.entries ?? [];
   const unmarked = entries.filter((entry) => entry.status === null).length;
+
+  const isOpen = run?.window === "OPEN";
+  const canStart = run?.status === "PLANNED" && isOpen;
+  const canFinish = run?.status === "EN_ROUTE" && isOpen;
+  const canMark = run?.status === "EN_ROUTE" && isOpen;
+
+  function start() {
+    move.mutate("EN_ROUTE", {
+      onError: () =>
+        Alert.alert(
+          "Départ refusé",
+          "Le voyage a peut-être déjà été démarré, ou ce n'est plus son heure.",
+        ),
+    });
+  }
+
+  function finish() {
+    const close = () =>
+      move.mutate("ARRIVED", {
+        onError: () =>
+          Alert.alert(
+            "Clôture refusée",
+            "Le voyage a peut-être déjà été clôturé, ou ce n'est plus son heure.",
+          ),
+      });
+
+    if (unmarked === 0) {
+      close();
+      return;
+    }
+
+    Alert.alert(
+      "Terminer le voyage ?",
+      `${unmarked} élève${unmarked > 1 ? "s" : ""} non pointé${unmarked > 1 ? "s" : ""}. Vous pourrez encore corriger l'appel après l'arrivée.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Terminer", style: "destructive", onPress: close },
+      ],
+    );
+  }
+
+  function markRider(subscriptionId: string, status: string) {
+    setMarking(subscriptionId);
+    mark.mutate(
+      { subscriptionId, status },
+      {
+        onError: () =>
+          Alert.alert("Pointage refusé", "Le pointage n'a pas pu être enregistré."),
+        onSettled: () => setMarking(null),
+      },
+    );
+  }
 
   return (
     <>
       <Stack.Screen
-        options={{
-          headerShown: true,
-          title: register.data?.run.routeCode ?? "Circuit",
-        }}
+        options={{ headerShown: true, title: run?.routeCode ?? "Circuit" }}
       />
 
       <ScrollView
@@ -62,85 +137,224 @@ export default function RunScreen() {
           <ErrorNote message="Impossible de charger la feuille de route." />
         ) : null}
 
-        {register.data ? (
+        {run ? (
           <>
             <View style={{ gap: 2 }}>
-              <Title>{register.data.run.routeName}</Title>
+              <Title>{run.routeName}</Title>
               <Caption>
-                {register.data.run.plannedDepartureTime} ·{" "}
-                {label(DIRECTION_LABELS, register.data.run.direction)} ·{" "}
+                {run.plannedDepartureTime} ·{" "}
+                {label(DIRECTION_LABELS, run.direction)} ·{" "}
                 {longDate(new Date())}
               </Caption>
             </View>
 
-            <Card>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
-                <Stat value={entries.length} label="Élèves attendus" />
-                <Stat
-                  value={unmarked}
-                  label="Non pointés"
-                  tone={unmarked > 0 ? "warning" : "success"}
-                />
-              </View>
-              <Caption>
-                Le pointage se fait depuis le poste de l&apos;école — cet écran
-                est la feuille de route.
-              </Caption>
-            </Card>
+            {/* ── Avant le départ ───────────────────────────────────────── */}
+            {run.status === "PLANNED" ? (
+              <Card>
+                <Heading>Le voyage n&apos;a pas commencé</Heading>
+                <Caption>
+                  {isOpen
+                    ? "Démarrez le voyage pour ouvrir l'appel. La liste des élèves s'affiche une fois le bus parti."
+                    : run.window === "UPCOMING"
+                      ? `Ce voyage part à ${run.plannedDepartureTime}. Il s'ouvrira une heure avant.`
+                      : "L'heure de ce voyage est passée. Prévenez l'école si le bus est tout de même sorti."}
+                </Caption>
+                {isOpen ? (
+                  <>
+                    <Divider />
+                    <Button
+                      label="Démarrer le voyage"
+                      onPress={start}
+                      busy={move.isPending}
+                    />
+                  </>
+                ) : null}
+              </Card>
+            ) : null}
 
-            <Heading>Feuille de route</Heading>
+            {run.status === "CANCELLED" ? (
+              <Card>
+                <Heading>Voyage annulé</Heading>
+                <Caption>{run.cancelReason ?? "Aucun motif indiqué."}</Caption>
+              </Card>
+            ) : null}
 
-            {entries.length === 0 ? (
-              <Empty message="Aucun élève abonné sur ce circuit." />
-            ) : (
-              entries.map((entry, index) => (
-                <Card key={entry.subscriptionId}>
+            {/* ── En route, et après ────────────────────────────────────── */}
+            {run.status === "EN_ROUTE" || run.status === "ARRIVED" ? (
+              <>
+                <Card>
                   <View
                     style={{
                       flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
+                      flexWrap: "wrap",
                       gap: spacing.md,
                     }}
                   >
-                    <View style={{ flexShrink: 1, gap: 2 }}>
-                      <Heading>
-                        {index + 1}. {entry.studentName}
-                      </Heading>
-                      <Body muted>
-                        {entry.stopName}
-                        {entry.pickupTime ? ` · ${entry.pickupTime}` : ""}
-                        {entry.className ? ` · ${entry.className}` : ""}
-                      </Body>
-                    </View>
-
-                    <Badge
-                      tone={
-                        entry.status === null
-                          ? "default"
-                          : entry.status === "PRESENT"
-                            ? "success"
-                            : "warning"
-                      }
-                    >
-                      {entry.status === null
-                        ? "Non pointé"
-                        : label(ATTENDANCE_LABELS, entry.status)}
-                    </Badge>
+                    <Stat value={entries.length} label="Élèves attendus" />
+                    <Stat
+                      value={unmarked}
+                      label="Non pointés"
+                      tone={unmarked > 0 ? "warning" : "success"}
+                    />
                   </View>
 
-                  {entry.reason ? (
-                    <>
-                      <Divider />
-                      <Caption>{entry.reason}</Caption>
-                    </>
+                  {run.startedAt ? (
+                    <Caption>
+                      Parti à {clock(run.startedAt)}
+                      {run.arrivedAt ? ` · arrivé à ${clock(run.arrivedAt)}` : ""}
+                    </Caption>
+                  ) : null}
+
+                  {run.status === "ARRIVED" && isOpen ? (
+                    <Caption>
+                      Voyage clôturé. L&apos;appel reste corrigeable encore
+                      quelques heures.
+                    </Caption>
+                  ) : null}
+                  {!isOpen ? (
+                    <Caption>
+                      L&apos;heure de ce voyage est passée — l&apos;appel se
+                      corrige désormais depuis le poste de l&apos;école.
+                    </Caption>
                   ) : null}
                 </Card>
-              ))
-            )}
+
+                <Heading>Feuille de route</Heading>
+
+                {entries.length === 0 ? (
+                  <Empty message="Aucun élève abonné sur ce circuit." />
+                ) : (
+                  entries.map((entry, index) => (
+                    <Card key={entry.subscriptionId}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          gap: spacing.md,
+                        }}
+                      >
+                        <View style={{ flexShrink: 1, gap: 2 }}>
+                          <Heading>
+                            {index + 1}. {entry.studentName}
+                          </Heading>
+                          <Body muted>
+                            {entry.stopName}
+                            {entry.pickupTime ? ` · ${entry.pickupTime}` : ""}
+                            {entry.className ? ` · ${entry.className}` : ""}
+                          </Body>
+                        </View>
+
+                        <Badge
+                          tone={
+                            entry.status === null
+                              ? "default"
+                              : entry.status === "PRESENT"
+                                ? "success"
+                                : entry.status === "ABSENT"
+                                  ? "danger"
+                                  : "warning"
+                          }
+                        >
+                          {entry.status === null
+                            ? "Non pointé"
+                            : label(ATTENDANCE_LABELS, entry.status)}
+                        </Badge>
+                      </View>
+
+                      {canMark ? (
+                        <>
+                          <Divider />
+                          <View
+                            style={{ flexDirection: "row", gap: spacing.sm }}
+                          >
+                            {(["PRESENT", "LATE", "ABSENT"] as const).map(
+                              (status) => (
+                                <MarkButton
+                                  key={status}
+                                  label={label(ATTENDANCE_LABELS, status)}
+                                  selected={entry.status === status}
+                                  busy={marking === entry.subscriptionId}
+                                  onPress={() =>
+                                    markRider(entry.subscriptionId, status)
+                                  }
+                                />
+                              ),
+                            )}
+                          </View>
+                        </>
+                      ) : null}
+
+                      {entry.reason ? (
+                        <>
+                          <Divider />
+                          <Caption>{entry.reason}</Caption>
+                        </>
+                      ) : null}
+                    </Card>
+                  ))
+                )}
+
+                {canFinish ? (
+                  <Button
+                    label="Terminus — terminer le voyage"
+                    onPress={finish}
+                    busy={move.isPending}
+                  />
+                ) : null}
+              </>
+            ) : null}
           </>
         ) : null}
       </ScrollView>
     </>
+  );
+}
+
+/**
+ * One of the three marks, as a segment.
+ *
+ * Deliberately not `Button`: these sit three to a row under every name and are
+ * pressed forty times a morning, so they are sized for a thumb on a moving bus
+ * and show which one is set rather than which one is primary.
+ */
+function MarkButton({
+  label: text,
+  selected,
+  busy,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      style={({ pressed }) => ({
+        flex: 1,
+        alignItems: "center",
+        paddingVertical: 10,
+        borderRadius: radius.sm,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: selected ? theme.primary : theme.border,
+        backgroundColor: selected ? theme.primary : "transparent",
+        opacity: busy ? 0.5 : pressed ? 0.85 : 1,
+      })}
+    >
+      <Text
+        style={{
+          color: selected ? theme.primaryText : theme.text,
+          fontSize: 13,
+          fontWeight: "600",
+        }}
+      >
+        {text}
+      </Text>
+    </Pressable>
   );
 }

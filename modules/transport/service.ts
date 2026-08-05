@@ -7,12 +7,14 @@ import {
   type TxClient,
 } from "@/modules/treasury/service";
 import {
+  REGISTER_OPEN_STATUSES,
   SEAT_HOLDING_STATUSES,
   driverLabel,
   seatsOnRoute,
   seatsRemaining,
   busRegisterScopeKey,
   canMoveTripRun,
+  tripRunWindow,
   subscriptionScopeKey,
   type TransportDirection,
   tenthsToLitres,
@@ -959,6 +961,14 @@ export async function ensureDayRuns(
  * the office on the board — produce one departure and one refusal rather than
  * two stamps, the second overwriting the first.
  *
+ * `withinWindow` is what a phone passes and the office does not. A driver may
+ * only start or close a voyage around its hour — see `tripRunWindow` — and the
+ * hour is re-derived here, inside the transaction, rather than trusted from the
+ * request: the endpoint is reachable by direct POST, so a client that lies about
+ * the clock must reach nothing. The office keeps the unrestricted move, because
+ * a secrétaire recording at four o'clock that this morning's bus went out is a
+ * correction, not a departure.
+ *
  * Returns false when the move is not allowed from where the run actually is,
  * which the action turns into a message rather than an error.
  */
@@ -966,7 +976,11 @@ export async function moveTripRun(
   runId: string,
   next: "EN_ROUTE" | "ARRIVED" | "CANCELLED",
   actedById: string,
-  options: { cancelReason?: string; vehicleId?: string | null } = {},
+  options: {
+    cancelReason?: string;
+    vehicleId?: string | null;
+    withinWindow?: boolean;
+  } = {},
 ): Promise<boolean> {
   return db.$transaction(async (tx) => {
     const run = await tx.tripRun.findUnique({
@@ -974,12 +988,21 @@ export async function moveTripRun(
       select: {
         id: true,
         status: true,
+        date: true,
+        plannedDepartureTime: true,
         route: { select: { vehicleId: true } },
       },
     });
     if (!run) return false;
 
     if (!canMoveTripRun(run.status, next)) return false;
+
+    if (
+      options.withinWindow &&
+      tripRunWindow(run.date, run.plannedDepartureTime, new Date()) !== "OPEN"
+    ) {
+      return false;
+    }
 
     const now = new Date();
 
@@ -1006,6 +1029,85 @@ export async function moveTripRun(
     });
 
     return true;
+  });
+}
+
+/**
+ * L'appel au trottoir: one rider marked from the bus, keyed by the run.
+ *
+ * The office marks a register by route, horaire and date, because that is what
+ * its screen holds; a phone holds a run id, and taking that run apart in the
+ * route handler would put the run's date and horaire in the request — where a
+ * client could substitute yesterday's, and mark a child absent on a day nobody
+ * drove. So the run is the key, and everything else is read from it.
+ *
+ * Three things are re-derived here rather than trusted, all inside the write:
+ *
+ *   1. **The bus is out.** No mark before the départ, for the reason
+ *      `loadRunRegister` withholds the names — see REGISTER_OPEN_STATUSES.
+ *   2. **It is still the run's hour.** Same `withinWindow` rule as the départ,
+ *      so a phone left open cannot be marking this morning's voyage at
+ *      midnight.
+ *   3. **The child is on this line.** The subscription id comes from the
+ *      request; combined with the run's own route, so an id from another
+ *      circuit reaches nothing.
+ *
+ * Returns null when any of the three fails, which the route turns into a 404 —
+ * the same answer as a run that was never the caller's, since telling the two
+ * apart would confirm the run exists.
+ */
+export async function markRiderOnRun(input: {
+  runId: string;
+  subscriptionId: string;
+  status: RiderAttendanceStatus;
+  minutesLate: number | null;
+  reason: string | null;
+  recordedById: string;
+  withinWindow?: boolean;
+}): Promise<{ id: string } | null> {
+  const run = await db.tripRun.findUnique({
+    where: { id: input.runId },
+    select: {
+      routeId: true,
+      scheduleId: true,
+      date: true,
+      status: true,
+      plannedDepartureTime: true,
+    },
+  });
+  if (!run) return null;
+
+  if (!REGISTER_OPEN_STATUSES.includes(run.status)) return null;
+
+  if (
+    input.withinWindow &&
+    tripRunWindow(run.date, run.plannedDepartureTime, new Date()) !== "OPEN"
+  ) {
+    return null;
+  }
+
+  const rides = await db.transportSubscription.findFirst({
+    where: {
+      id: input.subscriptionId,
+      routeId: run.routeId,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  if (!rides) return null;
+
+  return markRiderAttendance({
+    subscriptionId: rides.id,
+    scheduleId: run.scheduleId,
+    date: run.date,
+    status: input.status,
+    minutesLate: input.minutesLate,
+    // A driver at the kerb knows the child is not there; whether the family
+    // warned the office is not his to say, and defaulting it true would quietly
+    // excuse every absence the bus reports.
+    isJustified: false,
+    reason: input.reason,
+    recordedById: input.recordedById,
   });
 }
 

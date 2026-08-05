@@ -12,7 +12,8 @@ import { PERMISSIONS } from "@/lib/permissions";
  * decided by *what the person is* rather than by a permission — a parent is a
  * guardian on a dossier, a chauffeur is the driver of a bus — because neither
  * fact is expressible as a permission code and neither should put the person in
- * the permission system at all.
+ * the permission system at all. A chauffeur here means the whole crew — the
+ * accompagnateur rides the same bus and takes the same register.
  *
  * This only decides what the app offers. It grants nothing: every endpoint
  * still authorizes on its own, so an account that lies about its space reaches
@@ -44,12 +45,18 @@ export async function loadMobileIdentity(
 ): Promise<MobileIdentity> {
   const userId = context.user.id;
 
-  const [guardianCount, teachingCount, drivesCount] = await Promise.all([
+  const [guardianCount, teachingCount, crewsCount] = await Promise.all([
     db.guardian.count({ where: { userId, isActive: true } }),
     // Either actually assigned to teach, or holding the classroom permission —
     // a supply teacher with no assignments yet still needs the space.
     db.teachingAssignment.count({ where: { teacherId: userId } }),
-    db.vehicle.count({ where: { driver: { userId } } }),
+    // Crew rather than driver: the accompagnateur takes the appel and needs
+    // the same space. Matched the same way `crewScope` matches it in
+    // modules/transport/queries.ts, which is what actually decides what they
+    // then see.
+    db.vehicle.count({
+      where: { OR: [{ driver: { userId } }, { attendant: { userId } }] },
+    }),
   ]);
 
   const spaces: MobileSpace[] = [];
@@ -57,7 +64,7 @@ export async function loadMobileIdentity(
   if (teachingCount > 0 || context.can(PERMISSIONS.CLASSROOM_WORKSPACE)) {
     spaces.push("teacher");
   }
-  if (drivesCount > 0 || context.can(PERMISSIONS.TRANSPORT_ATTENDANCE)) {
+  if (crewsCount > 0 || context.can(PERMISSIONS.TRANSPORT_ATTENDANCE)) {
     spaces.push("driver");
   }
   if (context.can(PERMISSIONS.SCHOOL_LIFE_VIEW) || context.isSuperAdmin) {

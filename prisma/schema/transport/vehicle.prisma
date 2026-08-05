@@ -52,6 +52,29 @@ model Vehicle {
   driverName  String?
   driverPhone String?
 
+  /// L'accompagnateur: whoever rides with the children and takes the appel at
+  /// the kerb while the driver stays at the wheel.
+  ///
+  /// On the bus rather than on the line, exactly as the driver is: a school that
+  /// swaps a circuit onto another vehicle swaps its crew with it, and the pair
+  /// is what a parent is given when the bus has not arrived.
+  ///
+  /// Load-bearing on the phone: `listMyRuns` matches an account against both
+  /// this and `driverId`, so an accompagnateur signing in sees the same voyages
+  /// as the driver and may take the same register. Nothing else follows from it
+  /// — the appel is behind TRANSPORT_ATTENDANCE, and this column grants no
+  /// permission of its own.
+  ///
+  /// SetNull, for the reason `driverId` is: an employee leaving must leave the
+  /// bus standing so somebody else can be put on it.
+  attendantId String?
+  attendant   Staff?  @relation("VehicleAttendant", fields: [attendantId], references: [id], onDelete: SetNull)
+
+  /// The accompagnateur as free text, for the ones who are not employees — the
+  /// same arrangement, and the same reason, as `driverName`/`driverPhone`.
+  attendantName  String?
+  attendantPhone String?
+
   notes String?
 
   createdAt DateTime @default(now())
@@ -69,6 +92,7 @@ model Vehicle {
   @@unique([schoolId, registration])
   @@index([schoolId])
   @@index([driverId])
+  @@index([attendantId])
   @@index([schoolId, status])
   @@map("vehicles")
 }

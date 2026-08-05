@@ -6,11 +6,14 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import {
   COUNTED_FUEL_STATUSES,
+  REGISTER_OPEN_STATUSES,
   SEAT_HOLDING_STATUSES,
   busRegisterScopeKey,
   consumptionPer100km,
   departureDelayMinutes,
   driverLabel,
+  tripRunWindow,
+  type RunWindow,
   scheduleLabel,
   seatsOnRoute,
   seatsRemaining,
@@ -40,6 +43,11 @@ export type VehicleRow = {
   driverPhone: string | null;
   /** Who to show as the driver: the employee's name, else the typed one. */
   driverLabel: string | null;
+  /** The accompagnateur riding with the children, by the same rule. */
+  attendantId: string | null;
+  attendantName: string | null;
+  attendantPhone: string | null;
+  attendantLabel: string | null;
   notes: string | null;
   /** Lines this bus is running in the year in context. */
   routeCount: number;
@@ -53,6 +61,9 @@ export async function listVehicles(
     orderBy: [{ status: "asc" }, { registration: "asc" }],
     include: {
       driver: {
+        select: { id: true, firstName: true, lastName: true, phone: true },
+      },
+      attendant: {
         select: { id: true, firstName: true, lastName: true, phone: true },
       },
       _count: {
@@ -83,6 +94,15 @@ export async function listVehicles(
         ? `${vehicle.driver.firstName} ${vehicle.driver.lastName}`
         : null,
       vehicle.driverName,
+    ),
+    attendantId: vehicle.attendant?.id ?? null,
+    attendantName: vehicle.attendantName,
+    attendantPhone: vehicle.attendant?.phone ?? vehicle.attendantPhone,
+    attendantLabel: driverLabel(
+      vehicle.attendant
+        ? `${vehicle.attendant.firstName} ${vehicle.attendant.lastName}`
+        : null,
+      vehicle.attendantName,
     ),
     notes: vehicle.notes,
     routeCount: vehicle._count.routes,
@@ -1153,6 +1173,15 @@ export type TripRunRow = {
   /** Riders holding a seat on this circuit — how many the bus is expected to carry. */
   riderCount: number;
   cancelReason: string | null;
+  /**
+   * Where the run stands against the clock, as of the moment it was read.
+   *
+   * Computed here rather than on the client because the phone cannot import
+   * this module — see the note on mobile/src/api/types.ts — and because the
+   * server has to make the same judgement anyway when it decides whether to
+   * accept a départ.
+   */
+  window: RunWindow;
 };
 
 const tripRunInclude = {
@@ -1188,6 +1217,7 @@ const tripRunInclude = {
 
 function toTripRunRow(
   run: Prisma.TripRunGetPayload<{ include: typeof tripRunInclude }>,
+  now: Date = new Date(),
 ): TripRunRow {
   return {
     id: run.id,
@@ -1218,6 +1248,7 @@ function toTripRunRow(
     ),
     riderCount: run.route._count.subscriptions,
     cancelReason: run.cancelReason,
+    window: tripRunWindow(run.date, run.plannedDepartureTime, now),
   };
 }
 
@@ -1238,18 +1269,41 @@ export async function listDayRuns(
     include: tripRunInclude,
   });
 
-  return runs.map(toTripRunRow);
+  const now = new Date();
+  return runs.map((run) => toTripRunRow(run, now));
 }
 
 /**
- * Today's voyages for the buses this account drives.
+ * The buses an account is crew on — the one `where` every driver read is built
+ * from.
  *
- * Matched through `Vehicle.driver.userId` — the employment record is what links
- * a login to a bus, and a driver who is not on the payroll (a contractor, whose
- * name is free text on the vehicle) has no account to sign in with anyway.
+ * Matched through the employment record, which is what links a login to a bus:
+ * a driver or accompagnateur who is not on the payroll is free text on the
+ * vehicle and has no account to sign in with anyway.
  *
- * Returns an empty list rather than everything for an account that drives
+ * The two are one clause rather than two code paths because they answer the
+ * same question — *is this person on this bus today* — and splitting them would
+ * be two chances to forget one. What the accompagnateur may then *do* is not
+ * decided here: it is TRANSPORT_ATTENDANCE, checked by every route.
+ */
+function crewScope(userId: string): Prisma.TransportRouteWhereInput {
+  return {
+    vehicle: {
+      OR: [{ driver: { userId } }, { attendant: { userId } }],
+    },
+  };
+}
+
+/**
+ * A day's voyages for the buses this account crews.
+ *
+ * Returns an empty list rather than everything for an account that crews
  * nothing: this screen must never become a way to read the whole fleet.
+ *
+ * Every run of the day is returned, `window` and all — a driver who cannot see
+ * that he has an afternoon return cannot plan his day. It is the *actions* that
+ * the window closes, not the sight of the run, and that decision is re-made on
+ * the server in `moveTripRun` rather than left to the phone.
  */
 export async function listMyRuns(
   context: AuthContext,
@@ -1260,18 +1314,45 @@ export async function listMyRuns(
       date,
       route: {
         schoolYearId: currentSchoolYearId(context),
-        vehicle: { driver: { userId: context.user.id } },
+        ...crewScope(context.user.id),
       },
     },
     orderBy: [{ plannedDepartureTime: "asc" }],
     include: tripRunInclude,
   });
 
-  return runs.map(toTripRunRow);
+  const now = new Date();
+  return runs.map((run) => toTripRunRow(run, now));
 }
 
 /**
- * A run and the sheet that goes with it, keyed by the run itself.
+ * A run this account is crew on, or null.
+ *
+ * The id arrives from a phone, so it is never enough on its own: it is combined
+ * with the year *and* with the crew link before anything is read or written
+ * through it. This is the driver's equivalent of `reachableTripRun` in
+ * `actions.ts`, and it is deliberately stricter — an office account may act on
+ * any run of its school, a driver only on the bus he is on.
+ */
+export async function findMyRun(
+  context: AuthContext,
+  runId: string,
+): Promise<{ id: string; status: string; scheduleId: string; date: Date } | null> {
+  return db.tripRun.findFirst({
+    where: {
+      id: runId,
+      route: {
+        schoolYearId: currentSchoolYearId(context),
+        ...crewScope(context.user.id),
+      },
+    },
+    select: { id: true, status: true, scheduleId: true, date: true },
+  });
+}
+
+/**
+ * A run and the sheet that goes with it, keyed by the run itself — the
+ * chauffeur's screen, and the only read behind it.
  *
  * The office screens hold the route, the horaire and the day separately and can
  * pass all three; a driver's phone has a run id and nothing else. Rather than
@@ -1279,18 +1360,42 @@ export async function listMyRuns(
  * `where` clause in `app/` and re-derive the year scoping a third time — the
  * lookup lives here, beside the register it feeds.
  *
- * Returns null when the run is not this year's, so a stale id from a phone that
- * has been in a drawer since June reaches nothing.
+ * Scoped by `crewScope` as well as by the year, so a stale id from a phone that
+ * has been in a drawer since June reaches nothing, and a driver cannot read
+ * another bus's children by guessing.
+ *
+ * ── Why the list is empty before the bus leaves ──────────────────────────────
+ * `entries` is withheld until the run is under way. The register is the thing
+ * that is *done* on the voyage, and a sheet on screen before anybody has said
+ * the bus is going is a sheet that gets marked from the yard — or worse, marked
+ * for the morning run while the driver is looking at the evening one. Pressing
+ * "démarrer" is what says which voyage is being made, so it is what opens the
+ * names. ARRIVED keeps them, because a driver still has to be able to read back
+ * and correct what he took.
+ *
+ * The run itself is always returned: the phone needs its status and its hour to
+ * know what to offer, and the counts on it reveal nothing about a child.
  */
 export async function loadRunRegister(
   context: AuthContext,
   runId: string,
 ): Promise<{ run: TripRunRow; entries: BusRegisterEntry[] } | null> {
   const run = await db.tripRun.findFirst({
-    where: { id: runId, route: { schoolYearId: currentSchoolYearId(context) } },
+    where: {
+      id: runId,
+      route: {
+        schoolYearId: currentSchoolYearId(context),
+        ...crewScope(context.user.id),
+      },
+    },
     include: tripRunInclude,
   });
   if (!run) return null;
+
+  const row = toTripRunRow(run);
+  if (!REGISTER_OPEN_STATUSES.includes(run.status)) {
+    return { run: row, entries: [] };
+  }
 
   const entries = await loadBusRegister(context, {
     routeId: run.routeId,
@@ -1298,5 +1403,5 @@ export async function loadRunRegister(
     date: run.date,
   });
 
-  return { run: toTripRunRow(run), entries: entries ?? [] };
+  return { run: row, entries: entries ?? [] };
 }

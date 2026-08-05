@@ -53,6 +53,10 @@ export function vehicleSchema(t: Dictionary) {
     driverId: optionalText(40),
     driverName: optionalText(120),
     driverPhone: optionalText(40),
+    /** L'accompagnateur, by the same rule. See Vehicle.attendantId. */
+    attendantId: optionalText(40),
+    attendantName: optionalText(120),
+    attendantPhone: optionalText(40),
     notes: optionalText(1000),
   });
 }

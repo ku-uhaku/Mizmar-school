@@ -375,6 +375,97 @@ export function canMoveTripRun(from: string, next: string): boolean {
 export const ACTIVE_TRIP_RUN_STATUSES: readonly TripRunStatus[] = ["EN_ROUTE"];
 
 /**
+ * The states in which a voyage shows its passenger list on a phone.
+ *
+ * A run that has not left shows nothing, which is the point: the départ is what
+ * declares which voyage is being made, and the names follow it. ARRIVED is
+ * included so a driver can read back and correct what he took — closing the run
+ * ends the journey, not the right to fix the register of it.
+ *
+ * CANCELLED is absent. A voyage that did not happen has no register, and
+ * offering one would invite marks against a bus nobody rode.
+ */
+export const REGISTER_OPEN_STATUSES: readonly string[] = [
+  "EN_ROUTE",
+  "ARRIVED",
+];
+
+// ── La fenêtre du voyage ─────────────────────────────────────────────────────
+
+/**
+ * Whether a voyage is at its hour, on the phone in the driver's hand.
+ *
+ * The board in the office shows the whole day at once and should: somebody
+ * planning the afternoon has to see the afternoon. A driver has the opposite
+ * need — at 07:00 there is exactly one voyage that concerns him, and a screen
+ * offering him the 17:00 return as well is a screen on which the wrong register
+ * gets taken. So the phone reads a run's *window* rather than only its status.
+ *
+ * OPEN is the only state in which a run may be started or its appel marked from
+ * a phone; the other two are shown, greyed, so a driver can still see what is
+ * coming and what he has already brought back.
+ */
+export const RUN_WINDOWS = ["UPCOMING", "OPEN", "CLOSED"] as const;
+export type RunWindow = (typeof RUN_WINDOWS)[number];
+
+/**
+ * How long before the planned departure the phone unlocks a voyage.
+ *
+ * An hour: long enough that a driver checking his sheet over coffee finds it
+ * open, short enough that the 07:00 and a 09:00 navette never both count as
+ * "now".
+ */
+export const RUN_WINDOW_BEFORE_MINUTES = 60;
+
+/**
+ * And how long after, before it locks again.
+ *
+ * Three hours, measured from the *planned* departure rather than the real one,
+ * so a bus that left forty minutes late still gets its full round. It is a
+ * generous figure on purpose: the cost of closing too early is a driver who
+ * cannot mark the child he has in the bus, and the cost of closing too late is
+ * only a run staying tappable a while longer.
+ */
+export const RUN_WINDOW_AFTER_MINUTES = 180;
+
+/**
+ * Where a run stands against the clock.
+ *
+ * `date` is the run's own day at midnight and `plannedDepartureTime` its
+ * wall-clock "HH:MM" — the two are combined here rather than stored together,
+ * for the reason given on RouteStop.pickupTime. A run belonging to another day
+ * is CLOSED whatever the hour says, which is what keeps yesterday's 07:00 from
+ * reopening at seven this morning.
+ *
+ * Pure, and takes `now` rather than reading the clock, so the server can hand
+ * the answer to the phone in the DTO and the same function can be tested.
+ */
+export function tripRunWindow(
+  date: Date,
+  plannedDepartureTime: string,
+  now: Date,
+): RunWindow {
+  const [hours, minutes] = plannedDepartureTime.split(":").map(Number);
+
+  const planned = new Date(date);
+  // An unreadable time leaves the run at its day's midnight, which puts the
+  // window over the small hours and reads CLOSED for the rest of the day — the
+  // safe way round for a column no form should have been able to corrupt.
+  planned.setHours(
+    Number.isNaN(hours) ? 0 : hours,
+    Number.isNaN(minutes) ? 0 : minutes,
+    0,
+    0,
+  );
+
+  const offsetMinutes = (now.getTime() - planned.getTime()) / 60_000;
+
+  if (offsetMinutes < -RUN_WINDOW_BEFORE_MINUTES) return "UPCOMING";
+  if (offsetMinutes > RUN_WINDOW_AFTER_MINUTES) return "CLOSED";
+  return "OPEN";
+}
+
+/**
  * How late the bus pulled out, in minutes, or null when it has not.
  *
  * Measured against `plannedDepartureTime` as copied onto the run, never against

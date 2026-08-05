@@ -151,6 +151,15 @@ export type TripRun = {
   driverName: string | null;
   riderCount: number;
   cancelReason: string | null;
+  /**
+   * "UPCOMING" | "OPEN" | "CLOSED" — whether the voyage is at its hour.
+   *
+   * Decided by the server, never by this phone's clock: the same judgement is
+   * re-made when a départ or a mark is posted, so a device an hour out of true
+   * would be refused anyway. Reading it here only keeps the app from offering a
+   * button that is going to be refused.
+   */
+  window: string;
 };
 
 export type DriverDay = { date: string; runs: TripRun[] };
@@ -171,6 +180,11 @@ export type RegisterEntry = {
   reason: string | null;
 };
 
+/**
+ * `entries` is empty until the run is under way — the server withholds the
+ * names before the départ, so the screen reads `run.status` rather than the
+ * length of the list to decide what to show.
+ */
 export type RunRegister = { run: TripRun; entries: RegisterEntry[] };
 
 // ── Direction ────────────────────────────────────────────────────────────────

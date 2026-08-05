@@ -16,6 +16,7 @@ import {
 import {
   DIRECTION_LABELS,
   RUN_STATUS_LABELS,
+  RUN_WINDOW_LABELS,
   isoDay,
   label,
   longDate,
@@ -25,8 +26,12 @@ import { spacing } from "../ui/theme";
 /**
  * The chauffeur's morning: the circuits this bus is making today.
  *
- * Tapping one opens its register — who is expected, at which stop, in the order
- * the bus meets them.
+ * The whole day is listed, but only the voyage at its hour is live — the others
+ * are dimmed and say when they are. A driver has to be able to see that he has
+ * an afternoon return; what he must not be able to do is start it at seven, or
+ * take its register while sitting in the morning one. See `window` on TripRun.
+ *
+ * Tapping the live one opens it: départ, then the names, then l'arrivée.
  */
 export function DriverSpace() {
   const today = isoDay(new Date());
@@ -54,7 +59,12 @@ export function DriverSpace() {
             href={{ pathname: "/run/[runId]", params: { runId: run.id } }}
             asChild
           >
-            <Pressable>
+            <Pressable
+              // Still tappable outside its window: the screen behind explains
+              // why nothing can be done there, which is a better answer than a
+              // card that ignores the finger.
+              style={{ opacity: run.window === "OPEN" ? 1 : 0.55 }}
+            >
               <Card>
                 <View
                   style={{
@@ -79,7 +89,7 @@ export function DriverSpace() {
                         ? "danger"
                         : run.status === "ARRIVED"
                           ? "success"
-                          : run.status === "DEPARTED"
+                          : run.status === "EN_ROUTE"
                             ? "warning"
                             : "default"
                     }
@@ -87,6 +97,20 @@ export function DriverSpace() {
                     {label(RUN_STATUS_LABELS, run.status)}
                   </Badge>
                 </View>
+
+                {/* Only worth saying while nothing has happened yet — once the
+                    bus is out, or back, the status says it better. */}
+                {run.status === "PLANNED" && run.window !== "OPEN" ? (
+                  <Row
+                    label={label(RUN_WINDOW_LABELS, run.window)}
+                    value={
+                      run.window === "UPCOMING"
+                        ? `à ${run.plannedDepartureTime}`
+                        : "non effectué"
+                    }
+                    tone={run.window === "UPCOMING" ? "default" : "danger"}
+                  />
+                ) : null}
 
                 <Row label="Élèves attendus" value={run.riderCount} />
                 {run.vehicleRegistration ? (

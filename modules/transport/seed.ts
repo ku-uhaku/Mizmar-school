@@ -27,11 +27,16 @@ export type VehicleSeed = {
   seatCount: number;
   driverName: string;
   driverPhone: string;
+  /// L'accompagnateur, as free text — the contractor case, which is what most
+  /// schools' accompagnateurs are. The big bus goes without one on purpose, so
+  /// the demonstration shows both arrangements.
+  attendantName?: string;
+  attendantPhone?: string;
 };
 
 export const VEHICLE_SEEDS: VehicleSeed[] = [
-  { registration: "45231-A-6", make: "Mercedes-Benz", model: "Sprinter", modelYear: 2019, seatCount: 22, driverName: "Hassan Alaoui", driverPhone: "0661234501" },
-  { registration: "78412-B-6", make: "Toyota", model: "Coaster", modelYear: 2021, seatCount: 30, driverName: "Brahim Naji", driverPhone: "0661234502" },
+  { registration: "45231-A-6", make: "Mercedes-Benz", model: "Sprinter", modelYear: 2019, seatCount: 22, driverName: "Hassan Alaoui", driverPhone: "0661234501", attendantName: "Khadija Bennani", attendantPhone: "0661234511" },
+  { registration: "78412-B-6", make: "Toyota", model: "Coaster", modelYear: 2021, seatCount: 30, driverName: "Brahim Naji", driverPhone: "0661234502", attendantName: "Fatima Zahra Idrissi", attendantPhone: "0661234512" },
   { registration: "10298-C-6", make: "Renault", model: "Master", modelYear: 2017, seatCount: 16, driverName: "Said Amrani", driverPhone: "0661234503" },
 ];
 
@@ -255,6 +260,8 @@ export async function seedTransport(
         driverId,
         driverName: vehicle.driverName,
         driverPhone: vehicle.driverPhone,
+        attendantName: vehicle.attendantName ?? null,
+        attendantPhone: vehicle.attendantPhone ?? null,
       },
       create: {
         schoolId: input.schoolId,
@@ -267,6 +274,8 @@ export async function seedTransport(
         driverId,
         driverName: vehicle.driverName,
         driverPhone: vehicle.driverPhone,
+        attendantName: vehicle.attendantName ?? null,
+        attendantPhone: vehicle.attendantPhone ?? null,
       },
       select: { id: true },
     });

@@ -30,6 +30,7 @@ import {
   unsubscribeRider,
   updateRider,
 } from "@/modules/transport/service";
+import { tripRunWindow } from "@/modules/transport/enums";
 import {
   fuelDecisionSchema,
   fuelRequestSchema,
@@ -86,6 +87,9 @@ export async function saveVehicleAction(
       driverId: optionalId(formData, "driverId"),
       driverName: field(formData, "driverName"),
       driverPhone: field(formData, "driverPhone"),
+      attendantId: optionalId(formData, "attendantId"),
+      attendantName: field(formData, "attendantName"),
+      attendantPhone: field(formData, "attendantPhone"),
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
@@ -117,17 +121,31 @@ export async function saveVehicleAction(
     });
     if (clash) return failure(t.transport.registrationTaken);
 
-    // The driver must be one of this school's employees — a staff id from the
+    // Both crew members must be this school's employees — a staff id from the
     // request must never reach another school's payroll.
-    const driver = parsed.data.driverId
-      ? await db.staff.findFirst({
-          where: { id: parsed.data.driverId, schoolId },
-          select: { id: true },
-        })
-      : null;
+    const [driver, attendant] = await Promise.all([
+      parsed.data.driverId
+        ? db.staff.findFirst({
+            where: { id: parsed.data.driverId, schoolId },
+            select: { id: true },
+          })
+        : null,
+      parsed.data.attendantId
+        ? db.staff.findFirst({
+            where: { id: parsed.data.attendantId, schoolId },
+            select: { id: true },
+          })
+        : null,
+    ]);
     if (parsed.data.driverId && !driver) return failure(t.errors.notFound);
+    if (parsed.data.attendantId && !attendant) return failure(t.errors.notFound);
 
-    const data = { ...parsed.data, driverId: driver?.id ?? null, schoolId };
+    const data = {
+      ...parsed.data,
+      driverId: driver?.id ?? null,
+      attendantId: attendant?.id ?? null,
+      schoolId,
+    };
 
     if (id) {
       await db.vehicle.update({ where: { id }, data });
@@ -1066,10 +1084,10 @@ export async function markBusRunInBulkAction(
 async function reachableTripRun(
   schoolYearId: string,
   runId: string,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; date: Date; plannedDepartureTime: string } | null> {
   return db.tripRun.findFirst({
     where: { id: runId, route: { schoolYearId } },
-    select: { id: true },
+    select: { id: true, date: true, plannedDepartureTime: true },
   });
 }
 
@@ -1087,6 +1105,18 @@ async function reachableTripRun(
  * boarded are the same person's shift. Cancelling asks for TRANSPORT_MANAGE on
  * top — striking a run off the day is a supervisory act, and it is the one that
  * leaves a gap somebody will be asked about.
+ *
+ * ── Who may move a run outside its hour ─────────────────────────────────────
+ * A crew member may only start or close a voyage around its own departure —
+ * `tripRunWindow`, the same rule the phone is held to, because /transport
+ * /mon-voyage is that same screen in a browser and a rule enforced on one and
+ * not the other is not a rule.
+ *
+ * The office is not: a secrétaire recording at four o'clock that the morning
+ * bus went out is making a correction, not a departure, and somebody has to be
+ * able to. TRANSPORT_MANAGE is what separates them — derived from the session
+ * rather than passed in, since a flag in the request would let the caller
+ * choose which rules apply to it.
  */
 export async function moveTripRunAction(
   runId: string,
@@ -1114,8 +1144,21 @@ export async function moveTripRunAction(
       return failure(t.transport.cancelRunReasonRequired);
     }
 
+    // Re-derived from what the account holds, never from the form.
+    const withinWindow = !context.can(PERMISSIONS.TRANSPORT_MANAGE);
+
+    // Checked here only to say *why* — `moveTripRun` refuses on its own, inside
+    // the transaction, whatever this reads.
+    if (
+      withinWindow &&
+      tripRunWindow(run.date, run.plannedDepartureTime, new Date()) !== "OPEN"
+    ) {
+      return failure(t.transport.runNotItsHour);
+    }
+
     const moved = await moveTripRun(run.id, next, context.user.id, {
       cancelReason: next === "CANCELLED" ? reason : undefined,
+      withinWindow,
     });
     // False means the run had already moved on — somebody else pressed first,
     // which is a message rather than an error.

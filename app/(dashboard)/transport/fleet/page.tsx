@@ -19,10 +19,11 @@ export default async function TransportFleetPage() {
     return <ForbiddenState />;
   }
 
-  const [vehicles, driverOptions] = await Promise.all([
+  const [vehicles, crewOptions] = await Promise.all([
     listVehicles(context),
-    // Only offered to readers who may see the staff list — the form keeps its
-    // free-text driver field for everybody else.
+    // The bus's crew — driver and accompagnateur — picked from one list, since
+    // both are employees of this school. Only offered to readers who may see
+    // the staff list; the form keeps its free-text fields for everybody else.
     context.can(PERMISSIONS.HR_VIEW)
       ? listDriverOptions(context)
       : Promise.resolve([]),
@@ -39,7 +40,7 @@ export default async function TransportFleetPage() {
 
       <FleetList
         vehicles={vehicles}
-        driverOptions={driverOptions}
+        crewOptions={crewOptions}
         permissions={{
           canManage: context.can(PERMISSIONS.TRANSPORT_MANAGE),
           canDelete: context.can(PERMISSIONS.TRANSPORT_DELETE),

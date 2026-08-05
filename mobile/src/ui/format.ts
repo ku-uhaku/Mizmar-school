@@ -36,6 +36,16 @@ export function shortDate(value: string | Date): string {
   return SHORT_DATE.format(new Date(value));
 }
 
+const CLOCK = new Intl.DateTimeFormat("fr-MA", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** `07:12` — an instant from the server as a wall clock. */
+export function clock(value: string | Date): string {
+  return CLOCK.format(new Date(value));
+}
+
 /** `2026-08-04`, the form the API's `?date=` expects. */
 export function isoDay(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -52,9 +62,16 @@ export const ATTENDANCE_LABELS: Record<string, string> = {
 
 export const RUN_STATUS_LABELS: Record<string, string> = {
   PLANNED: "Prévu",
-  DEPARTED: "Parti",
+  EN_ROUTE: "En route",
   ARRIVED: "Arrivé",
   CANCELLED: "Annulé",
+};
+
+/** Whether the voyage is at its hour. See TripRun.window. */
+export const RUN_WINDOW_LABELS: Record<string, string> = {
+  UPCOMING: "Pas encore l'heure",
+  OPEN: "C'est l'heure",
+  CLOSED: "Terminé",
 };
 
 export const DIRECTION_LABELS: Record<string, string> = {

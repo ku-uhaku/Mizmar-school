@@ -70,11 +70,11 @@ import type { VehicleRow } from "@/modules/transport/queries";
 /** The buses themselves, and the paperwork that keeps them on the road. */
 export function FleetList({
   vehicles,
-  driverOptions,
+  crewOptions,
   permissions,
 }: {
   vehicles: VehicleRow[];
-  driverOptions: { id: string; label: string }[];
+  crewOptions: { id: string; label: string }[];
   permissions: { canManage: boolean; canDelete: boolean };
 }) {
   const t = useT();
@@ -139,6 +139,9 @@ export function FleetList({
         ),
       },
       {
+        // The crew in one column: the pair is what somebody wants when a bus
+        // has not arrived, and two columns for two names would push the expiry
+        // dates — the reason this screen exists — off a narrow table.
         id: "driver",
         accessorFn: (row) => row.driverLabel ?? "",
         header: t.transport.driverName,
@@ -151,6 +154,11 @@ export function FleetList({
             {row.original.driverPhone ? (
               <p className="text-muted-foreground truncate text-xs" dir="ltr">
                 {row.original.driverPhone}
+              </p>
+            ) : null}
+            {row.original.attendantLabel ? (
+              <p className="text-muted-foreground truncate text-xs">
+                {t.transport.attendantShort}: {row.original.attendantLabel}
               </p>
             ) : null}
           </div>
@@ -265,7 +273,7 @@ export function FleetList({
       {creating || editing ? (
         <VehicleDialog
           vehicle={editing}
-          driverOptions={driverOptions}
+          crewOptions={crewOptions}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -346,11 +354,11 @@ function ExpiryValue({
 
 function VehicleDialog({
   vehicle,
-  driverOptions,
+  crewOptions,
   onClose,
 }: {
   vehicle: VehicleRow | null;
-  driverOptions: { id: string; label: string }[];
+  crewOptions: { id: string; label: string }[];
   onClose: () => void;
 }) {
   const t = useT();
@@ -494,7 +502,7 @@ function VehicleDialog({
           {/* A school's buses are as often a contractor's as its own, so the
               employee picker and the free-text name both stay — see the note on
               Vehicle.driverId. */}
-          {driverOptions.length > 0 ? (
+          {crewOptions.length > 0 ? (
             <div className="grid gap-1.5">
               <Field label={t.transport.driverStaff} name="driverId">
                 <Combobox
@@ -507,7 +515,7 @@ function VehicleDialog({
                     value: "__none__",
                     label: t.transport.driverExternal,
                   }}
-                  options={driverOptions.map((option) => ({
+                  options={crewOptions.map((option) => ({
                     value: option.id,
                     label: option.label,
                   }))}
@@ -536,6 +544,61 @@ function VehicleDialog({
                   state,
                   "driverPhone",
                   vehicle?.driverPhone,
+                )}
+              />
+            </Field>
+          </div>
+
+          {/* L'accompagnateur, on the same pattern and for the same reason —
+              the person who takes the appel at the kerb is as often a
+              contractor's as the school's. See Vehicle.attendantId. */}
+          {crewOptions.length > 0 ? (
+            <div className="grid gap-1.5">
+              <Field label={t.transport.attendantStaff} name="attendantId">
+                <Combobox
+                  id="attendantId"
+                  name="attendantId"
+                  defaultValue={
+                    valueOf(state, "attendantId", vehicle?.attendantId) ||
+                    "__none__"
+                  }
+                  emptyOption={{
+                    value: "__none__",
+                    label: t.transport.attendantNone,
+                  }}
+                  options={crewOptions.map((option) => ({
+                    value: option.id,
+                    label: option.label,
+                  }))}
+                />
+              </Field>
+              <p className="text-muted-foreground text-xs">
+                {t.transport.attendantStaffHint}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={t.transport.attendantName} name="attendantName">
+              <Input
+                id="attendantName"
+                name="attendantName"
+                defaultValue={valueOf(
+                  state,
+                  "attendantName",
+                  vehicle?.attendantName,
+                )}
+              />
+            </Field>
+            <Field label={t.transport.attendantPhone} name="attendantPhone">
+              <Input
+                id="attendantPhone"
+                name="attendantPhone"
+                dir="ltr"
+                defaultValue={valueOf(
+                  state,
+                  "attendantPhone",
+                  vehicle?.attendantPhone,
                 )}
               />
             </Field>
