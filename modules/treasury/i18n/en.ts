@@ -182,6 +182,20 @@ const en = {
       "“{code}” will stop counting and what it settled goes back on the family's account. The receipt itself is kept.",
     paymentCancelled: "Receipt cancelled.",
     alreadyCancelled: "That receipt is already cancelled.",
+    cancelNeedsDrawer:
+      "Handing this money back moves cash. Open your till first.",
+    cancelNeedsCash:
+      "Your till does not hold enough cash to hand this back.",
+    cancelOperation: "Cancel the movement",
+    cancelOperationTitle: "Cancel this movement?",
+    cancelOperationBody:
+      "A correcting entry will be written for {label}. The original stays in the ledger.",
+    operationCancelled: "Movement cancelled.",
+    alreadyReversed: "That movement has already been cancelled.",
+    cancelReceiptInstead:
+      "This movement is a receipt. Cancel it from the receipts list.",
+    reversalBlocked:
+      "Something already depends on this movement — an avance recovered on a payslip. Restate that first.",
     cancelReason: "Reason",
     cancelReasonLabel: "Why is it being cancelled?",
     cancelReasonPlaceholder:

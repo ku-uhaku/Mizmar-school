@@ -68,6 +68,7 @@ const ar = {
     applyToFollowingHint:
       "ينسخ هذا التخفيض على {count} أقساط لاحقة من هذا الرسم. كل شهر يحتفظ بمبلغه.",
     feeUpdatedCarried: "تم تحديث السطر ونقله إلى {count} أشهر لاحقة.",
+    feeLinePaid: "تم أداء {amount} درهم على هذا الرسم. ألغِ الوصل أولاً.",
     legendClick: "انقر على خانة لتغيير مبلغها أو تخفيضها",
     legendReduced: "مخفَّض",
     legendNotDue: "معفى أو ملغى",

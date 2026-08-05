@@ -359,6 +359,21 @@ export async function assignClass(
  * The one place `amountCentimes` is written, so the stored total can never
  * disagree with the base and the reductions beside it.
  */
+/** What has actually been paid against a schedule line, cancelled receipts aside. */
+export async function paidOnFeeLine(feeLineId: string): Promise<number> {
+  const settled = await db.paymentAllocation.aggregate({
+    where: { enrollmentFeeId: feeLineId, payment: { status: "POSTED" } },
+    _sum: { amountCentimes: true },
+  });
+
+  return settled._sum.amountCentimes ?? 0;
+}
+
+export type RepriceFeeLineResult =
+  | { ok: true }
+  /** The edit would leave the line owing less than has been paid on it. */
+  | { ok: false; reason: "ALREADY_PAID"; paidCentimes: number };
+
 export async function repriceFeeLine(
   feeLineId: string,
   input: {
@@ -373,19 +388,38 @@ export async function repriceFeeLine(
     /** Who decided. Stamped alongside the reason. */
     actorId?: string | null;
   },
-): Promise<void> {
+): Promise<RepriceFeeLineResult> {
   const { cancelReason, actorId, ...fields } = input;
   const cancelled = input.status !== "DUE";
+  const amountCentimes = netAmount(
+    input.baseAmountCentimes,
+    input.discountBps,
+    input.discountCentimes,
+  );
+
+  /*
+    ── Money already taken pins the line ──────────────────────────────────────
+    Waiving a charge a family has paid, or discounting it below what they handed
+    over, used to be allowed — and it made their money disappear. Every "how
+    much has this pupil paid" sum reads through lines that are still DUE, so a
+    waived one takes its receipts' allocations out of the pupil's total while
+    the receipts themselves, and the caisse, still count every centime. The two
+    sets of books then disagree by exactly the amount somebody actually paid.
+
+    So the edit is refused while the money is still attached. Cancelling the
+    receipt is the way back — it is the one act that puts money back where it
+    came from, and it leaves a trail saying so.
+  */
+  const paidCentimes = await paidOnFeeLine(feeLineId);
+  if (paidCentimes > 0 && (cancelled || amountCentimes < paidCentimes)) {
+    return { ok: false, reason: "ALREADY_PAID", paidCentimes };
+  }
 
   await db.enrollmentFee.update({
     where: { id: feeLineId },
     data: {
       ...fields,
-      amountCentimes: netAmount(
-        input.baseAmountCentimes,
-        input.discountBps,
-        input.discountCentimes,
-      ),
+      amountCentimes,
       /*
         The trail is written and cleared by the same statement that moves the
         status, so the two can never disagree. Reinstating a line wipes it
@@ -397,6 +431,8 @@ export async function repriceFeeLine(
       cancelledById: cancelled ? (actorId ?? null) : null,
     },
   });
+
+  return { ok: true };
 }
 
 /**
@@ -436,30 +472,58 @@ export async function repriceFollowingLines(
       periodIndex: { gt: line.periodIndex },
       status: "DUE",
     },
-    select: { id: true, baseAmountCentimes: true },
+    select: {
+      id: true,
+      baseAmountCentimes: true,
+      allocations: {
+        where: { payment: { status: "POSTED" } },
+        select: { amountCentimes: true },
+      },
+    },
   });
+
+  /*
+    A month the family has already paid something on keeps its price.
+
+    The same rule as `repriceFeeLine`, applied quietly rather than as a refusal:
+    a reduction granted in January is carried across the rest of the year in one
+    tick, and half the point is that the bursar does not have to think about
+    which of those months have been settled. Skipping the ones it would push
+    below what has been paid is the answer they would have given anyway, and the
+    count returned says how many actually moved.
+  */
+  const repriceable = following
+    .map((later) => ({
+      id: later.id,
+      amountCentimes: netAmount(
+        later.baseAmountCentimes,
+        input.discountBps,
+        input.discountCentimes,
+      ),
+      paidCentimes: later.allocations.reduce(
+        (total, allocation) => total + allocation.amountCentimes,
+        0,
+      ),
+    }))
+    .filter((later) => later.amountCentimes >= later.paidCentimes);
 
   // One update per row rather than an `updateMany`: the net has to be computed
   // from each row's own base, and `updateMany` cannot write a per-row value.
   await db.$transaction(
-    following.map((later) =>
+    repriceable.map((later) =>
       db.enrollmentFee.update({
         where: { id: later.id },
         data: {
           discountBps: input.discountBps,
           discountCentimes: input.discountCentimes,
           discountId: input.discountId,
-          amountCentimes: netAmount(
-            later.baseAmountCentimes,
-            input.discountBps,
-            input.discountCentimes,
-          ),
+          amountCentimes: later.amountCentimes,
         },
       }),
     ),
   );
 
-  return following.length;
+  return repriceable.length;
 }
 
 /**

@@ -172,6 +172,17 @@ const ar = {
       "«{code}» لن يعود يُحتسب، وتعود الأقساط التي سدّدها مستحقة. أما الوصل نفسه فيُحتفظ به.",
     paymentCancelled: "تم إلغاء الوصل.",
     alreadyCancelled: "هذا الوصل ملغى بالفعل.",
+    cancelNeedsDrawer: "إرجاع هذا المبلغ يُخرج نقدًا. افتح صندوقك أولاً.",
+    cancelNeedsCash: "صندوقك لا يحتوي على نقد كافٍ لإرجاع هذا المبلغ.",
+    cancelOperation: "إلغاء الحركة",
+    cancelOperationTitle: "إلغاء هذه الحركة؟",
+    cancelOperationBody:
+      "سيتم تسجيل قيد عكسي لـ {label}. تبقى الحركة الأصلية في دفتر الأستاذ.",
+    operationCancelled: "تم إلغاء الحركة.",
+    alreadyReversed: "هذه الحركة ملغاة بالفعل.",
+    cancelReceiptInstead: "هذه الحركة وصل. ألغِها من قائمة الوصولات.",
+    reversalBlocked:
+      "هناك ما يعتمد على هذه الحركة — سُلفة تم اقتطاعها من كشف الأجر. صحّح ذلك أولاً.",
     cancelReason: "السبب",
     cancelReasonLabel: "لماذا يُلغى هذا الوصل؟",
     cancelReasonPlaceholder:

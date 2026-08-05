@@ -81,6 +81,25 @@ afficherait un manque le soir.
 Cela signifie que le grand livre (`Opérations`) lit exactement ce qui s'est
 passé, jamais ce qu'on aurait souhaité.
 
+**Ce qui peut être annulé, et où :**
+
+| Type de mouvement | Où l'annuler | Effet |
+|---|---|---|
+| Un reçu (encaissement famille) | Tableau des reçus, `/caisse` | Les frais repartent sur l'échéancier |
+| Un décaissement, un virement | Grand livre, bouton sur la ligne | Écriture inverse ; un salaire ou une avance repasse en « non payé » |
+
+Deux règles encadrent une annulation qui **fait bouger des espèces** :
+
+1. elle est postée dans **la caisse de celui qui annule** (ou, pour un
+   décaissement, dans la caisse d'origine du mouvement) — jamais dans « la
+   première caisse ouverte venue », ce qui mettait l'écart au nom d'un collègue ;
+2. elle est **refusée** si le tiroir ne contient pas la somme à rendre. On ne
+   rend pas des espèces qu'on n'a pas.
+
+Une avance déjà **récupérée sur un bulletin** bloque l'annulation de son
+décaissement : il faudrait sinon retenir sur un salaire une avance que l'employé
+n'a jamais reçue. Le bulletin se rectifie d'abord.
+
 ### 2.4 Le reçu est fait à la famille, pas à l'élève
 
 Un parent avec trois enfants scolarisés paie une fois et attend **un seul**
@@ -110,10 +129,25 @@ PENDING → DEPOSITED → CASHED        (chemin normal)
 ```
 
 Si un chèque **entrant** passe à `BOUNCED`, le système **annule
-automatiquement le reçu** qu'il avait réglé (`setChequeStatus` appelle
-`cancelPayment`) — les frais repartent sur l'échéancier de la famille par le
-même mécanisme que toute autre annulation. Il n'existe qu'**une seule** façon
-pour de l'argent de revenir sur une ligne de facturation.
+automatiquement le reçu** qu'il avait réglé — les frais repartent sur
+l'échéancier de la famille par le même mécanisme que toute autre annulation. Il
+n'existe qu'**une seule** façon pour de l'argent de revenir sur une ligne de
+facturation.
+
+**Et sur un reçu mixte, seul le chèque est défait.** Un règlement de 2 000 en
+500 espèces + 1 500 par chèque dont le chèque revient impayé :
+
+* le reçu d'origine est annulé (on ne peut pas dire quelle mensualité les 500
+  ont réglée — l'affectation était un seul acte) ;
+* **les espèces ne sont pas reversées** : elles n'ont jamais quitté le tiroir,
+  et l'écriture inverse porte donc un impact caisse nul ;
+* un **reçu de remplacement** est émis automatiquement pour les 500, affecté aux
+  mêmes lignes, mensualité la plus ancienne d'abord.
+
+Résultat : la famille redoit exactement le montant du chèque, la caisse ne bouge
+pas d'un centime, et les 500 restent rattachés à un reçu vivant. Un chèque non
+impayé porté sur le même reçu suit le remplacement plutôt que d'être rendu
+(`keepChequeIds`) — c'est toujours le même papier, la banque n'en sait rien.
 
 ## 3. Les cinq écrans (`/caisse/*`)
 
@@ -174,6 +208,16 @@ Fonctionnement (`recordPaymentAction` → `recordPayment` dans `service.ts`) :
 Toute l'opération est une seule transaction : un reçu qui aurait sauvegardé
 son chèque mais pas ses affectations serait pire qu'un échec complet.
 
+**Une ligne, une affectation.** Une requête qui nomme deux fois la même
+mensualité (double-clic, POST forgé) est d'abord *additionnée* en une seule
+affectation, puis confrontée au reste dû. Vérifier chaque moitié séparément
+laissait passer le double du montant : chacune était comparée à un reste dû qui
+ignorait l'autre.
+
+**Le numéro de reçu est attribué dans la transaction**, et une collision entre
+deux caissiers est réessayée (jusqu'à cinq fois) au lieu de remonter en erreur
+au comptoir.
+
 ### 3.3 Décaissement (`/caisse/decaissement`)
 
 L'argent qui sort — salaire, fournisseur, dépense courante
@@ -233,7 +277,7 @@ Le découpage suit **qui fait réellement le travail**, pas les tables
 | `TREASURY_DISBURSE` | Décaisser — payer quelqu'un. |
 | `TREASURY_TRANSFER` | Déplacer de l'argent entre caisses ou vers la banque. |
 | `TREASURY_CHEQUES` | Faire avancer un chèque dans son cycle de vie. |
-| `TREASURY_CANCEL` | Annuler un reçu ou faire rejeter un chèque. |
+| `TREASURY_CANCEL` | Annuler un reçu **ou tout autre mouvement** (décaissement, virement), et faire rejeter un chèque. |
 
 Le principe de contrôle interne d'une petite école tient dans ce découpage :
 une secrétaire à l'accueil encaisse toute la journée (`TREASURY_COLLECT`)
@@ -251,6 +295,12 @@ solde attendu d'une caisse ouverte
   = float d'ouverture (CashSession.openingFloatCentimes)
   + somme des cashImpactCentimes des opérations POSTED de cette session
 ```
+
+**Aucun écran ne laisse sortir plus d'espèces que le tiroir n'en contient.** La
+règle est écrite une seule fois (`cashShortfall`) et appelée par le
+décaissement, le virement, le paiement d'un salaire, celui d'une avance et le
+remboursement d'un reçu annulé — un tiroir affichant moins que zéro n'est pas un
+état dans lequel une caisse peut se trouver.
 
 Le résumé du jour (`treasurySummary`) applique la même logique, avec une
 subtilité pour les totaux du jour : une opération annulée dans l'heure doit
@@ -271,6 +321,23 @@ sa fratrie, utilisé par le dossier élève :
 - **`listStudentPayments`** — les reçus qui ont réglé *cet* élève
   spécifiquement (via les affectations, pas via la famille entière — un reçu
   familial peut ne régler qu'un seul des enfants).
+
+**Une ligne d'échéancier déjà réglée est verrouillée.** Tant qu'un reçu vivant
+pointe dessus, la grille des frais refuse de l'annuler, de la mettre en
+« offerte » ou de la descendre sous le montant déjà encaissé
+(`repriceFeeLine` → `ALREADY_PAID`). Sans cela, la ligne sortait du filtre
+`status: "DUE"` et emportait l'argent avec elle : la caisse comptait 3 000, la
+fiche de l'élève 2 000, et personne ne pouvait dire où étaient passés les 1 000.
+Le chemin correct est d'annuler le reçu — le seul acte qui rende vraiment
+l'argent, et qui laisse une trace disant qu'il l'a fait. Le report d'une
+réduction sur les mois suivants saute pour la même raison les mois déjà réglés,
+sans rien dire : c'est la réponse que le bursier aurait donnée de toute façon.
+
+**L'application des familles lit la même règle.** `loadChildFees`
+(`modules/portal/queries.ts`) ne compte que les affectations d'un reçu
+`POSTED` : un chèque impayé cessait sinon de compter partout dans l'école tout
+en restant « payé » sur le téléphone du parent — c'est-à-dire sur la version à
+partir de laquelle il vient discuter.
 
 L'état de chaque ligne (à jour / partiel / à venir / en retard) est calculé
 par `modules/treasury/payment-state.ts`, importé aussi bien côté serveur que

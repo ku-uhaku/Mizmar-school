@@ -2,7 +2,10 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { generateFeeSchedule } from "@/modules/enrolment/service";
-import { recordDisbursement } from "@/modules/treasury/service";
+import {
+  recordDisbursement,
+  type TxClient,
+} from "@/modules/treasury/service";
 import {
   SEAT_HOLDING_STATUSES,
   driverLabel,
@@ -1002,5 +1005,35 @@ export async function moveTripRun(
     });
 
     return true;
+  });
+}
+
+/**
+ * Puts a fuel request back to pending when the caisse reverses the movement
+ * that paid for it.
+ *
+ * Run inside `cancelOperation`'s transaction — the same arrangement as
+ * `detachPayrollFromOperations` in modules/hr/service.ts, and for the same
+ * reason: the request justifies the movement and the movement is the record of
+ * it, so a request left APPROVED against a reversed entry claims a tank of
+ * diesel the ledger says was never paid for.
+ *
+ * Back to PENDING rather than REJECTED: the decision is being undone, not
+ * refused, and whoever asked for the fuel still has.
+ */
+export async function detachFuelFromOperations(
+  tx: TxClient,
+  operationIds: string[],
+): Promise<void> {
+  if (operationIds.length === 0) return;
+
+  await tx.fuelRequest.updateMany({
+    where: { cashOperationId: { in: operationIds } },
+    data: {
+      status: "PENDING",
+      cashOperationId: null,
+      decidedById: null,
+      decidedAt: null,
+    },
   });
 }

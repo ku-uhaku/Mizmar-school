@@ -32,7 +32,10 @@ import {
 } from "@/components/ui/tooltip";
 import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
-import { cancelPaymentAction } from "@/modules/treasury/actions";
+import {
+  cancelOperationAction,
+  cancelPaymentAction,
+} from "@/modules/treasury/actions";
 import { OPERATION_KINDS, PAYMENT_METHODS } from "@/modules/treasury/enums";
 import type { OperationRow, PaymentRow } from "@/modules/treasury/queries";
 
@@ -49,11 +52,41 @@ type PaymentSummary = PaymentRow;
  */
 export function OperationsTable({
   operations,
+  canCancel = false,
 }: {
   operations: OperationRow[];
+  /** `TREASURY_CANCEL`. Receipts are cancelled from the receipts table instead. */
+  canCancel?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
+  const [pending, setPending] = React.useState<OperationRow | null>(null);
+  const [reason, setReason] = React.useState("");
+  const [isCancelling, startCancelling] = React.useTransition();
+
+  // Mirrors `cancelOperationSchema` — the server is the rule, this only saves
+  // the bursar discovering it by having the dialog rejected.
+  const MIN_REASON = 10;
+  const reasonIsUsable = reason.trim().length >= MIN_REASON;
+
+  function closeDialog() {
+    setPending(null);
+    setReason("");
+  }
+
+  function confirmCancel() {
+    if (!pending || !reasonIsUsable) return;
+    startCancelling(async () => {
+      const result = await cancelOperationAction(pending.id, reason.trim());
+      if (result.status === "success") {
+        toast.success(result.message ?? t.treasury.operationCancelled);
+        closeDialog();
+        return;
+      }
+      // Kept open on failure, so the motif just typed is not lost.
+      toast.error(result.message ?? t.errors.unexpected);
+    });
+  }
 
   const columns = React.useMemo<ColumnDef<OperationRow, unknown>[]>(
     () => [
@@ -177,8 +210,45 @@ export function OperationsTable({
           </span>
         ),
       },
+      {
+        id: "actions",
+        header: "",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const operation = row.original;
+
+          /*
+            Offered on exactly what can be undone here: a movement that still
+            stands, is not itself a correcting entry, and is not a receipt —
+            a receipt has fees hanging off it, so it is cancelled from the
+            receipts table where the family and the sum are named.
+          */
+          const cancellable =
+            canCancel &&
+            operation.status === "POSTED" &&
+            !operation.isReversal &&
+            !operation.isReversed &&
+            operation.paymentId === null;
+
+          if (!cancellable) return null;
+
+          return (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t.treasury.cancelOperation}
+                onClick={() => setPending(operation)}
+              >
+                <BanIcon />
+              </Button>
+            </div>
+          );
+        },
+      },
     ],
-    [t, locale],
+    [t, locale, canCancel],
   );
 
   /*
@@ -210,26 +280,100 @@ export function OperationsTable({
   );
 
   return (
-    <DataTable
-      columns={columns}
-      data={operations}
-      facets={facets}
-      pageSize={20}
-      // A reversed movement still happened and still counts toward the drawer —
-      // it is dimmed to explain the correcting entry below it, never struck out
-      // as if it had not occurred.
-      rowClassName={(operation) =>
-        operation.status === "CANCELLED" || operation.isReversed
-          ? "text-muted-foreground"
-          : undefined
-      }
-      emptyState={
-        <EmptyState
-          icon={<ReceiptTextIcon className="size-5" />}
-          title={t.treasury.noOperations}
-        />
-      }
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={operations}
+        facets={facets}
+        pageSize={20}
+        // A reversed movement still happened and still counts toward the drawer —
+        // it is dimmed to explain the correcting entry below it, never struck out
+        // as if it had not occurred.
+        rowClassName={(operation) =>
+          operation.status === "CANCELLED" || operation.isReversed
+            ? "text-muted-foreground"
+            : undefined
+        }
+        emptyState={
+          <EmptyState
+            icon={<ReceiptTextIcon className="size-5" />}
+            title={t.treasury.noOperations}
+          />
+        }
+      />
+
+      <AlertDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open && !isCancelling) closeDialog();
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t.treasury.cancelOperationTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {interpolate(t.treasury.cancelOperationBody, {
+                label: pending?.label ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {/* The sum being undone, stated plainly: the label alone does not tell
+              a bursar which of two similar movements is in front of them. */}
+          {pending ? (
+            <div className="flex items-baseline justify-between rounded-lg bg-muted px-3 py-2">
+              <span className="text-sm text-muted-foreground">
+                {pending.beneficiaryName ?? pending.categoryName ?? "—"}
+              </span>
+              <span className="font-medium tabular-nums">
+                {formatAmount(pending.amountCentimes, locale)}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <Label htmlFor="cancel-operation-reason">
+              {t.treasury.cancelReasonLabel}
+            </Label>
+            <Textarea
+              id="cancel-operation-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder={t.treasury.cancelReasonPlaceholder}
+              rows={3}
+              maxLength={300}
+              disabled={isCancelling}
+              aria-describedby="cancel-operation-hint"
+              autoFocus
+            />
+            <p
+              id="cancel-operation-hint"
+              className="text-xs text-muted-foreground"
+            >
+              {t.treasury.cancelReasonHint}
+            </p>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>
+              {t.common.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                confirmCancel();
+              }}
+              disabled={isCancelling || !reasonIsUsable}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {isCancelling ? t.common.saving : t.treasury.cancelOperation}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

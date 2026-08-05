@@ -62,10 +62,13 @@ model CashOperation {
 
   /// The operation this one reverses, when it is a correcting entry.
   ///
-  /// Cancelling never edits or deletes the original: it writes a mirror-image
-  /// operation and marks the original CANCELLED. That is what keeps a closed
-  /// session's total truthful after a mistake is found — the correction lands in
-  /// the period it was made in, the way an accountant expects.
+  /// Cancelling never edits or deletes the original, and never marks it
+  /// CANCELLED either: it writes a mirror-image operation pointing back here and
+  /// leaves the original POSTED. The money really did move on the day it moved,
+  /// so striking it out *and* posting the mirror would take it off the drawer
+  /// twice. That is what keeps a closed session's total truthful after a mistake
+  /// is found — the correction lands in the period it was made in, the way an
+  /// accountant expects. Unique, so one movement can be cancelled only once.
   reversesOperationId String?         @unique
   reversesOperation   CashOperation?  @relation("OperationReversal", fields: [reversesOperationId], references: [id], onDelete: SetNull)
   reversedBy          CashOperation?  @relation("OperationReversal")

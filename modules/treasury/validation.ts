@@ -248,6 +248,22 @@ export function cancelPaymentSchema(t: Dictionary) {
   });
 }
 
+/**
+ * Cancelling a movement that is not a receipt.
+ *
+ * Same floor on the motif, and for a stronger reason: a reversed salary or
+ * supplier payment has no receipt to carry the explanation, so the sentence
+ * typed here *is* the record — it becomes the correcting entry's label in the
+ * ledger.
+ */
+export function cancelOperationSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    operationId: requiredText(v, { max: 40 }),
+    reason: requiredText(v, { min: 10, max: 300 }),
+  });
+}
+
 /** A till. `code` is what the unique index per school is on. */
 export function cashRegisterSchema(t: Dictionary) {
   const v = t.validation;

@@ -14,6 +14,8 @@ import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
+  cashShortfall,
+  cancelOperation,
   cancelPayment,
   closeSession,
   openSession,
@@ -22,9 +24,13 @@ import {
   recordTransfer,
   resolveCashSession,
   setChequeStatus,
+  type CancelPaymentFailure,
 } from "@/modules/treasury/service";
+import { detachPayrollFromOperations } from "@/modules/hr/service";
+import { detachFuelFromOperations } from "@/modules/transport/service";
 import {
   quickSpendSchema,
+  cancelOperationSchema,
   cancelPaymentSchema,
   cashRegisterSchema,
   chequeStatusSchema,
@@ -102,6 +108,39 @@ async function requireDrawer(
 /** `YYYY-MM-DD`, for naming the day a stale shift belonged to. */
 function formatDateOnly(moment: Date): string {
   return moment.toISOString().slice(0, 10);
+}
+
+/**
+ * Refuses to let more cash out of a drawer than it holds.
+ *
+ * Every screen that pays money out asks this, and asks it of the same sum the
+ * caisse balances on (`availableCashInSession`), so no screen can allow what
+ * another refuses. A ledger showing a till holding less than nothing is not a
+ * state a drawer can be in.
+ */
+async function refuseIfShort(
+  t: Dictionary,
+  sessionId: string,
+  amountCentimes: number,
+): Promise<string | null> {
+  const available = await cashShortfall(sessionId, amountCentimes);
+  if (available === null) return null;
+
+  return interpolate(t.treasury.insufficientCash, {
+    amount: centimesToDirhams(available).toFixed(2),
+  });
+}
+
+/** The sentence shown when a cancellation cannot go through. */
+function cancelFailureMessage(t: Dictionary, reason: CancelPaymentFailure): string {
+  switch (reason) {
+    case "NOT_FOUND":
+      return t.treasury.alreadyCancelled;
+    case "NO_DRAWER":
+      return t.treasury.cancelNeedsDrawer;
+    case "INSUFFICIENT_CASH":
+      return t.treasury.cancelNeedsCash;
+  }
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
@@ -409,10 +448,74 @@ export async function cancelPaymentAction(
       context.user.id,
       parsed.data.reason,
     );
-    if (!cancelled) return failure(t.treasury.alreadyCancelled);
+    if (!cancelled.ok) return failure(cancelFailureMessage(t, cancelled.reason));
 
     refresh();
     return success(t.treasury.paymentCancelled);
+  });
+}
+
+/**
+ * Cancels a movement that is not a receipt — a salary, a supplier, a transfer.
+ *
+ * Gated on `TREASURY_CANCEL`, the same code that governs undoing a receipt:
+ * both put a figure back that somebody has already acted on, and both are the
+ * bursar's to make rather than the desk's.
+ *
+ * The motif is required and is written into the correcting entry's label, which
+ * is the only account of the reversal the ledger will carry — there is no paper
+ * behind a cancellation.
+ */
+export async function cancelOperationAction(
+  operationId: string,
+  reason: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await currentSchool();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TREASURY_CANCEL);
+
+    const parsed = cancelOperationSchema(t).safeParse({ operationId, reason });
+    if (!parsed.success) {
+      return failure(t.errors.invalid, fieldErrors(parsed.error));
+    }
+
+    const result = await cancelOperation(
+      parsed.data.operationId,
+      schoolId,
+      context.user.id,
+      // Composed here rather than in the service, which holds no dictionary.
+      `${t.treasury.reversalOf} · ${parsed.data.reason}`,
+      // Everything the movement settled goes back to unsettled: the money did
+      // not leave after all, and a bulletin still marked PAID — or a tank of
+      // diesel still marked approved — against a reversed entry is the ledger
+      // disagreeing with the module that leans on it.
+      async (tx, operationIds) => {
+        await detachPayrollFromOperations(tx, operationIds);
+        await detachFuelFromOperations(tx, operationIds);
+      },
+    );
+
+    if (!result.ok) {
+      switch (result.reason) {
+        case "NOT_FOUND":
+          return failure(t.errors.notFound);
+        case "IS_RECEIPT":
+          return failure(t.treasury.cancelReceiptInstead);
+        case "ALREADY_REVERSED":
+          return failure(t.treasury.alreadyReversed);
+        case "NO_DRAWER":
+          return failure(t.treasury.cancelNeedsDrawer);
+        case "INSUFFICIENT_CASH":
+          return failure(t.treasury.cancelNeedsCash);
+        case "BLOCKED":
+          return failure(t.treasury.reversalBlocked);
+      }
+    }
+
+    refresh();
+    return success(t.treasury.operationCancelled);
   });
 }
 
@@ -519,29 +622,12 @@ export async function recordDisbursementAction(
     // Never pay out more cash than the drawer holds — the ledger would show a
     // negative till, which is not a state a drawer can be in.
     if (cashSessionId) {
-      const drawer = await db.cashSession.findUnique({
-        where: { id: cashSessionId },
-        select: {
-          openingFloatCentimes: true,
-          operations: {
-            where: { status: "POSTED" },
-            select: { cashImpactCentimes: true },
-          },
-        },
-      });
-      const available =
-        (drawer?.openingFloatCentimes ?? 0) +
-        (drawer?.operations ?? []).reduce(
-          (total, operation) => total + operation.cashImpactCentimes,
-          0,
-        );
-      if (parsed.data.amountCentimes > available) {
-        return failure(
-          interpolate(t.treasury.insufficientCash, {
-            amount: centimesToDirhams(available).toFixed(2),
-          }),
-        );
-      }
+      const short = await refuseIfShort(
+        t,
+        cashSessionId,
+        parsed.data.amountCentimes,
+      );
+      if (short) return failure(short);
     }
 
     await recordDisbursement({
@@ -632,30 +718,16 @@ export async function recordTransferAction(
 
     const fromSession = await db.cashSession.findFirst({
       where: { id: drawer.sessionId, cashRegisterId: from.id },
-      select: {
-        id: true,
-        openingFloatCentimes: true,
-        operations: {
-          where: { status: "POSTED" },
-          select: { cashImpactCentimes: true },
-        },
-      },
+      select: { id: true },
     });
     if (!fromSession) return failure(t.treasury.notYourTill);
 
-    const available =
-      fromSession.openingFloatCentimes +
-      fromSession.operations.reduce(
-        (total, operation) => total + operation.cashImpactCentimes,
-        0,
-      );
-    if (parsed.data.amountCentimes > available) {
-      return failure(
-        interpolate(t.treasury.insufficientCash, {
-          amount: centimesToDirhams(available).toFixed(2),
-        }),
-      );
-    }
+    const short = await refuseIfShort(
+      t,
+      fromSession.id,
+      parsed.data.amountCentimes,
+    );
+    if (short) return failure(short);
 
     // Re-derived, like every other reference the form sends.
     const transferBank =
@@ -1010,6 +1082,15 @@ export async function payStaffDirectAction(
         ? await requireDrawer(t, schoolId, context.user.id)
         : null;
     if (drawer && !drawer.ok) return failure(drawer.message);
+
+    if (drawer?.ok) {
+      const short = await refuseIfShort(
+        t,
+        drawer.sessionId,
+        parsed.data.amountCentimes,
+      );
+      if (short) return failure(short);
+    }
 
     const beneficiaryName = `${person.firstName} ${person.lastName}`.trim();
 

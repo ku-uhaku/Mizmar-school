@@ -74,6 +74,8 @@ const en = {
     applyToFollowingHint:
       "Copies this reduction onto the {count} later instalments of this charge. Each month keeps its own amount.",
     feeUpdatedCarried: "Fee line updated, and carried to {count} later months.",
+    feeLinePaid:
+      "{amount} MAD has already been paid on this charge. Cancel the receipt first.",
     legendClick: "Click a cell to change its amount or reduction",
     legendReduced: "Reduced",
     legendNotDue: "Waived or cancelled",

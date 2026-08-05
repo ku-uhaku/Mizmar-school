@@ -38,23 +38,65 @@ import {
  */
 
 /**
+ * The client inside `db.$transaction`, for the helpers that take one.
+ *
+ * Derived from the client rather than imported from Prisma's namespace so it
+ * follows the extensions in lib/db.ts — a hand-written `Prisma.TransactionClient`
+ * would silently lose the audit extension's typing.
+ */
+export type TxClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/**
  * Allocates the next document number for a school and calendar year.
  *
  * Counts what already exists rather than keeping a counter table: the volume is
  * a few thousand a year, the count is indexed, and a sequence table that can
- * drift out of step with the rows it numbers is worse than a scan. The unique
- * index on `[schoolId, code]` is what actually guarantees the number is free —
- * this only has to make a collision rare.
+ * drift out of step with the rows it numbers is worse than a scan.
+ *
+ * Takes the transaction client and is called *inside* it, so the count and the
+ * insert that consumes it cannot be separated by another cashier's receipt. The
+ * unique index on `[schoolId, code]` is still the real guarantee — see
+ * `isDuplicateKey` and the retry around `recordPayment`.
  */
-async function nextPaymentCode(schoolId: string): Promise<string> {
+async function nextPaymentCode(
+  tx: TxClient,
+  schoolId: string,
+): Promise<string> {
   const year = new Date().getFullYear();
   const yearStart = new Date(year, 0, 1);
 
-  const used = await db.payment.count({
+  const used = await tx.payment.count({
     where: { schoolId, createdAt: { gte: yearStart } },
   });
 
   return documentCode("R", year, used + 1);
+}
+
+/**
+ * Whether a write failed on a unique index, optionally on a named column.
+ *
+ * Matched structurally rather than with `instanceof PrismaClientKnownRequestError`:
+ * the extended client in lib/db.ts re-wraps errors, and a failed `instanceof`
+ * here would turn a retryable collision into a five-hundred handed to a cashier
+ * with a parent standing in front of them.
+ *
+ * `column` matters because only *some* collisions are worth retrying. Two
+ * cashiers reaching for the same receipt number is a race that the next attempt
+ * wins; anything else is a request that will fail identically five times over.
+ */
+function isDuplicateKey(error: unknown, column?: string): boolean {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    !("code" in error) ||
+    (error as { code?: unknown }).code !== "P2002"
+  ) {
+    return false;
+  }
+  if (!column) return true;
+
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  return JSON.stringify(target ?? "").includes(column);
 }
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
@@ -124,8 +166,18 @@ export async function openSession(
   return { ok: true, id: session.id };
 }
 
-/** The float plus every posted cash movement — what the drawer should hold. */
-async function expectedInDrawer(sessionId: string): Promise<number | null> {
+/**
+ * The float plus every posted cash movement — what the drawer should hold, and
+ * therefore the ceiling on what may leave it.
+ *
+ * Exported because every screen that lets cash out checks against it — the
+ * décaissement, the transfert, a salary, an avance, a reversal handing money
+ * back — and a second implementation of the same sum is how one screen comes to
+ * allow what another refuses. Null when the session is not open.
+ */
+export async function availableCashInSession(
+  sessionId: string,
+): Promise<number | null> {
   const session = await db.cashSession.findFirst({
     where: { id: sessionId, status: "OPEN" },
     select: {
@@ -142,6 +194,22 @@ async function expectedInDrawer(sessionId: string): Promise<number | null> {
     session.openingFloatCentimes +
     sumCentimes(session.operations.map((o) => o.cashImpactCentimes))
   );
+}
+
+/**
+ * The drawer's contents when they will not cover `amountCentimes`, else null.
+ *
+ * The rule — cash that is not in the till cannot leave it — lives here so the
+ * décaissement, the transfert, a salary and an avance all apply the same one.
+ * The *sentence* stays with the caller: this layer holds no dictionary, and the
+ * figure is read by whoever is standing at the drawer.
+ */
+export async function cashShortfall(
+  sessionId: string,
+  amountCentimes: number,
+): Promise<number | null> {
+  const available = (await availableCashInSession(sessionId)) ?? 0;
+  return amountCentimes > available ? available : null;
 }
 
 export type CashSessionResolution =
@@ -199,7 +267,7 @@ export async function resolveCashSession(
     return { state: "OPEN", sessionId: session.id };
   }
 
-  const expectedCentimes = (await expectedInDrawer(session.id)) ?? 0;
+  const expectedCentimes = (await availableCashInSession(session.id)) ?? 0;
   await finaliseSession(session.id, {
     closedById: null,
     countedCentimes: null,
@@ -274,7 +342,7 @@ export async function closeSession(
   countedCentimes: number,
   notes: string | null,
 ): Promise<CloseSessionResult | null> {
-  const expectedCentimes = await expectedInDrawer(sessionId);
+  const expectedCentimes = await availableCashInSession(sessionId);
   if (expectedCentimes === null) return null;
 
   await finaliseSession(sessionId, {
@@ -357,9 +425,53 @@ export async function recordPayment(
     return { ok: false, reason: "TOTALS_DISAGREE" };
   }
 
-  const code = await nextPaymentCode(input.schoolId);
+  /*
+    One line, one allocation.
 
+    A request naming the same schedule line twice used to pass the over-payment
+    check twice — each half was compared against an outstanding figure that knew
+    nothing about the other — and only the unique index downstream caught it, as
+    a crash. Summing them first makes the two halves one allocation, which is
+    what the cashier meant, and puts the whole of it in front of the check.
+  */
+  const merged = new Map<string, number>();
+  for (const allocation of input.allocations) {
+    merged.set(
+      allocation.enrollmentFeeId,
+      (merged.get(allocation.enrollmentFeeId) ?? 0) + allocation.amountCentimes,
+    );
+  }
+  const allocations: AllocationInput[] = [...merged].map(
+    ([enrollmentFeeId, amountCentimes]) => ({ enrollmentFeeId, amountCentimes }),
+  );
+
+  /*
+    Two cashiers taking money at the same second read the same receipt count and
+    ask for the same number; the unique index refuses the second, and without
+    this the refusal reaches a desk with a parent waiting as an unhandled error.
+    Retried rather than pre-locked because the collision is rare and the second
+    attempt sees the first one's row. Narrowed to the receipt code: any other
+    unique failure would fail the same way five times over.
+  */
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await recordPaymentOnce(
+        { ...input, allocations },
+        tenderTotal,
+      );
+    } catch (error) {
+      if (attempt >= 4 || !isDuplicateKey(error, "code")) throw error;
+    }
+  }
+}
+
+async function recordPaymentOnce(
+  input: RecordPaymentInput,
+  tenderTotal: number,
+): Promise<RecordPaymentResult> {
   return db.$transaction(async (tx) => {
+    const code = await nextPaymentCode(tx, input.schoolId);
+
     // Re-read every line inside the transaction, scoped to this school and year
     // — an id from the request may not reach another tenant's schedule, and the
     // outstanding amount must be the one true at the moment of writing.
@@ -519,17 +631,47 @@ export async function recordPayment(
  * dictionary, so an automatic cancellation — a cheque that bounced — has its
  * sentence composed by the action that triggers it.
  */
-export async function cancelPayment(
+export type CancelPaymentResult =
+  | { ok: true }
+  | { ok: false; reason: CancelPaymentFailure };
+
+export type CancelPaymentFailure =
+  /** Already cancelled, or not this school's. */
+  | "NOT_FOUND"
+  /** Cash has to go back over the counter, and the canceller holds no till. */
+  | "NO_DRAWER"
+  /** The drawer does not hold what is being handed back. */
+  | "INSUFFICIENT_CASH";
+
+/** The shape both the standalone cancellation and the bounce path work from. */
+type CancellablePayment = {
+  id: string;
+  schoolId: string;
+  schoolYearId: string;
+  familyId: string | null;
+  code: string;
+  paidAt: Date;
+  totalCentimes: number;
+  cashSessionId: string | null;
+  operation: {
+    id: string;
+    method: string;
+    cashImpactCentimes: number;
+  } | null;
+};
+
+async function findCancellablePayment(
   paymentId: string,
-  cancelledById: string,
-  reason: string,
-): Promise<boolean> {
-  const payment = await db.payment.findFirst({
+): Promise<CancellablePayment | null> {
+  return db.payment.findFirst({
     where: { id: paymentId, status: "POSTED" },
     select: {
       id: true,
       schoolId: true,
+      schoolYearId: true,
+      familyId: true,
       code: true,
+      paidAt: true,
       totalCentimes: true,
       cashSessionId: true,
       operation: {
@@ -537,69 +679,153 @@ export async function cancelPayment(
       },
     },
   });
-  if (!payment) return false;
+}
 
-  // The reversal lands in whichever session is open now — never the original's,
-  // which may well have been counted and closed days ago.
-  const openSession = payment.cashSessionId
-    ? await db.cashSession.findFirst({
-        where: { status: "OPEN", cashRegister: { schoolId: payment.schoolId } },
-        select: { id: true },
-      })
-    : null;
+/**
+ * Where a reversal's cash goes, and whether it may go there at all.
+ *
+ * ── Why the canceller's own till and no other ────────────────────────────────
+ * Handing money back is a movement out of the drawer the person doing it is
+ * standing at. Posting it into "whichever till happens to be open" — which is
+ * what this used to do — takes the shortfall out of a colleague's count for a
+ * receipt they never wrote, and that colleague is the one who signs for the
+ * variance at closing time.
+ *
+ * ── Why it can be refused ────────────────────────────────────────────────────
+ * Cash that is not in the drawer cannot come out of it. A receipt taken
+ * yesterday and cancelled today is refunded from today's float, and if today's
+ * float will not cover it the refusal is the truth rather than an obstacle —
+ * the ledger would otherwise show a till holding less than nothing.
+ *
+ * Nothing to hand back (a cheque or a virement, or a bounce where the school
+ * keeps the cash) needs no till: the reversal moves no notes, so it is posted
+ * without a session.
+ */
+async function resolveReversalDrawer(
+  schoolId: string,
+  actorId: string,
+  cashImpactCentimes: number,
+): Promise<
+  { ok: true; sessionId: string | null } | { ok: false; reason: CancelPaymentFailure }
+> {
+  if (cashImpactCentimes === 0) return { ok: true, sessionId: null };
 
-  await db.$transaction(async (tx) => {
-    await tx.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: "CANCELLED",
-        cancelledAt: new Date(),
-        cancelReason: reason,
-        cancelledById,
-      },
-    });
+  const resolution = await resolveCashSession(schoolId, actorId);
+  if (resolution.state !== "OPEN") return { ok: false, reason: "NO_DRAWER" };
 
-    if (payment.operation) {
-      // The original operation stays POSTED, and that is the crux of the whole
-      // reversal design. The money really did come in that day: striking it out
-      // *and* posting a mirror entry would take it off the drawer twice, and a
-      // till that balanced in the morning would show a shortfall by evening.
-      // What changes is the payment's status, which is what every "how much has
-      // been paid" sum filters on — so the charges go back on the family without
-      // a single ledger line being rewritten.
-      await tx.cashOperation.create({
-        data: {
-          schoolId: payment.schoolId,
-          cashSessionId: openSession?.id ?? null,
-          // Same kind as the original, flagged by `reversesOperationId`. Booking
-          // it as a décaissement would report a refunded receipt as if the
-          // school had spent the money on something.
-          kind: "ENCAISSEMENT",
-          method: payment.operation.method,
-          amountCentimes: payment.totalCentimes,
-          // Mirror image: whatever cash the original moved, this moves back.
-          cashImpactCentimes: -payment.operation.cashImpactCentimes,
-          label: payment.code,
-          reference: payment.code,
-          occurredAt: new Date(),
-          status: "POSTED",
-          reversesOperationId: payment.operation.id,
-          createdById: cancelledById,
-        },
-      });
+  if (cashImpactCentimes < 0) {
+    const available = (await availableCashInSession(resolution.sessionId)) ?? 0;
+    if (-cashImpactCentimes > available) {
+      return { ok: false, reason: "INSUFFICIENT_CASH" };
     }
+  }
 
-    // A cheque that paid a cancelled receipt is handed back, not banked.
-    await tx.cheque.updateMany({
-      where: {
-        tender: { paymentId: payment.id },
-        status: { in: ["PENDING", "DEPOSITED"] },
-      },
-      data: { status: "RETURNED", settledOn: new Date() },
-    });
+  return { ok: true, sessionId: resolution.sessionId };
+}
+
+type CancelInTxOptions = {
+  reversalSessionId: string | null;
+  reversalCashImpactCentimes: number;
+  /**
+   * Cheques that must survive the cancellation — the ones a replacement receipt
+   * is about to take over. Everything else the receipt was settled with is
+   * handed back.
+   */
+  keepChequeIds?: readonly string[];
+};
+
+/** The cancellation itself, so the bounce path can do it in its own transaction. */
+async function cancelPaymentInTx(
+  tx: TxClient,
+  payment: CancellablePayment,
+  cancelledById: string,
+  reason: string,
+  options: CancelInTxOptions,
+): Promise<void> {
+  const now = new Date();
+
+  await tx.payment.update({
+    where: { id: payment.id },
+    data: {
+      status: "CANCELLED",
+      cancelledAt: now,
+      cancelReason: reason,
+      cancelledById,
+    },
   });
 
-  return true;
+  if (payment.operation) {
+    // The original operation stays POSTED, and that is the crux of the whole
+    // reversal design. The money really did come in that day: striking it out
+    // *and* posting a mirror entry would take it off the drawer twice, and a
+    // till that balanced in the morning would show a shortfall by evening.
+    // What changes is the payment's status, which is what every "how much has
+    // been paid" sum filters on — so the charges go back on the family without
+    // a single ledger line being rewritten.
+    await tx.cashOperation.create({
+      data: {
+        schoolId: payment.schoolId,
+        cashSessionId: options.reversalSessionId,
+        // Same kind as the original, flagged by `reversesOperationId`. Booking
+        // it as a décaissement would report a refunded receipt as if the
+        // school had spent the money on something.
+        kind: "ENCAISSEMENT",
+        method: payment.operation.method,
+        amountCentimes: payment.totalCentimes,
+        cashImpactCentimes: options.reversalCashImpactCentimes,
+        label: payment.code,
+        reference: payment.code,
+        occurredAt: now,
+        status: "POSTED",
+        reversesOperationId: payment.operation.id,
+        createdById: cancelledById,
+      },
+    });
+  }
+
+  // A cheque that paid a cancelled receipt is handed back, not banked — unless
+  // a replacement receipt is taking it over, in which case it is still the
+  // school's to bank and must not be marked returned.
+  await tx.cheque.updateMany({
+    where: {
+      tender: { paymentId: payment.id },
+      status: { in: ["PENDING", "DEPOSITED"] },
+      ...(options.keepChequeIds && options.keepChequeIds.length > 0
+        ? { id: { notIn: [...options.keepChequeIds] } }
+        : {}),
+    },
+    data: { status: "RETURNED", settledOn: now },
+  });
+}
+
+export async function cancelPayment(
+  paymentId: string,
+  cancelledById: string,
+  reason: string,
+): Promise<CancelPaymentResult> {
+  const payment = await findCancellablePayment(paymentId);
+  if (!payment) return { ok: false, reason: "NOT_FOUND" };
+
+  // Mirror image: whatever cash the original moved, this moves back.
+  const reversalCashImpactCentimes = -(
+    payment.operation?.cashImpactCentimes ?? 0
+  );
+
+  const drawer = await resolveReversalDrawer(
+    payment.schoolId,
+    cancelledById,
+    reversalCashImpactCentimes,
+  );
+  if (!drawer.ok) return { ok: false, reason: drawer.reason };
+
+  await db.$transaction((tx) =>
+    cancelPaymentInTx(tx, payment, cancelledById, reason, {
+      reversalSessionId: drawer.sessionId,
+      reversalCashImpactCentimes,
+    }),
+  );
+
+  return { ok: true };
 }
 
 // ── Décaissement ─────────────────────────────────────────────────────────────
@@ -718,14 +944,17 @@ export async function recordTransfer(
 ): Promise<{ id: string; receivedIntoSession: boolean }> {
   const transferGroupId = crypto.randomUUID();
 
-  const destinationSession = input.toRegisterId
-    ? await db.cashSession.findFirst({
-        where: { cashRegisterId: input.toRegisterId, status: "OPEN" },
-        select: { id: true },
-      })
-    : null;
-
   return db.$transaction(async (tx) => {
+    // Read inside the transaction: a till that closes between the look-up and
+    // the write would otherwise take the arriving leg into a counted session,
+    // moving a drawer somebody has already signed for.
+    const destinationSession = input.toRegisterId
+      ? await tx.cashSession.findFirst({
+          where: { cashRegisterId: input.toRegisterId, status: "OPEN" },
+          select: { id: true },
+        })
+      : null;
+
     const out = await tx.cashOperation.create({
       data: {
         schoolId: input.schoolId,
@@ -806,7 +1035,7 @@ export async function setChequeStatus(
       id: true,
       status: true,
       direction: true,
-      tender: { select: { paymentId: true } },
+      tender: { select: { id: true, paymentId: true } },
     },
   });
   if (!cheque) return false;
@@ -823,32 +1052,520 @@ export async function setChequeStatus(
 
   const now = options.settledOn ?? new Date();
 
-  await db.cheque.update({
-    where: { id: chequeId },
-    data: {
-      status,
-      depositedOn: status === "DEPOSITED" ? now : undefined,
-      settledOn:
-        status === "CASHED" || status === "BOUNCED" || status === "RETURNED"
-          ? now
-          : undefined,
-      // Cleared on the way out of BOUNCED as well: a cheque re-presented and
-      // cleared must not still carry the reason it failed the first time.
-      bounceReason: status === "BOUNCED" ? (options.bounceReason ?? null) : null,
+  const bouncing =
+    status === "BOUNCED" && cheque.direction === "INCOMING" && cheque.tender;
+
+  /*
+    The mark and its consequences are one transaction.
+
+    They used to be two statements, and a failure between them left the worst
+    state this module can reach: a cheque marked unpaid while the receipt it
+    settled still stood, so the family read as having paid money the bank had
+    just refused. Marking the paper and putting the fees back are one act.
+  */
+  const unwind = bouncing
+    ? await prepareBounceUnwind(
+        cheque.tender!.id,
+        cheque.tender!.paymentId,
+        // The note used to be the bare token "CHEQUE_BOUNCED", which is what a
+        // parent then saw printed beside their cancelled receipt. The caller
+        // hands down a written sentence instead, and the fallback is only ever
+        // reached by a caller that forgot one.
+        options.cancelReason ?? "Chèque impayé",
+      )
+    : null;
+
+  await db.$transaction(async (tx) => {
+    await tx.cheque.update({
+      where: { id: chequeId },
+      data: {
+        status,
+        depositedOn: status === "DEPOSITED" ? now : undefined,
+        settledOn:
+          status === "CASHED" || status === "BOUNCED" || status === "RETURNED"
+            ? now
+            : undefined,
+        // Cleared on the way out of BOUNCED as well: a cheque re-presented and
+        // cleared must not still carry the reason it failed the first time.
+        bounceReason:
+          status === "BOUNCED" ? (options.bounceReason ?? null) : null,
+      },
+    });
+
+    if (unwind) await applyBounceUnwind(tx, unwind, actedById);
+  });
+
+  return true;
+}
+
+/**
+ * Puts a bounced cheque's fees back on the family without taking the rest of the
+ * receipt with them.
+ *
+ * ── The case this exists for ─────────────────────────────────────────────────
+ * A parent settles 2 000 with 500 in cash and a 1 500 cheque. The cheque comes
+ * back unpaid. Cancelling the whole receipt is right as far as the fees go —
+ * the allocations were one indivisible act and nobody can say which month the
+ * 500 paid — but it used to reverse the *cash* as well, and the school never
+ * gave that 500 back. The drawer was told to hold 500 less than it did, and the
+ * family was re-charged for money they had genuinely handed over.
+ *
+ * So the receipt is cancelled with the cash **retained**, and everything that
+ * did not bounce is re-issued as a second receipt against the same schedule
+ * lines. What the family owes falls by exactly the cheque; the drawer does not
+ * move at all, because no note ever left it.
+ *
+ * ── Why the replacement posts no cash impact ─────────────────────────────────
+ * The 500 arrived on the original operation and was never reversed — it is
+ * already counted in whichever session took it, which may well be closed. A
+ * replacement claiming to bring it in again would have the school counting the
+ * same notes twice.
+ */
+type BounceUnwind = {
+  payment: CancellablePayment;
+  reason: string;
+  reversalCashImpactCentimes: number;
+  survivingTotal: number;
+  surviving: {
+    id: string;
+    method: string;
+    amountCentimes: number;
+    reference: string | null;
+    bankId: string | null;
+    bankName: string | null;
+    chequeId: string | null;
+  }[];
+  /** Where the surviving money is re-allocated. Empty when it cannot be. */
+  replacementAllocations: AllocationInput[];
+};
+
+/** Everything the unwind needs to know, read before the transaction opens. */
+async function prepareBounceUnwind(
+  bouncedTenderId: string,
+  paymentId: string,
+  reason: string,
+): Promise<BounceUnwind | null> {
+  const payment = await findCancellablePayment(paymentId);
+  if (!payment) return null;
+
+  const tenders = await db.paymentTender.findMany({
+    where: { paymentId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      method: true,
+      amountCentimes: true,
+      reference: true,
+      bankId: true,
+      bankName: true,
+      chequeId: true,
     },
   });
 
-  if (status === "BOUNCED" && cheque.direction === "INCOMING" && cheque.tender) {
-    // The note used to be the bare token "CHEQUE_BOUNCED", which is what a
-    // parent then saw printed beside their cancelled receipt. The caller hands
-    // down a written sentence instead, and the fallback is only ever reached by
-    // a caller that forgot one.
-    await cancelPayment(
-      cheque.tender.paymentId,
-      actedById,
-      options.cancelReason ?? "Chèque impayé",
+  const surviving = tenders.filter((tender) => tender.id !== bouncedTenderId);
+  const survivingTotal = sumCentimes(surviving.map((t) => t.amountCentimes));
+
+  /*
+    ── The re-allocation is planned here, before anything is written ──────────
+    Room is measured against every *other* posted receipt, so the plan already
+    knows what the cancellation is about to free. It cannot go stale either:
+    while this receipt is still POSTED, a concurrent one sees the lines as
+    *more* settled than they are about to be, so nothing can take the room being
+    reclaimed. That is what lets the transaction below write the plan as it
+    stands rather than re-deriving it mid-flight.
+  */
+  const allocations = await db.paymentAllocation.findMany({
+    where: { paymentId },
+    orderBy: [{ enrollmentFee: { dueDate: "asc" } }],
+    select: {
+      enrollmentFeeId: true,
+      amountCentimes: true,
+      enrollmentFee: {
+        select: {
+          status: true,
+          amountCentimes: true,
+          allocations: {
+            where: {
+              payment: { status: "POSTED" },
+              NOT: { paymentId },
+            },
+            select: { amountCentimes: true },
+          },
+        },
+      },
+    },
+  });
+
+  const replacementAllocations: AllocationInput[] = [];
+  let left = survivingTotal;
+
+  for (const allocation of allocations) {
+    if (left <= 0) break;
+    const line = allocation.enrollmentFee;
+    if (line.status !== "DUE") continue;
+
+    const roomAfterCancel = outstandingOf(
+      line.amountCentimes,
+      sumCentimes(line.allocations.map((other) => other.amountCentimes)),
     );
+    const take = Math.min(left, roomAfterCancel, allocation.amountCentimes);
+    if (take <= 0) continue;
+
+    replacementAllocations.push({
+      enrollmentFeeId: allocation.enrollmentFeeId,
+      amountCentimes: take,
+    });
+    left -= take;
   }
 
-  return true;
+  /*
+    ── When not every centime can be placed ───────────────────────────────────
+    Only reachable if a line the receipt paid has since stopped being owed,
+    which the fee grid now refuses while money is on it. Rather than issue a
+    receipt whose tenders and allocations disagree — the one thing a receipt may
+    never do — the whole payment is reversed as it always was, cash included.
+    The bursar then has notes in the drawer and no charge to put them against,
+    which is a conversation to have with the family rather than a figure to
+    invent.
+  */
+  const placeable = survivingTotal - left;
+  const reissuing = placeable === survivingTotal && survivingTotal > 0;
+
+  // Every centime of cash on the receipt survives a bounce: a cheque moves no
+  // notes, so nothing the school is holding is affected by its coming back.
+  const retainedCashCentimes = reissuing
+    ? sumCentimes(
+        surviving
+          .filter((tender) => tender.method === "CASH")
+          .map((tender) => tender.amountCentimes),
+      )
+    : 0;
+  const reversalCashImpactCentimes = -(
+    (payment.operation?.cashImpactCentimes ?? 0) - retainedCashCentimes
+  );
+
+  return {
+    payment,
+    reason,
+    reversalCashImpactCentimes,
+    survivingTotal: reissuing ? survivingTotal : 0,
+    surviving,
+    replacementAllocations: reissuing ? replacementAllocations : [],
+  };
+}
+
+/** The unwind itself, inside the transaction that marks the cheque bounced. */
+async function applyBounceUnwind(
+  tx: TxClient,
+  unwind: BounceUnwind,
+  actedById: string,
+): Promise<void> {
+  const {
+    payment,
+    reason,
+    reversalCashImpactCentimes,
+    survivingTotal,
+    surviving,
+    replacementAllocations,
+  } = unwind;
+
+  await cancelPaymentInTx(tx, payment, actedById, reason, {
+    reversalSessionId: payment.cashSessionId,
+    reversalCashImpactCentimes,
+    keepChequeIds:
+      survivingTotal > 0
+        ? surviving
+            .map((tender) => tender.chequeId)
+            .filter((id): id is string => id !== null)
+        : // Nothing is being re-issued, so no cheque is being taken over: the
+          // rest of the receipt goes back to the family like any cancellation.
+          [],
+  });
+
+  if (survivingTotal <= 0) return;
+
+  {
+    const replacement = await tx.payment.create({
+      data: {
+        schoolId: payment.schoolId,
+        schoolYearId: payment.schoolYearId,
+        familyId: payment.familyId,
+        code: await nextPaymentCode(tx, payment.schoolId),
+        // The day the money actually arrived, not the day the cheque failed:
+        // this receipt stands in for the part of the original that held good.
+        paidAt: payment.paidAt,
+        totalCentimes: survivingTotal,
+        status: "POSTED",
+        cashSessionId: payment.cashSessionId,
+        createdById: actedById,
+        notes: reason,
+        allocations: { create: replacementAllocations },
+      },
+      select: { id: true, code: true },
+    });
+
+    for (const tender of surviving) {
+      /*
+        `PaymentTender.chequeId` is unique — one piece of paper, one tender —
+        so the link is released from the cancelled receipt before the live one
+        claims it. Raising a second Cheque row instead would have the school
+        chasing a cheque it is already holding.
+      */
+      if (tender.chequeId) {
+        await tx.paymentTender.update({
+          where: { id: tender.id },
+          data: { chequeId: null },
+        });
+      }
+
+      await tx.paymentTender.create({
+        data: {
+          paymentId: replacement.id,
+          method: tender.method,
+          amountCentimes: tender.amountCentimes,
+          reference: tender.reference,
+          bankId: tender.bankId,
+          bankName: tender.bankName,
+          chequeId: tender.chequeId,
+        },
+      });
+    }
+
+    await tx.cashOperation.create({
+      data: {
+        schoolId: payment.schoolId,
+        cashSessionId: payment.cashSessionId,
+        kind: "ENCAISSEMENT",
+        method: summariseMethod(
+          surviving.map((tender) => tender.method as TenderMethod),
+        ),
+        amountCentimes: survivingTotal,
+        // Zero, deliberately — see the note above.
+        cashImpactCentimes: 0,
+        label: replacement.code,
+        reference: replacement.code,
+        occurredAt: new Date(),
+        status: "POSTED",
+        paymentId: replacement.id,
+        createdById: actedById,
+      },
+    });
+  }
+}
+
+// ── Annuler un mouvement ─────────────────────────────────────────────────────
+
+/**
+ * Thrown by a `cancelOperation` hook that refuses the reversal.
+ *
+ * A hook runs inside the transaction, so refusing has to unwind the mirror
+ * entries written a moment earlier — and the only thing that unwinds a Prisma
+ * transaction is a throw. Caught by `cancelOperation` and turned back into an
+ * ordinary `BLOCKED` result, so callers still never see an exception for an
+ * expected refusal.
+ */
+export class ReversalBlockedError extends Error {
+  constructor(message = "REVERSAL_BLOCKED") {
+    super(message);
+    this.name = "ReversalBlockedError";
+  }
+}
+
+export type CancelOperationFailure =
+  | "NOT_FOUND"
+  /** Receipts are cancelled through `cancelPayment`, which also frees the fees. */
+  | "IS_RECEIPT"
+  | "ALREADY_REVERSED"
+  /** The cash has to go back into a drawer, and no one is holding it open. */
+  | "NO_DRAWER"
+  | "INSUFFICIENT_CASH"
+  /** Something downstream of the movement will not let go of it. */
+  | "BLOCKED";
+
+export type CancelOperationResult =
+  | { ok: true; reversedIds: string[] }
+  | { ok: false; reason: CancelOperationFailure };
+
+/** One leg of what is being reversed, and where its mirror has to land. */
+type ReversalLeg = {
+  operationId: string;
+  kind: string;
+  method: string;
+  amountCentimes: number;
+  mirrorCashImpactCentimes: number;
+  sessionId: string | null;
+};
+
+/**
+ * Cancels a movement that is not a receipt: a salary, a supplier, a transfer.
+ *
+ * ── Why this exists ──────────────────────────────────────────────────────────
+ * Every other kind of mistake in this module had a way back and this one did
+ * not. A salary paid twice, an amount typed with a zero too many, a transfer
+ * sent to the wrong till — all of them were permanent, and a bursar with no way
+ * to correct the books corrects them somewhere else, on paper, where nobody
+ * can see it.
+ *
+ * ── The same reversal rule as a receipt ──────────────────────────────────────
+ * The original stays POSTED and a mirror entry points back at it through
+ * `reversesOperationId`. The money really did move on the day it moved; striking
+ * the original out *and* posting a mirror would take it off the drawer twice.
+ * `reversesOperationId` being unique is what stops the same movement being
+ * cancelled twice.
+ *
+ * ── Money goes back where it came from ───────────────────────────────────────
+ * A mirror that moves cash is posted into the open session of the *same till*
+ * the original touched — that is the drawer the notes physically return to, and
+ * a till nobody is holding cannot receive them. Both legs of a till-to-till
+ * transfer are reversed together, each into its own drawer, because half a
+ * reversed transfer is money that has vanished.
+ *
+ * `label` arrives already written in the reader's language, like every other
+ * sentence this layer records — see `cancelPayment`.
+ */
+export async function cancelOperation(
+  operationId: string,
+  schoolId: string,
+  cancelledById: string,
+  label: string,
+  onReversed?: (tx: TxClient, operationIds: string[]) => Promise<void>,
+): Promise<CancelOperationResult> {
+  const operation = await db.cashOperation.findFirst({
+    where: { id: operationId, schoolId },
+    select: {
+      id: true,
+      status: true,
+      paymentId: true,
+      transferGroupId: true,
+      reversesOperationId: true,
+      reversedBy: { select: { id: true } },
+    },
+  });
+  if (!operation || operation.status !== "POSTED") {
+    return { ok: false, reason: "NOT_FOUND" };
+  }
+  if (operation.paymentId) return { ok: false, reason: "IS_RECEIPT" };
+  // A correcting entry is not itself correctable: undoing one is re-doing the
+  // movement, which is a fresh operation somebody has to stand behind.
+  if (operation.reversesOperationId) return { ok: false, reason: "NOT_FOUND" };
+  if (operation.reversedBy) return { ok: false, reason: "ALREADY_REVERSED" };
+
+  const originals = await db.cashOperation.findMany({
+    where: operation.transferGroupId
+      ? {
+          schoolId,
+          transferGroupId: operation.transferGroupId,
+          status: "POSTED",
+          reversedBy: { is: null },
+        }
+      : { id: operation.id },
+    select: {
+      id: true,
+      kind: true,
+      method: true,
+      amountCentimes: true,
+      cashImpactCentimes: true,
+      cashSession: { select: { cashRegisterId: true } },
+    },
+  });
+
+  const legs: ReversalLeg[] = [];
+
+  for (const original of originals) {
+    const mirrorCashImpactCentimes = -original.cashImpactCentimes;
+
+    if (mirrorCashImpactCentimes === 0) {
+      legs.push({
+        operationId: original.id,
+        kind: original.kind,
+        method: original.method,
+        amountCentimes: original.amountCentimes,
+        mirrorCashImpactCentimes,
+        sessionId: null,
+      });
+      continue;
+    }
+
+    // The drawer the notes go back into: the till that moved them, or — for a
+    // cash movement that somehow reached the ledger without a session — the one
+    // the person correcting it is holding.
+    const registerId = original.cashSession?.cashRegisterId ?? null;
+    const session = registerId
+      ? await db.cashSession.findFirst({
+          where: { cashRegisterId: registerId, status: "OPEN" },
+          select: { id: true },
+        })
+      : await (async () => {
+          const resolution = await resolveCashSession(schoolId, cancelledById);
+          return resolution.state === "OPEN"
+            ? { id: resolution.sessionId }
+            : null;
+        })();
+    if (!session) return { ok: false, reason: "NO_DRAWER" };
+
+    if (mirrorCashImpactCentimes < 0) {
+      const available = (await availableCashInSession(session.id)) ?? 0;
+      if (-mirrorCashImpactCentimes > available) {
+        return { ok: false, reason: "INSUFFICIENT_CASH" };
+      }
+    }
+
+    legs.push({
+      operationId: original.id,
+      kind: original.kind,
+      method: original.method,
+      amountCentimes: original.amountCentimes,
+      mirrorCashImpactCentimes,
+      sessionId: session.id,
+    });
+  }
+
+  if (legs.length === 0) return { ok: false, reason: "NOT_FOUND" };
+
+  try {
+    await db.$transaction(async (tx) => {
+      for (const leg of legs) {
+        await tx.cashOperation.create({
+          data: {
+            schoolId,
+            cashSessionId: leg.sessionId,
+            // The kind it corrects, never the opposite one: a reversed salary
+            // booked as an encaissement would read as income the school earned.
+            kind: leg.kind,
+            method: leg.method,
+            amountCentimes: leg.amountCentimes,
+            cashImpactCentimes: leg.mirrorCashImpactCentimes,
+            label,
+            occurredAt: new Date(),
+            status: "POSTED",
+            reversesOperationId: leg.operationId,
+            createdById: cancelledById,
+          },
+        });
+      }
+
+      // An outgoing cheque the school wrote is void once the movement is undone.
+      await tx.cheque.updateMany({
+        where: {
+          operations: { some: { id: { in: legs.map((leg) => leg.operationId) } } },
+          status: { in: ["PENDING", "DEPOSITED"] },
+        },
+        data: { status: "CANCELLED", settledOn: new Date() },
+      });
+
+      await onReversed?.(
+        tx,
+        legs.map((leg) => leg.operationId),
+      );
+    });
+  } catch (error) {
+    if (error instanceof ReversalBlockedError) {
+      return { ok: false, reason: "BLOCKED" };
+    }
+    // A second cancellation racing the first loses on `reversesOperationId`.
+    if (isDuplicateKey(error)) return { ok: false, reason: "ALREADY_REVERSED" };
+    throw error;
+  }
+
+  return { ok: true, reversedIds: legs.map((leg) => leg.operationId) };
 }

@@ -181,6 +181,20 @@ const fr = {
       "« {code} » cessera de compter et les échéances soldées redeviendront dues. Le reçu lui-même est conservé.",
     paymentCancelled: "Reçu annulé.",
     alreadyCancelled: "Ce reçu est déjà annulé.",
+    cancelNeedsDrawer:
+      "Rendre cet argent fait sortir des espèces. Ouvrez d’abord votre caisse.",
+    cancelNeedsCash:
+      "Votre caisse ne contient pas assez d’espèces pour rendre cette somme.",
+    cancelOperation: "Annuler le mouvement",
+    cancelOperationTitle: "Annuler ce mouvement ?",
+    cancelOperationBody:
+      "Une écriture inverse sera enregistrée pour {label}. L’originale reste au grand livre.",
+    operationCancelled: "Mouvement annulé.",
+    alreadyReversed: "Ce mouvement est déjà annulé.",
+    cancelReceiptInstead:
+      "Ce mouvement est un reçu. Annulez-le depuis la liste des reçus.",
+    reversalBlocked:
+      "Quelque chose dépend déjà de ce mouvement — une avance récupérée sur un bulletin. Rectifiez-la d’abord.",
     cancelReason: "Motif",
     cancelReasonLabel: "Pourquoi ce reçu est-il annulé ?",
     cancelReasonPlaceholder:

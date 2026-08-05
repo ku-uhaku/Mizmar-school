@@ -327,7 +327,14 @@ export async function loadChildFees(
       amountCentimes: true,
       periodIndex: true,
       feeType: { select: { name: true } },
-      allocations: { select: { amountCentimes: true } },
+      allocations: {
+        // Only money that still counts. Without this a cancelled receipt — a
+        // bounced cheque, most of all — went on reading as paid in the family's
+        // app while every screen in the office said otherwise, and the phone is
+        // the version a parent argues from.
+        where: { payment: { status: "POSTED" } },
+        select: { amountCentimes: true },
+      },
     },
   });
 

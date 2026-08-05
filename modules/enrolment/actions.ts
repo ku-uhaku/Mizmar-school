@@ -450,7 +450,7 @@ export async function updateFeeLineAction(
         })
       : null;
 
-    await repriceFeeLine(feeLineId, {
+    const repriced = await repriceFeeLine(feeLineId, {
       baseAmountCentimes: parsed.data.baseAmountCentimes,
       discountBps: parsed.data.discountBps,
       discountCentimes: parsed.data.discountCentimes,
@@ -460,6 +460,18 @@ export async function updateFeeLineAction(
       cancelReason: parsed.data.cancelReason,
       actorId: context.user.id,
     });
+
+    // Money already taken pins the charge — the receipt has to be cancelled
+    // first, which is the only act that puts money back. See `repriceFeeLine`.
+    if (!repriced.ok) {
+      return failure(
+        interpolate(t.enrolment.feeLinePaid, {
+          amount: (repriced.paidCentimes / 100).toFixed(2),
+        }),
+        undefined,
+        formValues(formData),
+      );
+    }
 
     // A reduction is rarely for one month — see `repriceFollowingLines`. Only
     // the reduction travels; each later month keeps its own base amount.

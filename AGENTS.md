@@ -136,7 +136,8 @@ derived type. Three things must move together:
 ```bash
 npm run db:migrate      # prisma migrate dev — after any schema change
 npm run db:generate     # regenerate the client into lib/generated/prisma
-npm run db:seed         # idempotent, safe to re-run
+npm run db:seed         # idempotent, safe to re-run — the full demonstration
+npm run db:seed:config  # the same, minus every person: configuration only
 npm run db:studio
 ```
 
@@ -166,6 +167,21 @@ reads as `undefined` ("Cannot read properties of undefined"). Restart
 `npm run dev` after adding tables.
 
 ## Seeding
+
+There are **two orchestrators over one set of module seeds**:
+
+* `prisma/seed.ts` — the demonstration: a school with pupils, staff, classes, a
+  timetable and a year of receipts. What you look at the app with.
+* `prisma/seed-config.ts` — the same school with nothing in it: years and their
+  calendar, the cursus, rooms, towns, the fee catalogue and price list, the
+  caisse's tills and rubriques, the school's policies, the roles, and one
+  administrator. No staff, families, pupils, enrolments, classes, timetable,
+  buses or receipts. What a real school starts from.
+
+The split is only in the orchestration — both call the same
+`modules/<module>/seed.ts` functions, so a module gets one seed and not two.
+Anything that takes a `withOffice`-style switch belongs in the module's seed,
+never as a second copy in an orchestrator.
 
 `prisma/seed.ts` is only an orchestrator: it decides the order and passes ids
 along. **Each module seeds its own tables** in `modules/<module>/seed.ts`, so a

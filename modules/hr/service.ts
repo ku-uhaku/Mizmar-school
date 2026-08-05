@@ -17,7 +17,11 @@ import {
   type SalaryGains,
   type SalaryDeductions,
 } from "@/modules/hr/enums";
-import { recordDisbursement } from "@/modules/treasury/service";
+import {
+  recordDisbursement,
+  ReversalBlockedError,
+  type TxClient,
+} from "@/modules/treasury/service";
 import type { TenderMethod } from "@/modules/treasury/enums";
 
 /**
@@ -240,6 +244,13 @@ export type SalaryInput = SalaryGains &
     notes: string | null;
   };
 
+export type SaveSalaryResult =
+  | { ok: true; id: string; netCentimes: number }
+  /** Money has left against it; the figures are no longer a form's to restate. */
+  | { ok: false; reason: "ALREADY_PAID" }
+  /** The retenue is larger than the avances it claims to recover. */
+  | { ok: false; reason: "OVER_RECOVERED"; outstandingCentimes: number };
+
 /**
  * Writes a month's bulletin, computing its net.
  *
@@ -248,16 +259,13 @@ export type SalaryInput = SalaryGains &
  * The contract is looked up and stamped on so the document says which terms it
  * was drawn under, even after those terms are superseded.
  *
- * Returns null when the payslip has already been paid — the figures on a
- * document somebody has been handed, against money that has left, are not
- * something a form may quietly restate. Cancel the décaissement first.
+ * Refuses when the payslip has already been paid — the figures on a document
+ * somebody has been handed, against money that has left, are not something a
+ * form may quietly restate. Cancel the décaissement first.
  */
 export async function saveSalary(
   input: SalaryInput,
-): Promise<
-  | { id: string; netCentimes: number; overRecovered?: number }
-  | null
-> {
+): Promise<SaveSalaryResult> {
   const existing = await db.salaryPayment.findUnique({
     where: {
       staffId_periodYear_periodMonth: {
@@ -269,7 +277,29 @@ export async function saveSalary(
     select: { id: true, status: true },
   });
 
-  if (existing?.status === "PAID") return null;
+  if (existing?.status === "PAID") return { ok: false, reason: "ALREADY_PAID" };
+
+  /*
+    The avance deduction is checked *before* the bulletin is written, not after.
+
+    It used to be the other way round: the row was upserted, the recovery then
+    refused, and the screen showed an error over a payslip that had already been
+    saved — carrying a retenue no avance backed and a net computed from it. A
+    document that says one thing while the balances behind it say another is
+    worse than a rejected form, so nothing is written until the figure is known
+    to be recoverable.
+  */
+  const planned = await plannedAdvanceRecovery(
+    input.staffId,
+    existing?.id ?? null,
+  );
+  if (input.advanceCentimes > planned.outstandingCentimes) {
+    return {
+      ok: false,
+      reason: "OVER_RECOVERED",
+      outstandingCentimes: planned.outstandingCentimes,
+    };
+  }
 
   const contract = await db.employmentContract.findFirst({
     where: { staffId: input.staffId, status: "ACTIVE" },
@@ -320,8 +350,9 @@ export async function saveSalary(
     Done here rather than left to the caller so it cannot be forgotten: the box
     on the bulletin and the balance on the advance are two views of one fact,
     and a screen that wrote only the first would leave "how much does she still
-    owe" answerable in two contradictory ways. Refused rather than absorbed when
-    it exceeds what is owed — see `applyAdvanceRecovery`.
+    owe" answerable in two contradictory ways. The figure was proved recoverable
+    above; `applyAdvanceRecovery` re-checks it against the same rows for its own
+    other callers.
   */
   const recovery = await applyAdvanceRecovery(
     row.id,
@@ -330,13 +361,13 @@ export async function saveSalary(
   );
   if (!recovery.ok) {
     return {
-      id: row.id,
-      netCentimes,
-      overRecovered: recovery.outstandingCentimes,
+      ok: false,
+      reason: "OVER_RECOVERED",
+      outstandingCentimes: recovery.outstandingCentimes,
     };
   }
 
-  return { id: row.id, netCentimes };
+  return { ok: true, id: row.id, netCentimes };
 }
 
 export type PayoutInput = {
@@ -824,4 +855,49 @@ export async function applyAdvanceRecovery(
   });
 
   return { ok: true };
+}
+
+/**
+ * Puts a bulletin or an avance back to unpaid when the caisse reverses the
+ * movement that settled it.
+ *
+ * Run inside `cancelOperation`'s transaction — see modules/treasury/service.ts.
+ * The payroll says what is *owed* and the ledger says what *left*, and the one
+ * thing that must never happen is the two disagreeing: a bulletin still stamped
+ * PAID against a reversed entry has an employee's file claiming money that came
+ * back into the drawer.
+ *
+ * ── The one case it refuses ──────────────────────────────────────────────────
+ * An avance already recovered out of a payslip cannot be un-paid: the deduction
+ * on that month's bulletin was taken against money the employee had in hand,
+ * and unwinding the payment while the recovery stands would leave them docked
+ * for an avance they never received. The bulletin has to be restated first, so
+ * the reversal is blocked rather than half-applied.
+ */
+export async function detachPayrollFromOperations(
+  tx: TxClient,
+  operationIds: string[],
+): Promise<void> {
+  if (operationIds.length === 0) return;
+
+  await tx.salaryPayment.updateMany({
+    where: { cashOperationId: { in: operationIds } },
+    // Back to APPROVED rather than DRAFT: the figures were agreed and only the
+    // payment is being undone.
+    data: { status: "APPROVED", paidOn: null, cashOperationId: null },
+  });
+
+  const advances = await tx.salaryAdvance.findMany({
+    where: { cashOperationId: { in: operationIds } },
+    select: { id: true, _count: { select: { recoveries: true } } },
+  });
+
+  if (advances.some((advance) => advance._count.recoveries > 0)) {
+    throw new ReversalBlockedError();
+  }
+
+  await tx.salaryAdvance.updateMany({
+    where: { id: { in: advances.map((advance) => advance.id) } },
+    data: { status: "APPROVED", paidOn: null, cashOperationId: null },
+  });
 }

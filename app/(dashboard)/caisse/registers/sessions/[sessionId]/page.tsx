@@ -134,7 +134,10 @@ export default async function CashSessionPage({
 
         <section className="grid gap-3">
           <h2 className="text-sm font-medium">{t.treasury.operations}</h2>
-          <OperationsTable operations={operations} />
+          <OperationsTable
+            operations={operations}
+            canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}
+          />
         </section>
       </div>
     </>

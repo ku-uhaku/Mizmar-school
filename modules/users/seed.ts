@@ -98,6 +98,7 @@ export async function seedUsers(
     adminEmail,
     adminPassword,
     teacherPlan,
+    withOffice = true,
   }: {
     organizationId: string;
     schools: { id: string; code: string }[];
@@ -106,6 +107,14 @@ export async function seedUsers(
     roles: Record<string, string>;
     adminEmail: string;
     adminPassword: string;
+    /**
+     * The demo office — a directeur, a responsable pédagogique, two
+     * gestionnaires. False for the configuration-only seed, which opens a school
+     * for a real team to be entered into rather than a populated one to look at.
+     * The super administrator is written either way: a school nobody can sign
+     * into is not a school.
+     */
+    withOffice?: boolean;
   },
 ): Promise<Record<string, SeededTeacher[]>> {
   const passwordHash = await bcrypt.hash(adminPassword, 12);
@@ -240,7 +249,7 @@ export async function seedUsers(
     return user;
   };
 
-  for (const person of office) await upsertPerson(person);
+  if (withOffice) for (const person of office) await upsertPerson(person);
 
   /*
     The teaching staff, minted from what the school's programme actually asks
@@ -294,6 +303,9 @@ export async function seedUsers(
     }
   }
 
-  log("users", `${office.length + 1} staff, ${teacherCount} teachers`);
+  log(
+    "users",
+    `${(withOffice ? office.length : 0) + 1} staff, ${teacherCount} teachers`,
+  );
   return teacherRows;
 }

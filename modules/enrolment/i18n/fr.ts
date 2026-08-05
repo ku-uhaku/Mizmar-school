@@ -73,6 +73,8 @@ const fr = {
     applyToFollowingHint:
       "Reporte cette réduction sur les {count} échéances suivantes de ce frais. Chaque mois garde son montant.",
     feeUpdatedCarried: "Ligne mise à jour, et reportée sur {count} mois suivants.",
+    feeLinePaid:
+      "{amount} MAD ont déjà été réglés sur ce frais. Annulez d’abord le reçu.",
     legendClick: "Cliquez sur une case pour changer son montant ou sa réduction",
     legendReduced: "Réduit",
     legendNotDue: "Exonéré ou annulé",

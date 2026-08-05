@@ -7,8 +7,10 @@ import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
-import { resolveCashSession } from "@/modules/treasury/service";
+import { centimesToDirhams } from "@/modules/treasury/enums";
+import { cashShortfall, resolveCashSession } from "@/modules/treasury/service";
 import {
   boolField,
   field,
@@ -62,6 +64,26 @@ async function schoolContext() {
   const t = await getDictionary();
   const context = await requireAuth();
   return { t, context, schoolId: context.currentSchool?.id };
+}
+
+/**
+ * Refuses to let more cash out of a drawer than it holds.
+ *
+ * The rule itself lives in the caisse (`cashShortfall`) so a payout from the RH
+ * screens cannot allow what the décaissement screen refuses; only the sentence
+ * is composed here, in the reader's language.
+ */
+async function refuseIfShort(
+  t: Dictionary,
+  sessionId: string,
+  amountCentimes: number,
+): Promise<string | null> {
+  const available = await cashShortfall(sessionId, amountCentimes);
+  if (available === null) return null;
+
+  return interpolate(t.treasury.insufficientCash, {
+    amount: centimesToDirhams(available).toFixed(2),
+  });
 }
 
 /** Re-derives an employee from the session's school. Never trusts the id. */
@@ -449,20 +471,20 @@ export async function saveSalaryAction(
       notes: parsed.data.notes,
     });
 
-    if (!result) return failure(t.hr.alreadyPaid);
+    if (!result.ok) {
+      if (result.reason === "ALREADY_PAID") return failure(t.hr.alreadyPaid);
 
-    /*
-      The bulletin is written either way — the figures are the bursar's — but a
-      retenue larger than the employee's outstanding avances is money withheld
-      against nothing, and the recovery is refused rather than absorbed. Said
-      plainly, with the real figure, so the box can be corrected.
-    */
-    if (result.overRecovered !== undefined) {
-      refresh();
+      /*
+        A retenue larger than the employee's outstanding avances is money
+        withheld against nothing. Nothing was written — see `saveSalary` — so
+        the figure is simply given back with the real one beside it.
+      */
       return failure(
         interpolate(t.hr.advanceOverRecovered, {
-          amount: (result.overRecovered / 100).toFixed(2),
+          amount: centimesToDirhams(result.outstandingCentimes).toFixed(2),
         }),
+        undefined,
+        formValues(formData),
       );
     }
 
@@ -508,26 +530,31 @@ export async function paySalaryAction(
 
     const salary = await db.salaryPayment.findFirst({
       where: { id: parsed.data.salaryId, staff: { schoolId } },
-      select: { id: true },
+      // The net is read here as well as in `payStaffSalary`: the drawer has to
+      // be checked against the sum that is about to leave it, before anything
+      // is written.
+      select: { id: true, netCentimes: true },
     });
     if (!salary) return failure(t.errors.notFound);
 
-    // Cash leaves a drawer, so it needs an open one; anything else never comes
-    // near the desk and must not be posted into a session.
+    /*
+      Cash leaves a drawer, and the drawer is the caller's own.
+
+      Routed through the caisse's own gate rather than looking a session up
+      here. It used to take *any* open session in the school, which put a salary
+      into whichever colleague happened to be holding a till — they were the one
+      short at closing, for a payment they never made — and skipped the day rule
+      that `resolveCashSession` applies on the way past. The avance payout below
+      has always done it this way; this is the same.
+    */
     let cashSessionId: string | null = null;
     if (parsed.data.method === "CASH") {
-      const session = await db.cashSession.findFirst({
-        where: {
-          ...(parsed.data.cashSessionId
-            ? { id: parsed.data.cashSessionId }
-            : {}),
-          status: "OPEN",
-          cashRegister: { schoolId },
-        },
-        select: { id: true },
-      });
-      if (!session) return failure(t.hr.noOpenSession);
-      cashSessionId = session.id;
+      const resolution = await resolveCashSession(schoolId, context.user.id);
+      if (resolution.state !== "OPEN") return failure(t.hr.noOpenSession);
+      cashSessionId = resolution.sessionId;
+
+      const short = await refuseIfShort(t, cashSessionId, salary.netCentimes);
+      if (short) return failure(short);
     }
 
     const category = parsed.data.categoryId
@@ -852,7 +879,7 @@ export async function payAdvanceAction(
 
     const advance = await db.salaryAdvance.findFirst({
       where: { id: parsed.data.salaryId, staff: { schoolId } },
-      select: { id: true },
+      select: { id: true, amountCentimes: true },
     });
     if (!advance) return failure(t.errors.notFound);
 
@@ -868,6 +895,13 @@ export async function payAdvanceAction(
       const resolution = await resolveCashSession(schoolId, context.user.id);
       if (resolution.state !== "OPEN") return failure(t.hr.noOpenSession);
       cashSessionId = resolution.sessionId;
+
+      const short = await refuseIfShort(
+        t,
+        cashSessionId,
+        advance.amountCentimes,
+      );
+      if (short) return failure(short);
     }
 
     const category = parsed.data.categoryId
