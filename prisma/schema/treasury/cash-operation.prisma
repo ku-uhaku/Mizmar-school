@@ -52,6 +52,14 @@ model CashOperation {
   /// The paper trail: a receipt number, a cheque number, a virement reference.
   reference String?
 
+  /// What the bursar wrote about this movement, beyond the one-line `label`.
+  ///
+  /// The décaissement and transfert forms have always offered the field and
+  /// their schemas have always validated it; there was nowhere to put it, so
+  /// every explanation typed into it was discarded on the way to the ledger.
+  /// `label` is what the list column shows; this is the sentence behind it.
+  notes String?
+
   /// When the money moved, which is not always when it was typed in.
   occurredAt DateTime @default(now())
 

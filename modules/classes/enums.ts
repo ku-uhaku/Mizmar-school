@@ -25,15 +25,15 @@ export const GROUP_PURPOSES = [
 export type GroupPurpose = (typeof GROUP_PURPOSES)[number];
 
 /**
- * Tuition is stored as integer centimes of dirham so sums never drift. These
- * helpers are the only place the conversion happens.
+ * Tuition is stored as integer centimes of dirham so sums never drift.
+ *
+ * Only the reading direction lives here; the caisse owns the writing one, in
+ * `modules/treasury/enums.ts`, because that is where money is taken in. There
+ * was a second `dirhamsToCentimes` here that nothing imported — two definitions
+ * of one rounding rule, which is exactly how the two come to disagree.
  */
 export function centimesToDirhams(centimes: number): number {
   return centimes / 100;
-}
-
-export function dirhamsToCentimes(dirhams: number): number {
-  return Math.round(dirhams * 100);
 }
 
 /**

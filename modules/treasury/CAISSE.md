@@ -6,7 +6,7 @@ virements entre caisses, et le suivi des chèques.
 
 ## 1. Ce que le module possède
 
-Le module `treasury` **possède** onze tables (`prisma/schema/treasury/`) et
+Le module `treasury` **possède** douze tables (`prisma/schema/treasury/`) et
 **gère aussi** la moitié « encaissement » du module `billing/enrolment` : un
 paiement *est* un mouvement d'argent, donc le reçu et son affectation aux
 lignes de l'échéancier d'un élève vivent ici plutôt que dans le module qui
@@ -24,6 +24,7 @@ décide de ce qui est dû.
 | `Bank` | Les banques avec lesquelles l'école traite réellement (regroupe « Attijariwafa », « AWB », « Attijari »…). |
 | `OperationCategory` / `OperationSubcategory` | La rubrique budgétaire d'un mouvement (« Fournitures › Papeterie »), sur deux niveaux — pas un arbre. |
 | `OperationMotif` | Le motif écrit par le bursier, en langage courant (« Achat de ramettes A4 »). |
+| `Supplier` | Un fournisseur régulier (Lydec, la papeterie, le propriétaire) — sa rubrique par défaut voyage avec lui, ce qui réduit le décaissement à un select. |
 
 Toutes ces tables sont scopées par `schoolId` — chaque école ne voit que sa
 propre caisse (voir `lib/dal.ts` et `modules/treasury/queries.ts`).
@@ -122,20 +123,29 @@ dans le tiroir non déposé ? » et « qu'est-ce qui est revenu impayé ? ».
 Cycle de vie (`modules/treasury/enums.ts`) :
 
 ```
-PENDING → DEPOSITED → CASHED        (chemin normal)
-                    → BOUNCED       (rejeté : annule automatiquement le reçu)
+PENDING → DEPOSITED → CASHED        (chemin normal — le seul où l'argent arrive)
+                    → BOUNCED       (rejeté)
         → RETURNED                  (rendu à la famille, sans passer en banque)
         → CANCELLED                 (saisi par erreur)
 ```
 
-Si un chèque **entrant** passe à `BOUNCED`, le système **annule
-automatiquement le reçu** qu'il avait réglé — les frais repartent sur
+`CASHED` est la seule fin où le chèque est devenu de l'argent. Les trois autres
+sont le même fait vu du reçu — *ce papier ne paiera pas* — et le système les
+traite donc pareil : si un chèque **entrant** y arrive, il **annule
+automatiquement le reçu** qu'il avait réglé, et les frais repartent sur
 l'échéancier de la famille par le même mécanisme que toute autre annulation. Il
 n'existe qu'**une seule** façon pour de l'argent de revenir sur une ligne de
-facturation.
+facturation (`UNPAID_CHEQUE_ENDINGS`, `setChequeStatus`).
+
+> Seul `BOUNCED` défaisait le reçu. Un chèque restitué ou annulé laissait donc
+> le reçu debout : la famille restait « à jour » d'un chèque qui n'existait
+> plus, et la caisse continuait de compter l'argent. C'est corrigé.
+
+Un chèque **sortant**, ou un chèque suivi seul, ne règle aucun reçu : le solder
+ne déplace que sa propre ligne.
 
 **Et sur un reçu mixte, seul le chèque est défait.** Un règlement de 2 000 en
-500 espèces + 1 500 par chèque dont le chèque revient impayé :
+500 espèces + 1 500 par chèque dont le chèque ne paie pas :
 
 * le reçu d'origine est annulé (on ne peut pas dire quelle mensualité les 500
   ont réglée — l'affectation était un seul acte) ;
@@ -145,19 +155,20 @@ facturation.
   mêmes lignes, mensualité la plus ancienne d'abord.
 
 Résultat : la famille redoit exactement le montant du chèque, la caisse ne bouge
-pas d'un centime, et les 500 restent rattachés à un reçu vivant. Un chèque non
-impayé porté sur le même reçu suit le remplacement plutôt que d'être rendu
+pas d'un centime, et les 500 restent rattachés à un reçu vivant. Un autre chèque
+porté sur le même reçu suit le remplacement plutôt que d'être rendu
 (`keepChequeIds`) — c'est toujours le même papier, la banque n'en sait rien.
 
-## 3. Les cinq écrans (`/caisse/*`)
+## 3. Les écrans (`/caisse/*`)
 
-Le module contribue cinq entrées de navigation, une par question qu'un
+Le module contribue sept entrées de navigation, une par question qu'un
 bursier se pose (voir `modules/treasury/module.ts`) :
 
 | Écran | Route | Permission | Ce qu'il fait |
 |---|---|---|---|
 | **Vue d'ensemble** | `/caisse` | `TREASURY_VIEW` | Résumé du jour, état de chaque caisse, reçus récents, grand livre complet. |
 | **Encaissement** | `/caisse/encaissement` | `TREASURY_COLLECT` | Prendre l'argent d'une famille et le répartir sur les échéances. |
+| **Familles** | `/caisse/familles` | `TREASURY_VIEW` | La situation de chaque foyer : ce qui est dû, ce qui est payé, qui est en retard. |
 | **Décaissement** | `/caisse/decaissement` | `TREASURY_DISBURSE` | Payer quelqu'un (salaire, fournisseur, dépense). |
 | **Transfert** | `/caisse/transfert` | `TREASURY_TRANSFER` | Déplacer de l'argent d'une caisse vers une autre caisse ou vers la banque. |
 | **Suivi chèques** | `/caisse/cheques` | `TREASURY_CHEQUES` | Faire avancer un chèque dans son cycle de vie. |
@@ -174,8 +185,13 @@ Composée de :
   fermer.
 - **`ReceiptsTable`** — les 25 derniers reçus, avec bouton d'annulation si
   autorisé.
-- **`OperationsTable`** — le grand livre complet (`listOperations`),
-  filtrable par type/statut/session.
+- **`OperationsTable`** — le grand livre (`listOperations`), filtrable par
+  type/statut/session. Plafonné aux 200 mouvements les plus récents : au-delà,
+  c'est un export qu'il faut, pas une page.
+
+Une session close a son propre écran (`/caisse/registers/sessions/[sessionId]`)
+et sa version imprimable (`app/(print)/print/caisse/session/[sessionId]`) — le
+détail d'une garde, du fond de caisse au comptage.
 
 ### 3.2 Encaissement (`/caisse/encaissement`)
 
@@ -253,9 +269,15 @@ qu'une seule ligne, la banque n'étant pas une caisse.
 ### 3.5 Suivi chèques (`/caisse/cheques`)
 
 Liste tous les chèques, triés par date d'échéance. Un bouton change le
-statut (`setChequeStatusAction`) — passer un chèque entrant à `BOUNCED`
-exige en plus la permission `TREASURY_CANCEL`, car cela annule un reçu déjà
-émis.
+statut (`setChequeStatusAction`) — solder un chèque entrant qui a réglé un reçu
+**encore vivant** (`BOUNCED`, `RETURNED`, `CANCELLED`) exige en plus la
+permission `TREASURY_CANCEL`, car cela annule ce reçu.
+
+L'exigence porte sur le reçu, pas sur le statut : annuler la saisie d'un chèque
+qui n'a rien réglé ne renverse aucun argent, et ne doit donc pas demander le
+droit d'annuler. L'écran suit la même règle — l'avertissement rouge et le champ
+« remarque » n'apparaissent que quand un reçu est réellement sur le point d'être
+annulé (`settlesLivePayment`).
 
 ### 3.6 Caisses (`/caisse/registers`)
 
@@ -277,7 +299,7 @@ Le découpage suit **qui fait réellement le travail**, pas les tables
 | `TREASURY_DISBURSE` | Décaisser — payer quelqu'un. |
 | `TREASURY_TRANSFER` | Déplacer de l'argent entre caisses ou vers la banque. |
 | `TREASURY_CHEQUES` | Faire avancer un chèque dans son cycle de vie. |
-| `TREASURY_CANCEL` | Annuler un reçu **ou tout autre mouvement** (décaissement, virement), et faire rejeter un chèque. |
+| `TREASURY_CANCEL` | Annuler un reçu **ou tout autre mouvement** (décaissement, virement), et solder un chèque qui en avait réglé un. |
 
 Le principe de contrôle interne d'une petite école tient dans ce découpage :
 une secrétaire à l'accueil encaisse toute la journée (`TREASURY_COLLECT`)
@@ -297,16 +319,29 @@ solde attendu d'une caisse ouverte
 ```
 
 **Aucun écran ne laisse sortir plus d'espèces que le tiroir n'en contient.** La
-règle est écrite une seule fois (`cashShortfall`) et appelée par le
-décaissement, le virement, le paiement d'un salaire, celui d'une avance et le
-remboursement d'un reçu annulé — un tiroir affichant moins que zéro n'est pas un
-état dans lequel une caisse peut se trouver.
+règle est écrite une seule fois (`availableIfShortOf`) et appelée par le
+décaissement, le virement, le paiement d'un salaire, celui d'une avance et les
+deux chemins d'annulation — un tiroir affichant moins que zéro n'est pas un état
+dans lequel une caisse peut se trouver. Pour l'annulation d'un mouvement, la
+vérification se fait **dans la transaction** et cumulée par caisse : les deux
+jambes d'un virement qui reviennent dans le même tiroir sont pesées ensemble,
+pas chacune contre le solde entier.
 
 Le résumé du jour (`treasurySummary`) applique la même logique, avec une
 subtilité pour les totaux du jour : une opération annulée dans l'heure doit
 être **retirée** du total du jour, pas simplement ignorée — sinon une
 recette annulée resterait comptée dans les encaissements du jour tout en
-étant absente de la caisse physique.
+étant absente de la caisse physique. Mais l'écriture inverse porte toujours la
+date du jour alors que l'originale garde la sienne : seule une annulation dont
+**l'originale est du jour** est retranchée. Sans cela, annuler un reçu de la
+semaine dernière affichait un encaissement négatif sur une journée qui ne
+l'avait jamais compté.
+
+**« En retard » a une seule définition** (`isOverdue`, `payment-state.ts`) : une
+échéance n'est en retard qu'une fois le **jour** passé, pas à l'instant où elle
+tombe. Il y en avait quatre, qui ne s'accordaient pas — la fiche de l'élève, la
+liste des familles et le total de l'école pouvaient classer la même ligne
+différemment le même jour.
 
 ## 6. Ce que le pupille/la famille voit ailleurs dans l'app
 
@@ -366,5 +401,5 @@ modules/treasury/
   actions.ts          "use server" — chaque action authorize d'abord, puis rescope tout id reçu
   seed.ts             données de démonstration idempotentes
   i18n/{en,fr,ar}.ts   traductions du namespace `treasury`
-  components/*.tsx     les six écrans
+  components/*.tsx     les écrans et leurs formulaires
 ```

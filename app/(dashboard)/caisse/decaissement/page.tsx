@@ -26,7 +26,7 @@ export default async function DecaissementPage() {
   }
 
   const [categories, motifs, banks, openSession, suppliers] = await Promise.all([
-    // Only the rubriques money may actually go out under — see categoryAllows.
+    // Only the rubriques money may actually go out under — see categoryKindsFor.
     listOperationCategories(context, "OUT"),
     listOperationMotifs(context),
     listBanks(context),

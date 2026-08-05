@@ -39,13 +39,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { formatAmount, formatDate, toDateInputValue } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatDate,
+  interpolate,
+  toDateInputValue,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { setChequeStatusAction } from "@/modules/treasury/actions";
 import {
   CHEQUE_STATUSES,
-  CHEQUE_TRANSITIONS,
+  chequeMovesFrom,
+  chequeUndoesReceipt,
   FAILED_CHEQUE_STATUSES,
+  type ChequeMove,
   type ChequeStatus,
 } from "@/modules/treasury/enums";
 import type { ChequeRow } from "@/modules/treasury/queries";
@@ -64,10 +71,11 @@ import type { ChequeRow } from "@/modules/treasury/queries";
  * Keyed on the status moved *to*, so `CHEQUE_TRANSITIONS` stays the single
  * declaration of what is legal and this only says how to draw it. A status
  * added to the table without an entry here is a compile error rather than a
- * blank menu row.
+ * blank menu row — which is now true: keyed on `string` it was neither, and a
+ * move nobody had drawn would have thrown on `move.icon` at render.
  */
 const CHEQUE_MOVES: Record<
-  string,
+  ChequeMove,
   {
     icon: typeof WalletIcon;
     labelKey: "markDeposited" | "markCashed" | "markBounced" | "markReturned" | "markCancelled";
@@ -81,6 +89,18 @@ const CHEQUE_MOVES: Record<
   RETURNED: { icon: UndoDotIcon, labelKey: "markReturned" },
   CANCELLED: { icon: Trash2Icon, labelKey: "markCancelled", destructive: true },
 };
+
+/**
+ * Whether this particular move reverses money rather than only tidying a row.
+ *
+ * The status alone does not settle it: the same "Strike out" is a correction of
+ * a typo on a cheque nobody paid with, and a reversal of a live receipt on one
+ * they did. The screen has to draw the second as red and warn about it, and
+ * must not cry wolf over the first.
+ */
+function undoesReceipt(cheque: ChequeRow, next: ChequeStatus): boolean {
+  return chequeUndoesReceipt(next) && cheque.settlesLivePayment;
+}
 
 export function ChequeTable({
   cheques,
@@ -222,7 +242,7 @@ export function ChequeTable({
             can never disagree about what is legal — and adding a status to the
             table puts it on the menu without touching this file.
           */
-          const moves = CHEQUE_TRANSITIONS[cheque.status] ?? [];
+          const moves = chequeMovesFrom(cheque.status);
           if (moves.length === 0) return null;
 
           return (
@@ -244,7 +264,11 @@ export function ChequeTable({
                     return (
                       <DropdownMenuItem
                         key={next}
-                        variant={move.destructive ? "destructive" : undefined}
+                        variant={
+                          move.destructive || undoesReceipt(cheque, next)
+                            ? "destructive"
+                            : undefined
+                        }
                         onSelect={() => setPending({ cheque, status: next })}
                       >
                         <Icon />
@@ -316,6 +340,8 @@ function StatusDialog({
   const [state, formAction] = React.useActionState(setChequeStatusAction, IDLE);
   useActionFeedback(state, { onSuccess: onClose });
 
+  const reversing = undoesReceipt(cheque, status);
+
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent>
@@ -330,10 +356,19 @@ function StatusDialog({
           <input type="hidden" name="id" value={cheque.id} />
           <input type="hidden" name="status" value={status} />
 
-          {/* Bouncing is not just a status: it undoes a receipt. Say so. */}
-          {status === "BOUNCED" ? (
+          {/*
+            Bouncing, handing back and striking out are not just statuses: each
+            undoes the receipt the cheque paid. Naming the receipt is the point
+            — a cashier tidying the follow-up screen has to see that a family's
+            balance is about to change before they confirm it.
+          */}
+          {reversing ? (
             <Alert variant="destructive">
-              <AlertDescription>{t.treasury.bouncedWarning}</AlertDescription>
+              <AlertDescription>
+                {interpolate(t.treasury.chequeUndoWarning, {
+                  code: cheque.paymentCode ?? "—",
+                })}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -348,10 +383,24 @@ function StatusDialog({
             />
           </div>
 
-          {status === "BOUNCED" ? (
+          {/*
+            One field, two readings. Bouncing has the bank's own words to keep,
+            so it stays `bounceReason` and is kept on the cheque; the other two
+            have only the cashier's, which goes onto the cancelled receipt.
+          */}
+          {status === "BOUNCED" || reversing ? (
             <div className="grid gap-1.5">
-              <Label htmlFor="bounceReason">{t.treasury.bounceReason}</Label>
+              <Label htmlFor="bounceReason">
+                {status === "BOUNCED"
+                  ? t.treasury.bounceReason
+                  : t.treasury.chequeUndoNote}
+              </Label>
               <Textarea id="bounceReason" name="bounceReason" rows={2} />
+              {status === "BOUNCED" ? null : (
+                <p className="text-muted-foreground text-xs">
+                  {t.treasury.chequeUndoNoteHint}
+                </p>
+              )}
             </div>
           ) : null}
 
@@ -360,7 +409,9 @@ function StatusDialog({
               {t.common.cancel}
             </Button>
             <SubmitButton
-              variant={status === "BOUNCED" ? "destructive" : "default"}
+              variant={
+                status === "BOUNCED" || reversing ? "destructive" : "default"
+              }
             >
               {t.common.confirm}
             </SubmitButton>

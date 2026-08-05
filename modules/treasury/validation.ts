@@ -9,6 +9,8 @@ import {
 } from "@/lib/validation";
 import {
   CHEQUE_STATUSES,
+  dirhamsToCentimes,
+  sumCentimes,
   TENDER_METHODS,
   TRANSFER_TARGETS,
 } from "@/modules/treasury/enums";
@@ -31,6 +33,34 @@ function moneyField(v: Dictionary["validation"], { min = 0 } = {}) {
     .max(100_000_000, { error: v.invalidNumber });
 }
 
+/**
+ * A cheque tender has to carry the cheque's number.
+ *
+ * The same rule on four forms — a receipt's tenders, the décaissement, the quick
+ * spend — so the test is written once. A school cannot follow up a cheque it
+ * holds only the amount of, and demanding a number for a cash payment would be
+ * nonsense, which is why it is conditional rather than a required field.
+ */
+function hasChequeNumber(data: {
+  method: string;
+  chequeNumber?: string | null;
+}): boolean {
+  return data.method !== "CHEQUE" || Boolean(data.chequeNumber);
+}
+
+/** What was handed over, and what it was put against — see `paymentSchema`. */
+function tenderTotalOf(data: {
+  tenders: readonly { amountCentimes: number }[];
+}): number {
+  return sumCentimes(data.tenders.map((tender) => tender.amountCentimes));
+}
+
+function allocationTotalOf(data: {
+  allocations: readonly { amountCentimes: number }[];
+}): number {
+  return sumCentimes(data.allocations.map((line) => line.amountCentimes));
+}
+
 export function openSessionSchema(t: Dictionary) {
   const v = t.validation;
   return z
@@ -41,7 +71,7 @@ export function openSessionSchema(t: Dictionary) {
     })
     .transform((data) => ({
       cashRegisterId: data.cashRegisterId,
-      openingFloatCentimes: Math.round(data.openingFloat * 100),
+      openingFloatCentimes: dirhamsToCentimes(data.openingFloat),
       notes: data.notes,
     }));
 }
@@ -56,7 +86,7 @@ export function closeSessionSchema(t: Dictionary) {
     })
     .transform((data) => ({
       id: data.id,
-      countedCentimes: Math.round(data.counted * 100),
+      countedCentimes: dirhamsToCentimes(data.counted),
       notes: data.notes,
     }));
 }
@@ -84,7 +114,7 @@ export function tenderSchema(t: Dictionary) {
     })
     .transform((data) => ({
       method: data.method,
-      amountCentimes: Math.round(data.amount * 100),
+      amountCentimes: dirhamsToCentimes(data.amount),
       reference: data.reference,
       bankId: data.bankId,
       bankName: data.bankName,
@@ -92,10 +122,10 @@ export function tenderSchema(t: Dictionary) {
       chequeDueOn: data.chequeDueOn,
       drawerName: data.drawerName,
     }))
-    .refine(
-      (data) => data.method !== "CHEQUE" || Boolean(data.chequeNumber),
-      { error: t.treasury.chequeNumberRequired, path: ["chequeNumber"] },
-    );
+    .refine(hasChequeNumber, {
+      error: t.treasury.chequeNumberRequired,
+      path: ["chequeNumber"],
+    });
 }
 
 /**
@@ -128,20 +158,21 @@ export function paymentSchema(t: Dictionary) {
       ...data,
       allocations: data.allocations.map((line) => ({
         enrollmentFeeId: line.enrollmentFeeId,
-        amountCentimes: Math.round(line.amount * 100),
+        amountCentimes: dirhamsToCentimes(line.amount),
       })),
     }))
-    .refine(
-      (data) =>
-        data.tenders.reduce((sum, tender) => sum + tender.amountCentimes, 0) > 0,
-      { error: t.treasury.amountRequired, path: ["tenders"] },
-    )
-    .refine(
-      (data) =>
-        data.tenders.reduce((sum, tender) => sum + tender.amountCentimes, 0) ===
-        data.allocations.reduce((sum, line) => sum + line.amountCentimes, 0),
-      { error: t.treasury.tendersMustMatch, path: ["tenders"] },
-    );
+    // Both cross-totals from the same two sums, through the module's own
+    // `sumCentimes`: adding the tenders up twice, by hand, in two adjacent
+    // refinements is how the "is there any money" test and the "does it match"
+    // test come to disagree about what the money was.
+    .refine((data) => tenderTotalOf(data) > 0, {
+      error: t.treasury.amountRequired,
+      path: ["tenders"],
+    })
+    .refine((data) => tenderTotalOf(data) === allocationTotalOf(data), {
+      error: t.treasury.tendersMustMatch,
+      path: ["tenders"],
+    });
 }
 
 export function disbursementSchema(t: Dictionary) {
@@ -169,12 +200,12 @@ export function disbursementSchema(t: Dictionary) {
     })
     .transform((data) => ({
       ...data,
-      amountCentimes: Math.round(data.amount * 100),
+      amountCentimes: dirhamsToCentimes(data.amount),
     }))
-    .refine(
-      (data) => data.method !== "CHEQUE" || Boolean(data.chequeNumber),
-      { error: t.treasury.chequeNumberRequired, path: ["chequeNumber"] },
-    );
+    .refine(hasChequeNumber, {
+      error: t.treasury.chequeNumberRequired,
+      path: ["chequeNumber"],
+    });
 }
 
 /**
@@ -198,7 +229,7 @@ export function transferSchema(t: Dictionary) {
     })
     .transform((data) => ({
       ...data,
-      amountCentimes: Math.round(data.amount * 100),
+      amountCentimes: dirhamsToCentimes(data.amount),
     }))
     .refine(
       (data) => data.target !== "REGISTER" || Boolean(data.toRegisterId),
@@ -299,6 +330,12 @@ export function quickSpendSchema(t: Dictionary) {
       /** Exactly one of these two is set; the action decides which it wants. */
       staffId: optionalText(40),
       supplierId: optionalText(40),
+      /**
+       * The rubrique, where the screen offers one. Parsed here rather than read
+       * straight off the FormData by the action, which is how it came to be the
+       * one id on these forms with no length cap and no trimming.
+       */
+      categoryId: optionalText(40),
       /** The month a facture covers, `YYYY-MM`. Empty for a purchase. */
       period: optionalText(7),
       /** Free only where the catalogue cannot say it: a meter reading, an invoice no. */
@@ -312,9 +349,9 @@ export function quickSpendSchema(t: Dictionary) {
     })
     .transform((data) => ({
       ...data,
-      amountCentimes: Math.round(data.amount * 100),
+      amountCentimes: dirhamsToCentimes(data.amount),
     }))
-    .refine((data) => data.method !== "CHEQUE" || Boolean(data.chequeNumber), {
+    .refine(hasChequeNumber, {
       error: t.treasury.chequeNumberRequired,
       path: ["chequeNumber"],
     });

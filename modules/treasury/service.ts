@@ -4,8 +4,11 @@ import { db } from "@/lib/db";
 import {
   canMoveCheque,
   cashImpactOf,
+  chequeUndoesReceipt,
   documentCode,
+  expectedDrawerTotal,
   isStaleSession,
+  OPEN_CHEQUE_STATUSES,
   openSessionKey,
   outstandingOf,
   summariseMethod,
@@ -99,9 +102,36 @@ function isDuplicateKey(error: unknown, column?: string): boolean {
   return JSON.stringify(target ?? "").includes(column);
 }
 
+/**
+ * Retries a write that allocates a receipt number, when it lost the number.
+ *
+ * Two cashiers writing at the same second read the same receipt count and ask
+ * for the same code; the unique index refuses the second, and the next attempt
+ * sees the first one's row. Retried rather than pre-locked because the collision
+ * is rare and a lock on every receipt is not.
+ *
+ * Shared rather than inlined at the encaissement, because the cheque unwind
+ * allocates a code too — it issues the replacement receipt — and without this it
+ * turned a bounced cheque into a five-hundred whenever somebody happened to be
+ * taking money at the same moment.
+ *
+ * Narrowed to the code column: any other unique failure will fail identically
+ * five times over, so re-running it only delays the error.
+ */
+async function withReceiptCodeRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (attempt >= 4 || !isDuplicateKey(error, "code")) throw error;
+    }
+  }
+}
+
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
 export type OpenSessionInput = {
+  schoolId: string;
   cashRegisterId: string;
   openedById: string;
   openingFloatCentimes: number;
@@ -133,8 +163,11 @@ export type OpenSessionResult =
 export async function openSession(
   input: OpenSessionInput,
 ): Promise<OpenSessionResult> {
+  // Scoped by the school as well as the id. The action re-derives it too, but a
+  // till is money and the invariant belongs where it cannot be skipped by the
+  // next caller rather than only in the one that exists today.
   const register = await db.cashRegister.findFirst({
-    where: { id: input.cashRegisterId, isActive: true },
+    where: { id: input.cashRegisterId, schoolId: input.schoolId, isActive: true },
     select: { id: true, holderId: true },
   });
   if (!register) return { ok: false, reason: "NOT_FOUND" };
@@ -190,9 +223,9 @@ export async function availableCashInSession(
   });
   if (!session) return null;
 
-  return (
-    session.openingFloatCentimes +
-    sumCentimes(session.operations.map((o) => o.cashImpactCentimes))
+  return expectedDrawerTotal(
+    session.openingFloatCentimes,
+    session.operations.map((o) => o.cashImpactCentimes),
   );
 }
 
@@ -200,11 +233,15 @@ export async function availableCashInSession(
  * The drawer's contents when they will not cover `amountCentimes`, else null.
  *
  * The rule — cash that is not in the till cannot leave it — lives here so the
- * décaissement, the transfert, a salary and an avance all apply the same one.
- * The *sentence* stays with the caller: this layer holds no dictionary, and the
- * figure is read by whoever is standing at the drawer.
+ * décaissement, the transfert, a salary, an avance and both reversal paths all
+ * apply the same one. The *sentence* stays with the caller: this layer holds no
+ * dictionary, and the figure is read by whoever is standing at the drawer.
+ *
+ * Named for the question rather than the answer: it returns what the drawer
+ * actually holds, and null when that is enough. `cashShortfall` read as though
+ * a number meant the gap, which is not what it ever was.
  */
-export async function cashShortfall(
+export async function availableIfShortOf(
   sessionId: string,
   amountCentimes: number,
 ): Promise<number | null> {
@@ -445,24 +482,9 @@ export async function recordPayment(
     ([enrollmentFeeId, amountCentimes]) => ({ enrollmentFeeId, amountCentimes }),
   );
 
-  /*
-    Two cashiers taking money at the same second read the same receipt count and
-    ask for the same number; the unique index refuses the second, and without
-    this the refusal reaches a desk with a parent waiting as an unhandled error.
-    Retried rather than pre-locked because the collision is rare and the second
-    attempt sees the first one's row. Narrowed to the receipt code: any other
-    unique failure would fail the same way five times over.
-  */
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await recordPaymentOnce(
-        { ...input, allocations },
-        tenderTotal,
-      );
-    } catch (error) {
-      if (attempt >= 4 || !isDuplicateKey(error, "code")) throw error;
-    }
-  }
+  return withReceiptCodeRetry(() =>
+    recordPaymentOnce({ ...input, allocations }, tenderTotal),
+  );
 }
 
 async function recordPaymentOnce(
@@ -662,9 +684,11 @@ type CancellablePayment = {
 
 async function findCancellablePayment(
   paymentId: string,
+  schoolId: string,
 ): Promise<CancellablePayment | null> {
   return db.payment.findFirst({
-    where: { id: paymentId, status: "POSTED" },
+    // Scoped by the school, not by the id alone — see `openSession`.
+    where: { id: paymentId, schoolId, status: "POSTED" },
     select: {
       id: true,
       schoolId: true,
@@ -713,11 +737,16 @@ async function resolveReversalDrawer(
   const resolution = await resolveCashSession(schoolId, actorId);
   if (resolution.state !== "OPEN") return { ok: false, reason: "NO_DRAWER" };
 
+  // Through the shared rule, not a second implementation of it: this is the
+  // same "cash that is not in the drawer cannot leave it" the décaissement and
+  // the transfert ask, and two copies is how one screen comes to allow what
+  // another refuses.
   if (cashImpactCentimes < 0) {
-    const available = (await availableCashInSession(resolution.sessionId)) ?? 0;
-    if (-cashImpactCentimes > available) {
-      return { ok: false, reason: "INSUFFICIENT_CASH" };
-    }
+    const short = await availableIfShortOf(
+      resolution.sessionId,
+      -cashImpactCentimes,
+    );
+    if (short !== null) return { ok: false, reason: "INSUFFICIENT_CASH" };
   }
 
   return { ok: true, sessionId: resolution.sessionId };
@@ -789,7 +818,7 @@ async function cancelPaymentInTx(
   await tx.cheque.updateMany({
     where: {
       tender: { paymentId: payment.id },
-      status: { in: ["PENDING", "DEPOSITED"] },
+      status: { in: [...OPEN_CHEQUE_STATUSES] },
       ...(options.keepChequeIds && options.keepChequeIds.length > 0
         ? { id: { notIn: [...options.keepChequeIds] } }
         : {}),
@@ -800,10 +829,11 @@ async function cancelPaymentInTx(
 
 export async function cancelPayment(
   paymentId: string,
+  schoolId: string,
   cancelledById: string,
   reason: string,
 ): Promise<CancelPaymentResult> {
-  const payment = await findCancellablePayment(paymentId);
+  const payment = await findCancellablePayment(paymentId, schoolId);
   if (!payment) return { ok: false, reason: "NOT_FOUND" };
 
   // Mirror image: whatever cash the original moved, this moves back.
@@ -856,6 +886,8 @@ export type DisbursementInput = {
   bankId: string | null;
   bankName: string | null;
   occurredAt: Date;
+  /** What the bursar wrote about it — see CashOperation.notes. */
+  notes: string | null;
 };
 
 /** Pays money out, and raises the cheque when that is how it was paid. */
@@ -895,6 +927,7 @@ export async function recordDisbursement(
         ),
         label: input.label,
         reference: input.reference,
+        notes: input.notes,
         occurredAt: input.occurredAt,
         status: "POSTED",
         categoryId: input.categoryId,
@@ -926,6 +959,8 @@ export type TransferInput = {
   reference: string | null;
   occurredAt: Date;
   label: string;
+  /** What the bursar wrote about it — see CashOperation.notes. */
+  notes: string | null;
 };
 
 /**
@@ -965,6 +1000,7 @@ export async function recordTransfer(
         cashImpactCentimes: -input.amountCentimes,
         label: input.label,
         reference: input.reference,
+        notes: input.notes,
         occurredAt: input.occurredAt,
         status: "POSTED",
         transferGroupId,
@@ -987,6 +1023,7 @@ export async function recordTransfer(
           cashImpactCentimes: input.amountCentimes,
           label: input.label,
           reference: input.reference,
+          notes: input.notes,
           occurredAt: input.occurredAt,
           status: "POSTED",
           transferGroupId,
@@ -1009,28 +1046,30 @@ export async function recordTransfer(
  * Moves a cheque along its lifecycle, stamping whichever date the new status
  * makes meaningful.
  *
- * A bounced incoming cheque puts its fees back on the family automatically: the
- * receipt it settled is cancelled, which is the same mechanism as any other
- * cancellation, so there is exactly one way money ever goes back onto a
- * schedule line.
+ * An incoming cheque that ends without paying — bounced, handed back, or struck
+ * out — puts its fees back on the family automatically: the receipt it settled
+ * is cancelled, which is the same mechanism as any other cancellation, so there
+ * is exactly one way money ever goes back onto a schedule line.
  */
 export async function setChequeStatus(
   chequeId: string,
+  schoolId: string,
   status: string,
   actedById: string,
   options: {
     settledOn?: Date | null;
     bounceReason?: string | null;
     /**
-     * The sentence written onto the receipt this cheque settled, when bouncing
-     * it cancels one. Composed by the caller because it is read by a parent at
-     * the desk and this layer has no dictionary to write it in their language.
+     * The sentence written onto the receipt this cheque settled, when ending it
+     * cancels one. Composed by the caller because it is read by a parent at the
+     * desk and this layer has no dictionary to write it in their language.
      */
     cancelReason?: string;
   } = {},
 ): Promise<boolean> {
-  const cheque = await db.cheque.findUnique({
-    where: { id: chequeId },
+  // Scoped by the school, not by the id alone — see `openSession`.
+  const cheque = await db.cheque.findFirst({
+    where: { id: chequeId, schoolId },
     select: {
       id: true,
       status: true,
@@ -1052,8 +1091,21 @@ export async function setChequeStatus(
 
   const now = options.settledOn ?? new Date();
 
-  const bouncing =
-    status === "BOUNCED" && cheque.direction === "INCOMING" && cheque.tender;
+  /*
+    Bounced, handed back and struck out are one situation here: the paper is
+    not going to pay, so the receipt it settled has to come undone. Restricting
+    this to BOUNCED — which is what it did — meant a cashier who struck out a
+    mistyped cheque, or handed one back to a family paying cash instead, left
+    the receipt standing: the fees stayed settled by a cheque that no longer
+    existed and the caisse went on counting the money.
+
+    Outgoing cheques and cheques tracked on their own settle no receipt, so
+    ending them moves nothing but the row itself.
+  */
+  const undoingReceipt =
+    chequeUndoesReceipt(status) &&
+    cheque.direction === "INCOMING" &&
+    cheque.tender !== null;
 
   /*
     The mark and its consequences are one transaction.
@@ -1063,44 +1115,55 @@ export async function setChequeStatus(
     settled still stood, so the family read as having paid money the bank had
     just refused. Marking the paper and putting the fees back are one act.
   */
-  const unwind = bouncing
-    ? await prepareBounceUnwind(
+  const unwind = undoingReceipt
+    ? await prepareChequeUnwind(
         cheque.tender!.id,
         cheque.tender!.paymentId,
+        schoolId,
         // The note used to be the bare token "CHEQUE_BOUNCED", which is what a
         // parent then saw printed beside their cancelled receipt. The caller
         // hands down a written sentence instead, and the fallback is only ever
         // reached by a caller that forgot one.
-        options.cancelReason ?? "Chèque impayé",
+        options.cancelReason ?? "Chèque non encaissé",
       )
     : null;
 
-  await db.$transaction(async (tx) => {
-    await tx.cheque.update({
-      where: { id: chequeId },
-      data: {
-        status,
-        depositedOn: status === "DEPOSITED" ? now : undefined,
-        settledOn:
-          status === "CASHED" || status === "BOUNCED" || status === "RETURNED"
-            ? now
-            : undefined,
-        // Cleared on the way out of BOUNCED as well: a cheque re-presented and
-        // cleared must not still carry the reason it failed the first time.
-        bounceReason:
-          status === "BOUNCED" ? (options.bounceReason ?? null) : null,
-      },
-    });
+  // Wrapped in the retry because the unwind issues a replacement receipt, and
+  // so competes for a receipt number with whoever is at the desk.
+  await withReceiptCodeRetry(() =>
+    db.$transaction(async (tx) => {
+      await tx.cheque.update({
+        where: { id: chequeId },
+        data: {
+          status,
+          depositedOn: status === "DEPOSITED" ? now : undefined,
+          // Every ending is stamped, including CANCELLED: the follow-up screen
+          // offers a date on all of them, and one that was silently dropped
+          // left a struck-out cheque with no record of the day it left the pile.
+          settledOn:
+            status === "CASHED" || chequeUndoesReceipt(status) ? now : undefined,
+          // Cleared on the way out of BOUNCED as well: a cheque re-presented and
+          // cleared must not still carry the reason it failed the first time.
+          bounceReason:
+            status === "BOUNCED" ? (options.bounceReason ?? null) : null,
+        },
+      });
 
-    if (unwind) await applyBounceUnwind(tx, unwind, actedById);
-  });
+      if (unwind) await applyChequeUnwind(tx, unwind, actedById);
+    }),
+  );
 
   return true;
 }
 
 /**
- * Puts a bounced cheque's fees back on the family without taking the rest of the
+ * Puts an unpaid cheque's fees back on the family without taking the rest of the
  * receipt with them.
+ *
+ * Reached from every ending where the cheque never became money — bounced,
+ * handed back, struck out. They differ only in what the bursar writes on the
+ * receipt; what has to happen to the money is identical, so it happens here
+ * once.
  *
  * ── The case this exists for ─────────────────────────────────────────────────
  * A parent settles 2 000 with 500 in cash and a 1 500 cheque. The cheque comes
@@ -1111,7 +1174,7 @@ export async function setChequeStatus(
  * family was re-charged for money they had genuinely handed over.
  *
  * So the receipt is cancelled with the cash **retained**, and everything that
- * did not bounce is re-issued as a second receipt against the same schedule
+ * did not fail is re-issued as a second receipt against the same schedule
  * lines. What the family owes falls by exactly the cheque; the drawer does not
  * move at all, because no note ever left it.
  *
@@ -1121,7 +1184,7 @@ export async function setChequeStatus(
  * replacement claiming to bring it in again would have the school counting the
  * same notes twice.
  */
-type BounceUnwind = {
+type ChequeUnwind = {
   payment: CancellablePayment;
   reason: string;
   reversalCashImpactCentimes: number;
@@ -1140,12 +1203,13 @@ type BounceUnwind = {
 };
 
 /** Everything the unwind needs to know, read before the transaction opens. */
-async function prepareBounceUnwind(
-  bouncedTenderId: string,
+async function prepareChequeUnwind(
+  unpaidTenderId: string,
   paymentId: string,
+  schoolId: string,
   reason: string,
-): Promise<BounceUnwind | null> {
-  const payment = await findCancellablePayment(paymentId);
+): Promise<ChequeUnwind | null> {
+  const payment = await findCancellablePayment(paymentId, schoolId);
   if (!payment) return null;
 
   const tenders = await db.paymentTender.findMany({
@@ -1162,7 +1226,7 @@ async function prepareBounceUnwind(
     },
   });
 
-  const surviving = tenders.filter((tender) => tender.id !== bouncedTenderId);
+  const surviving = tenders.filter((tender) => tender.id !== unpaidTenderId);
   const survivingTotal = sumCentimes(surviving.map((t) => t.amountCentimes));
 
   /*
@@ -1231,8 +1295,8 @@ async function prepareBounceUnwind(
   const placeable = survivingTotal - left;
   const reissuing = placeable === survivingTotal && survivingTotal > 0;
 
-  // Every centime of cash on the receipt survives a bounce: a cheque moves no
-  // notes, so nothing the school is holding is affected by its coming back.
+  // Every centime of cash on the receipt survives: a cheque moves no notes, so
+  // nothing the school is holding is affected by its failing to pay.
   const retainedCashCentimes = reissuing
     ? sumCentimes(
         surviving
@@ -1254,10 +1318,10 @@ async function prepareBounceUnwind(
   };
 }
 
-/** The unwind itself, inside the transaction that marks the cheque bounced. */
-async function applyBounceUnwind(
+/** The unwind itself, inside the transaction that ends the cheque. */
+async function applyChequeUnwind(
   tx: TxClient,
-  unwind: BounceUnwind,
+  unwind: ChequeUnwind,
   actedById: string,
 ): Promise<void> {
   const {
@@ -1368,6 +1432,21 @@ export class ReversalBlockedError extends Error {
   constructor(message = "REVERSAL_BLOCKED") {
     super(message);
     this.name = "ReversalBlockedError";
+  }
+}
+
+/**
+ * Thrown when a drawer will not cover the cash a reversal has to hand back.
+ *
+ * A throw for the same reason as `ReversalBlockedError`: the check now runs
+ * inside the transaction, and unwinding a Prisma transaction takes an exception.
+ * Caught by `cancelOperation` and returned as the ordinary `INSUFFICIENT_CASH`
+ * result, so callers still never see it.
+ */
+class InsufficientCashError extends Error {
+  constructor() {
+    super("INSUFFICIENT_CASH");
+    this.name = "InsufficientCashError";
   }
 }
 
@@ -1503,13 +1582,6 @@ export async function cancelOperation(
         })();
     if (!session) return { ok: false, reason: "NO_DRAWER" };
 
-    if (mirrorCashImpactCentimes < 0) {
-      const available = (await availableCashInSession(session.id)) ?? 0;
-      if (-mirrorCashImpactCentimes > available) {
-        return { ok: false, reason: "INSUFFICIENT_CASH" };
-      }
-    }
-
     legs.push({
       operationId: original.id,
       kind: original.kind,
@@ -1522,8 +1594,54 @@ export async function cancelOperation(
 
   if (legs.length === 0) return { ok: false, reason: "NOT_FOUND" };
 
+  /**
+   * Refuses the whole reversal when a drawer will not cover its share.
+   *
+   * ── Why inside the transaction, and why accumulated ──────────────────────
+   * The check used to run in the loop above, outside the transaction and once
+   * per leg against the *full* balance. Two legs landing in the same drawer
+   * were therefore each told there was room for them separately, so a
+   * two-legged reversal could take out more than the till held; and any
+   * movement posted between the check and the write was simply not seen.
+   *
+   * Summed per session and re-read here, so the legs are weighed against each
+   * other and against the balance as it stands at the moment of writing.
+   */
+  async function refuseIfAnyDrawerShort(tx: TxClient): Promise<void> {
+    const draw = new Map<string, number>();
+    for (const leg of legs) {
+      if (leg.sessionId === null || leg.mirrorCashImpactCentimes >= 0) continue;
+      draw.set(
+        leg.sessionId,
+        (draw.get(leg.sessionId) ?? 0) - leg.mirrorCashImpactCentimes,
+      );
+    }
+
+    for (const [sessionId, wanted] of draw) {
+      const session = await tx.cashSession.findFirst({
+        where: { id: sessionId, status: "OPEN" },
+        select: {
+          openingFloatCentimes: true,
+          operations: {
+            where: { status: "POSTED" },
+            select: { cashImpactCentimes: true },
+          },
+        },
+      });
+      const available = session
+        ? expectedDrawerTotal(
+            session.openingFloatCentimes,
+            session.operations.map((o) => o.cashImpactCentimes),
+          )
+        : 0;
+      if (wanted > available) throw new InsufficientCashError();
+    }
+  }
+
   try {
     await db.$transaction(async (tx) => {
+      await refuseIfAnyDrawerShort(tx);
+
       for (const leg of legs) {
         await tx.cashOperation.create({
           data: {
@@ -1548,7 +1666,7 @@ export async function cancelOperation(
       await tx.cheque.updateMany({
         where: {
           operations: { some: { id: { in: legs.map((leg) => leg.operationId) } } },
-          status: { in: ["PENDING", "DEPOSITED"] },
+          status: { in: [...OPEN_CHEQUE_STATUSES] },
         },
         data: { status: "CANCELLED", settledOn: new Date() },
       });
@@ -1561,6 +1679,9 @@ export async function cancelOperation(
   } catch (error) {
     if (error instanceof ReversalBlockedError) {
       return { ok: false, reason: "BLOCKED" };
+    }
+    if (error instanceof InsufficientCashError) {
+      return { ok: false, reason: "INSUFFICIENT_CASH" };
     }
     // A second cancellation racing the first loses on `reversesOperationId`.
     if (isDuplicateKey(error)) return { ok: false, reason: "ALREADY_REVERSED" };

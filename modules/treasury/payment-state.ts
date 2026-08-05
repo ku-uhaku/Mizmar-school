@@ -1,3 +1,5 @@
+import { startOfDay } from "@/modules/treasury/enums";
+
 /**
  * How a charge stands, and the one colour that says so.
  *
@@ -25,6 +27,31 @@ export const PAYMENT_STATES = [
 export type PaymentState = (typeof PAYMENT_STATES)[number];
 
 /**
+ * Whether a charge's due date has actually passed.
+ *
+ * ── The one definition of "en retard" in the app ─────────────────────────────
+ * There were four, and they disagreed. Three compared the due date against
+ * *this instant* (`<= now`, `< now`) and one against the end of today, so the
+ * same unpaid line could read OVERDUE on the pupil's card, on time in the
+ * school's dashboard total, and either way on the families list depending on
+ * what o'clock it was. A family chased for an instalment due that morning is
+ * the failure this closes.
+ *
+ * Compared by *day* and not by moment: a due date is a wall-calendar date, and
+ * an instalment falling due today is not late until today is over. Anything
+ * unparseable is not late — an absent date cannot make a charge overdue.
+ */
+export function isOverdue(
+  dueDate: string | Date | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!dueDate) return false;
+  const due = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return false;
+  return startOfDay(due).getTime() < startOfDay(now).getTime();
+}
+
+/**
  * The state of one charge.
  *
  * `dueDate` decides lateness rather than the amount: most of a year's fees are
@@ -43,15 +70,7 @@ export function paymentStateOf({
   now?: Date;
 }): PaymentState {
   if (paidCentimes >= amountCentimes) return "SETTLED";
-
-  // End of today: an instalment falling due today is not late yet.
-  const endOfToday = new Date(now);
-  endOfToday.setHours(23, 59, 59, 999);
-
-  const due = dueDate ? new Date(dueDate) : null;
-  const late = due !== null && !Number.isNaN(due.getTime()) && due <= endOfToday;
-
-  if (late) return "OVERDUE";
+  if (isOverdue(dueDate, now)) return "OVERDUE";
   return paidCentimes > 0 ? "PARTIAL" : "UPCOMING";
 }
 

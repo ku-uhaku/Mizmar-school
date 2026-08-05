@@ -10,7 +10,10 @@ import { getDictionary } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { centimesToDirhams } from "@/modules/treasury/enums";
-import { cashShortfall, resolveCashSession } from "@/modules/treasury/service";
+import {
+  availableIfShortOf,
+  resolveCashSession,
+} from "@/modules/treasury/service";
 import {
   boolField,
   field,
@@ -69,7 +72,7 @@ async function schoolContext() {
 /**
  * Refuses to let more cash out of a drawer than it holds.
  *
- * The rule itself lives in the caisse (`cashShortfall`) so a payout from the RH
+ * The rule itself lives in the caisse (`availableIfShortOf`) so a payout from the RH
  * screens cannot allow what the décaissement screen refuses; only the sentence
  * is composed here, in the reader's language.
  */
@@ -78,7 +81,7 @@ async function refuseIfShort(
   sessionId: string,
   amountCentimes: number,
 ): Promise<string | null> {
-  const available = await cashShortfall(sessionId, amountCentimes);
+  const available = await availableIfShortOf(sessionId, amountCentimes);
   if (available === null) return null;
 
   return interpolate(t.treasury.insufficientCash, {

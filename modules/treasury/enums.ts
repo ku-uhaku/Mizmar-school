@@ -45,9 +45,19 @@ export type OperationKind = (typeof OPERATION_KINDS)[number];
 export const CATEGORY_KINDS = ["IN", "OUT", "BOTH"] as const;
 export type CategoryKind = (typeof CATEGORY_KINDS)[number];
 
-/** The rubriques offerable on a given screen. BOTH is always offered. */
-export function categoryAllows(kind: string, side: "IN" | "OUT"): boolean {
-  return kind === side || kind === "BOTH";
+/**
+ * The rubrique kinds a given screen may offer. BOTH is always among them.
+ *
+ * Returns the set rather than testing one row, because every caller is building
+ * a `where` clause and not filtering in memory — the encaissement and the
+ * décaissement narrow their pickers with it, and the actions re-derive the
+ * submitted rubrique against the same list. Written as a predicate, it was
+ * called by nobody and both sides hardcoded `[side, "BOTH"]` instead.
+ */
+export function categoryKindsFor(
+  side: "IN" | "OUT",
+): readonly CategoryKind[] {
+  return [side, "BOTH"];
 }
 
 /**
@@ -111,20 +121,6 @@ export function isStaleSession(openedAt: Date, now: Date = new Date()): boolean 
 }
 
 /**
- * Whether a closed session was actually counted by the person who held it.
- *
- * False for one the day boundary closed — see `CashSession.wasAutoClosed`. Kept
- * as a helper rather than read off the column directly so a report cannot
- * quietly treat an uncounted drawer as a balanced one.
- */
-export function wasCounted(session: {
-  status: string;
-  wasAutoClosed: boolean;
-}): boolean {
-  return session.status === "CLOSED" && !session.wasAutoClosed;
-}
-
-/**
  * Whether a movement still counts.
  *
  * CANCELLED rows stay in the ledger and are excluded from every total. Nothing
@@ -159,20 +155,7 @@ export const SUPPLIER_KINDS = [
 ] as const;
 export type SupplierKind = (typeof SUPPLIER_KINDS)[number];
 
-/** The kinds the factures screen offers: everything billed for a period. */
-export const BILLED_SUPPLIER_KINDS: readonly SupplierKind[] = [
-  "UTILITY",
-  "LANDLORD",
-  "SERVICE",
-];
-
-/** The kinds the achats screen offers: everything bought on a day. */
-export const PURCHASE_SUPPLIER_KINDS: readonly SupplierKind[] = [
-  "VENDOR",
-  "OTHER",
-];
-
-/** A cheque the school holds, or one it has written. */
+/** A cheque the school holds, or one it has written — see Cheque.direction. */
 export const CHEQUE_DIRECTIONS = ["INCOMING", "OUTGOING"] as const;
 export type ChequeDirection = (typeof CHEQUE_DIRECTIONS)[number];
 
@@ -220,7 +203,7 @@ export type ChequeStatus = (typeof CHEQUE_STATUSES)[number];
  * paper went back, or the row should never have existed. Reversing any of those
  * is a correction of the *receipt*, not of the cheque — see `cancelPayment`.
  */
-export const CHEQUE_TRANSITIONS: Record<string, readonly ChequeStatus[]> = {
+export const CHEQUE_TRANSITIONS = {
   PENDING: ["DEPOSITED", "CASHED", "RETURNED", "CANCELLED"],
   DEPOSITED: ["CASHED", "BOUNCED", "RETURNED"],
   // Re-presented, given back, or written off.
@@ -228,11 +211,42 @@ export const CHEQUE_TRANSITIONS: Record<string, readonly ChequeStatus[]> = {
   CASHED: [],
   RETURNED: [],
   CANCELLED: [],
-};
+  // `satisfies` rather than an annotation, and this is load-bearing twice over:
+  // it makes a status added to CHEQUE_STATUSES without a row here a compile
+  // error, *and* it keeps the literal types, which is what lets `ChequeMove`
+  // below name the reachable targets. Annotating it `Record<string, …>` — which
+  // is what it said — gave neither, so the menu that claims to be generated
+  // from this table would have crashed on a status nobody had drawn.
+} as const satisfies Record<ChequeStatus, readonly ChequeStatus[]>;
+
+/**
+ * A status a cheque can actually be moved *to*.
+ *
+ * Derived from the table rather than restated, so it excludes PENDING — nothing
+ * ever returns to the pile — and any screen drawing the moves has to cover
+ * exactly these and no more.
+ */
+export type ChequeMove = (typeof CHEQUE_TRANSITIONS)[ChequeStatus][number];
+
+/** Whether `value` is one of the declared statuses. */
+export function isChequeStatus(value: string): value is ChequeStatus {
+  return (CHEQUE_STATUSES as readonly string[]).includes(value);
+}
+
+/**
+ * The moves offerable from where a cheque is now.
+ *
+ * Takes the column's `string` and narrows it here, so neither the screen nor
+ * the service has to cast: a status the code does not know offers nothing
+ * rather than being asserted into the union and indexing off the end.
+ */
+export function chequeMovesFrom(status: string): readonly ChequeMove[] {
+  return isChequeStatus(status) ? CHEQUE_TRANSITIONS[status] : [];
+}
 
 /** Whether a cheque may move to `next` from where it is now. */
 export function canMoveCheque(from: string, next: string): boolean {
-  return (CHEQUE_TRANSITIONS[from] ?? []).includes(next as ChequeStatus);
+  return (chequeMovesFrom(from) as readonly string[]).includes(next);
 }
 
 /** Cheques still expected to turn into money — what "en attente" counts. */
@@ -241,11 +255,49 @@ export const OPEN_CHEQUE_STATUSES: readonly ChequeStatus[] = [
   "DEPOSITED",
 ];
 
-/** Cheques that will not: the ones the follow-up screen flags in red. */
+/**
+ * Cheques that will not: the ones the follow-up screen flags in red.
+ *
+ * Deliberately one short of `UNPAID_CHEQUE_ENDINGS`. All three of those undo the
+ * receipt, but CANCELLED is a cashier striking out their own typing, and drawing
+ * every corrected keystroke in red is how a screen teaches people to ignore red.
+ * What is flagged here is a cheque the school expected money from and did not
+ * get.
+ */
 export const FAILED_CHEQUE_STATUSES: readonly ChequeStatus[] = [
   "BOUNCED",
   "RETURNED",
 ];
+
+/**
+ * The three ends a cheque can come to without ever having been money.
+ *
+ * Read from the receipt's side they are one fact — *the paper is not going to
+ * pay* — so all three undo it, through the same unwind. Only BOUNCED used to,
+ * which is the bug this list closes: a cheque handed back or struck out left
+ * the receipt it settled standing, so the family still read as having paid, the
+ * charges never came back onto the schedule, and the day's takings still
+ * counted money the school was never going to see.
+ *
+ * CASHED is the one ending that is not here, because it is the one where the
+ * money actually arrived.
+ */
+export const UNPAID_CHEQUE_ENDINGS: readonly ChequeStatus[] = [
+  "BOUNCED",
+  "RETURNED",
+  "CANCELLED",
+];
+
+/**
+ * Whether moving a cheque to `status` undoes the receipt it settled.
+ *
+ * Only ever true of an incoming cheque that actually settled one — the caller
+ * still has to establish that. Outgoing cheques and cheques tracked on their
+ * own settle nothing, so ending them is bookkeeping and nothing more.
+ */
+export function chequeUndoesReceipt(status: string): boolean {
+  return UNPAID_CHEQUE_ENDINGS.includes(status as ChequeStatus);
+}
 
 /**
  * Where a transfer's money is going. Not a column — the destination is either a

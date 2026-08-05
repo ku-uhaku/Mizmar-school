@@ -104,7 +104,6 @@ const fr = {
 
     // ── Operations ──────────────────────────────────────────────────────────
     operations: "Opérations",
-    operationsSubtitle: "Tous les mouvements, du plus récent au plus ancien.",
     noOperations: "Aucun mouvement pour l'instant.",
     kind: "Type",
     method: "Mode",
@@ -136,7 +135,6 @@ const fr = {
     selectAll: "Tout sélectionner",
     clearSelection: "Vider",
     payFull: "Solder",
-    monthColumn: "Mois",
     charge: "Frais",
     alreadyPaid: "Réglé",
     remaining: "Restant",
@@ -205,6 +203,8 @@ const fr = {
     cancelledBy: "Annulé par",
     cancelledOn: "Annulé le",
     cancelledChequeBounced: "Chèque impayé",
+    cancelledChequeReturned: "Chèque restitué à la famille",
+    cancelledChequeCancelled: "Chèque annulé — saisi par erreur",
     cancellationTrail: "Annulation",
     notes: "Remarques",
 
@@ -212,8 +212,6 @@ const fr = {
     decaissement: "Décaissement",
     decaissementSubtitle: "Sortez de l'argent et indiquez à quoi il a servi.",
     beneficiaryStaff: "Employé payé",
-    beneficiaryStaffHint:
-      "Pour un salaire, une avance ou une note de frais remboursée à un employé. Le choisir remplit le nom ci-dessous.",
     beneficiaryExternal: "Pas un employé",
     beneficiaryName: "Bénéficiaire",
     beneficiaryHint: "Un membre du personnel, un fournisseur, un bailleur.",
@@ -229,7 +227,6 @@ const fr = {
     recordDisbursement: "Enregistrer le décaissement",
     disbursementRecorded: "Décaissement enregistré.",
     insufficientCash: "La caisse ne contient que {amount} MAD.",
-    noCategories: "Aucune rubrique de dépense n'a encore été créée.",
 
     // ── Transfert ───────────────────────────────────────────────────────────
     transfert: "Transfert",
@@ -238,8 +235,6 @@ const fr = {
     from: "Depuis",
     to: "Vers",
     target: "Destination",
-    targetRegister: "Une autre caisse",
-    targetBank: "La banque",
     bankAccount: "Compte bancaire",
     bankAccountHint: "Le compte sur lequel les espèces ont été versées.",
     sameRegister: "Choisissez une autre caisse.",
@@ -252,7 +247,6 @@ const fr = {
     cheques: "Suivi chèques",
     chequesSubtitle: "Ce qui est en portefeuille, remis en banque, ou impayé.",
     noCheques: "Aucun chèque suivi.",
-    chequeDirection: "Sens",
     number: "Numéro",
     dueOn: "Échéance",
     depositedOn: "Remis le",
@@ -264,17 +258,18 @@ const fr = {
     markReturned: "Restituer",
     markCancelled: "Annuler la saisie",
     chequeUpdated: "Chèque mis à jour.",
-    bouncedWarning:
-      "Déclarer ce chèque impayé annule le reçu qu'il a réglé : les échéances redeviennent dues.",
+    chequeUndoWarning:
+      "Ce chèque a réglé le reçu {code}. Le solder ici annule ce reçu et les échéances redeviennent dues. Le reste du règlement — espèces, autre chèque — est conservé et réémis sur un nouveau reçu.",
+    chequeUndoNote: "Remarque",
+    chequeUndoNoteHint:
+      "Inscrite sur le reçu annulé avec votre nom. Dites ce qui s'est passé, pour celui qui la lira en juin.",
     chequesPending: "Chèques en portefeuille",
     chequesBounced: "Impayés",
-    dueSoon: "Échéance proche",
     overdueLabel: "Échu, non remis",
     showSiblings: "Afficher la fratrie ({count})",
     siblings: "Fratrie",
     familyTotal: "Réglé par la famille",
     familyOwes: "Reste dû par la famille",
-    collectForFamily: "Encaisser pour la famille",
     upToDate: "À jour",
     overdueBy: "{amount} en retard",
     byService: "Détail par prestation",
@@ -282,7 +277,6 @@ const fr = {
     pupil: "Élève",
     thisPupil: "Cet élève",
     standingTotal: "Total",
-    collectNow: "Encaisser",
     noScheduleYet: "Aucun échéancier n'a encore été généré pour cet élève.",
     paidOfCharged: "{paid} réglés sur {charged}",
     linesSettled: "{settled} échéances soldées sur {total}",

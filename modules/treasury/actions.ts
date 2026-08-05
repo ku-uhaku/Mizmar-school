@@ -5,16 +5,20 @@ import { refresh } from "next/cache";
 import { failure, success, type ActionState } from "@/lib/action-state";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { interpolate } from "@/lib/i18n/format";
-import { getDictionary } from "@/lib/i18n/server";
+import type { Locale } from "@/lib/i18n/config";
+import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
+import { getDictionary, getLocale } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
-import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
-  cashShortfall,
+  categoryKindsFor,
+  chequeUndoesReceipt,
+} from "@/modules/treasury/enums";
+import {
+  availableIfShortOf,
   cancelOperation,
   cancelPayment,
   closeSession,
@@ -58,12 +62,21 @@ function optionalId(formData: FormData, name: string): string {
   return value === NO_SELECTION ? "" : value;
 }
 
-/** The school in context, or the reason there is none. */
+/**
+ * The school in context, or the reason there is none.
+ *
+ * The locale comes along because the sentences these actions compose quote
+ * money and dates back to the cashier, and both have to be written the way the
+ * rest of their screen writes them — see `formatAmount` and `formatDate`.
+ */
 async function currentSchool() {
-  const t = await getDictionary();
-  const context = await requireAuth();
+  const [t, locale, context] = await Promise.all([
+    getDictionary(),
+    getLocale(),
+    requireAuth(),
+  ]);
   const schoolId = context.currentSchool?.id;
-  return { t, context, schoolId };
+  return { t, locale, context, schoolId };
 }
 
 /**
@@ -81,6 +94,7 @@ async function currentSchool() {
  */
 async function requireDrawer(
   t: Dictionary,
+  locale: Locale,
   schoolId: string,
   userId: string,
 ): Promise<{ ok: true; sessionId: string } | { ok: false; message: string }> {
@@ -95,19 +109,20 @@ async function requireDrawer(
   if (resolution.state === "STALE_CLOSED") {
     return {
       ok: false,
+      // Both through the shared formatters. The date used to be
+      // `toISOString().slice(0, 10)`, which reads the *UTC* day and is one
+      // behind for every hour before 01h00 in Morocco — so the one message
+      // whose whole job is naming the day the shift belonged to named the
+      // wrong one. The amount used to be `.toFixed(2)`, which put Latin digits
+      // and no separator beside an Arabic screen's properly formatted figures.
       message: interpolate(t.treasury.sessionStaleClosed, {
-        date: formatDateOnly(resolution.openedAt),
-        amount: centimesToDirhams(resolution.expectedCentimes).toFixed(2),
+        date: formatDate(resolution.openedAt, locale),
+        amount: formatAmount(resolution.expectedCentimes, locale),
       }),
     };
   }
 
   return { ok: false, message: t.treasury.noOpenSession };
-}
-
-/** `YYYY-MM-DD`, for naming the day a stale shift belonged to. */
-function formatDateOnly(moment: Date): string {
-  return moment.toISOString().slice(0, 10);
 }
 
 /**
@@ -120,14 +135,15 @@ function formatDateOnly(moment: Date): string {
  */
 async function refuseIfShort(
   t: Dictionary,
+  locale: Locale,
   sessionId: string,
   amountCentimes: number,
 ): Promise<string | null> {
-  const available = await cashShortfall(sessionId, amountCentimes);
+  const available = await availableIfShortOf(sessionId, amountCentimes);
   if (available === null) return null;
 
   return interpolate(t.treasury.insufficientCash, {
-    amount: centimesToDirhams(available).toFixed(2),
+    amount: formatAmount(available, locale),
   });
 }
 
@@ -150,7 +166,7 @@ export async function openSessionAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, schoolId } = await currentSchool();
+    const { t, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_SESSION);
@@ -175,8 +191,8 @@ export async function openSessionAction(
     });
     if (!register) return failure(t.errors.notFound);
 
-    const context = await requireAuth();
     const opened = await openSession({
+      schoolId,
       cashRegisterId: register.id,
       openedById: context.user.id,
       openingFloatCentimes: parsed.data.openingFloatCentimes,
@@ -202,7 +218,7 @@ export async function closeSessionAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
+    const { t, locale, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_SESSION);
@@ -248,7 +264,7 @@ export async function closeSessionAction(
     }
     return success(
       interpolate(t.treasury.sessionClosedVariance, {
-        amount: centimesToDirhams(result.varianceCentimes).toFixed(2),
+        amount: formatAmount(result.varianceCentimes, locale),
       }),
     );
   });
@@ -301,7 +317,7 @@ export async function recordPaymentAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
+    const { t, locale, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     const schoolYearId = context.currentSchoolYear?.id;
@@ -339,7 +355,7 @@ export async function recordPaymentAction(
     );
     let cashSessionId: string | null = null;
     if (takesCash) {
-      const drawer = await requireDrawer(t, schoolId, context.user.id);
+      const drawer = await requireDrawer(t, locale, schoolId, context.user.id);
       if (!drawer.ok) return failure(drawer.message);
       cashSessionId = drawer.sessionId;
     }
@@ -445,6 +461,7 @@ export async function cancelPaymentAction(
 
     const cancelled = await cancelPayment(
       payment.id,
+      schoolId,
       context.user.id,
       parsed.data.reason,
     );
@@ -526,7 +543,7 @@ export async function recordDisbursementAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
+    const { t, locale, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
@@ -566,13 +583,22 @@ export async function recordDisbursementAction(
           where: {
             id: parsed.data.categoryId,
             schoolId,
-            kind: { in: ["OUT", "BOTH"] },
+            kind: { in: [...categoryKindsFor("OUT")] },
           },
           select: { id: true },
         })
       : null;
     if (parsed.data.categoryId && !category) return failure(t.errors.notFound);
 
+    /*
+      Every one of these refuses rather than resolving to null.
+
+      Only the rubrique and the supplier used to. The other three fell through
+      as null, so a stale picker or a crafted id filed the décaissement with no
+      sub-rubrique, no motif and no bank — silently, with a success message, and
+      no way for the bursar to know the movement had lost the chart entry they
+      chose. Failing is the only answer that tells them.
+    */
     // Scoped by the resolved parent, so a sub-rubrique can never be attached to
     // a rubrique it does not belong to.
     const subcategory =
@@ -582,6 +608,9 @@ export async function recordDisbursementAction(
             select: { id: true },
           })
         : null;
+    if (parsed.data.subcategoryId && !subcategory) {
+      return failure(t.errors.notFound);
+    }
 
     const motif = parsed.data.motifId
       ? await db.operationMotif.findFirst({
@@ -589,6 +618,7 @@ export async function recordDisbursementAction(
           select: { id: true, name: true },
         })
       : null;
+    if (parsed.data.motifId && !motif) return failure(t.errors.notFound);
 
     const bank = parsed.data.bankId
       ? await db.bank.findFirst({
@@ -596,6 +626,7 @@ export async function recordDisbursementAction(
           select: { id: true },
         })
       : null;
+    if (parsed.data.bankId && !bank) return failure(t.errors.notFound);
 
     // The beneficiary must be one of this school's employees — a staff id from
     // the request must never reach another school's payroll.
@@ -614,7 +645,7 @@ export async function recordDisbursementAction(
 
     let cashSessionId: string | null = null;
     if (parsed.data.method === "CASH") {
-      const resolved = await requireDrawer(t, schoolId, context.user.id);
+      const resolved = await requireDrawer(t, locale, schoolId, context.user.id);
       if (!resolved.ok) return failure(resolved.message);
       cashSessionId = resolved.sessionId;
     }
@@ -624,6 +655,7 @@ export async function recordDisbursementAction(
     if (cashSessionId) {
       const short = await refuseIfShort(
         t,
+        locale,
         cashSessionId,
         parsed.data.amountCentimes,
       );
@@ -649,6 +681,7 @@ export async function recordDisbursementAction(
       chequeNumber: parsed.data.chequeNumber,
       bankName: parsed.data.bankName,
       occurredAt: parsed.data.occurredAt ?? new Date(),
+      notes: parsed.data.notes,
     });
 
     refresh();
@@ -663,7 +696,7 @@ export async function recordTransferAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
+    const { t, locale, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_TRANSFER);
@@ -713,7 +746,7 @@ export async function recordTransferAction(
       though both tills belong to this school. It also puts the day rule on this
       screen for free — `requireDrawer` closes yesterday's shift on the way past.
     */
-    const drawer = await requireDrawer(t, schoolId, context.user.id);
+    const drawer = await requireDrawer(t, locale, schoolId, context.user.id);
     if (!drawer.ok) return failure(drawer.message);
 
     const fromSession = await db.cashSession.findFirst({
@@ -724,6 +757,7 @@ export async function recordTransferAction(
 
     const short = await refuseIfShort(
       t,
+      locale,
       fromSession.id,
       parsed.data.amountCentimes,
     );
@@ -750,6 +784,7 @@ export async function recordTransferAction(
       amountCentimes: parsed.data.amountCentimes,
       reference: parsed.data.reference,
       occurredAt: parsed.data.occurredAt ?? new Date(),
+      notes: parsed.data.notes,
       label:
         parsed.data.target === "BANK"
           ? (transferBank?.name ?? parsed.data.bankAccountLabel ?? from.name)
@@ -795,25 +830,49 @@ export async function setChequeStatusAction(
 
     const cheque = await db.cheque.findFirst({
       where: { id: parsed.data.id, schoolId },
-      select: { id: true },
+      select: {
+        id: true,
+        direction: true,
+        tender: { select: { payment: { select: { status: true } } } },
+      },
     });
     if (!cheque) return failure(t.errors.notFound);
 
-    // Bouncing a cheque cancels the receipt it settled, which puts the money
-    // back on the family's schedule — so it needs the cancelling permission too.
-    if (parsed.data.status === "BOUNCED") {
+    /*
+      Ending a cheque that settled a live receipt cancels that receipt, which
+      puts the money back on the family's schedule — so it needs the cancelling
+      permission, exactly as cancelling the receipt by hand would.
+
+      Scoped to cheques that actually settle one rather than to the status
+      alone: striking out a mistyped cheque that paid nothing reverses no
+      money, and a cashier who may track cheques should not need the reversal
+      permission to correct their own typing.
+    */
+    const undoesReceipt =
+      chequeUndoesReceipt(parsed.data.status) &&
+      cheque.direction === "INCOMING" &&
+      cheque.tender?.payment.status === "POSTED";
+
+    if (undoesReceipt) {
       await authorizeSchool(schoolId, PERMISSIONS.TREASURY_CANCEL);
     }
 
-    await setChequeStatus(cheque.id, parsed.data.status, context.user.id, {
+    // Composed here because this layer has the dictionary. The cashier's own
+    // words are appended when they gave any, so the cancelled receipt explains
+    // itself without anyone opening the cheque.
+    const written =
+      parsed.data.status === "RETURNED"
+        ? t.treasury.cancelledChequeReturned
+        : parsed.data.status === "CANCELLED"
+          ? t.treasury.cancelledChequeCancelled
+          : t.treasury.cancelledChequeBounced;
+
+    await setChequeStatus(cheque.id, schoolId, parsed.data.status, context.user.id, {
       settledOn: parsed.data.settledOn,
       bounceReason: parsed.data.bounceReason,
-      // Composed here because this layer has the dictionary. The cashier's own
-      // words about why it bounced are appended when they gave any, so the
-      // cancelled receipt explains itself without anyone opening the cheque.
       cancelReason: parsed.data.bounceReason
-        ? `${t.treasury.cancelledChequeBounced} — ${parsed.data.bounceReason}`
-        : t.treasury.cancelledChequeBounced,
+        ? `${written} — ${parsed.data.bounceReason}`
+        : written,
     });
 
     refresh();
@@ -1037,13 +1096,14 @@ export async function payStaffDirectAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, context, schoolId } = await currentSchool();
+    const { t, locale, context, schoolId } = await currentSchool();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
 
     const parsed = quickSpendSchema(t).safeParse({
       staffId: optionalId(formData, "staffId"),
+      categoryId: optionalId(formData, "categoryId"),
       reference: field(formData, "reference"),
       method: field(formData, "method"),
       amount: field(formData, "amount"),
@@ -1068,24 +1128,28 @@ export async function payStaffDirectAction(
       : null;
     if (!person) return failure(t.errors.notFound);
 
-    const categoryId = optionalId(formData, "categoryId");
-    const category = categoryId
+    const category = parsed.data.categoryId
       ? await db.operationCategory.findFirst({
-          where: { id: categoryId, schoolId },
+          where: {
+            id: parsed.data.categoryId,
+            schoolId,
+            kind: { in: [...categoryKindsFor("OUT")] },
+          },
           select: { id: true },
         })
       : null;
-    if (categoryId && !category) return failure(t.errors.notFound);
+    if (parsed.data.categoryId && !category) return failure(t.errors.notFound);
 
     const drawer =
       parsed.data.method === "CASH"
-        ? await requireDrawer(t, schoolId, context.user.id)
+        ? await requireDrawer(t, locale, schoolId, context.user.id)
         : null;
     if (drawer && !drawer.ok) return failure(drawer.message);
 
     if (drawer?.ok) {
       const short = await refuseIfShort(
         t,
+        locale,
         drawer.sessionId,
         parsed.data.amountCentimes,
       );
@@ -1111,6 +1175,10 @@ export async function payStaffDirectAction(
       chequeNumber: parsed.data.chequeNumber,
       bankName: parsed.data.bankName,
       occurredAt: parsed.data.occurredAt ?? new Date(),
+      // `label` already falls back to the notes when the manager typed no
+      // other description; keeping them on the row as well is what lets the
+      // ledger show the sentence behind a one-word label.
+      notes: parsed.data.notes,
     });
 
     refresh();

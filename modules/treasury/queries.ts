@@ -3,7 +3,15 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { outstandingOf, sumCentimes } from "@/modules/treasury/enums";
+import {
+  categoryKindsFor,
+  expectedDrawerTotal,
+  OPEN_CHEQUE_STATUSES,
+  outstandingOf,
+  startOfDay,
+  sumCentimes,
+} from "@/modules/treasury/enums";
+import { isOverdue } from "@/modules/treasury/payment-state";
 
 /**
  * Reads for the treasury module.
@@ -15,9 +23,22 @@ import { outstandingOf, sumCentimes } from "@/modules/treasury/enums";
  * ledger would then refuse.
  */
 
+/**
+ * An id no row can carry, for the "nothing is in context" case.
+ *
+ * Scoping to it matches nothing; leaving the clause out would match everything,
+ * which on these tables means one school's caisse rendered for another's.
+ */
+const NO_MATCH = "__none__";
+
 /** No school selected: match nothing rather than everything. */
 function schoolScope(context: AuthContext) {
-  return { schoolId: context.currentSchool?.id ?? "__none__" };
+  return { schoolId: context.currentSchool?.id ?? NO_MATCH };
+}
+
+/** The same, for the year — see `listFamilyReceipts`. */
+function yearScope(context: AuthContext): string {
+  return context.currentSchoolYear?.id ?? NO_MATCH;
 }
 
 /** Posted rows only — cancelled movements stay in the ledger but count nowhere. */
@@ -103,13 +124,12 @@ export async function listRegisters(
             openedAt: session.openedAt.toISOString(),
             openedByName: displayName(session.openedBy),
             openingFloatCentimes: session.openingFloatCentimes,
-            expectedCentimes:
-              session.openingFloatCentimes +
-              sumCentimes(
-                session.operations.map(
-                  (operation) => operation.cashImpactCentimes,
-                ),
+            expectedCentimes: expectedDrawerTotal(
+              session.openingFloatCentimes,
+              session.operations.map(
+                (operation) => operation.cashImpactCentimes,
               ),
+            ),
             operationCount: session.operations.length,
           }
         : null,
@@ -380,6 +400,12 @@ export type ChequeRow = {
   /** The receipt it settled, when it came in as a payment tender. */
   paymentCode: string | null;
   familyName: string | null;
+  /**
+   * Whether that receipt is still standing. What decides if ending the cheque
+   * reverses money or only tidies a row — the follow-up screen warns on the
+   * first and stays quiet on the second.
+   */
+  settlesLivePayment: boolean;
 };
 
 /** Suivi Chèques: every cheque, soonest due first among those still open. */
@@ -398,7 +424,11 @@ export async function listCheques(
       tender: {
         select: {
           payment: {
-            select: { code: true, family: { select: { name: true } } },
+            select: {
+              code: true,
+              status: true,
+              family: { select: { name: true } },
+            },
           },
         },
       },
@@ -423,6 +453,9 @@ export async function listCheques(
     bounceReason: cheque.bounceReason,
     paymentCode: cheque.tender?.payment.code ?? null,
     familyName: cheque.tender?.payment.family?.name ?? null,
+    settlesLivePayment:
+      cheque.direction === "INCOMING" &&
+      cheque.tender?.payment.status === "POSTED",
   }));
 }
 
@@ -465,7 +498,7 @@ export async function listOperationCategories(
     where: {
       ...schoolScope(context),
       isActive: true,
-      ...(side ? { kind: { in: [side, "BOTH"] } } : {}),
+      ...(side ? { kind: { in: [...categoryKindsFor(side)] } } : {}),
     },
     orderBy: [{ position: "asc" }, { name: "asc" }],
     select: {
@@ -740,9 +773,9 @@ export async function studentPaymentStanding(
 
   if (lines.length === 0) return empty;
 
-  // End of today: an instalment falling due today is not late yet.
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  // One `now` for the whole pass, so a line read either side of midnight cannot
+  // be judged against a different day from the one beside it.
+  const now = new Date();
 
   let chargedCentimes = 0;
   let paidCentimes = 0;
@@ -762,7 +795,7 @@ export async function studentPaymentStanding(
     );
     const outstanding = outstandingOf(line.amountCentimes, paid);
     const overdue =
-      outstanding > 0 && line.dueDate <= endOfToday ? outstanding : 0;
+      outstanding > 0 && isOverdue(line.dueDate, now) ? outstanding : 0;
 
     chargedCentimes += line.amountCentimes;
     paidCentimes += paid;
@@ -1087,8 +1120,7 @@ export async function treasurySummary(
     };
   }
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
+  const dayStart = startOfDay(new Date());
 
   const [openSessions, todayOperations, pendingCheques, bouncedCount] =
     await Promise.all([
@@ -1103,51 +1135,69 @@ export async function treasurySummary(
         },
       }),
       db.cashOperation.findMany({
-        where: { schoolId, ...POSTED, occurredAt: { gte: startOfDay } },
+        where: { schoolId, ...POSTED, occurredAt: { gte: dayStart } },
         select: {
           kind: true,
           amountCentimes: true,
           reversesOperationId: true,
+          // The day the movement being corrected actually happened — see
+          // `netToday`. Only fetched for reversing entries; it is null on
+          // everything else.
+          reversesOperation: { select: { occurredAt: true } },
         },
       }),
       db.cheque.findMany({
         where: {
           schoolId,
           direction: "INCOMING",
-          status: { in: ["PENDING", "DEPOSITED"] },
+          status: { in: [...OPEN_CHEQUE_STATUSES] },
         },
         select: { amountCentimes: true },
       }),
       db.cheque.count({
-        where: { schoolId, status: "BOUNCED" },
+        // Incoming only, like the pending figure above it. A cheque the *school*
+        // wrote that came back is a different problem with a different remedy,
+        // and counting it here put it under a heading that reads "money families
+        // owe us again".
+        where: { schoolId, direction: "INCOMING", status: "BOUNCED" },
       }),
     ]);
 
   const drawerCentimes = sumCentimes(
-    openSessions.map(
-      (session) =>
-        session.openingFloatCentimes +
-        sumCentimes(session.operations.map((o) => o.cashImpactCentimes)),
+    openSessions.map((session) =>
+      expectedDrawerTotal(
+        session.openingFloatCentimes,
+        session.operations.map((o) => o.cashImpactCentimes),
+      ),
     ),
   );
 
   /**
-   * Nets a day's figure: what was taken, less what was reversed the same day.
+   * Nets a day's figure: what was taken, less what was reversed *of that day*.
    *
    * A reversing entry carries the kind it corrects, so a receipt cancelled an
-   * hour after it was written must come *off* the day's takings rather than be
-   * added to them — which is what summing `amountCentimes` blindly would do,
-   * reporting double the money on the worst possible day to be wrong about it.
+   * hour after it was written must come off the day's takings rather than be
+   * added to them — which is what summing `amountCentimes` blindly would do.
+   *
+   * But the mirror is always dated *today* while the original keeps its own
+   * date, so subtracting every reversal took yesterday's cancelled receipt off
+   * a day that never counted it: cancel a 3 000 receipt from last week and the
+   * tile read −3 000 collected. A reversal only nets against the day it can
+   * actually net against — its original's. Anything older belongs to a day that
+   * has already been counted, banked and reported on, and this figure is not
+   * the place to restate it.
    */
   const netToday = (kind: string) =>
     sumCentimes(
       todayOperations
         .filter((operation) => operation.kind === kind)
-        .map((operation) =>
-          operation.reversesOperationId === null
-            ? operation.amountCentimes
-            : -operation.amountCentimes,
-        ),
+        .map((operation) => {
+          if (operation.reversesOperationId === null) {
+            return operation.amountCentimes;
+          }
+          const original = operation.reversesOperation?.occurredAt;
+          return original && original >= dayStart ? -operation.amountCentimes : 0;
+        }),
     );
 
   return {
@@ -1323,7 +1373,7 @@ export async function collectionsByMonth(
     where: {
       schoolId,
       schoolYearId: yearId,
-      status: { not: "CANCELLED" },
+      ...POSTED,
     },
     select: { paidAt: true, totalCentimes: true },
   });
@@ -1383,6 +1433,12 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
 
   const lines = await db.enrollmentFee.findMany({
     where: {
+      // DUE only, exactly as every other standing on these tables counts.
+      // Omitting it charged the school for every line it had itself waived or
+      // cancelled — a bourse, a discount, a withdrawn enrolment — so the
+      // dashboard's charged, outstanding and overdue figures were all inflated
+      // and disagreed with the sum of the rows on /caisse/familles.
+      status: "DUE",
       enrollment: {
         schoolYearId: yearId,
         student: { schoolId },
@@ -1392,27 +1448,27 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
       amountCentimes: true,
       dueDate: true,
       allocations: {
-        where: { payment: { status: { not: "CANCELLED" } } },
+        // POSTED, stated positively, like every other read of these rows.
+        where: { payment: POSTED },
         select: { amountCentimes: true },
       },
     },
   });
 
-  const today = new Date();
+  const now = new Date();
   let charged = 0;
   let paid = 0;
   let overdue = 0;
 
   for (const line of lines) {
-    const settled = line.allocations.reduce(
-      (total, allocation) => total + allocation.amountCentimes,
-      0,
+    const settled = sumCentimes(
+      line.allocations.map((allocation) => allocation.amountCentimes),
     );
     charged += line.amountCentimes;
     paid += settled;
 
-    const owing = line.amountCentimes - settled;
-    if (owing > 0 && line.dueDate < today) overdue += owing;
+    const owing = outstandingOf(line.amountCentimes, settled);
+    if (owing > 0 && isOverdue(line.dueDate, now)) overdue += owing;
   }
 
   return {
@@ -1521,7 +1577,7 @@ export async function listFamilyPayments(
   const schoolYearId = context.currentSchoolYear?.id;
   if (!schoolId || !schoolYearId) return [];
 
-  const today = new Date();
+  const now = new Date();
 
   const [families, lines, receipts] = await Promise.all([
     db.family.findMany({
@@ -1586,15 +1642,14 @@ export async function listFamilyPayments(
     if (!familyId) continue;
 
     const totals = totalsFor(familyId);
-    const paid = line.allocations.reduce(
-      (sum, allocation) => sum + allocation.amountCentimes,
-      0,
+    const paid = sumCentimes(
+      line.allocations.map((allocation) => allocation.amountCentimes),
     );
-    const outstanding = Math.max(0, line.amountCentimes - paid);
+    const outstanding = outstandingOf(line.amountCentimes, paid);
 
     totals.charged += line.amountCentimes;
     totals.paid += paid;
-    if (line.dueDate <= today) totals.overdue += outstanding;
+    if (isOverdue(line.dueDate, now)) totals.overdue += outstanding;
   }
 
   for (const receipt of receipts) {
@@ -1650,7 +1705,7 @@ export async function listFamilyReceipts(
     // under this year's total.
     where: {
       ...schoolScope(context),
-      schoolYearId: context.currentSchoolYear?.id ?? "__none__",
+      schoolYearId: yearScope(context),
       familyId,
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],

@@ -11,9 +11,11 @@ import { TREASURY_PERMISSIONS } from "@/modules/treasury/permissions";
  * as in another. Billing decides what is owed; this module decides what has
  * actually been paid.
  *
- * Its five screens are the five questions a bursar asks, so they are five nav
- * entries rather than tabs on one: money in, money out, money moved, cheques
- * outstanding, and everything at once.
+ * Its screens are the questions a bursar asks, so they are separate nav entries
+ * rather than tabs on one: everything at once, money in, who has not brought it,
+ * money out, money moved, cheques outstanding, and the tills themselves.
+ *
+ * Declared in `order` order, so the array reads the way the sidebar does.
  */
 export const treasuryModule = defineModule({
   id: "treasury",
@@ -36,14 +38,6 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_COLLECT,
     },
     {
-      href: "/caisse/decaissement",
-      icon: "decaissement",
-      section: "finance",
-      labelKey: "decaissement",
-      order: 30,
-      schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
-    },
-    {
       href: "/caisse/familles",
       icon: "encaissement",
       section: "finance",
@@ -54,6 +48,14 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
     },
     {
+      href: "/caisse/decaissement",
+      icon: "decaissement",
+      section: "finance",
+      labelKey: "decaissement",
+      order: 30,
+      schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
+    },
+    {
       href: "/caisse/transfert",
       icon: "transfert",
       section: "finance",
@@ -62,22 +64,22 @@ export const treasuryModule = defineModule({
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_TRANSFER,
     },
     {
-      href: "/caisse/registers",
-      icon: "registers",
-      section: "finance",
-      labelKey: "registers",
-      // Last: a bursar sets the tills up once and then lives on the four
-      // screens above it.
-      order: 60,
-      schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
-    },
-    {
       href: "/caisse/cheques",
       icon: "cheques",
       section: "finance",
       labelKey: "cheques",
       order: 50,
       schoolPermission: TREASURY_PERMISSIONS.TREASURY_CHEQUES,
+    },
+    {
+      href: "/caisse/registers",
+      icon: "registers",
+      section: "finance",
+      labelKey: "registers",
+      // Last: a bursar sets the tills up once and then lives on the screens
+      // above it.
+      order: 60,
+      schoolPermission: TREASURY_PERMISSIONS.TREASURY_VIEW,
     },
   ],
   permissions: [

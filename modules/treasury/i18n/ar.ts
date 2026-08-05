@@ -98,7 +98,6 @@ const ar = {
 
     // ── Operations ──────────────────────────────────────────────────────────
     operations: "العمليات",
-    operationsSubtitle: "كل الحركات، من الأحدث إلى الأقدم.",
     noOperations: "لا توجد أي حركة بعد.",
     kind: "النوع",
     method: "طريقة الأداء",
@@ -129,7 +128,6 @@ const ar = {
     selectAll: "تحديد الكل",
     clearSelection: "إفراغ",
     payFull: "تسديد كامل",
-    monthColumn: "الشهر",
     charge: "الرسم",
     alreadyPaid: "المؤدَّى",
     remaining: "الباقي",
@@ -193,6 +191,8 @@ const ar = {
     cancelledBy: "ألغاه",
     cancelledOn: "تاريخ الإلغاء",
     cancelledChequeBounced: "شيك بدون رصيد",
+    cancelledChequeReturned: "شيك أُرجع إلى الأسرة",
+    cancelledChequeCancelled: "شيك ملغى — سُجّل خطأً",
     cancellationTrail: "الإلغاء",
     notes: "ملاحظات",
 
@@ -200,8 +200,6 @@ const ar = {
     decaissement: "الصرف",
     decaissementSubtitle: "اصرف مبلغًا وبيّن الغرض منه.",
     beneficiaryStaff: "الموظف المؤدى له",
-    beneficiaryStaffHint:
-      "لأجر أو تسبيق أو مصاريف تُرد لأحد الموظفين. اختياره يملأ الاسم أدناه.",
     beneficiaryExternal: "ليس موظفًا",
     beneficiaryName: "المستفيد",
     beneficiaryHint: "موظف، أو مورّد، أو مالك المحل.",
@@ -217,7 +215,6 @@ const ar = {
     recordDisbursement: "تسجيل الصرف",
     disbursementRecorded: "تم تسجيل الصرف.",
     insufficientCash: "لا يحتوي الصندوق إلا على {amount} درهم.",
-    noCategories: "لم يتم إنشاء أي بند مصاريف بعد.",
 
     // ── Transfert ───────────────────────────────────────────────────────────
     transfert: "التحويل",
@@ -225,8 +222,6 @@ const ar = {
     from: "من",
     to: "إلى",
     target: "الوجهة",
-    targetRegister: "صندوق آخر",
-    targetBank: "البنك",
     bankAccount: "الحساب البنكي",
     bankAccountHint: "الحساب الذي أودعت فيه الأموال.",
     sameRegister: "اختر صندوقًا مختلفًا.",
@@ -239,7 +234,6 @@ const ar = {
     cheques: "تتبع الشيكات",
     chequesSubtitle: "ما هو في المحفظة، وما أودع بالبنك، وما رجع بدون أداء.",
     noCheques: "لا يوجد أي شيك متتبَّع.",
-    chequeDirection: "الاتجاه",
     number: "الرقم",
     dueOn: "الاستحقاق",
     depositedOn: "أودع في",
@@ -251,17 +245,18 @@ const ar = {
     markReturned: "إرجاعه",
     markCancelled: "\u0625\u0644\u063a\u0627\u0621 \u0627\u0644\u062a\u0633\u062c\u064a\u0644",
     chequeUpdated: "تم تحديث الشيك.",
-    bouncedWarning:
-      "تسجيل هذا الشيك بدون أداء يلغي الوصل الذي سدّده، وتعود الأقساط مستحقة.",
+    chequeUndoWarning:
+      "سدّد هذا الشيك الوصل {code}. إنهاؤه هنا يلغي ذلك الوصل وتعود الأقساط مستحقة. أما باقي الأداء — نقدًا أو بشيك آخر — فيُحتفظ به ويُعاد إصداره في وصل جديد.",
+    chequeUndoNote: "ملاحظة",
+    chequeUndoNoteHint:
+      "تُكتب على الوصل الملغى مع اسمك. بيّن ما وقع، لمن سيقرؤها في يونيو.",
     chequesPending: "شيكات في المحفظة",
     chequesBounced: "بدون أداء",
-    dueSoon: "استحقاق قريب",
     overdueLabel: "حلّ أجله ولم يودع",
     showSiblings: "إظهار الإخوة ({count})",
     siblings: "الإخوة",
     familyTotal: "ما أدّته الأسرة",
     familyOwes: "الباقي على الأسرة",
-    collectForFamily: "التحصيل لفائدة الأسرة",
     upToDate: "في وضعية سليمة",
     overdueBy: "{amount} متأخرة",
     byService: "التفصيل حسب الخدمة",
@@ -269,7 +264,6 @@ const ar = {
     pupil: "التلميذ",
     thisPupil: "هذا التلميذ",
     standingTotal: "المجموع",
-    collectNow: "القبض",
     noScheduleYet: "لم يتم بعد إصدار جدول الرسوم لهذا التلميذ.",
     paidOfCharged: "{paid} مؤدّاة من أصل {charged}",
     linesSettled: "{settled} أقساط مسدَّدة من أصل {total}",

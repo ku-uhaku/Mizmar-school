@@ -530,6 +530,7 @@ export async function decideFuelRequest(
     categoryId: input.categoryId,
     subcategoryId: null,
     motifId: null,
+    notes: null,
     bankId: null,
     bankName: null,
     beneficiaryStaffId: request.requestedById,

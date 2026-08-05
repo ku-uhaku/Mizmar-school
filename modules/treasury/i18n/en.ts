@@ -104,7 +104,6 @@ const en = {
 
     // ── Operations ──────────────────────────────────────────────────────────
     operations: "Operations",
-    operationsSubtitle: "Every movement of money, newest first.",
     noOperations: "Nothing has moved yet.",
     kind: "Type",
     method: "Method",
@@ -136,7 +135,6 @@ const en = {
     selectAll: "Select everything owed",
     clearSelection: "Clear",
     payFull: "Pay in full",
-    monthColumn: "Month",
     charge: "Charge",
     alreadyPaid: "Paid",
     remaining: "Remaining",
@@ -206,6 +204,8 @@ const en = {
     cancelledBy: "Cancelled by",
     cancelledOn: "Cancelled on",
     cancelledChequeBounced: "Cheque returned unpaid",
+    cancelledChequeReturned: "Cheque handed back to the family",
+    cancelledChequeCancelled: "Cheque struck out — entered in error",
     cancellationTrail: "Cancellation",
     notes: "Notes",
 
@@ -213,8 +213,6 @@ const en = {
     decaissement: "Disbursement",
     decaissementSubtitle: "Pay money out and say what it was for.",
     beneficiaryStaff: "Employee paid",
-    beneficiaryStaffHint:
-      "For a salary, an advance or an expense reimbursed to somebody on the payroll. Picking one fills the name below.",
     beneficiaryExternal: "Not an employee",
     beneficiaryName: "Paid to",
     beneficiaryHint: "A member of staff, a supplier, a landlord.",
@@ -230,7 +228,6 @@ const en = {
     recordDisbursement: "Record the payment",
     disbursementRecorded: "Payment recorded.",
     insufficientCash: "The drawer only holds {amount} MAD.",
-    noCategories: "No expense category has been set up yet.",
 
     // ── Transfert ───────────────────────────────────────────────────────────
     transfert: "Transfer",
@@ -238,8 +235,6 @@ const en = {
     from: "From",
     to: "To",
     target: "Destination",
-    targetRegister: "Another till",
-    targetBank: "The bank",
     bankAccount: "Bank account",
     bankAccountHint: "Which account the money was paid into.",
     sameRegister: "Choose a different till.",
@@ -252,7 +247,6 @@ const en = {
     cheques: "Cheques",
     chequesSubtitle: "What is held, what is banked, and what came back.",
     noCheques: "No cheque is being tracked.",
-    chequeDirection: "Direction",
     number: "Number",
     dueOn: "Due",
     depositedOn: "Banked",
@@ -264,17 +258,18 @@ const en = {
     markReturned: "Hand back",
     markCancelled: "Strike out",
     chequeUpdated: "Cheque updated.",
-    bouncedWarning:
-      "Bouncing this cheque cancels the receipt it paid, and the charges go back on the family.",
+    chequeUndoWarning:
+      "This cheque paid receipt {code}. Ending it here cancels that receipt and the charges go back on the family. Anything else paid on the same receipt — cash, another cheque — is kept and re-issued on a new one.",
+    chequeUndoNote: "Note",
+    chequeUndoNoteHint:
+      "Written on the cancelled receipt with your name. Say what happened, for whoever reads it in June.",
     chequesPending: "Cheques held",
     chequesBounced: "Bounced",
-    dueSoon: "Due soon",
     overdueLabel: "Past due, not banked",
     showSiblings: "Show siblings ({count})",
     siblings: "Siblings",
     familyTotal: "Paid by the family",
     familyOwes: "The family still owes",
-    collectForFamily: "Collect for the family",
     upToDate: "Up to date",
     overdueBy: "{amount} overdue",
     byService: "Charge by charge",
@@ -282,7 +277,6 @@ const en = {
     pupil: "Pupil",
     thisPupil: "This pupil",
     standingTotal: "Total",
-    collectNow: "Take a payment",
     noScheduleYet: "No fee schedule has been raised for this pupil yet.",
     paidOfCharged: "{paid} paid of {charged}",
     linesSettled: "{settled} of {total} instalments settled",
