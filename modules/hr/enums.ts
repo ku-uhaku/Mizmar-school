@@ -181,13 +181,6 @@ export const ATTENDANCE_STATUSES = [
 ] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-/** Statuses that count as being at work. */
-export const AT_WORK_STATUSES: readonly AttendanceStatus[] = [
-  "PRESENT",
-  "LATE",
-  "MISSION",
-];
-
 /**
  * Statuses that count against somebody when unjustified — what the payroll
  * screen totals beside the retenue box.
@@ -469,11 +462,6 @@ export function spanInDays(startsOn: Date, endsOn: Date): number {
   const end = startOfDay(endsOn).getTime();
   if (end < start) return 0;
   return Math.round((end - start) / 86_400_000) + 1;
-}
-
-/** "septembre 2025" as a sortable key — what the payroll screen groups on. */
-export function periodKey(year: number, month: number): string {
-  return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 /**

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { useToastedTransition } from "@/modules/hr/components/field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 import {
   markBusRunInBulkAction,
   markRiderAttendanceAction,

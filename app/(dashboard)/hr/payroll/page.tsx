@@ -58,7 +58,10 @@ export default async function HrPayrollPage({
       <PayrollList
         lines={payroll}
         period={period}
-        expenseCategories={expenseCategories}
+        expenseCategories={expenseCategories.map((category) => ({
+          id: category.id,
+          label: category.name,
+        }))}
         hasOpenSession={openSession !== null}
         canDisburse={context.can(PERMISSIONS.TREASURY_DISBURSE)}
       />

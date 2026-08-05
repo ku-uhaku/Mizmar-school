@@ -62,14 +62,12 @@ const ar = {
     byRole: "من يشتغل هنا",
     byRoleHint: "الموظفون العاملون، حسب المهمة.",
     noPendingLeave: "لا يوجد طلب في انتظار القرار.",
-    onLeave: "في عطلة",
     withoutContract: "بدون عقد ساري",
     withoutContractHint: "موظف بلا عقد موقّع — وهو ما تكشفه المراقبة.",
     monthlyPayroll: "الكتلة الأجرية الشهرية",
 
     // ── العقود ───────────────────────────────────────────────────────────────
     contracts: "العقود",
-    contract: "عقد",
     newContract: "عقد جديد",
     editContract: "تعديل العقد",
     contractKind: "النوع",
@@ -83,21 +81,17 @@ const ar = {
     contractStatus: "الحالة",
     contractSaved: "تم حفظ العقد.",
     contractEnded: "تم إنهاء العقد.",
+    endContract: "إنهاء العقد",
     endContractTitle: "إنهاء هذا العقد؟",
     endContractBody: "سيبقى «{name}» بدون عقد ساري.",
     noContracts: "لا يوجد أي عقد موقّع.",
     supersededNote:
       "تفعيل عقد يُنهي العقد الذي يعوّضه، فلا يبقى أحد بعقدين ولا بدون عقد.",
     endBeforeStart: "لا يمكن أن يسبق تاريخ النهاية تاريخ البداية.",
-    liveContract: "ساري",
 
     // ── التتبع ───────────────────────────────────────────────────────────────
     attendance: "الحضور",
-    register: "التتبع اليومي",
-    registerFor: "تتبع يوم {date}",
     day: "اليوم",
-    mark: "تسجيل",
-    marked: "مسجَّل",
     unmarked: "غير مسجَّل",
     unmarkedToday: "غير مسجَّلين اليوم",
     attendanceStatus: "الحالة",
@@ -114,7 +108,6 @@ const ar = {
 
     // ── الأجور ───────────────────────────────────────────────────────────────
     payroll: "الأجور",
-    payslip: "ورقة الأجر",
     period: "الشهر",
     editPayslip: "تعديل ورقة الأجر",
     gains: "المكتسبات",
@@ -157,7 +150,6 @@ const ar = {
     chequeNumber: "رقم الشيك",
     bankName: "البنك",
     expenseCategory: "باب المصاريف",
-    cashSession: "الصندوق",
     noOpenSession: "لا يوجد صندوق مفتوح — افتح واحدًا قبل الأداء نقدًا.",
     salaryPaid: "تم أداء ورقة الأجر.",
     ledgerNote:
@@ -165,7 +157,6 @@ const ar = {
 
     // ── العطل ────────────────────────────────────────────────────────────────
     leave: "العطل",
-    leaveRequests: "العطل",
     newLeave: "طلب عطلة",
     editLeave: "تعديل الطلب",
     leaveKind: "النوع",
@@ -209,12 +200,11 @@ const ar = {
     advanceAlreadyDecided: "\u0647\u0630\u0627 \u0627\u0644\u0637\u0644\u0628 \u062a\u0645\u0651 \u0627\u0644\u0628\u062a\u0651 \u0641\u064a\u0647.",
     advanceAlreadyPaid: "\u0647\u0630\u0627 \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0633\u064f\u0644\u0651\u0645 \u0645\u0646 \u0642\u0628\u0644.",
     advanceNotApproved: "\u0627\u0645\u0646\u062d \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0642\u0628\u0644 \u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u0645\u0628\u0644\u063a.",
-    advanceOverRecovered: "\u0647\u0630\u0627 \u0623\u0643\u062b\u0631 \u0645\u0645\u0651\u0627 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0638\u0641 ({amount} \u062f\u0631\u0647\u0645 \u0628\u0627\u0642\u064a\u0629).",
+    advanceOverRecovered: "\u0647\u0630\u0627 \u0623\u0643\u062b\u0631 \u0645\u0645\u0651\u0627 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0638\u0641 ({amount} \u0628\u0627\u0642\u064a\u0629).",
     noAdvances: "\u0644\u0645 \u064a\u064f\u0637\u0644\u0628 \u0623\u064a \u062a\u0633\u0628\u064a\u0642.",
     noAdvancesHint: "\u0623\u0646\u0634\u0626 \u0648\u0627\u062d\u062f\u0627\u064b \u0639\u0646\u062f \u062d\u0627\u062c\u0629 \u0645\u0648\u0638\u0641 \u0625\u0644\u0649 \u0645\u0627\u0644 \u0642\u0628\u0644 \u0627\u0644\u0623\u062f\u0627\u0621.",
     payAdvance: "\u062a\u0633\u0644\u064a\u0645",
     payAdvanceAmount: "\u062a\u0633\u0644\u064a\u0645 {amount}",
-    decide: "\u0627\u0644\u0628\u062a\u0651",
     refuse: "\u0631\u0641\u0636",
     statutorySuggested: "\u0645\u0642\u062a\u0631\u062d \u0645\u0646 \u0646\u0633\u0628 \u0627\u0644\u0645\u0624\u0633\u0633\u0629",
   },

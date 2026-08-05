@@ -2,13 +2,14 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { toDateInputValue } from "@/lib/i18n/format";
+import { PERMISSIONS } from "@/lib/permissions";
 import { schoolScope } from "@/lib/scope";
 import {
-  advanceInstalment,
   outstandingAdvance,
   suggestStatutory,
   type StatutorySuggestion,
-  OWED_ADVANCE_STATUSES,
+  CHARGEABLE_ABSENCE_STATUSES,
   EMPLOYED_STATUSES,
   PAYABLE_SALARY_STATUSES,
   dailyRate,
@@ -17,6 +18,10 @@ import {
   staffName,
   startOfDay,
 } from "@/modules/hr/enums";
+import {
+  advanceTotalsByStaff,
+  outstandingAdvancesFor,
+} from "@/modules/hr/service";
 
 /**
  * Reads for the RH module.
@@ -29,7 +34,20 @@ import {
  *
  * `listStaffOptions` is this module's lending library: the fleet and the caisse
  * both pick an employee from it rather than repeating a name.
+ *
+ * ── What money a reader gets back ───────────────────────────────────────────
+ * `HR_VIEW` opens the staff list; `HR_PAYROLL` opens what they earn. The screens
+ * have always drawn that line, but they drew it in the *rendering*, which put
+ * every salary in the payload of a page a reader without the code could open —
+ * hidden on screen and one devtools panel away. So the line is drawn here
+ * instead: `withPayroll` decides once, and the figures a reader may not see are
+ * null before they leave the server. See `hideMoney`.
  */
+
+/** Whether this reader may see what people are paid, in the current school. */
+function withPayroll(context: AuthContext): boolean {
+  return context.can(PERMISSIONS.HR_PAYROLL);
+}
 
 // ── The people ───────────────────────────────────────────────────────────────
 
@@ -50,9 +68,15 @@ export type StaffRow = {
   /** The account they sign in with, when they have one. */
   userId: string | null;
   userEmail: string | null;
-  /** Monthly base from the live contract, or null when none is in force. */
   contractKind: string | null;
+  /**
+   * Monthly base from the live contract. Null when none is in force **and**
+   * null for a reader without `HR_PAYROLL` — `hasLiveContract` is what says
+   * which, so the "no contract signed" warning still works without disclosing
+   * the figure to somebody who may not see it.
+   */
   baseSalaryCentimes: number | null;
+  hasLiveContract: boolean;
 };
 
 /** The live contract, or null. Extracted so list and detail cannot disagree. */
@@ -63,6 +87,8 @@ const ACTIVE_CONTRACT = {
 } as const;
 
 export async function listStaff(context: AuthContext): Promise<StaffRow[]> {
+  const canSeePay = withPayroll(context);
+
   const staff = await db.staff.findMany({
     where: schoolScope(context),
     orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
@@ -91,7 +117,10 @@ export async function listStaff(context: AuthContext): Promise<StaffRow[]> {
       userId: person.user?.id ?? null,
       userEmail: person.user?.email ?? null,
       contractKind: contract?.kind ?? null,
-      baseSalaryCentimes: contract?.baseSalaryCentimes ?? null,
+      baseSalaryCentimes: canSeePay
+        ? (contract?.baseSalaryCentimes ?? null)
+        : null,
+      hasLiveContract: contract !== null,
     };
   });
 }
@@ -219,16 +248,20 @@ export type StaffDetail = StaffRow & {
   firstNameAr: string | null;
   lastNameAr: string | null;
   gender: string | null;
+  /** `YYYY-MM-DD`, ready for the form — never a full ISO instant. */
   birthDate: string | null;
   birthPlace: string | null;
   nationalId: string | null;
   cnssNumber: string | null;
+  /** A bank detail, so `HR_PAYROLL` only — null for everybody else. */
   bankRib: string | null;
   address: string | null;
-  photoUrl: string | null;
   notes: string | null;
+  /** Empty without `HR_PAYROLL`: a contract is a salary written down. */
   contracts: ContractRow[];
+  /** Empty without `HR_PAYROLL`. */
   salaries: SalaryRow[];
+  /** The last twenty requests, newest first. */
   leave: LeaveRow[];
   /** The last thirty marks, newest first — enough to see a pattern. */
   attendance: AttendanceRow[];
@@ -243,21 +276,27 @@ export type StaffDetail = StaffRow & {
  *
  * Scoped by the school, so a staff id alone can never reach another school's
  * payroll — which is the whole reason this is one function rather than a page
- * assembling its own reads.
+ * assembling its own reads. The contracts and the payslips are withheld
+ * outright from a reader without `HR_PAYROLL` rather than fetched and hidden by
+ * the screen: see the note at the top of this file.
  */
 export async function findStaff(
   context: AuthContext,
   staffId: string,
 ): Promise<StaffDetail | null> {
+  const canSeePay = withPayroll(context);
+
   const person = await db.staff.findFirst({
     where: { id: staffId, ...schoolScope(context) },
     include: {
       user: { select: { id: true, email: true } },
       contracts: { orderBy: [{ startsOn: "desc" }] },
-      salaries: {
-        orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
-        take: 24,
-      },
+      salaries: canSeePay
+        ? {
+            orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
+            take: 24,
+          }
+        : { where: { id: "" } },
       leaveRequests: { orderBy: [{ startsOn: "desc" }], take: 20 },
       attendance: {
         orderBy: [{ date: "desc" }],
@@ -276,14 +315,16 @@ export async function findStaff(
 
   if (!person) return null;
 
-  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+  const year = new Date().getFullYear();
 
   const [leaveDays, unjustified] = await Promise.all([
     db.leaveRequest.aggregate({
       where: {
         staffId: person.id,
         status: "APPROVED",
-        startsOn: { gte: yearStart },
+        // Bounded at both ends. Without the upper one, leave already approved
+        // for next January counted against this year's entitlement.
+        startsOn: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
       },
       _sum: { dayCount: true },
     }),
@@ -291,7 +332,7 @@ export async function findStaff(
       where: {
         staffId: person.id,
         isJustified: false,
-        status: { in: ["ABSENT", "SICK"] },
+        status: { in: [...CHARGEABLE_ABSENCE_STATUSES] },
       },
     }),
   ]);
@@ -312,11 +353,11 @@ export async function findStaff(
     firstNameAr: person.firstNameAr,
     lastNameAr: person.lastNameAr,
     gender: person.gender,
-    birthDate: person.birthDate?.toISOString() ?? null,
+    birthDate: toDateInputValue(person.birthDate),
     birthPlace: person.birthPlace,
     nationalId: person.nationalId,
     cnssNumber: person.cnssNumber,
-    bankRib: person.bankRib,
+    bankRib: canSeePay ? person.bankRib : null,
     jobRole: person.jobRole,
     department: departmentOf(person.jobRole),
     jobTitle: person.jobTitle,
@@ -324,25 +365,27 @@ export async function findStaff(
     phone: person.phone,
     email: person.email,
     address: person.address,
-    photoUrl: person.photoUrl,
     hiredOn: person.hiredOn?.toISOString() ?? null,
     leftOn: person.leftOn?.toISOString() ?? null,
     userId: person.user?.id ?? null,
     userEmail: person.user?.email ?? null,
     contractKind: live?.kind ?? null,
-    baseSalaryCentimes: live?.baseSalaryCentimes ?? null,
+    baseSalaryCentimes: canSeePay ? (live?.baseSalaryCentimes ?? null) : null,
+    hasLiveContract: live !== undefined,
     notes: person.notes,
-    contracts: person.contracts.map((contract) => ({
-      id: contract.id,
-      kind: contract.kind,
-      startsOn: contract.startsOn.toISOString(),
-      endsOn: contract.endsOn?.toISOString() ?? null,
-      trialEndsOn: contract.trialEndsOn?.toISOString() ?? null,
-      baseSalaryCentimes: contract.baseSalaryCentimes,
-      weeklyHours: contract.weeklyHours,
-      status: contract.status,
-      notes: contract.notes,
-    })),
+    contracts: canSeePay
+      ? person.contracts.map((contract) => ({
+          id: contract.id,
+          kind: contract.kind,
+          startsOn: contract.startsOn.toISOString(),
+          endsOn: contract.endsOn?.toISOString() ?? null,
+          trialEndsOn: contract.trialEndsOn?.toISOString() ?? null,
+          baseSalaryCentimes: contract.baseSalaryCentimes,
+          weeklyHours: contract.weeklyHours,
+          status: contract.status,
+          notes: contract.notes,
+        }))
+      : [],
     salaries: person.salaries.map((salary) => toSalaryRow(salary, identity)),
     leave: person.leaveRequests.map((request) => ({
       id: request.id,
@@ -368,9 +411,7 @@ export async function findStaff(
       isJustified: mark.isJustified,
       minutesLate: mark.minutesLate,
       notes: mark.notes,
-      recordedByName: mark.recordedBy.profile
-        ? `${mark.recordedBy.profile.firstName} ${mark.recordedBy.profile.lastName}`
-        : mark.recordedBy.email,
+      recordedByName: displayName(mark.recordedBy),
     })),
     leaveDaysThisYear: leaveDays._sum.dayCount ?? 0,
     unjustifiedAbsences: unjustified,
@@ -485,8 +526,6 @@ export async function listPayroll(
   const monthStart = new Date(periodYear, periodMonth - 1, 1);
   const monthEnd = new Date(periodYear, periodMonth, 1);
 
-  const balances = await advanceBalances(context);
-
   const staff = await db.staff.findMany({
     where: { ...schoolScope(context), status: { in: [...EMPLOYED_STATUSES] } },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
@@ -497,12 +536,37 @@ export async function listPayroll(
         where: {
           date: { gte: monthStart, lt: monthEnd },
           isJustified: false,
-          status: { in: ["ABSENT", "SICK"] },
+          status: { in: [...CHARGEABLE_ABSENCE_STATUSES] },
         },
         select: { id: true },
       },
     },
   });
+
+  /*
+    Each line's balance excludes that employee's own bulletin for this month,
+    because that is the figure the save will be checked against — see
+    `saveSalary`. Read without the exclusion, a month already deducted showed
+    the advance as settled, and a bursar correcting September upwards was
+    refused against a ceiling the screen had never shown them.
+
+    One query for the school rather than one per line: this renders a row per
+    employee, and a round trip apiece is the difference between a page and a
+    timeout.
+  */
+  const salaryIdByStaff = new Map(
+    staff.flatMap((person) => {
+      const salary = person.salaries[0];
+      return salary ? [[person.id, salary.id] as const] : [];
+    }),
+  );
+  const advances = await outstandingAdvancesFor(db, {
+    staff: schoolScope(context),
+  });
+  const balances = advanceTotalsByStaff(
+    advances,
+    (staffId) => salaryIdByStaff.get(staffId) ?? null,
+  );
 
   return staff.map((person) => {
     const contract = person.contracts[0] ?? null;
@@ -705,11 +769,16 @@ export type HrSummary = {
   onLeaveCount: number;
   /** Employed people with no live contract — the gap a school gets fined for. */
   withoutContract: number;
-  /** Monthly wage bill from the live contracts, in centimes. */
-  monthlyPayrollCentimes: number;
+  /**
+   * Monthly wage bill from the live contracts, in centimes. Null without
+   * `HR_PAYROLL` — the figure is withheld rather than zeroed, so the tile is
+   * absent instead of claiming the school pays nothing.
+   */
+  monthlyPayrollCentimes: number | null;
   /** Bulletins raised for the month in question and not yet paid. */
   unpaidThisMonth: number;
-  unpaidCentimes: number;
+  /** Null without `HR_PAYROLL`, for the same reason. */
+  unpaidCentimes: number | null;
   /** Marks missing from today's register. */
   unmarkedToday: number;
   pendingLeave: number;
@@ -721,7 +790,9 @@ export async function hrSummary(
   periodMonth: number,
 ): Promise<HrSummary> {
   const scope = schoolScope(context);
+  const canSeePay = withPayroll(context);
   const today = startOfDay(new Date());
+  const employedScope = { ...scope, status: { in: [...EMPLOYED_STATUSES] } };
 
   const [staff, salaries, markedToday, pendingLeave] = await Promise.all([
     db.staff.findMany({
@@ -735,7 +806,11 @@ export async function hrSummary(
       where: { staff: scope, periodYear, periodMonth },
       select: { status: true, netCentimes: true },
     }),
-    db.staffAttendance.count({ where: { staff: scope, date: today } }),
+    // Scoped to the people the register actually lists, which is who
+    // `listRegister` offers: a leftover mark against somebody terminated used
+    // to cancel out a colleague nobody had marked, and the register read as
+    // complete while a line on it was still blank.
+    db.staffAttendance.count({ where: { staff: employedScope, date: today } }),
     db.leaveRequest.count({ where: { staff: scope, status: "PENDING" } }),
   ]);
 
@@ -753,15 +828,17 @@ export async function hrSummary(
     onLeaveCount: staff.filter((person) => person.status === "ON_LEAVE").length,
     withoutContract: employed.filter((person) => person.contracts.length === 0)
       .length,
-    monthlyPayrollCentimes: employed.reduce(
-      (total, person) => total + (person.contracts[0]?.baseSalaryCentimes ?? 0),
-      0,
-    ),
+    monthlyPayrollCentimes: canSeePay
+      ? employed.reduce(
+          (total, person) =>
+            total + (person.contracts[0]?.baseSalaryCentimes ?? 0),
+          0,
+        )
+      : null,
     unpaidThisMonth: unpaid.length,
-    unpaidCentimes: unpaid.reduce(
-      (total, salary) => total + salary.netCentimes,
-      0,
-    ),
+    unpaidCentimes: canSeePay
+      ? unpaid.reduce((total, salary) => total + salary.netCentimes, 0)
+      : null,
     unmarkedToday: Math.max(0, employed.length - markedToday),
     pendingLeave,
   };
@@ -769,9 +846,15 @@ export async function hrSummary(
 
 // ── Avances sur salaire ──────────────────────────────────────────────────────
 
-/** `YYYY-MM-DD`, the shape every date input and every list cell wants. */
-function isoDay(value: Date): string {
-  return value.toISOString().slice(0, 10);
+/**
+ * `YYYY-MM-DD` in local time, or null.
+ *
+ * Never `toISOString().slice(0, 10)`: that reads the *UTC* day, and every
+ * date-only value in a timezone ahead of UTC — which Morocco is — comes back a
+ * day early. See the note on `toDateInputValue`.
+ */
+function dayOrNull(value: Date | null): string | null {
+  return value ? toDateInputValue(value) : null;
 }
 
 export type AdvanceRow = {
@@ -807,12 +890,9 @@ export type AdvanceRow = {
  */
 export async function listAdvances(
   context: AuthContext,
-  options: { staffId?: string } = {},
 ): Promise<AdvanceRow[]> {
   const advances = await db.salaryAdvance.findMany({
-    where: {
-      staff: { ...schoolScope(context), ...(options.staffId ? { id: options.staffId } : {}) },
-    },
+    where: { staff: schoolScope(context) },
     orderBy: [{ requestedOn: "desc" }],
     select: {
       id: true,
@@ -851,12 +931,14 @@ export async function listAdvances(
       amountCentimes: advance.amountCentimes,
       instalmentCount: advance.instalmentCount,
       status: advance.status,
-      requestedOn: isoDay(advance.requestedOn),
+      requestedOn: toDateInputValue(advance.requestedOn),
       reason: advance.reason,
-      approvedByName: advance.approvedBy ? displayName(advance.approvedBy) : null,
-      approvedAt: advance.approvedAt ? isoDay(advance.approvedAt) : null,
+      approvedByName: advance.approvedBy
+        ? displayName(advance.approvedBy)
+        : null,
+      approvedAt: dayOrNull(advance.approvedAt),
       decisionNote: advance.decisionNote,
-      paidOn: advance.paidOn ? isoDay(advance.paidOn) : null,
+      paidOn: dayOrNull(advance.paidOn),
       cashOperationId: advance.cashOperationId,
       recoveredCentimes,
       outstandingCentimes: outstandingAdvance({
@@ -867,54 +949,4 @@ export async function listAdvances(
       notes: advance.notes,
     };
   });
-}
-
-/**
- * What each employee still owes, keyed by staff id.
- *
- * One pass for the whole payroll rather than a query per line: the payroll
- * screen shows this against every employee of the school, and a round trip
- * apiece is the difference between a page and a timeout.
- */
-export async function advanceBalances(
-  context: AuthContext,
-): Promise<Record<string, { outstandingCentimes: number; suggestedCentimes: number }>> {
-  const advances = await db.salaryAdvance.findMany({
-    where: { staff: schoolScope(context), status: { in: [...OWED_ADVANCE_STATUSES] } },
-    select: {
-      staffId: true,
-      status: true,
-      amountCentimes: true,
-      instalmentCount: true,
-      recoveries: { select: { amountCentimes: true } },
-    },
-  });
-
-  const balances: Record<
-    string,
-    { outstandingCentimes: number; suggestedCentimes: number }
-  > = {};
-
-  for (const advance of advances) {
-    const recoveredCentimes = advance.recoveries.reduce(
-      (total, row) => total + row.amountCentimes,
-      0,
-    );
-    const shaped = {
-      status: advance.status,
-      amountCentimes: advance.amountCentimes,
-      instalmentCount: advance.instalmentCount,
-      recoveredCentimes,
-    };
-
-    const held = balances[advance.staffId] ?? {
-      outstandingCentimes: 0,
-      suggestedCentimes: 0,
-    };
-    held.outstandingCentimes += outstandingAdvance(shaped);
-    held.suggestedCentimes += advanceInstalment(shaped);
-    balances[advance.staffId] = held;
-  }
-
-  return balances;
 }

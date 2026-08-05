@@ -270,16 +270,17 @@ export function sequenceFromCode(
   return Number.isSafeInteger(sequence) ? sequence : null;
 }
 
-// ── Paie ────────────────────────────────────────────────────────────────────
+/*
+  The daily rate a retenue pour absence is worked out from lives in
+  modules/hr/enums.ts as `dailyRate`, not here.
 
-/** What one day of a monthly salary is worth, on this school's convention. */
-export function dailyRateOf(
-  monthlySalaryCentimes: number,
-  settings: SchoolSettingsValues,
-): number {
-  const days = Math.max(1, settings.payrollWorkingDays);
-  return Math.round(monthlySalaryCentimes / days);
-}
+  There were two of them — this one and the module's — computing the same figure
+  from the same `payrollWorkingDays` setting. The module's is the one the payroll
+  screen and the payslip preview both call, and it has to stay there anyway:
+  `enums.ts` crosses to the client, and a form previewing a retenue with
+  different arithmetic from the action that posts it is exactly what that file
+  exists to prevent.
+*/
 
 // ── Facturation ─────────────────────────────────────────────────────────────
 

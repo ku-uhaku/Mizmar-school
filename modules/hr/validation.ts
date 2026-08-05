@@ -43,7 +43,7 @@ function moneyField(v: V, { max = 1_000_000 } = {}) {
 export function staffSchema(t: Dictionary) {
   const v = t.validation;
   return z.object({
-    // Blank means "generate one" — see `nextStaffCode` in service.ts.
+    // Blank means "generate one" — see `allocateStaffCode` in service.ts.
     code: optionalText(30),
     firstName: requiredText(v, { max: 80 }),
     lastName: requiredText(v, { max: 80 }),
@@ -104,6 +104,21 @@ export function contractSchema(t: Dictionary) {
 }
 
 /**
+ * Statuses a bulletin may be *given* on a form.
+ *
+ * PAID is deliberately not among them, though it is a perfectly good value of
+ * the column. A payslip is paid by `payStaffSalary`, which writes the
+ * décaissement that makes the claim true and points the row at it. Accepting
+ * the value here let a crafted POST — Server Functions are reachable directly,
+ * and the screen's own `<Select>` hides it — stamp a bulletin PAID with no
+ * money having left and no operation to cancel, which nothing in the app could
+ * then undo.
+ */
+const SALARY_FORM_STATUSES = SALARY_STATUSES.filter(
+  (status) => status !== "PAID",
+) as unknown as readonly [string, ...string[]];
+
+/**
  * A bulletin de paie.
  *
  * The net is deliberately absent: it is computed by `netSalary` from the parts,
@@ -134,7 +149,7 @@ export function salarySchema(t: Dictionary) {
       tax: moneyField(v),
       otherDeduction: moneyField(v),
       deductionLabel: optionalText(120),
-      status: enumField(SALARY_STATUSES, v),
+      status: enumField(SALARY_FORM_STATUSES, v),
       notes: optionalText(1000),
     })
     .transform((data) => ({
@@ -182,8 +197,9 @@ export function leaveSchema(t: Dictionary) {
         .min(0, { error: v.invalidNumber })
         .max(400, { error: v.invalidNumber }),
       reason: optionalText(400),
+      // No `decisionNote`: granting or refusing is `decideLeaveAction`'s act,
+      // under a different permission, and the note belongs to the decision.
       status: enumField(LEAVE_STATUSES, v),
-      decisionNote: optionalText(400),
     })
     .refine((data) => data.endsOn >= data.startsOn, {
       error: t.hr.endBeforeStart,
@@ -192,24 +208,50 @@ export function leaveSchema(t: Dictionary) {
 }
 
 /**
- * Paying a bulletin. Separate from `salarySchema` because it is a different act
- * with a different permission: what is owed was agreed when the payslip was
- * approved, and this only says how and when the money left.
+ * How and when money left, shared by the two things RH pays out.
+ *
+ * The till is deliberately not among the fields. It used to be posted by the
+ * form and is now resolved server-side from the caller's own open session, so a
+ * payout cannot be dropped into a colleague's drawer — see `paySalaryAction`.
  */
-export function salaryPayoutSchema(t: Dictionary) {
+function payoutFields(t: Dictionary) {
   const v = t.validation;
-  return z.object({
-    salaryId: requiredText(v, { max: 40 }),
+  return {
     method: z.enum(["CASH", "CHEQUE", "BANK_TRANSFER"], {
       error: v.invalidChoice,
     }),
-    /** Blank for anything that is not cash — the caisse only holds notes. */
-    cashSessionId: optionalText(40),
     categoryId: optionalText(40),
     reference: optionalText(60),
     chequeNumber: optionalText(40),
     bankName: optionalText(80),
     paidOn: dateField(v),
+  };
+}
+
+/**
+ * Paying a bulletin. Separate from `salarySchema` because it is a different act
+ * with a different permission: what is owed was agreed when the payslip was
+ * approved, and this only says how and when the money left.
+ */
+export function salaryPayoutSchema(t: Dictionary) {
+  return z.object({
+    salaryId: requiredText(t.validation, { max: 40 }),
+    ...payoutFields(t),
+  });
+}
+
+/**
+ * Handing an avance over — the same act, against a different document.
+ *
+ * Its own schema rather than the payslip's with the id renamed, which is what
+ * it used to be: a validation failure came back keyed `salaryId`, no field on
+ * the advance form was called that, and the message was therefore rendered
+ * against nothing at all.
+ */
+export function advancePayoutSchema(t: Dictionary) {
+  return z.object({
+    advanceId: requiredText(t.validation, { max: 40 }),
+    ...payoutFields(t),
   });
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileTextIcon, PlusIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon, PlusIcon } from "lucide-react";
 import * as React from "react";
 
 import { SubmitButton } from "@/components/form/submit-button";
@@ -9,6 +9,16 @@ import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
@@ -42,15 +52,18 @@ import {
   formatDate,
   formatMonth,
   interpolate,
+  toDateInputValue,
 } from "@/lib/i18n/format";
 import { endContractAction, saveContractAction } from "@/modules/hr/actions";
+import { StaffDialog } from "@/modules/hr/components/staff-dialog";
 import {
   CONTRACT_KINDS,
   CONTRACT_STATUSES,
   isChargeableAbsence,
 } from "@/modules/hr/enums";
 import type { ContractRow, StaffDetail } from "@/modules/hr/queries";
-import { Field, useToastedTransition } from "@/modules/hr/components/field";
+import { FormField } from "@/components/form/form-field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 
 /**
  * One employee's file: the contracts signed, the bulletins issued, the register
@@ -62,10 +75,13 @@ import { Field, useToastedTransition } from "@/modules/hr/components/field";
  */
 export function StaffPanel({
   person,
+  linkableUsers,
   canPayroll,
   canManage,
 }: {
   person: StaffDetail;
+  /** Accounts this employee may be linked to. Empty without `canManage`. */
+  linkableUsers: { id: string; label: string }[];
   canPayroll: boolean;
   canManage: boolean;
 }) {
@@ -73,6 +89,10 @@ export function StaffPanel({
   const locale = useLocale();
   const [editing, setEditing] = React.useState<ContractRow | null>(null);
   const [creating, setCreating] = React.useState(false);
+  const [editingPerson, setEditingPerson] = React.useState(false);
+  const [endingContract, setEndingContract] = React.useState<ContractRow | null>(
+    null,
+  );
   const { isPending, run } = useToastedTransition();
 
   return (
@@ -97,6 +117,15 @@ export function StaffPanel({
           value={String(person.leaveDaysThisYear)}
         />
       </div>
+
+      {canManage ? (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => setEditingPerson(true)}>
+            <PencilIcon className="size-4" />
+            {t.hr.editStaff}
+          </Button>
+        </div>
+      ) : null}
 
       <Card>
         <CardContent className="grid gap-3 py-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -218,11 +247,9 @@ export function StaffPanel({
                                   variant="ghost"
                                   className="text-destructive"
                                   disabled={isPending}
-                                  onClick={() =>
-                                    run(() => endContractAction(contract.id))
-                                  }
+                                  onClick={() => setEndingContract(contract)}
                                 >
-                                  {t.hr.contractEnded}
+                                  {t.hr.endContract}
                                 </Button>
                               ) : null}
                             </TableCell>
@@ -361,6 +388,86 @@ export function StaffPanel({
         )}
       </section>
 
+      {/* ── Leave ────────────────────────────────────────────────────────── */}
+      {person.leave.length > 0 ? (
+        <section className="grid gap-3">
+          <h2 className="text-sm font-medium">{t.hr.leave}</h2>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t.hr.leaveKind}</TableHead>
+                      <TableHead>{t.hr.startsOn}</TableHead>
+                      <TableHead>{t.hr.endsOn}</TableHead>
+                      <TableHead className="text-end">
+                        {t.hr.dayCount}
+                      </TableHead>
+                      <TableHead>{t.hr.leaveStatus}</TableHead>
+                      <TableHead>{t.hr.decidedOn}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {person.leave.map((request) => (
+                      <TableRow key={request.id}>
+                        <TableCell>
+                          {
+                            t.hrOptions.leaveKinds[
+                              request.kind as keyof typeof t.hrOptions.leaveKinds
+                            ]
+                          }
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(request.startsOn, locale)}
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(request.endsOn, locale)}
+                        </TableCell>
+                        <TableCell className="text-end tabular-nums">
+                          {request.dayCount}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              request.status === "APPROVED"
+                                ? "secondary"
+                                : request.status === "REJECTED"
+                                  ? "destructive"
+                                  : "outline"
+                            }
+                          >
+                            {
+                              t.hrOptions.leaveStatuses[
+                                request.status as keyof typeof t.hrOptions.leaveStatuses
+                              ]
+                            }
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {request.decidedAt
+                            ? formatDate(request.decidedAt, locale)
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
+
+      {editingPerson ? (
+        <StaffDialog
+          person={person}
+          linkableUsers={linkableUsers}
+          canPayroll={canPayroll}
+          onClose={() => setEditingPerson(false)}
+        />
+      ) : null}
+
       {creating || editing ? (
         <ContractDialog
           staffId={person.id}
@@ -372,6 +479,40 @@ export function StaffPanel({
           }}
         />
       ) : null}
+
+      {/* Ending a contract leaves somebody employed with nothing signed, which
+          is the state the overview counts as a gap. Worth a question first. */}
+      <AlertDialog
+        open={endingContract !== null}
+        onOpenChange={(open) => (!open ? setEndingContract(null) : undefined)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t.hr.endContractTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {interpolate(t.hr.endContractBody, { name: person.fullName })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>
+              {t.common.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isPending}
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                const contract = endingContract;
+                if (!contract) return;
+                run(() => endContractAction(contract.id));
+                setEndingContract(null);
+              }}
+            >
+              {t.hr.endContract}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -414,8 +555,6 @@ function ContractDialog({
   useActionFeedback(state, { onSuccess: onClose });
   const errors = state.fieldErrors ?? {};
 
-  const dateValue = (value: string | null) => (value ? value.slice(0, 10) : "");
-
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent>
@@ -438,7 +577,7 @@ function ContractDialog({
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.contractKind} name="kind">
+            <FormField label={t.hr.contractKind} name="kind">
               <Select
                 name="kind"
                 defaultValue={valueOf(state, "kind", contract?.kind) || "CDI"}
@@ -454,8 +593,8 @@ function ContractDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label={t.hr.contractStatus} name="status">
+            </FormField>
+            <FormField label={t.hr.contractStatus} name="status">
               <Select
                 name="status"
                 defaultValue={
@@ -473,11 +612,11 @@ function ContractDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
+            </FormField>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field
+            <FormField
               label={t.hr.startsOn}
               name="startsOn"
               error={errors.startsOn}
@@ -488,31 +627,36 @@ function ContractDialog({
                 type="date"
                 dir="ltr"
                 required
-                defaultValue={dateValue(contract?.startsOn ?? null)}
+                defaultValue={toDateInputValue(contract?.startsOn)}
               />
-            </Field>
-            <Field label={t.hr.endsOn} name="endsOn" error={errors.endsOn}>
+            </FormField>
+            <FormField
+              label={t.hr.endsOn}
+              name="endsOn"
+              hint={t.hr.endsOnHint}
+              error={errors.endsOn}
+            >
               <Input
                 id="endsOn"
                 name="endsOn"
                 type="date"
                 dir="ltr"
-                defaultValue={dateValue(contract?.endsOn ?? null)}
+                defaultValue={toDateInputValue(contract?.endsOn)}
               />
-            </Field>
-            <Field label={t.hr.trialEndsOn} name="trialEndsOn">
+            </FormField>
+            <FormField label={t.hr.trialEndsOn} name="trialEndsOn">
               <Input
                 id="trialEndsOn"
                 name="trialEndsOn"
                 type="date"
                 dir="ltr"
-                defaultValue={dateValue(contract?.trialEndsOn ?? null)}
+                defaultValue={toDateInputValue(contract?.trialEndsOn)}
               />
-            </Field>
+            </FormField>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
+            <FormField
               label={t.hr.baseSalary}
               name="baseSalary"
               error={errors.baseSalary}
@@ -529,8 +673,8 @@ function ContractDialog({
                   contract ? (contract.baseSalaryCentimes / 100).toFixed(2) : ""
                 }
               />
-            </Field>
-            <Field label={t.hr.weeklyHours} name="weeklyHours">
+            </FormField>
+            <FormField label={t.hr.weeklyHours} name="weeklyHours">
               <Input
                 id="weeklyHours"
                 name="weeklyHours"
@@ -546,18 +690,18 @@ function ContractDialog({
                     : String(contract.weeklyHours),
                 )}
               />
-            </Field>
+            </FormField>
           </div>
           <p className="text-muted-foreground text-xs">{t.hr.baseSalaryHint}</p>
 
-          <Field label={t.hr.notes} name="notes">
+          <FormField label={t.hr.notes} name="notes">
             <Textarea
               id="notes"
               name="notes"
               rows={2}
               defaultValue={valueOf(state, "notes", contract?.notes)}
             />
-          </Field>
+          </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

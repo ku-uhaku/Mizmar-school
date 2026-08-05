@@ -68,14 +68,12 @@ const en = {
     byRole: "Who works here",
     byRoleHint: "Active employees by the job they hold.",
     noPendingLeave: "No request is waiting on a decision.",
-    onLeave: "On leave",
     withoutContract: "No live contract",
     withoutContractHint: "Employed with nothing signed — the gap an inspection finds.",
     monthlyPayroll: "Monthly wage bill",
 
     // ── Contracts ───────────────────────────────────────────────────────────
     contracts: "Contracts",
-    contract: "Contract",
     newContract: "New contract",
     editContract: "Edit contract",
     contractKind: "Type",
@@ -89,21 +87,18 @@ const en = {
     contractStatus: "Status",
     contractSaved: "Contract saved.",
     contractEnded: "Contract ended.",
+    /** The button. `contractEnded` is the toast that follows it. */
+    endContract: "End contract",
     endContractTitle: "End this contract?",
     endContractBody: "“{name}” will be left without a live contract.",
     noContracts: "No contract signed.",
     supersededNote:
       "Making a contract live ends the one it replaces, so nobody is ever left with two or none.",
     endBeforeStart: "The end date cannot be before the start date.",
-    liveContract: "Live",
 
     // ── The register ────────────────────────────────────────────────────────
     attendance: "Attendance",
-    register: "Register",
-    registerFor: "Register for {date}",
     day: "Day",
-    mark: "Mark",
-    marked: "Marked",
     unmarked: "Not marked",
     unmarkedToday: "Not marked today",
     attendanceStatus: "Status",
@@ -121,7 +116,6 @@ const en = {
 
     // ── Payroll ─────────────────────────────────────────────────────────────
     payroll: "Payroll",
-    payslip: "Payslip",
     period: "Month",
     editPayslip: "Edit payslip",
     gains: "Earnings",
@@ -164,7 +158,6 @@ const en = {
     chequeNumber: "Cheque number",
     bankName: "Bank",
     expenseCategory: "Expense category",
-    cashSession: "Till",
     noOpenSession: "No till is open — open one before paying in cash.",
     salaryPaid: "Payslip paid.",
     ledgerNote:
@@ -172,7 +165,6 @@ const en = {
 
     // ── Leave ───────────────────────────────────────────────────────────────
     leave: "Leave",
-    leaveRequests: "Leave",
     newLeave: "Request leave",
     editLeave: "Edit request",
     leaveKind: "Type",
@@ -216,12 +208,11 @@ const en = {
     advanceAlreadyDecided: "This request has already been decided.",
     advanceAlreadyPaid: "This advance has already been handed over.",
     advanceNotApproved: "Approve the advance before handing the money over.",
-    advanceOverRecovered: "That is more than is owed on this employee\u2019s advances ({amount} DH outstanding).",
+    advanceOverRecovered: "That is more than is owed on this employee\u2019s advances ({amount} outstanding).",
     noAdvances: "No advance has been asked for.",
     noAdvancesHint: "Raise one when somebody needs money before payday.",
     payAdvance: "Hand over",
     payAdvanceAmount: "Hand over {amount}",
-    decide: "Decide",
     refuse: "Refuse",
     statutorySuggested: "Suggested from the school\u2019s rates",
   },

@@ -48,7 +48,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
-import { formatDate, interpolate } from "@/lib/i18n/format";
+import { formatDate, interpolate, toDateInputValue } from "@/lib/i18n/format";
 import {
   decideLeaveAction,
   deleteLeaveAction,
@@ -56,7 +56,8 @@ import {
 } from "@/modules/hr/actions";
 import { LEAVE_KINDS, LEAVE_STATUSES, spanInDays } from "@/modules/hr/enums";
 import type { LeaveRow, StaffOption } from "@/modules/hr/queries";
-import { Field, useToastedTransition } from "@/modules/hr/components/field";
+import { FormField } from "@/components/form/form-field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 
 /**
  * Les congés: what was asked for, and what was decided.
@@ -323,13 +324,11 @@ function LeaveDialog({
   useActionFeedback(state, { onSuccess: onClose });
   const errors = state.fieldErrors ?? {};
 
-  const dateValue = (value: string | null) => (value ? value.slice(0, 10) : "");
-
   const [startsOn, setStartsOn] = React.useState(
-    dateValue(request?.startsOn ?? null),
+    toDateInputValue(request?.startsOn),
   );
   const [endsOn, setEndsOn] = React.useState(
-    dateValue(request?.endsOn ?? null),
+    toDateInputValue(request?.endsOn),
   );
   const [dayCount, setDayCount] = React.useState(
     String(request?.dayCount ?? 1),
@@ -361,7 +360,7 @@ function LeaveDialog({
             <input type="hidden" name="id" value={request.id} />
           ) : null}
 
-          <Field label={t.hr.employee} name="staffId" error={errors.staffId}>
+          <FormField label={t.hr.employee} name="staffId" error={errors.staffId}>
             <Combobox
               id="staffId"
               name="staffId"
@@ -372,9 +371,9 @@ function LeaveDialog({
                 label: option.label,
               }))}
             />
-          </Field>
+          </FormField>
 
-          <Field label={t.hr.leaveKind} name="kind">
+          <FormField label={t.hr.leaveKind} name="kind">
             <Select
               name="kind"
               defaultValue={valueOf(state, "kind", request?.kind) || "ANNUAL"}
@@ -390,10 +389,10 @@ function LeaveDialog({
                 ))}
               </SelectContent>
             </Select>
-          </Field>
+          </FormField>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field
+            <FormField
               label={t.hr.startsOn}
               name="startsOn"
               error={errors.startsOn}
@@ -410,8 +409,8 @@ function LeaveDialog({
                   suggestDays(event.target.value, endsOn);
                 }}
               />
-            </Field>
-            <Field label={t.hr.endsOn} name="endsOn" error={errors.endsOn}>
+            </FormField>
+            <FormField label={t.hr.endsOn} name="endsOn" error={errors.endsOn}>
               <Input
                 id="endsOn"
                 name="endsOn"
@@ -424,8 +423,8 @@ function LeaveDialog({
                   suggestDays(startsOn, event.target.value);
                 }}
               />
-            </Field>
-            <Field
+            </FormField>
+            <FormField
               label={t.hr.dayCount}
               name="dayCount"
               error={errors.dayCount}
@@ -439,17 +438,17 @@ function LeaveDialog({
                 value={dayCount}
                 onChange={(event) => setDayCount(event.target.value)}
               />
-            </Field>
+            </FormField>
           </div>
 
-          <Field label={t.hr.reason} name="reason">
+          <FormField label={t.hr.reason} name="reason">
             <Textarea
               id="reason"
               name="reason"
               rows={2}
               defaultValue={valueOf(state, "reason", request?.reason)}
             />
-          </Field>
+          </FormField>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>

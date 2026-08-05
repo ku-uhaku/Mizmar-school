@@ -268,8 +268,18 @@ export function ChartTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.label} className="border-t">
+            {/*
+              Keyed by position, not by label.
+
+              A row's identity here *is* where it sits: this is the twin of a
+              chart whose points are a sequence, and two of them may legitimately
+              read the same — a pupil sitting "Contrôle continu" twice in one
+              subject, two months with the same name across years. Keying on the
+              label made React drop the duplicate and warn. `TrendChart` already
+              keys its axis labels this way, for the same reason.
+            */}
+            {rows.map((row, index) => (
+              <tr key={`${row.label}:${index}`} className="border-t">
                 <td className="px-2.5 py-1.5">{row.label}</td>
                 <td className="px-2.5 py-1.5 text-end tabular-nums">
                   {row.value}

@@ -113,6 +113,20 @@ const en = {
     notPlaced: "Not placed",
     notEnrolled: "Not enrolled",
     tabDashboard: "Overview",
+
+    // ── The overview's own panels ─────────────────────────────────────────
+    marksTrend: "Marks over time",
+    marksTrendHint:
+      "Every counted paper, on the school's scale, in the order it was sat.",
+    attendanceByMonth: "Attendance by month",
+    attendanceByMonthHint: "Days present or late, over the days marked.",
+    teachers: "Teachers",
+    teachersHint: "Who teaches this pupil this year, subject by subject.",
+    noTeachers: "No subjects have been assigned to this class yet.",
+    noRemarks: "Nothing has been noted about this pupil.",
+    allMarks: "Every mark",
+    month: "Month",
+    paper: "Paper",
     situationSheet: "Pupil situation sheet",
     tabInformation: "Information",
     tabFamily: "Family",

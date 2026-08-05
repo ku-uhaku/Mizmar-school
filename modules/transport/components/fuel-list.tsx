@@ -50,7 +50,7 @@ import {
   FUEL_REQUEST_STATUSES,
   tenthsToLitres,
 } from "@/modules/transport/enums";
-import { useToastedTransition } from "@/modules/hr/components/field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 import type { FuelRequestRow, FuelSummary } from "@/modules/transport/queries";
 import { Field } from "@/modules/transport/components/field";
 

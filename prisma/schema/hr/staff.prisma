@@ -70,8 +70,6 @@ model Staff {
   email   String?
   address String?
 
-  photoUrl String?
-
   /// "TEACHER" | "DIRECTOR" | ... — see modules/hr/enums.ts.
   ///
   /// One column rather than a role plus a department: the department is a

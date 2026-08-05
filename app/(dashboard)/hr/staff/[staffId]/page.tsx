@@ -9,7 +9,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import { StaffPanel } from "@/modules/hr/components/staff-panel";
-import { findStaff } from "@/modules/hr/queries";
+import { findStaff, listLinkableUsers } from "@/modules/hr/queries";
 
 export const metadata: Metadata = { title: "Employé" };
 
@@ -31,6 +31,13 @@ export default async function StaffPage({
   const person = await findStaff(context, staffId);
   if (!person) notFound();
 
+  const canManage = context.can(PERMISSIONS.HR_MANAGE);
+  // Only loaded for a reader who may actually link an account to a record. The
+  // employee's own account is passed so it stays in its own picker.
+  const linkableUsers = canManage
+    ? await listLinkableUsers(context, person.userId)
+    : [];
+
   return (
     <>
       <PageHeader
@@ -50,8 +57,9 @@ export default async function StaffPage({
 
       <StaffPanel
         person={person}
+        linkableUsers={linkableUsers}
         canPayroll={context.can(PERMISSIONS.HR_PAYROLL)}
-        canManage={context.can(PERMISSIONS.HR_MANAGE)}
+        canManage={canManage}
       />
 
       <RecordHistoryPanel

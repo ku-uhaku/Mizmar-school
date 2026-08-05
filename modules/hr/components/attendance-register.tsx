@@ -2,6 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { CalendarCheckIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -20,13 +21,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { IDLE } from "@/lib/action-state";
 import {
   markAttendanceAction,
   markDayInBulkAction,
 } from "@/modules/hr/actions";
 import { ATTENDANCE_STATUSES, isChargeableAbsence } from "@/modules/hr/enums";
 import type { RegisterEntry } from "@/modules/hr/queries";
-import { useToastedTransition } from "@/modules/hr/components/field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 
 /** "Not marked yet" as a facet value — see the note on the status column. */
 const UNMARKED = "__unmarked__";
@@ -50,20 +52,30 @@ export function AttendanceRegister({
   canMark: boolean;
 }) {
   const t = useT();
+  const router = useRouter();
   const { isPending, run } = useToastedTransition();
 
   const unmarked = entries.filter((entry) => entry.status === null);
 
   const mark = React.useCallback(
-    (entry: RegisterEntry, status: string, isJustified?: boolean) => {
+    (
+      entry: RegisterEntry,
+      status: string,
+      patch: { isJustified?: boolean; minutesLate?: number } = {},
+    ) => {
       const formData = new FormData();
       formData.set("staffId", entry.staffId);
       formData.set("date", date);
       formData.set("status", status);
-      if (isJustified ?? entry.isJustified) formData.set("isJustified", "on");
-      formData.set("minutesLate", String(entry.minutesLate));
+      if (patch.isJustified ?? entry.isJustified) {
+        formData.set("isJustified", "on");
+      }
+      formData.set(
+        "minutesLate",
+        String(patch.minutesLate ?? entry.minutesLate),
+      );
       if (entry.notes) formData.set("notes", entry.notes);
-      run(() => markAttendanceAction({ status: "idle" }, formData));
+      run(() => markAttendanceAction(IDLE, formData));
     },
     [date, run],
   );
@@ -73,7 +85,7 @@ export function AttendanceRegister({
     formData.set("date", date);
     formData.set("status", "PRESENT");
     for (const entry of unmarked) formData.append("staffIds", entry.staffId);
-    run(() => markDayInBulkAction({ status: "idle" }, formData));
+    run(() => markDayInBulkAction(IDLE, formData));
   }
 
   const columns = React.useMemo<ColumnDef<RegisterEntry, unknown>[]>(
@@ -147,29 +159,68 @@ export function AttendanceRegister({
         accessorFn: (row) => row.isJustified,
         header: t.hr.justified,
         enableSorting: false,
-        cell: ({ row }) =>
-          row.original.status === null ? (
-            <span className="text-muted-foreground text-xs">—</span>
-          ) : (
+        cell: ({ row }) => {
+          const entry = row.original;
+          // Only a marked day can be justified or not: an unmarked one is
+          // "nobody has said yet", which is a different answer.
+          if (entry.status === null) {
+            return <span className="text-muted-foreground text-xs">—</span>;
+          }
+          const status = entry.status;
+          return (
             <Switch
-              checked={row.original.isJustified}
+              checked={entry.isJustified}
               disabled={!canMark || isPending}
               onCheckedChange={(checked) =>
-                mark(row.original, row.original.status ?? "ABSENT", checked)
+                mark(entry, status, { isJustified: checked })
               }
               aria-label={t.hr.justified}
             />
-          ),
+          );
+        },
       },
       {
         accessorKey: "minutesLate",
         header: t.hr.minutesLate,
         meta: { className: "text-end hidden @2xl/table:table-cell" },
-        cell: ({ row }) => (
-          <span className="tabular-nums">
-            {row.original.status === "LATE" ? row.original.minutesLate : "—"}
-          </span>
-        ),
+        /*
+          Editable, not merely shown. The column exists so that "twice, by four
+          minutes" and "twice, by an hour" are not the same row — and until
+          there was a box, every LATE mark was recorded as nought minutes,
+          because nothing in the app could ever set it.
+        */
+        cell: ({ row }) => {
+          const entry = row.original;
+          if (entry.status !== "LATE") {
+            return <span className="text-muted-foreground text-xs">—</span>;
+          }
+          if (!canMark) {
+            return (
+              <span className="tabular-nums">{entry.minutesLate}</span>
+            );
+          }
+          return (
+            <Input
+              type="number"
+              min="0"
+              max="600"
+              dir="ltr"
+              className="ms-auto w-20 text-end"
+              disabled={isPending}
+              defaultValue={entry.minutesLate}
+              aria-label={t.hr.minutesLate}
+              // On blur rather than on change: a register is marked at speed,
+              // and a round trip per keystroke would fight the typing.
+              onBlur={(event) => {
+                const minutes = Number(event.target.value);
+                if (!Number.isFinite(minutes) || minutes === entry.minutesLate) {
+                  return;
+                }
+                mark(entry, "LATE", { minutesLate: Math.max(0, minutes) });
+              }}
+            />
+          );
+        },
       },
     ],
     [t, canMark, isPending, mark],
@@ -197,8 +248,10 @@ export function AttendanceRegister({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="grid gap-2">
           <Label htmlFor="registerDate">{t.hr.day}</Label>
-          {/* A link rather than a controlled input: the server holds the day's
-              register, so the URL has to be what says which day it is. */}
+          {/* The URL, not component state: the server holds the day's register,
+              so a reload has to land on the day being marked. Navigated rather
+              than assigned to `location`, which threw the whole document away
+              and lost the reader's place in the list. */}
           <Input
             id="registerDate"
             type="date"
@@ -207,7 +260,7 @@ export function AttendanceRegister({
             className="w-44"
             onChange={(event) => {
               const value = event.target.value;
-              if (value) window.location.search = `?date=${value}`;
+              if (value) router.push(`/hr/attendance?date=${value}`);
             }}
           />
         </div>
@@ -221,6 +274,10 @@ export function AttendanceRegister({
           </div>
         ) : null}
       </div>
+
+      {/* Only unjustified days are totalled for the bursar, which is the whole
+          reason the switch is there — worth saying once, above the table. */}
+      <p className="text-muted-foreground text-xs">{t.hr.justifiedHint}</p>
 
       {/*
         A page size well past a school's payroll, because marking a register is

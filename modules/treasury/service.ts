@@ -890,11 +890,23 @@ export type DisbursementInput = {
   notes: string | null;
 };
 
-/** Pays money out, and raises the cheque when that is how it was paid. */
+/**
+ * Pays money out, and raises the cheque when that is how it was paid.
+ *
+ * ── Why it takes a transaction ──────────────────────────────────────────────
+ * Called on its own it opens one, which is what the décaissement screen wants.
+ * But paying a bulletin or an avance has to write the operation *and* point the
+ * payslip at it in one go — see `payStaffSalary`. Left to open its own
+ * transaction, the operation committed before the link was written, so a
+ * failure in between let money out of the ledger against a payslip still
+ * reading unpaid, and two concurrent payouts each got their own operation
+ * without either violating the unique index that was supposed to stop them.
+ */
 export async function recordDisbursement(
   input: DisbursementInput,
+  outerTx?: TxClient,
 ): Promise<{ id: string }> {
-  return db.$transaction(async (tx) => {
+  const write = async (tx: TxClient) => {
     const cheque =
       input.method === "CHEQUE" && input.chequeNumber
         ? await tx.cheque.create({
@@ -942,7 +954,9 @@ export async function recordDisbursement(
       },
       select: { id: true },
     });
-  });
+  };
+
+  return outerTx ? write(outerTx) : db.$transaction(write);
 }
 
 // ── Transfert ────────────────────────────────────────────────────────────────

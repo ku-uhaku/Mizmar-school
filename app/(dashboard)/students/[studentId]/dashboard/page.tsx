@@ -11,6 +11,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { loadPupilMarks } from "@/modules/assessments/queries";
+import { listPupilTeachers } from "@/modules/classes/queries";
 import {
   loadPupilAttendance,
   loadPupilRemarks,
@@ -57,7 +58,7 @@ export default async function StudentDashboardPage({
   // no place this year has no register and no échéancier to chart.
   const enrolment = await findEnrolment(context, student.id);
 
-  const [marks, attendance, remarks, standing, dossier, family] =
+  const [marks, attendance, remarks, standing, dossier, family, teachers] =
     await Promise.all([
       enrolment ? loadPupilMarks(context, enrolment.id) : null,
       enrolment ? loadPupilAttendance(context, enrolment.id) : null,
@@ -69,6 +70,24 @@ export default async function StudentDashboardPage({
       // The household, for the photo card's contact line — a secretary looking
       // at a pupil wants the telephone without a second click.
       student.familyId ? findFamily(context, student.familyId) : null,
+      /*
+        Who teaches them, through the classes module's own read.
+
+        Three states, not two: no enrolment at all is null (the panel is
+        absent, like every other enrolment-shaped card here); enrolled but not
+        yet seated is an empty list, which the panel says out loud — "awaiting a
+        class" is a thing somebody has to act on, and a panel that simply
+        vanished would hide it.
+      */
+      enrolment?.schoolClassId
+        ? listPupilTeachers(
+            context,
+            enrolment.schoolClassId,
+            enrolment.classGroupId,
+          )
+        : enrolment
+          ? []
+          : null,
     ]);
 
   return (
@@ -99,6 +118,7 @@ export default async function StudentDashboardPage({
         attendance={attendance}
         standing={standing}
         dossier={dossier}
+        teachers={teachers}
       />
     </>
   );

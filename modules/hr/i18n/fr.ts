@@ -63,7 +63,6 @@ const fr = {
     byRole: "Qui travaille ici",
     byRoleHint: "Employés en activité, par fonction.",
     noPendingLeave: "Aucune demande n'attend de décision.",
-    onLeave: "En congé",
     withoutContract: "Sans contrat en cours",
     withoutContractHint:
       "Employé sans rien de signé — l'écart que relève une inspection.",
@@ -71,7 +70,6 @@ const fr = {
 
     // ── Contrats ────────────────────────────────────────────────────────────
     contracts: "Contrats",
-    contract: "Contrat",
     newContract: "Nouveau contrat",
     editContract: "Modifier le contrat",
     contractKind: "Type",
@@ -86,21 +84,17 @@ const fr = {
     contractStatus: "Statut",
     contractSaved: "Contrat enregistré.",
     contractEnded: "Contrat clôturé.",
+    endContract: "Clôturer le contrat",
     endContractTitle: "Clôturer ce contrat ?",
     endContractBody: "« {name} » se retrouvera sans contrat en cours.",
     noContracts: "Aucun contrat signé.",
     supersededNote:
       "Activer un contrat clôture celui qu'il remplace : personne ne se retrouve avec deux contrats ni sans aucun.",
     endBeforeStart: "La date de fin ne peut pas précéder la date de début.",
-    liveContract: "En cours",
 
     // ── Pointage ────────────────────────────────────────────────────────────
     attendance: "Présence",
-    register: "Pointage",
-    registerFor: "Pointage du {date}",
     day: "Jour",
-    mark: "Pointer",
-    marked: "Pointé",
     unmarked: "Non pointé",
     unmarkedToday: "Non pointés aujourd'hui",
     attendanceStatus: "Statut",
@@ -119,7 +113,6 @@ const fr = {
 
     // ── Paie ────────────────────────────────────────────────────────────────
     payroll: "Paie",
-    payslip: "Bulletin de paie",
     period: "Mois",
     editPayslip: "Modifier le bulletin",
     gains: "Gains",
@@ -162,7 +155,6 @@ const fr = {
     chequeNumber: "Numéro de chèque",
     bankName: "Banque",
     expenseCategory: "Rubrique de dépense",
-    cashSession: "Caisse",
     noOpenSession: "Aucune caisse ouverte — ouvrez-en une avant de payer en espèces.",
     salaryPaid: "Bulletin payé.",
     ledgerNote:
@@ -170,7 +162,6 @@ const fr = {
 
     // ── Congés ──────────────────────────────────────────────────────────────
     leave: "Congés",
-    leaveRequests: "Congés",
     newLeave: "Demander un congé",
     editLeave: "Modifier la demande",
     leaveKind: "Type",
@@ -214,12 +205,11 @@ const fr = {
     advanceAlreadyDecided: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e.",
     advanceAlreadyPaid: "Cette avance a d\u00e9j\u00e0 \u00e9t\u00e9 remise.",
     advanceNotApproved: "Accordez l\u2019avance avant d\u2019en remettre le montant.",
-    advanceOverRecovered: "C\u2019est plus que ce que doit cet employ\u00e9 ({amount} DH restant d\u00fb).",
+    advanceOverRecovered: "C\u2019est plus que ce que doit cet employ\u00e9 ({amount} restant d\u00fb).",
     noAdvances: "Aucune avance n\u2019a \u00e9t\u00e9 demand\u00e9e.",
     noAdvancesHint: "Cr\u00e9ez-en une lorsqu\u2019un salari\u00e9 a besoin d\u2019argent avant la paie.",
     payAdvance: "Remettre",
     payAdvanceAmount: "Remettre {amount}",
-    decide: "Trancher",
     refuse: "Refuser",
     statutorySuggested: "Sugg\u00e9r\u00e9 d\u2019apr\u00e8s les taux de l\u2019\u00e9cole",
   },

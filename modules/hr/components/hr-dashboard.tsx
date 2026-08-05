@@ -9,6 +9,8 @@ import {
   UsersIcon,
 } from "lucide-react";
 
+import Link from "next/link";
+
 import { ColumnChart } from "@/components/charts/column-chart";
 import { StatTile } from "@/components/charts/stat-tile";
 import { EmptyState } from "@/components/shell/empty-state";
@@ -19,6 +21,7 @@ import {
 import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -27,9 +30,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  formatAmount,
   formatDate,
   formatMonth,
+  formatMoney,
   interpolate,
 } from "@/lib/i18n/format";
 import { JOB_ROLES } from "@/modules/hr/enums";
@@ -61,6 +64,14 @@ export function HrDashboard({
   const t = useT();
   const { currencyCode: currency } = useSettings();
   const locale = useLocale();
+
+  // The month is in the URL because the server sums the wage bill over it —
+  // see the page. It had no control at all, so a bursar could land on
+  // September only by editing the query string by hand.
+  const monthHref = (delta: number) => {
+    const date = new Date(period.year, period.month - 1 + delta, 1);
+    return `/hr?year=${date.getFullYear()}&month=${date.getMonth() + 1}`;
+  };
 
   // Only roles the school actually employs — an empty column reads as a gap
   // rather than as a job nobody happens to hold.
@@ -146,7 +157,7 @@ export function HrDashboard({
           locale={locale}
           href="/hr/staff"
         />
-        {permissions.canPayroll ? (
+        {permissions.canPayroll && summary.monthlyPayrollCentimes !== null ? (
           <StatTile
             label={t.hr.monthlyPayroll}
             // The tile formats counts, and a wage bill is money — the figure is
@@ -233,12 +244,23 @@ export function HrDashboard({
         </Card>
       </div>
 
-      <p className="text-muted-foreground text-xs">
-        {formatMonth(period.year, period.month, locale)} ·{" "}
-        {permissions.canPayroll
-          ? `${formatAmount(summary.unpaidCentimes, locale)} ${currency} ${t.hr.unpaidThisMonth}`
-          : t.hr.ledgerNote}
-      </p>
+      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <Button size="sm" variant="outline" asChild>
+          <Link href={monthHref(-1)}>{t.common.previous}</Link>
+        </Button>
+        <span className="font-medium">
+          {formatMonth(period.year, period.month, locale)}
+        </span>
+        <Button size="sm" variant="outline" asChild>
+          <Link href={monthHref(1)}>{t.common.next}</Link>
+        </Button>
+        <span>
+          ·{" "}
+          {summary.unpaidCentimes !== null
+            ? `${formatMoney(summary.unpaidCentimes, locale, currency)} ${t.hr.unpaidThisMonth}`
+            : t.hr.ledgerNote}
+        </span>
+      </div>
     </div>
   );
 }

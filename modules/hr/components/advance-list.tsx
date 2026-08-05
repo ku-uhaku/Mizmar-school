@@ -40,7 +40,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
-import { formatDate, formatMoney, interpolate } from "@/lib/i18n/format";
+import {
+  formatDate,
+  formatMoney,
+  interpolate,
+  toDateInputValue,
+} from "@/lib/i18n/format";
 import {
   decideAdvanceAction,
   payAdvanceAction,
@@ -48,7 +53,8 @@ import {
 } from "@/modules/hr/actions";
 import { ADVANCE_STATUSES, isAdvanceDecidable, isAdvancePayable } from "@/modules/hr/enums";
 import type { AdvanceRow, StaffOption } from "@/modules/hr/queries";
-import { Field, useToastedTransition } from "@/modules/hr/components/field";
+import { FormField } from "@/components/form/form-field";
+import { useToastedTransition } from "@/components/form/use-toasted-transition";
 
 /**
  * Les avances sur salaire: what was asked for, what was agreed, what has left
@@ -85,6 +91,7 @@ export function AdvanceList({
   const [editing, setEditing] = React.useState<AdvanceRow | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [paying, setPaying] = React.useState<AdvanceRow | null>(null);
+  const [refusing, setRefusing] = React.useState<AdvanceRow | null>(null);
   const { run } = useToastedTransition();
 
   const money = React.useCallback(
@@ -94,11 +101,11 @@ export function AdvanceList({
 
   // Stable so the column memo below can name it honestly — `useToastedTransition`
   // returns a stable `run` for exactly this reason.
-  const decide = React.useCallback(
-    (advance: AdvanceRow, approve: boolean) => {
+  const approve = React.useCallback(
+    (advance: AdvanceRow) => {
       const data = new FormData();
       data.set("id", advance.id);
-      data.set("approve", approve ? "1" : "0");
+      data.set("approve", "1");
       run(() => decideAdvanceAction(IDLE, data));
     },
     [run],
@@ -209,7 +216,7 @@ export function AdvanceList({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t.hr.approve}
-                    onClick={() => decide(advance, true)}
+                    onClick={() => approve(advance)}
                   >
                     <CheckIcon />
                   </Button>
@@ -218,7 +225,7 @@ export function AdvanceList({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t.hr.refuse}
-                    onClick={() => decide(advance, false)}
+                    onClick={() => setRefusing(advance)}
                   >
                     <XIcon />
                   </Button>
@@ -251,19 +258,22 @@ export function AdvanceList({
         },
       },
     ],
-    [t, locale, money, decide, canManage, canDisburse],
+    [t, locale, money, approve, canManage, canDisburse],
   );
 
-  const facets: FacetDef[] = [
-    {
-      columnId: "status",
-      label: t.hr.leaveStatus,
-      options: ADVANCE_STATUSES.map((status) => ({
-        value: status,
-        label: t.hrOptions.advanceStatuses[status],
-      })),
-    },
-  ];
+  const facets = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        columnId: "status",
+        label: t.hr.leaveStatus,
+        options: ADVANCE_STATUSES.map((status) => ({
+          value: status,
+          label: t.hrOptions.advanceStatuses[status],
+        })),
+      },
+    ],
+    [t],
+  );
 
   const owed = advances.reduce(
     (total, advance) => total + advance.outstandingCentimes,
@@ -310,6 +320,13 @@ export function AdvanceList({
         />
       ) : null}
 
+      {refusing ? (
+        <RefuseAdvanceDialog
+          advance={refusing}
+          onClose={() => setRefusing(null)}
+        />
+      ) : null}
+
       {paying ? (
         <PayAdvanceDialog
           advance={paying}
@@ -351,7 +368,7 @@ function AdvanceDialog({
           {advance ? <input type="hidden" name="id" value={advance.id} /> : null}
 
           <div className="grid gap-4 py-4">
-            <Field name="staffId" label={t.hr.employee} error={errors.staffId}>
+            <FormField name="staffId" label={t.hr.employee} error={errors.staffId}>
               <Combobox
                 id="staffId"
                 name="staffId"
@@ -362,10 +379,10 @@ function AdvanceDialog({
                   label: person.label,
                 }))}
               />
-            </Field>
+            </FormField>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field
+              <FormField
                 name="amount"
                 label={t.hr.advanceAmount}
                 error={errors.amount}
@@ -383,11 +400,12 @@ function AdvanceDialog({
                     advance ? String(advance.amountCentimes / 100) : "",
                   )}
                 />
-              </Field>
+              </FormField>
 
-              <Field
+              <FormField
                 name="instalmentCount"
                 label={t.hr.advanceInstalments}
+                hint={t.hr.advanceInstalmentsHint}
                 error={errors.instalmentCount}
               >
                 <Input
@@ -399,17 +417,32 @@ function AdvanceDialog({
                   dir="ltr"
                   defaultValue={advance?.instalmentCount ?? 1}
                 />
-              </Field>
+              </FormField>
             </div>
 
-            <Field name="reason" label={t.hr.advanceReason} error={errors.reason}>
+            <FormField
+              name="reason"
+              label={t.hr.advanceReason}
+              error={errors.reason}
+            >
               <Textarea
                 id="reason"
                 name="reason"
                 rows={2}
                 defaultValue={valueOf(state, "reason", advance?.reason)}
               />
-            </Field>
+            </FormField>
+
+            {/* Posted by the action all along, and rendered by nothing — so
+                editing a request silently emptied it. */}
+            <FormField name="notes" label={t.hr.notes}>
+              <Textarea
+                id="notes"
+                name="notes"
+                rows={2}
+                defaultValue={valueOf(state, "notes", advance?.notes)}
+              />
+            </FormField>
           </div>
 
           <DialogFooter>
@@ -447,6 +480,7 @@ function PayAdvanceDialog({
   const [state, formAction] = React.useActionState(payAdvanceAction, IDLE);
   useActionFeedback(state, { onSuccess: onClose });
   const [method, setMethod] = React.useState("CASH");
+  const errors = state.fieldErrors ?? {};
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
@@ -464,7 +498,7 @@ function PayAdvanceDialog({
           <input type="hidden" name="method" value={method} />
 
           <div className="grid gap-4 py-4">
-            <Field name="method" label={t.hr.method}>
+            <FormField name="method" label={t.hr.method}>
               <Select value={method} onValueChange={setMethod}>
                 <SelectTrigger id="method" className="w-full">
                   <SelectValue />
@@ -481,7 +515,7 @@ function PayAdvanceDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </Field>
+            </FormField>
 
             {/* Cash lands in a drawer, so there has to be one open. Said before
               the button is pressed rather than after. */}
@@ -491,7 +525,7 @@ function PayAdvanceDialog({
               </p>
             ) : null}
 
-            <Field name="categoryId" label={t.hr.expenseCategory}>
+            <FormField name="categoryId" label={t.hr.expenseCategory}>
               <Select name="categoryId" defaultValue={expenseCategories[0]?.id}>
                 <SelectTrigger id="categoryId" className="w-full">
                   <SelectValue placeholder={t.hr.expenseCategory} />
@@ -504,31 +538,31 @@ function PayAdvanceDialog({
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
+            </FormField>
 
-            <Field name="paidOn" label={t.hr.paidOn}>
+            <FormField name="paidOn" label={t.hr.paidOn} error={errors.paidOn}>
               <Input
                 id="paidOn"
                 name="paidOn"
                 type="date"
                 dir="ltr"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={toDateInputValue(new Date())}
               />
-            </Field>
+            </FormField>
 
             {method === "CHEQUE" ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field name="chequeNumber" label={t.hr.chequeNumber}>
+                <FormField name="chequeNumber" label={t.hr.chequeNumber}>
                   <Input id="chequeNumber" name="chequeNumber" dir="ltr" />
-                </Field>
-                <Field name="bankName" label={t.hr.bankName}>
+                </FormField>
+                <FormField name="bankName" label={t.hr.bankName}>
                   <Input id="bankName" name="bankName" />
-                </Field>
+                </FormField>
               </div>
             ) : (
-              <Field name="reference" label={t.hr.reference}>
+              <FormField name="reference" label={t.hr.reference}>
                 <Input id="reference" name="reference" dir="ltr" />
-              </Field>
+              </FormField>
             )}
           </div>
 
@@ -541,6 +575,55 @@ function PayAdvanceDialog({
                 amount: formatMoney(advance.amountCentimes, locale, currency),
               })}
             </SubmitButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Refusing a request, with the reason.
+ *
+ * A dialog rather than a second icon that fires straight away: `decisionNote`
+ * has been on the schema and in the action since the table existed, and nothing
+ * ever posted it — so every refusal reached the person who asked with no reason
+ * against it, which is the one thing they will come and ask about.
+ */
+function RefuseAdvanceDialog({
+  advance,
+  onClose,
+}: {
+  advance: AdvanceRow;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [state, formAction] = React.useActionState(decideAdvanceAction, IDLE);
+  useActionFeedback(state, { onSuccess: onClose });
+
+  return (
+    <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <DialogContent className="sm:max-w-lg">
+        <form action={formAction}>
+          <DialogHeader>
+            <DialogTitle>{t.hr.refuse}</DialogTitle>
+            <DialogDescription>{advance.staffName}</DialogDescription>
+          </DialogHeader>
+
+          <input type="hidden" name="id" value={advance.id} />
+          <input type="hidden" name="approve" value="0" />
+
+          <div className="grid gap-4 py-4">
+            <FormField name="decisionNote" label={t.hr.decisionNote}>
+              <Textarea id="decisionNote" name="decisionNote" rows={3} />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              {t.common.cancel}
+            </Button>
+            <SubmitButton>{t.hr.refuse}</SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

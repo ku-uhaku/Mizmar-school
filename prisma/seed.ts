@@ -17,7 +17,11 @@ import {
 } from "@/modules/hr/seed";
 import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
-import { seedAssessmentTypes } from "@/modules/assessments/seed";
+import {
+  seedAssessmentTypes,
+  seedAssessments,
+} from "@/modules/assessments/seed";
+import { seedClassroom } from "@/modules/classroom/seed";
 import {
   seedPortalAccounts,
   type SeededPortalAccounts,
@@ -384,7 +388,7 @@ async function main() {
     // catalogue and the tills: what a devoir surveillé weighs is a policy of
     // the school, not of any one year. Only the types — the papers themselves
     // are generated through the screen. See modules/assessments/seed.ts.
-    await seedAssessmentTypes(db, school.id);
+    const assessmentTypeIdByCode = await seedAssessmentTypes(db, school.id);
 
     // The articles a liste de fournitures may name. Year-independent for the
     // same reason as the fee catalogue: what the school is willing to ask a
@@ -519,6 +523,26 @@ async function main() {
         schoolId: school.id,
         schoolYearId: year.id,
         variant: PLANS.indexOf(plan),
+      });
+
+      /*
+        The year's contrôles and their marks, then the register and the carnet.
+
+        Last, and for the same reason the receipts are: both hang off the
+        enrolment. A mark belongs to a child *in a class in a year*, so there is
+        nothing to write until the roster is seated.
+      */
+      await seedAssessments(db, {
+        schoolId: school.id,
+        classes,
+        termIds: Object.values(year.terms),
+        typeIdByCode: assessmentTypeIdByCode,
+        createdById: adminId,
+      });
+
+      await seedClassroom(db, {
+        classes,
+        termIds: Object.values(year.terms),
       });
     }
 

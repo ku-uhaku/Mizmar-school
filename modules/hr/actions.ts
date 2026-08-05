@@ -32,11 +32,13 @@ import {
   markAttendance,
   markDayInBulk,
   payStaffSalary,
+  refreshStaffLeaveStatus,
   saveContract,
   saveSalary,
 } from "@/modules/hr/service";
 import {
   advanceDecisionSchema,
+  advancePayoutSchema,
   advanceSchema,
   attendanceSchema,
   contractSchema,
@@ -172,6 +174,17 @@ export async function saveStaffAction(
     });
     if (clash) return failure(t.hr.codeTaken);
 
+    /*
+      The RIB is only written by somebody who may see it.
+
+      `findStaff` withholds it without HR_PAYROLL and the form does not render
+      it, so it would post blank — and writing that blank would let a manager
+      correcting a phone number silently drop the bank details for a salary paid
+      by virement. Omitted from the update rather than set: Prisma leaves an
+      absent column alone, which is exactly the intent.
+    */
+    const canWriteBankRib = context.canInSchool(schoolId, PERMISSIONS.HR_PAYROLL);
+
     const data = {
       schoolId,
       code,
@@ -185,7 +198,7 @@ export async function saveStaffAction(
       birthPlace: parsed.data.birthPlace,
       nationalId: parsed.data.nationalId,
       cnssNumber: parsed.data.cnssNumber,
-      bankRib: parsed.data.bankRib,
+      ...(canWriteBankRib ? { bankRib: parsed.data.bankRib } : {}),
       phone: parsed.data.phone,
       email: parsed.data.email,
       address: parsed.data.address,
@@ -217,13 +230,26 @@ export async function deleteStaffAction(staffId: string): Promise<ActionState> {
 
     const person = await db.staff.findFirst({
       where: { id: staffId, schoolId },
-      select: { id: true, _count: { select: { salaries: true } } },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            salaries: true,
+            // Advances cascade with the employee, so an advance already handed
+            // over would be deleted with them — leaving a décaissement in the
+            // caisse made out to nobody, and no record of what it settled.
+            advances: { where: { cashOperationId: { not: null } } },
+          },
+        },
+      },
     });
     if (!person) return failure(t.errors.notFound);
 
     // Somebody who has been paid is history, and their bulletins are evidence.
     // Terminating keeps the payroll readable; deleting would blank it.
-    if (person._count.salaries > 0) return failure(t.hr.staffHasPayslips);
+    if (person._count.salaries > 0 || person._count.advances > 0) {
+      return failure(t.hr.staffHasPayslips);
+    }
 
     await db.staff.delete({ where: { id: staffId } });
 
@@ -423,7 +449,7 @@ export async function saveSalaryAction(
   formData: FormData,
 ): Promise<ActionState> {
   return withActionErrors(async () => {
-    const { t, schoolId } = await schoolContext();
+    const { t, context, schoolId } = await schoolContext();
     if (!schoolId) return failure(t.errors.noSchoolContext);
 
     await authorizeSchool(schoolId, PERMISSIONS.HR_PAYROLL);
@@ -484,7 +510,10 @@ export async function saveSalaryAction(
       */
       return failure(
         interpolate(t.hr.advanceOverRecovered, {
-          amount: centimesToDirhams(result.outstandingCentimes).toFixed(2),
+          // The school's own currency, not a hardcoded "DH" in the sentence:
+          // the code is a setting, and the copy read wrong for anybody not on
+          // dirhams.
+          amount: `${centimesToDirhams(result.outstandingCentimes).toFixed(2)} ${context.settings.currencyCode}`,
         }),
         undefined,
         formValues(formData),
@@ -516,7 +545,6 @@ export async function paySalaryAction(
     const parsed = salaryPayoutSchema(t).safeParse({
       salaryId: field(formData, "salaryId"),
       method: field(formData, "method"),
-      cashSessionId: optionalId(formData, "cashSessionId"),
       categoryId: optionalId(formData, "categoryId"),
       reference: field(formData, "reference"),
       chequeNumber: field(formData, "chequeNumber"),
@@ -621,7 +649,6 @@ export async function saveLeaveAction(
       dayCount: field(formData, "dayCount") || "1",
       reason: field(formData, "reason"),
       status: field(formData, "status") || "PENDING",
-      decisionNote: field(formData, "decisionNote"),
     });
     if (!parsed.success) {
       return failure(
@@ -657,6 +684,9 @@ export async function saveLeaveAction(
 
     if (id) {
       await db.leaveRequest.update({ where: { id }, data });
+      // Moving an approved request's dates changes whether the employee is away
+      // today, which is what the register and the payroll read.
+      await refreshStaffLeaveStatus(person.id);
     } else {
       await db.leaveRequest.create({ data: { ...data, status: "PENDING" } });
     }
@@ -712,11 +742,13 @@ export async function deleteLeaveAction(leaveId: string): Promise<ActionState> {
 
     const request = await db.leaveRequest.findFirst({
       where: { id: leaveId, staff: { schoolId } },
-      select: { id: true },
+      select: { id: true, staffId: true },
     });
     if (!request) return failure(t.errors.notFound);
 
     await db.leaveRequest.delete({ where: { id: leaveId } });
+    // Deleting the request that had somebody away puts them back to work.
+    await refreshStaffLeaveStatus(request.staffId);
 
     refresh();
     return success(t.hr.leaveDeleted);
@@ -781,8 +813,6 @@ export async function saveAdvanceAction(
         instalmentCount: parsed.data.instalmentCount,
         reason: parsed.data.reason,
         notes: parsed.data.notes,
-        recoverFromYear: null,
-        recoverFromMonth: null,
       },
       id || null,
     );
@@ -862,10 +892,9 @@ export async function payAdvanceAction(
     await authorizeSchool(schoolId, PERMISSIONS.HR_PAYROLL);
     await authorizeSchool(schoolId, PERMISSIONS.TREASURY_DISBURSE);
 
-    const parsed = salaryPayoutSchema(t).safeParse({
-      salaryId: field(formData, "advanceId"),
+    const parsed = advancePayoutSchema(t).safeParse({
+      advanceId: field(formData, "advanceId"),
       method: field(formData, "method"),
-      cashSessionId: optionalId(formData, "cashSessionId"),
       categoryId: optionalId(formData, "categoryId"),
       reference: field(formData, "reference"),
       chequeNumber: field(formData, "chequeNumber"),
@@ -881,7 +910,7 @@ export async function payAdvanceAction(
     }
 
     const advance = await db.salaryAdvance.findFirst({
-      where: { id: parsed.data.salaryId, staff: { schoolId } },
+      where: { id: parsed.data.advanceId, staff: { schoolId } },
       select: { id: true, amountCentimes: true },
     });
     if (!advance) return failure(t.errors.notFound);

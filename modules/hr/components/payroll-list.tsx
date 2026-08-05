@@ -7,6 +7,7 @@ import {
   PencilIcon,
   ReceiptTextIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -41,11 +42,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { formatAmount, formatMonth, interpolate } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatMonth,
+  interpolate,
+  toDateInputValue,
+} from "@/lib/i18n/format";
 import { paySalaryAction, saveSalaryAction } from "@/modules/hr/actions";
 import { SALARY_STATUSES, netSalary } from "@/modules/hr/enums";
 import type { PayrollLine } from "@/modules/hr/queries";
-import { Field } from "@/modules/hr/components/field";
+import { FormField } from "@/components/form/form-field";
 
 /**
  * Stands in for "no bulletin prepared yet" in the status facet. A missing
@@ -71,20 +77,25 @@ export function PayrollList({
 }: {
   lines: PayrollLine[];
   period: { year: number; month: number };
-  expenseCategories: { id: string; name: string }[];
+  expenseCategories: { id: string; label: string }[];
   hasOpenSession: boolean;
   canDisburse: boolean;
 }) {
   const t = useT();
+  const router = useRouter();
   const locale = useLocale();
   const [editing, setEditing] = React.useState<PayrollLine | null>(null);
   const [paying, setPaying] = React.useState<PayrollLine | null>(null);
 
   const total = lines.reduce((sum, line) => sum + line.netCentimes, 0);
 
+  // Navigated rather than assigned to `location`, which reloaded the document
+  // and lost the reader's place in the table.
   function shiftMonth(delta: number) {
     const date = new Date(period.year, period.month - 1 + delta, 1);
-    window.location.search = `?year=${date.getFullYear()}&month=${date.getMonth() + 1}`;
+    router.push(
+      `/hr/payroll?year=${date.getFullYear()}&month=${date.getMonth() + 1}`,
+    );
   }
 
   const columns = React.useMemo<ColumnDef<PayrollLine, unknown>[]>(
@@ -102,6 +113,16 @@ export function PayrollList({
                 ? ` · ${row.original.unjustifiedDays} ${t.hr.unjustifiedAbsences}`
                 : ""}
             </p>
+            {/* A bulletin drawn under terms the contract has since moved past.
+                The figure is deliberately not corrected — a payslip says what
+                was paid — but a bursar preparing the month wants to know. */}
+            {row.original.id !== "" &&
+            row.original.contractBaseCentimes !== null &&
+            row.original.contractBaseCentimes !== row.original.baseCentimes ? (
+              <p className="text-warning truncate text-xs">
+                {t.hr.behindContract}
+              </p>
+            ) : null}
           </div>
         ),
       },
@@ -327,8 +348,8 @@ function PayslipDialog({
     },
   );
 
-  const money = (key: keyof typeof amounts, label: string, error?: string) => (
-    <Field label={label} name={key} error={error}>
+  const money = (key: keyof typeof amounts, label: string, hint?: string) => (
+    <FormField label={label} name={key} hint={hint} error={errors[key]}>
       <Input
         id={key}
         name={key}
@@ -341,7 +362,7 @@ function PayslipDialog({
           setAmounts((current) => ({ ...current, [key]: event.target.value }))
         }
       />
-    </Field>
+    </FormField>
   );
 
   return (
@@ -363,9 +384,9 @@ function PayslipDialog({
           <fieldset className="grid gap-3">
             <legend className="mb-2 text-sm font-medium">{t.hr.gains}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              {money("base", t.hr.base, errors.base)}
-              {money("allowance", t.hr.allowance)}
-              {money("overtime", t.hr.overtime)}
+              {money("base", t.hr.base)}
+              {money("allowance", t.hr.allowance, t.hr.allowanceHint)}
+              {money("overtime", t.hr.overtime, t.hr.overtimeHint)}
               {money("bonus", t.hr.bonus)}
             </div>
           </fieldset>
@@ -422,13 +443,13 @@ function PayslipDialog({
               {money("social", t.hr.social)}
               {money("tax", t.hr.tax)}
               {money("otherDeduction", t.hr.otherDeduction)}
-              <Field label={t.hr.deductionLabel} name="deductionLabel">
+              <FormField label={t.hr.deductionLabel} name="deductionLabel">
                 <Input
                   id="deductionLabel"
                   name="deductionLabel"
                   defaultValue={line.deductionLabel ?? ""}
                 />
-              </Field>
+              </FormField>
             </div>
           </fieldset>
 
@@ -443,7 +464,7 @@ function PayslipDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.payslipStatus} name="status">
+            <FormField label={t.hr.payslipStatus} name="status">
               <Select
                 name="status"
                 defaultValue={line.status === "PAID" ? "APPROVED" : line.status}
@@ -461,15 +482,15 @@ function PayslipDialog({
                   )}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label={t.hr.notes} name="notes">
+            </FormField>
+            <FormField label={t.hr.notes} name="notes">
               <Textarea
                 id="notes"
                 name="notes"
                 rows={2}
                 defaultValue={line.notes ?? ""}
               />
-            </Field>
+            </FormField>
           </div>
 
           <DialogFooter>
@@ -491,7 +512,7 @@ function PayoutDialog({
   onClose,
 }: {
   line: PayrollLine;
-  expenseCategories: { id: string; name: string }[];
+  expenseCategories: { id: string; label: string }[];
   hasOpenSession: boolean;
   onClose: () => void;
 }) {
@@ -502,7 +523,7 @@ function PayoutDialog({
   const errors = state.fieldErrors ?? {};
   const [method, setMethod] = React.useState("BANK_TRANSFER");
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toDateInputValue(new Date());
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
@@ -521,7 +542,7 @@ function PayoutDialog({
           <input type="hidden" name="salaryId" value={line.id} />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.method} name="method" error={errors.method}>
+            <FormField label={t.hr.method} name="method" error={errors.method}>
               <Select name="method" value={method} onValueChange={setMethod}>
                 <SelectTrigger id="method" className="w-full">
                   <SelectValue />
@@ -538,8 +559,8 @@ function PayoutDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label={t.hr.paidOn} name="paidOn" error={errors.paidOn}>
+            </FormField>
+            <FormField label={t.hr.paidOn} name="paidOn" error={errors.paidOn}>
               <Input
                 id="paidOn"
                 name="paidOn"
@@ -547,7 +568,7 @@ function PayoutDialog({
                 dir="ltr"
                 defaultValue={today}
               />
-            </Field>
+            </FormField>
           </div>
 
           {method === "CASH" && !hasOpenSession ? (
@@ -556,17 +577,17 @@ function PayoutDialog({
 
           {method === "CHEQUE" ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={t.hr.chequeNumber} name="chequeNumber">
+              <FormField label={t.hr.chequeNumber} name="chequeNumber">
                 <Input id="chequeNumber" name="chequeNumber" dir="ltr" />
-              </Field>
-              <Field label={t.hr.bankName} name="bankName">
+              </FormField>
+              <FormField label={t.hr.bankName} name="bankName">
                 <Input id="bankName" name="bankName" />
-              </Field>
+              </FormField>
             </div>
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label={t.hr.expenseCategory} name="categoryId">
+            <FormField label={t.hr.expenseCategory} name="categoryId">
               <Select name="categoryId" defaultValue="__none__">
                 <SelectTrigger id="categoryId" className="w-full">
                   <SelectValue />
@@ -575,15 +596,15 @@ function PayoutDialog({
                   <SelectItem value="__none__">{t.common.none}</SelectItem>
                   {expenseCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
-                      {category.name}
+                      {category.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field label={t.hr.reference} name="reference">
+            </FormField>
+            <FormField label={t.hr.reference} name="reference">
               <Input id="reference" name="reference" dir="ltr" />
-            </Field>
+            </FormField>
           </div>
 
           <DialogFooter>

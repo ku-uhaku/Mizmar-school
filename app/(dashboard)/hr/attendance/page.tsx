@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
+import { toDateInputValue } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
 import { AttendanceRegister } from "@/modules/hr/components/attendance-register";
 import { startOfDay } from "@/modules/hr/enums";
@@ -46,9 +47,13 @@ export default async function HrAttendancePage({
         backLabel={t.hr.title}
       />
 
+      {/* The day is read in local time. `startOfDay` returns local midnight, so
+          `toISOString()` reported the *previous* day everywhere ahead of UTC —
+          the picker showed one day, the register below it another, and the
+          marks the screen posted landed on the wrong one. */}
       <AttendanceRegister
         entries={register}
-        date={day.toISOString().slice(0, 10)}
+        date={toDateInputValue(day)}
         canMark={context.can(PERMISSIONS.HR_ATTENDANCE)}
       />
     </>

@@ -1,5 +1,6 @@
 import { defineModule } from "@/lib/module";
 import { HR_PERMISSIONS } from "@/modules/hr/permissions";
+import { TREASURY_PERMISSIONS } from "@/modules/treasury/permissions";
 
 /**
  * Ressources humaines: everybody the school pays, and the three things that
@@ -41,9 +42,9 @@ export const hrModule = defineModule({
       icon: "attendance",
       section: "rh",
       labelKey: "hrAttendance",
+      order: 30,
       // Reading the register is HR_VIEW; HR_ATTENDANCE is what lets a reader
       // actually mark it, and the screen gates the marking itself.
-      order: 30,
       schoolPermission: HR_PERMISSIONS.HR_VIEW,
     },
     {
@@ -51,9 +52,9 @@ export const hrModule = defineModule({
       icon: "payroll",
       section: "rh",
       labelKey: "hrPayroll",
+      order: 40,
       // The salaries, which in most schools exactly two people may see — hence
       // its own code rather than HR_VIEW.
-      order: 40,
       schoolPermission: HR_PERMISSIONS.HR_PAYROLL,
     },
     {
@@ -61,9 +62,9 @@ export const hrModule = defineModule({
       icon: "payroll",
       section: "rh",
       labelKey: "hrAdvances",
+      order: 45,
       // Beside the paie and behind the same code: an avance is a movement
       // against a wage, and it is recovered on a bulletin.
-      order: 45,
       schoolPermission: HR_PERMISSIONS.HR_PAYROLL,
     },
     {
@@ -72,7 +73,13 @@ export const hrModule = defineModule({
       section: "rh",
       labelKey: "hrStaffPayments",
       order: 47,
-      schoolPermission: HR_PERMISSIONS.HR_VIEW,
+      /*
+        The screen needs TREASURY_DISBURSE *and* HR_VIEW, and a nav entry may
+        name one code — so it names the narrower. Behind HR_VIEW the link showed
+        up for every reader of the staff list and led them straight to a
+        forbidden page, which is worse than not offering it.
+      */
+      schoolPermission: TREASURY_PERMISSIONS.TREASURY_DISBURSE,
     },
     {
       href: "/hr/leave",

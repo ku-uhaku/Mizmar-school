@@ -61,10 +61,6 @@ model SalaryAdvance {
   cashOperationId String?        @unique
   cashOperation   CashOperation? @relation("OperationAdvance", fields: [cashOperationId], references: [id], onDelete: SetNull)
 
-  /// The month recovery starts from. Null means "the next payroll run".
-  recoverFromYear  Int?
-  recoverFromMonth Int?
-
   notes String?
 
   createdAt DateTime @default(now())

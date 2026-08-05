@@ -299,6 +299,90 @@ export async function findClass(
   };
 }
 
+/** One of a pupil's teachers, as their file lists them. */
+export type PupilTeacherRow = {
+  assignmentId: string;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  teacherId: string;
+  teacherName: string;
+  teacherEmail: string;
+  /** Set only for a subject split by group — "the other half's teacher". */
+  groupLabel: string | null;
+  /** Answerable for the marks when a subject is co-taught. */
+  isPrimary: boolean;
+  weeklyMinutes: number | null;
+};
+
+/**
+ * Who teaches one pupil, this year.
+ *
+ * ── Why the group matters ───────────────────────────────────────────────────
+ * An assignment with no `classGroupId` covers the whole class; one with a group
+ * covers that half only. A pupil in group A is taught by the whole-class
+ * teachers *and* by group A's — and must not be shown group B's, which is a
+ * different person taking a different room at the same hour. Filtering on
+ * "null or mine" is the whole of that rule.
+ *
+ * Lives here rather than in the students module because `TeachingAssignment` is
+ * this module's table: a pupil's screen reads it through this function, and the
+ * year and school scoping stay in one place.
+ */
+export async function listPupilTeachers(
+  context: AuthContext,
+  schoolClassId: string,
+  classGroupId: string | null,
+): Promise<PupilTeacherRow[]> {
+  const assignments = await db.teachingAssignment.findMany({
+    where: {
+      schoolClassId,
+      // The class id reaches this from a pupil's enrolment, so it is re-derived
+      // against the working school and year rather than trusted.
+      schoolClass: {
+        schoolId: currentSchoolId(context),
+        levelOffering: yearScope(context),
+      },
+      OR: [
+        { classGroupId: null },
+        ...(classGroupId ? [{ classGroupId }] : []),
+      ],
+    },
+    orderBy: [{ subject: { code: "asc" } }, { isPrimary: "desc" }],
+    select: {
+      id: true,
+      subjectId: true,
+      classGroupId: true,
+      weeklyMinutes: true,
+      isPrimary: true,
+      subject: { select: { code: true, name: true } },
+      teacher: {
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      classGroup: { select: { code: true, name: true } },
+    },
+  });
+
+  return assignments.map((assignment) => ({
+    assignmentId: assignment.id,
+    subjectId: assignment.subjectId,
+    subjectName: assignment.subject.name,
+    subjectCode: assignment.subject.code,
+    teacherId: assignment.teacher.id,
+    teacherName: displayName(assignment.teacher),
+    teacherEmail: assignment.teacher.email,
+    groupLabel: assignment.classGroup
+      ? (assignment.classGroup.name ?? assignment.classGroup.code)
+      : null,
+    isPrimary: assignment.isPrimary,
+    weeklyMinutes: assignment.weeklyMinutes,
+  }));
+}
+
 /** Live figures for the school-life dashboard: how full each class is. */
 export async function loadClassFill(
   context: AuthContext,

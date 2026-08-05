@@ -1,7 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { formatEntityCode } from "@/lib/school-settings";
+import {
+  codePrefixOf,
+  formatEntityCode,
+  sequenceFromCode,
+} from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
   activeContractKey,
@@ -25,6 +29,14 @@ import {
 import type { TenderMethod } from "@/modules/treasury/enums";
 
 /**
+ * Either the ordinary client or a transaction's.
+ *
+ * The advance balances are read both ways: on their own by the payroll screen,
+ * and inside the transaction that is about to write a deduction against them.
+ */
+type PayrollClient = Pick<TxClient, "salaryAdvance">;
+
+/**
  * Writes and data invariants for the RH module.
  *
  * Four of them matter, and every one is something the database cannot say:
@@ -35,10 +47,10 @@ import type { TenderMethod } from "@/modules/treasury/enums";
  *      transaction, so there is no instant in which somebody has two or none.
  *   2. **A bulletin's net equals its own lines.** `netSalary` is the only thing
  *      that computes it, here and in the form's preview alike.
- *   3. **A bulletin is paid at most once.** The décaissement is written inside
- *      the transaction that marks the payslip PAID, and the unique
- *      `cashOperationId` refuses a second one — so a double-click cannot pay
- *      somebody twice for September.
+ *   3. **A bulletin is paid at most once.** The décaissement and the link back
+ *      to the payslip are written in one transaction, and the payslip is
+ *      claimed with a conditional `updateMany` — so of two simultaneous
+ *      payouts exactly one commits and the other is told it is already paid.
  *   4. **A register mark lands on a day, not a moment.** Every write normalises
  *      through `startOfDay`, which is what makes the unique index bite.
  */
@@ -48,17 +60,35 @@ import type { TenderMethod } from "@/modules/treasury/enums";
 /**
  * Allocates the next matricule for a school.
  *
- * Counts what exists rather than keeping a counter, exactly as
- * `nextPaymentCode` does in the caisse: the volume is dozens a year, and a
- * sequence table that can drift out of step with its rows is worse than a scan.
- * The unique index on `[schoolId, code]` is what actually guarantees the number
- * is free — this only has to make a collision rare.
+ * Takes the highest sequence already issued rather than counting the rows, for
+ * the reason `allocateStudentCode` does: a count goes *down* when somebody is
+ * deleted, so the school with seven employees and a leaver hands the next hire
+ * a matricule that is already taken — and goes on doing so for ever, reporting
+ * "that staff number is already used" about a number nobody typed.
+ *
+ * The unique index on `[schoolId, code]` is still what guarantees the number is
+ * free; this only has to make a collision rare.
  */
-export async function allocateStaffCode(schoolId: string): Promise<string> {
-  const year = new Date().getFullYear();
+export async function allocateStaffCode(
+  schoolId: string,
+  year = new Date().getFullYear(),
+): Promise<string> {
   const { staffCodeFormat } = await loadSchoolSettings(schoolId);
-  const used = await db.staff.count({ where: { schoolId } });
-  return formatEntityCode(staffCodeFormat, year, used + 1);
+  const prefix = codePrefixOf(staffCodeFormat, year);
+
+  const candidates = await db.staff.findMany({
+    where: { schoolId, code: { startsWith: prefix } },
+    orderBy: { code: "desc" },
+    select: { code: true },
+    take: 200,
+  });
+
+  const highest = candidates.reduce((max, row) => {
+    const sequence = sequenceFromCode(staffCodeFormat, year, row.code);
+    return sequence !== null && sequence > max ? sequence : max;
+  }, 0);
+
+  return formatEntityCode(staffCodeFormat, year, highest + 1);
 }
 
 // ── Contracts ────────────────────────────────────────────────────────────────
@@ -218,18 +248,28 @@ export async function markDayInBulk(input: {
   const missing = input.staffIds.filter((staffId) => !marked.has(staffId));
   if (missing.length === 0) return 0;
 
-  await db.staffAttendance.createMany({
-    data: missing.map((staffId) => ({
-      staffId,
-      date,
-      status: input.status,
-      isJustified: false,
-      minutesLate: 0,
-      recordedById: input.recordedById,
-    })),
-  });
-
-  return missing.length;
+  /*
+    `createMany` without skipDuplicates, which the SQLite connector does not
+    support — so somebody marking one person by hand between the read above and
+    this write would collide on `(staffId, date)`. Swallowed rather than
+    surfaced: the day is marked either way, and the hand-made mark is the more
+    deliberate of the two, so letting it stand is the right outcome.
+  */
+  try {
+    const created = await db.staffAttendance.createMany({
+      data: missing.map((staffId) => ({
+        staffId,
+        date,
+        status: input.status,
+        isJustified: false,
+        minutesLate: 0,
+        recordedById: input.recordedById,
+      })),
+    });
+    return created.count;
+  } catch {
+    return 0;
+  }
 }
 
 // ── Payroll ──────────────────────────────────────────────────────────────────
@@ -262,112 +302,116 @@ export type SaveSalaryResult =
  * Refuses when the payslip has already been paid — the figures on a document
  * somebody has been handed, against money that has left, are not something a
  * form may quietly restate. Cancel the décaissement first.
+ *
+ * ── Why the whole thing is one transaction ──────────────────────────────────
+ * The bulletin, the avance recoveries it settles and the statuses those leave
+ * behind are one fact recorded in three tables. Written as three round trips,
+ * a failure between them left a payslip carrying a retenue no avance backed —
+ * which is the state the checking below exists to prevent, reached by another
+ * road. The advances are read once, inside, and every decision is taken from
+ * that read: there is no window in which the ceiling can move.
+ *
+ * `status` never arrives as PAID. Only `payStaffSalary` may set that, because
+ * only it writes the décaissement that makes it true — see `salarySchema`,
+ * which refuses the value before it ever reaches here.
  */
 export async function saveSalary(
   input: SalaryInput,
 ): Promise<SaveSalaryResult> {
-  const existing = await db.salaryPayment.findUnique({
-    where: {
-      staffId_periodYear_periodMonth: {
-        staffId: input.staffId,
-        periodYear: input.periodYear,
-        periodMonth: input.periodMonth,
+  if (input.status === "PAID") return { ok: false, reason: "ALREADY_PAID" };
+
+  return db.$transaction(async (tx) => {
+    const existing = await tx.salaryPayment.findUnique({
+      where: {
+        staffId_periodYear_periodMonth: {
+          staffId: input.staffId,
+          periodYear: input.periodYear,
+          periodMonth: input.periodMonth,
+        },
       },
-    },
-    select: { id: true, status: true },
-  });
+      select: { id: true, status: true },
+    });
 
-  if (existing?.status === "PAID") return { ok: false, reason: "ALREADY_PAID" };
+    if (existing?.status === "PAID") {
+      return { ok: false, reason: "ALREADY_PAID" } as const;
+    }
 
-  /*
-    The avance deduction is checked *before* the bulletin is written, not after.
+    /*
+      The avance deduction is checked *before* the bulletin is written.
 
-    It used to be the other way round: the row was upserted, the recovery then
-    refused, and the screen showed an error over a payslip that had already been
-    saved — carrying a retenue no avance backed and a net computed from it. A
-    document that says one thing while the balances behind it say another is
-    worse than a rejected form, so nothing is written until the figure is known
-    to be recoverable.
-  */
-  const planned = await plannedAdvanceRecovery(
-    input.staffId,
-    existing?.id ?? null,
-  );
-  if (input.advanceCentimes > planned.outstandingCentimes) {
-    return {
-      ok: false,
-      reason: "OVER_RECOVERED",
-      outstandingCentimes: planned.outstandingCentimes,
-    };
-  }
+      It used to be checked after: the row was upserted, the recovery then
+      refused, and the screen showed an error over a payslip that had already
+      been saved — carrying a retenue no avance backed and a net computed from
+      it. A document that says one thing while the balances behind it say
+      another is worse than a rejected form.
 
-  const contract = await db.employmentContract.findFirst({
-    where: { staffId: input.staffId, status: "ACTIVE" },
-    select: { id: true },
-  });
-
-  const netCentimes = netSalary(input, input);
-
-  const data = {
-    contractId: contract?.id ?? null,
-    baseCentimes: input.baseCentimes,
-    allowanceCentimes: input.allowanceCentimes,
-    overtimeCentimes: input.overtimeCentimes,
-    bonusCentimes: input.bonusCentimes,
-    absenceCentimes: input.absenceCentimes,
-    advanceCentimes: input.advanceCentimes,
-    socialCentimes: input.socialCentimes,
-    taxCentimes: input.taxCentimes,
-    otherDeductionCentimes: input.otherDeductionCentimes,
-    deductionLabel: input.deductionLabel,
-    // Always derived, never taken from the form — see the note on the column.
-    netCentimes,
-    status: input.status,
-    notes: input.notes,
-  };
-
-  const row = await db.salaryPayment.upsert({
-    where: {
-      staffId_periodYear_periodMonth: {
-        staffId: input.staffId,
-        periodYear: input.periodYear,
-        periodMonth: input.periodMonth,
-      },
-    },
-    update: data,
-    create: {
+      The month being restated is excluded from its own balance: its recoveries
+      are about to be replaced, and counting them would make the advance look
+      more settled than it is.
+    */
+    const advances = await outstandingAdvancesFor(tx, {
       staffId: input.staffId,
-      periodYear: input.periodYear,
-      periodMonth: input.periodMonth,
-      ...data,
-    },
-    select: { id: true },
-  });
+    });
+    const outstandingCentimes = totalOutstanding(advances, existing?.id ?? null);
 
-  /*
-    Post the month's avance deduction against the advances it actually settles.
+    if (input.advanceCentimes > outstandingCentimes) {
+      return { ok: false, reason: "OVER_RECOVERED", outstandingCentimes } as const;
+    }
 
-    Done here rather than left to the caller so it cannot be forgotten: the box
-    on the bulletin and the balance on the advance are two views of one fact,
-    and a screen that wrote only the first would leave "how much does she still
-    owe" answerable in two contradictory ways. The figure was proved recoverable
-    above; `applyAdvanceRecovery` re-checks it against the same rows for its own
-    other callers.
-  */
-  const recovery = await applyAdvanceRecovery(
-    row.id,
-    input.staffId,
-    input.advanceCentimes,
-  );
-  if (!recovery.ok) {
-    return {
-      ok: false,
-      reason: "OVER_RECOVERED",
-      outstandingCentimes: recovery.outstandingCentimes,
+    const contract = await tx.employmentContract.findFirst({
+      where: { staffId: input.staffId, status: "ACTIVE" },
+      select: { id: true },
+    });
+
+    const netCentimes = netSalary(input, input);
+
+    const data = {
+      contractId: contract?.id ?? null,
+      baseCentimes: input.baseCentimes,
+      allowanceCentimes: input.allowanceCentimes,
+      overtimeCentimes: input.overtimeCentimes,
+      bonusCentimes: input.bonusCentimes,
+      absenceCentimes: input.absenceCentimes,
+      advanceCentimes: input.advanceCentimes,
+      socialCentimes: input.socialCentimes,
+      taxCentimes: input.taxCentimes,
+      otherDeductionCentimes: input.otherDeductionCentimes,
+      deductionLabel: input.deductionLabel,
+      // Always derived, never taken from the form — see the note on the column.
+      netCentimes,
+      status: input.status,
+      notes: input.notes,
     };
-  }
 
-  return { ok: true, id: row.id, netCentimes };
+    const row = await tx.salaryPayment.upsert({
+      where: {
+        staffId_periodYear_periodMonth: {
+          staffId: input.staffId,
+          periodYear: input.periodYear,
+          periodMonth: input.periodMonth,
+        },
+      },
+      update: data,
+      create: {
+        staffId: input.staffId,
+        periodYear: input.periodYear,
+        periodMonth: input.periodMonth,
+        ...data,
+      },
+      select: { id: true },
+    });
+
+    /*
+      Post the month's avance deduction against the advances it actually
+      settles. Done here rather than left to the caller so it cannot be
+      forgotten: the box on the bulletin and the balance on the advance are two
+      views of one fact, and a screen that wrote only the first would leave "how
+      much does she still owe" answerable in two contradictory ways.
+    */
+    await applyAdvanceRecovery(tx, row.id, advances, input.advanceCentimes);
+
+    return { ok: true, id: row.id, netCentimes } as const;
+  });
 }
 
 export type PayoutInput = {
@@ -394,6 +438,26 @@ export type PayoutResult =
   | { ok: false; reason: PayoutFailure };
 
 /**
+ * Thrown to roll a payout back when the row turns out to have been claimed by
+ * somebody else between the read and the write.
+ *
+ * A thrown error rather than a returned failure because returning one out of a
+ * `$transaction` callback *commits* it — which would leave the décaissement
+ * standing against a bulletin this call never managed to mark paid, the exact
+ * double-payment the claim exists to refuse.
+ */
+class PayoutRaceLost extends Error {
+  constructor() {
+    super("payout lost the race");
+    this.name = "PayoutRaceLost";
+  }
+}
+
+function isRaceLost(error: unknown): boolean {
+  return error instanceof PayoutRaceLost || (error as Error)?.name === "PayoutRaceLost";
+}
+
+/**
  * Pays a bulletin: writes the décaissement, and points the payslip at it.
  *
  * ── Why the caisse does the writing ─────────────────────────────────────────
@@ -409,73 +473,108 @@ export type PayoutResult =
  * days in practice, and by a permission in the app: preparing the payroll is
  * `HR_PAYROLL`, letting money out of the till is the caisse's
  * `TREASURY_DISBURSE`. See the note in permissions.ts.
+ *
+ * ── Why the claim is a conditional update ───────────────────────────────────
+ * Reading the payslip, deciding it is unpaid and then writing the link is three
+ * steps, and two clicks a moment apart both used to get past the middle one:
+ * each wrote its *own* décaissement, so each claimed a different
+ * `cashOperationId` and the unique index — which the comment here used to cite
+ * as the guard — was never troubled. Somebody was paid twice for September and
+ * the drawer was short. So the payslip is now claimed by an `updateMany` that
+ * names the state it expects, inside the same transaction that writes the
+ * money: whichever of the two gets there second matches no rows, and its
+ * décaissement is rolled back with it.
  */
 export async function payStaffSalary(
   input: PayoutInput,
 ): Promise<PayoutResult> {
-  const salary = await db.salaryPayment.findUnique({
-    where: { id: input.salaryId },
-    select: {
-      id: true,
-      status: true,
-      netCentimes: true,
-      periodYear: true,
-      periodMonth: true,
-      cashOperationId: true,
-      staff: {
-        select: { id: true, code: true, firstName: true, lastName: true },
-      },
-    },
-  });
-
-  if (!salary) return { ok: false, reason: "NOT_FOUND" };
-  if (salary.status === "PAID" || salary.cashOperationId) {
-    return { ok: false, reason: "ALREADY_PAID" };
+  try {
+    return await payStaffSalaryInTransaction(input);
+  } catch (error) {
+    if (isRaceLost(error)) return { ok: false, reason: "ALREADY_PAID" };
+    throw error;
   }
-  if (salary.status === "CANCELLED") return { ok: false, reason: "CANCELLED" };
-  if (salary.netCentimes <= 0) return { ok: false, reason: "NOTHING_TO_PAY" };
+}
 
-  const beneficiaryName = staffName(salary.staff);
-  const label = `Salaire ${String(salary.periodMonth).padStart(2, "0")}/${salary.periodYear} — ${beneficiaryName}`;
+function payStaffSalaryInTransaction(input: PayoutInput): Promise<PayoutResult> {
+  return db.$transaction(async (tx) => {
+    const salary = await tx.salaryPayment.findUnique({
+      where: { id: input.salaryId },
+      select: {
+        id: true,
+        status: true,
+        netCentimes: true,
+        periodYear: true,
+        periodMonth: true,
+        cashOperationId: true,
+        staff: {
+          select: { id: true, code: true, firstName: true, lastName: true },
+        },
+      },
+    });
 
-  const operation = await recordDisbursement({
-    schoolId: input.schoolId,
-    createdById: input.createdById,
-    cashSessionId: input.cashSessionId,
-    // A salary is posted under a rubrique, never a motif: the label already
-    // names the month and the employee, which is what a bulletin's line says.
-    categoryId: input.categoryId,
-    subcategoryId: null,
-    motifId: null,
-    notes: null,
-    bankId: null,
-    beneficiaryStaffId: salary.staff.id,
-    beneficiaryName,
-    label,
-    method: input.method,
-    amountCentimes: salary.netCentimes,
-    reference: input.reference,
-    chequeNumber: input.chequeNumber,
-    bankName: input.bankName,
-    occurredAt: input.paidOn,
+    if (!salary) return { ok: false, reason: "NOT_FOUND" } as const;
+    if (salary.status === "PAID" || salary.cashOperationId) {
+      return { ok: false, reason: "ALREADY_PAID" } as const;
+    }
+    if (salary.status === "CANCELLED") {
+      return { ok: false, reason: "CANCELLED" } as const;
+    }
+    if (salary.netCentimes <= 0) {
+      return { ok: false, reason: "NOTHING_TO_PAY" } as const;
+    }
+
+    const beneficiaryName = staffName(salary.staff);
+    const label = `Salaire ${String(salary.periodMonth).padStart(2, "0")}/${salary.periodYear} — ${beneficiaryName}`;
+
+    const operation = await recordDisbursement(
+      {
+        schoolId: input.schoolId,
+        createdById: input.createdById,
+        cashSessionId: input.cashSessionId,
+        // A salary is posted under a rubrique, never a motif: the label already
+        // names the month and the employee, which is what a bulletin's line says.
+        categoryId: input.categoryId,
+        subcategoryId: null,
+        motifId: null,
+        notes: null,
+        bankId: null,
+        beneficiaryStaffId: salary.staff.id,
+        beneficiaryName,
+        label,
+        method: input.method,
+        amountCentimes: salary.netCentimes,
+        reference: input.reference,
+        chequeNumber: input.chequeNumber,
+        bankName: input.bankName,
+        occurredAt: input.paidOn,
+      },
+      tx,
+    );
+
+    const claimed = await tx.salaryPayment.updateMany({
+      // The state this payout was decided against, restated as a condition.
+      where: {
+        id: salary.id,
+        cashOperationId: null,
+        status: { notIn: ["PAID", "CANCELLED"] },
+      },
+      data: {
+        status: "PAID",
+        paidOn: input.paidOn,
+        cashOperationId: operation.id,
+      },
+    });
+    // Thrown, not returned: a returned failure would commit the décaissement
+    // written a few lines up. See `PayoutRaceLost`.
+    if (claimed.count === 0) throw new PayoutRaceLost();
+
+    return {
+      ok: true,
+      operationId: operation.id,
+      netCentimes: salary.netCentimes,
+    } as const;
   });
-
-  // The unique index on `cashOperationId` is the real guard against a
-  // double-click: a second payout for the same bulletin cannot claim the link.
-  await db.salaryPayment.update({
-    where: { id: salary.id },
-    data: {
-      status: "PAID",
-      paidOn: input.paidOn,
-      cashOperationId: operation.id,
-    },
-  });
-
-  return {
-    ok: true,
-    operationId: operation.id,
-    netCentimes: salary.netCentimes,
-  };
 }
 
 // ── Leave ────────────────────────────────────────────────────────────────────
@@ -488,30 +587,66 @@ export type LeaveDecision = {
 };
 
 /**
+ * Recomputes whether somebody is away today, from the requests themselves.
+ *
+ * ── Why it is derived and not stamped ───────────────────────────────────────
+ * It used to be two `if`s on the decision being made: approve something
+ * covering today and you were ON_LEAVE, decide anything else and you went back
+ * to ACTIVE. Both halves were wrong. Rejecting one request put back to work
+ * somebody a *different*, still-approved request had away — the code only ever
+ * looked at the request in front of it. And nothing ever reversed the first
+ * half, so ON_LEAVE outlived the leave and an employee stayed "on leave" until
+ * a second request happened to be refused.
+ *
+ * Counting the approved requests that cover today answers the question the
+ * column is actually asking, and answers it the same way whichever request was
+ * just decided. Exported so anything that changes a request's dates can call it
+ * too.
+ *
+ * SUSPENDED and TERMINATED are never touched: those say something a holiday
+ * cannot overrule.
+ */
+export async function refreshStaffLeaveStatus(
+  staffId: string,
+  on: Date = new Date(),
+): Promise<void> {
+  const person = await db.staff.findUnique({
+    where: { id: staffId },
+    select: { status: true },
+  });
+  if (!person) return;
+  if (person.status !== "ACTIVE" && person.status !== "ON_LEAVE") return;
+
+  const today = startOfDay(on);
+  const away = await db.leaveRequest.count({
+    where: {
+      staffId,
+      status: "APPROVED",
+      startsOn: { lte: today },
+      endsOn: { gte: today },
+    },
+  });
+
+  const status = away > 0 ? "ON_LEAVE" : "ACTIVE";
+  if (status !== person.status) {
+    await db.staff.update({ where: { id: staffId }, data: { status } });
+  }
+}
+
+/**
  * Records a decision on a leave request, and moves the employee's own status
  * with it.
  *
- * Approving leave that is running today sets the employee ON_LEAVE, and a
- * decision that no longer covers today puts them back to ACTIVE. Done here
- * rather than left to whoever approves, because the status is what the register
- * and the payroll both read, and a school that forgets the second click ends up
- * marking absent somebody it granted the week off.
- *
- * Nobody TERMINATED or SUSPENDED is touched — those say something a holiday
- * cannot overrule.
+ * Done here rather than left to whoever approves, because the status is what
+ * the register and the payroll both read, and a school that forgets the second
+ * click ends up marking absent somebody it granted the week off.
  */
 export async function decideLeave(
   input: LeaveDecision,
 ): Promise<{ staffId: string } | null> {
   const request = await db.leaveRequest.findUnique({
     where: { id: input.leaveId },
-    select: {
-      id: true,
-      staffId: true,
-      startsOn: true,
-      endsOn: true,
-      staff: { select: { status: true } },
-    },
+    select: { id: true, staffId: true },
   });
   if (!request) return null;
 
@@ -525,21 +660,7 @@ export async function decideLeave(
     },
   });
 
-  const today = startOfDay(new Date());
-  const coversToday =
-    startOfDay(request.startsOn) <= today && startOfDay(request.endsOn) >= today;
-
-  if (request.staff.status === "ACTIVE" && input.status === "APPROVED" && coversToday) {
-    await db.staff.update({
-      where: { id: request.staffId },
-      data: { status: "ON_LEAVE" },
-    });
-  } else if (request.staff.status === "ON_LEAVE" && input.status !== "APPROVED") {
-    await db.staff.update({
-      where: { id: request.staffId },
-      data: { status: "ACTIVE" },
-    });
-  }
+  await refreshStaffLeaveStatus(request.staffId);
 
   return { staffId: request.staffId };
 }
@@ -552,8 +673,6 @@ export type AdvanceInput = {
   instalmentCount: number;
   reason: string | null;
   notes: string | null;
-  recoverFromYear: number | null;
-  recoverFromMonth: number | null;
 };
 
 export type AdvanceFailure =
@@ -584,8 +703,6 @@ export async function saveAdvance(
     instalmentCount: input.instalmentCount,
     reason: input.reason,
     notes: input.notes,
-    recoverFromYear: input.recoverFromYear,
-    recoverFromMonth: input.recoverFromMonth,
   };
 
   if (advanceId) {
@@ -668,123 +785,215 @@ export type PayAdvanceInput = {
 export async function payAdvance(
   input: PayAdvanceInput,
 ): Promise<AdvanceResult<{ operationId: string }>> {
-  const advance = await db.salaryAdvance.findUnique({
-    where: { id: input.advanceId },
-    select: {
-      id: true,
-      status: true,
-      amountCentimes: true,
-      cashOperationId: true,
-      staff: { select: { id: true, code: true, firstName: true, lastName: true } },
-    },
-  });
-  if (!advance) return { ok: false, reason: "NOT_FOUND" };
-  if (advance.cashOperationId || advance.status === "PAID") {
-    return { ok: false, reason: "ALREADY_PAID" };
+  try {
+    return await payAdvanceInTransaction(input);
+  } catch (error) {
+    if (isRaceLost(error)) return { ok: false, reason: "ALREADY_PAID" };
+    throw error;
   }
-  if (!isAdvancePayable(advance.status)) {
-    return { ok: false, reason: "NOT_APPROVED" };
-  }
-
-  const beneficiaryName = staffName(advance.staff);
-  const operation = await recordDisbursement({
-    schoolId: input.schoolId,
-    createdById: input.createdById,
-    cashSessionId: input.cashSessionId,
-    categoryId: input.categoryId,
-    subcategoryId: null,
-    motifId: null,
-    notes: null,
-    bankId: null,
-    beneficiaryStaffId: advance.staff.id,
-    beneficiaryName,
-    label: `Avance sur salaire — ${beneficiaryName}`,
-    method: input.method,
-    amountCentimes: advance.amountCentimes,
-    reference: input.reference,
-    chequeNumber: input.chequeNumber,
-    bankName: input.bankName,
-    occurredAt: input.paidOn,
-  });
-
-  // The unique index on `cashOperationId` is the real guard against a
-  // double-click: a second payout cannot claim the link.
-  await db.salaryAdvance.update({
-    where: { id: advance.id },
-    data: { status: "PAID", paidOn: input.paidOn, cashOperationId: operation.id },
-  });
-
-  return { ok: true, value: { operationId: operation.id } };
 }
 
-/** One advance with what has already come off it — the shape the maths needs. */
-type AdvanceBalance = {
+function payAdvanceInTransaction(
+  input: PayAdvanceInput,
+): Promise<AdvanceResult<{ operationId: string }>> {
+  return db.$transaction(async (tx) => {
+    const advance = await tx.salaryAdvance.findUnique({
+      where: { id: input.advanceId },
+      select: {
+        id: true,
+        status: true,
+        amountCentimes: true,
+        cashOperationId: true,
+        staff: {
+          select: { id: true, code: true, firstName: true, lastName: true },
+        },
+      },
+    });
+    if (!advance) return { ok: false, reason: "NOT_FOUND" } as const;
+    if (advance.cashOperationId || advance.status === "PAID") {
+      return { ok: false, reason: "ALREADY_PAID" } as const;
+    }
+    if (!isAdvancePayable(advance.status)) {
+      return { ok: false, reason: "NOT_APPROVED" } as const;
+    }
+
+    const beneficiaryName = staffName(advance.staff);
+    const operation = await recordDisbursement(
+      {
+        schoolId: input.schoolId,
+        createdById: input.createdById,
+        cashSessionId: input.cashSessionId,
+        categoryId: input.categoryId,
+        subcategoryId: null,
+        motifId: null,
+        notes: null,
+        bankId: null,
+        beneficiaryStaffId: advance.staff.id,
+        beneficiaryName,
+        label: `Avance sur salaire — ${beneficiaryName}`,
+        method: input.method,
+        amountCentimes: advance.amountCentimes,
+        reference: input.reference,
+        chequeNumber: input.chequeNumber,
+        bankName: input.bankName,
+        occurredAt: input.paidOn,
+      },
+      tx,
+    );
+
+    // Claimed by condition rather than trusted from the read above, and inside
+    // the transaction that wrote the money — see the note on `payStaffSalary`.
+    const claimed = await tx.salaryAdvance.updateMany({
+      where: { id: advance.id, cashOperationId: null, status: "APPROVED" },
+      data: {
+        status: "PAID",
+        paidOn: input.paidOn,
+        cashOperationId: operation.id,
+      },
+    });
+    if (claimed.count === 0) throw new PayoutRaceLost();
+
+    return { ok: true, value: { operationId: operation.id } } as const;
+  });
+}
+
+/**
+ * One advance with every recovery posted against it, named by the bulletin that
+ * posted it.
+ *
+ * The recoveries are kept as rows rather than pre-summed because who is asking
+ * changes the answer: a bulletin being restated must not count its *own* old
+ * deduction against the advance it is about to re-post, and a screen listing
+ * the school's advances must count all of them. Summing at the query would fix
+ * one reader's answer for the other.
+ */
+export type AdvanceBalance = {
   id: string;
+  staffId: string;
   status: string;
   amountCentimes: number;
   instalmentCount: number;
-  recoveredCentimes: number;
+  recoveries: { salaryPaymentId: string; amountCentimes: number }[];
 };
 
-async function outstandingAdvancesFor(
-  staffId: string,
-  excludeSalaryId: string | null,
+/** What one employee owes in all, and what this month's instalments come to. */
+export type AdvanceTotals = {
+  outstandingCentimes: number;
+  suggestedCentimes: number;
+};
+
+/**
+ * Every advance still owed by the staff a scope selects.
+ *
+ * ── The one place this is read ──────────────────────────────────────────────
+ * There were two: this, and a copy in queries.ts that fed the payroll screen.
+ * They disagreed by design — only this one excluded the month being restated —
+ * so the "still owed" figure a bursar read beside the deduction box was not the
+ * ceiling the server would enforce against it, and the rejection then quoted a
+ * third number again. `queries.ts` now reads this, which is why it is exported
+ * from the file that owns the invariant rather than reimplemented in the file
+ * that displays it.
+ *
+ * Takes a client so it can be read inside the transaction that is about to
+ * write against the figure — see `saveSalary`.
+ */
+export async function outstandingAdvancesFor(
+  client: PayrollClient,
+  scope: { staffId: string } | { staff: { schoolId: string } },
 ): Promise<AdvanceBalance[]> {
-  const advances = await db.salaryAdvance.findMany({
-    where: { staffId, status: { in: [...OWED_ADVANCE_STATUSES] } },
+  const advances = await client.salaryAdvance.findMany({
+    where: { ...scope, status: { in: [...OWED_ADVANCE_STATUSES] } },
     // Oldest first: an advance from March is settled before one from May, which
     // is how anybody would do it on paper and what makes the order defensible.
     orderBy: [{ paidOn: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
+      staffId: true,
       status: true,
       amountCentimes: true,
       instalmentCount: true,
-      recoveries: {
-        // The month being restated does not count against itself: its old rows
-        // are about to be replaced, and counting them would make the advance
-        // look more settled than it is.
-        where: excludeSalaryId ? { NOT: { salaryPaymentId: excludeSalaryId } } : {},
-        select: { amountCentimes: true },
-      },
+      recoveries: { select: { salaryPaymentId: true, amountCentimes: true } },
     },
   });
 
-  return advances.map((advance) => ({
-    id: advance.id,
-    status: advance.status,
-    amountCentimes: advance.amountCentimes,
-    instalmentCount: advance.instalmentCount,
-    recoveredCentimes: advance.recoveries.reduce(
-      (total, row) => total + row.amountCentimes,
-      0,
-    ),
-  }));
+  return advances;
 }
 
 /**
- * What this month should take back, and how much is outstanding in all.
+ * What has come off one advance, ignoring the bulletin being restated.
  *
- * Read by the payroll screen so the deduction box arrives filled in from what
- * is genuinely owed, rather than from whatever the bursar remembers. A pure
- * read — nothing is written until the bulletin is saved.
+ * `excludeSalaryId` is the month whose recoveries are about to be replaced.
+ * Counting them would make the advance look more settled than it is and refuse
+ * a bursar the right to re-post the very deduction they are correcting.
  */
-export async function plannedAdvanceRecovery(
-  staffId: string,
-  excludeSalaryId: string | null = null,
-): Promise<{ suggestedCentimes: number; outstandingCentimes: number }> {
-  const advances = await outstandingAdvancesFor(staffId, excludeSalaryId);
+function recoveredOn(
+  advance: AdvanceBalance,
+  excludeSalaryId: string | null,
+): number {
+  return advance.recoveries.reduce(
+    (total, row) =>
+      row.salaryPaymentId === excludeSalaryId ? total : total + row.amountCentimes,
+    0,
+  );
+}
 
-  return {
-    suggestedCentimes: advances.reduce(
-      (total, advance) => total + advanceInstalment(advance),
-      0,
-    ),
-    outstandingCentimes: advances.reduce(
-      (total, advance) => total + outstandingAdvance(advance),
-      0,
-    ),
-  };
+/** What one advance still owes, on the same terms. */
+function outstandingOf(
+  advance: AdvanceBalance,
+  excludeSalaryId: string | null,
+): number {
+  return outstandingAdvance({
+    status: advance.status,
+    amountCentimes: advance.amountCentimes,
+    recoveredCentimes: recoveredOn(advance, excludeSalaryId),
+  });
+}
+
+/** What a set of advances still owes in all. */
+export function totalOutstanding(
+  advances: AdvanceBalance[],
+  excludeSalaryId: string | null,
+): number {
+  return advances.reduce(
+    (total, advance) => total + outstandingOf(advance, excludeSalaryId),
+    0,
+  );
+}
+
+/**
+ * The same advances folded per employee, for a screen showing the whole school.
+ *
+ * `excludeSalaryIdFor` names, per employee, the bulletin that is about to be
+ * restated — so the payroll screen shows each line the ceiling that line's own
+ * save will be checked against, rather than a school-wide figure that is right
+ * for nobody.
+ */
+export function advanceTotalsByStaff(
+  advances: AdvanceBalance[],
+  excludeSalaryIdFor: (staffId: string) => string | null = () => null,
+): Record<string, AdvanceTotals> {
+  const totals: Record<string, AdvanceTotals> = {};
+
+  for (const advance of advances) {
+    const exclude = excludeSalaryIdFor(advance.staffId);
+    const recoveredCentimes = recoveredOn(advance, exclude);
+    const shaped = {
+      status: advance.status,
+      amountCentimes: advance.amountCentimes,
+      instalmentCount: advance.instalmentCount,
+      recoveredCentimes,
+    };
+
+    const held = totals[advance.staffId] ?? {
+      outstandingCentimes: 0,
+      suggestedCentimes: 0,
+    };
+    held.outstandingCentimes += outstandingAdvance(shaped);
+    held.suggestedCentimes += advanceInstalment(shaped);
+    totals[advance.staffId] = held;
+  }
+
+  return totals;
 }
 
 /**
@@ -797,66 +1006,58 @@ export async function plannedAdvanceRecovery(
  * recorded against the advance it settles — the same shape as a payment's
  * allocations against a family's schedule lines.
  *
- * Deducting more than is owed is refused rather than absorbed: it means the
- * bursar typed a figure that does not correspond to any advance, and silently
- * keeping the difference would be money withheld from a wage against nothing.
- *
  * Idempotent by construction: the month's own rows are cleared first, so
  * restating September's bulletin restates September's recoveries and every
  * balance follows.
+ *
+ * Takes the advances its caller already read, rather than reading them again.
+ * They were read inside the same transaction and the amount was proved against
+ * them there; a second read could only disagree with the check that let this be
+ * called at all.
  */
-export async function applyAdvanceRecovery(
+async function applyAdvanceRecovery(
+  tx: TxClient,
   salaryPaymentId: string,
-  staffId: string,
+  advances: AdvanceBalance[],
   advanceCentimes: number,
-): Promise<{ ok: true } | { ok: false; outstandingCentimes: number }> {
-  const advances = await outstandingAdvancesFor(staffId, salaryPaymentId);
-  const outstandingCentimes = advances.reduce(
-    (total, advance) => total + outstandingAdvance(advance),
-    0,
-  );
+): Promise<void> {
+  await tx.salaryAdvanceRecovery.deleteMany({ where: { salaryPaymentId } });
 
-  if (advanceCentimes > outstandingCentimes) {
-    return { ok: false, outstandingCentimes };
+  let left = advanceCentimes;
+  for (const advance of advances) {
+    if (left <= 0) break;
+    // This month's own rows are the ones just deleted, so they never count.
+    const take = Math.min(left, outstandingOf(advance, salaryPaymentId));
+    if (take <= 0) continue;
+
+    await tx.salaryAdvanceRecovery.create({
+      data: { advanceId: advance.id, salaryPaymentId, amountCentimes: take },
+    });
+    left -= take;
   }
 
-  await db.$transaction(async (tx) => {
-    await tx.salaryAdvanceRecovery.deleteMany({ where: { salaryPaymentId } });
+  /*
+    Restamp every touched advance's status.
 
-    let left = advanceCentimes;
-    for (const advance of advances) {
-      if (left <= 0) break;
-      const take = Math.min(left, outstandingAdvance(advance));
-      if (take <= 0) continue;
-
-      await tx.salaryAdvanceRecovery.create({
-        data: { advanceId: advance.id, salaryPaymentId, amountCentimes: take },
+    Both directions matter: one fully recovered becomes RECOVERED, and one
+    whose recovery is being *undone* — because the bulletin was restated
+    downwards — has to go back to PAID. Only ever a mirror of the arithmetic;
+    `outstandingAdvance` stays the authority.
+  */
+  for (const advance of advances) {
+    const settled = await tx.salaryAdvanceRecovery.aggregate({
+      where: { advanceId: advance.id },
+      _sum: { amountCentimes: true },
+    });
+    const recovered = settled._sum.amountCentimes ?? 0;
+    const status = recovered >= advance.amountCentimes ? "RECOVERED" : "PAID";
+    if (status !== advance.status) {
+      await tx.salaryAdvance.update({
+        where: { id: advance.id },
+        data: { status },
       });
-      left -= take;
     }
-
-    /*
-      Restamp every touched advance's status.
-
-      Both directions matter: one fully recovered becomes RECOVERED, and one
-      whose recovery is being *undone* — because the bulletin was restated
-      downwards — has to go back to PAID. Only ever a mirror of the arithmetic;
-      `outstandingAdvance` stays the authority.
-    */
-    for (const advance of advances) {
-      const settled = await tx.salaryAdvanceRecovery.aggregate({
-        where: { advanceId: advance.id },
-        _sum: { amountCentimes: true },
-      });
-      const recovered = settled._sum.amountCentimes ?? 0;
-      const status = recovered >= advance.amountCentimes ? "RECOVERED" : "PAID";
-      if (status !== advance.status) {
-        await tx.salaryAdvance.update({ where: { id: advance.id }, data: { status } });
-      }
-    }
-  });
-
-  return { ok: true };
+  }
 }
 
 /**
