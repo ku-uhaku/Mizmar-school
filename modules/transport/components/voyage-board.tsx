@@ -4,9 +4,12 @@ import {
   BusIcon,
   CheckCircle2Icon,
   CircleDashedIcon,
+  ClipboardListIcon,
   PlayIcon,
   XCircleIcon,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -33,28 +36,50 @@ import { moveTripRunAction } from "@/modules/transport/actions";
 import type { TripRunRow } from "@/modules/transport/queries";
 
 /**
+ * L'appel for one run, as the register screen addresses it.
+ *
+ * `routeId:scheduleId` and the day — see the note on the attendance page. Built
+ * here rather than there because this is where a run is in hand; the page only
+ * ever receives the pair and re-derives both against the year.
+ */
+function registerHref(run: TripRunRow, date?: string): string {
+  const query = new URLSearchParams({ run: `${run.routeId}:${run.scheduleId}` });
+  if (date) query.set("date", date);
+  return `/transport/attendance?${query.toString()}`;
+}
+
+/**
  * The day's voyages, and the buttons that move them.
  *
- * One component for the office board and the driver's phone. They differ only
- * in which runs they are handed and how big the buttons are — the lifecycle,
- * the wording and the guards are identical, and splitting them would be two
- * screens drifting apart over the same four states.
+ * One component for the office board and the crew's own screen. They differ
+ * only in which runs they are handed and how big the buttons are — the
+ * lifecycle, the wording and the guards are identical, and splitting them would
+ * be two screens drifting apart over the same four states.
  *
- * `driverMode` makes the primary action full-width and drops the columns a
- * driver cannot act on. Someone holding a phone at 6.50 a.m. in a yard needs one
- * obvious target, not a table.
+ * `driverMode` makes the primary action full-width, drops the columns a driver
+ * cannot act on, and holds the buttons to the run's own hour. Someone at 6.50
+ * a.m. in a yard needs one obvious target, not a table.
+ *
+ * `scope` is the office's switch between its own runs and every line. Null hides
+ * it, which is what a driver gets — the page decides that from TRANSPORT_MANAGE
+ * and re-derives it when the link is followed, so this is presentation only.
  */
 export function VoyageBoard({
   runs,
   canCancel,
   driverMode = false,
+  scope = null,
+  date,
 }: {
   runs: TripRunRow[];
   canCancel: boolean;
   driverMode?: boolean;
+  scope?: "mine" | "all" | null;
+  date?: string;
 }) {
   const t = useT();
   const locale = useLocale();
+  const router = useRouter();
   const [pendingCancel, setPendingCancel] = React.useState<TripRunRow | null>(
     null,
   );
@@ -74,6 +99,12 @@ export function VoyageBoard({
         toast.success(result.message ?? "");
         setPendingCancel(null);
         setReason("");
+        // Starting a voyage *is* opening its register — the départ is what
+        // declares which run is being made, and making the driver find the
+        // appel afterwards is how it ends up not being taken. The other two
+        // moves stay on the board: closing a run and calling one off both leave
+        // the person looking at the rest of their day.
+        if (next === "EN_ROUTE") router.push(registerHref(run, date));
       } else {
         toast.error(result.message ?? t.errors.unexpected);
       }
@@ -81,18 +112,55 @@ export function VoyageBoard({
     });
   }
 
+  const switcher =
+    scope === null ? null : (
+      <div className="flex justify-end">
+        <div className="bg-muted inline-flex rounded-md p-0.5">
+          {(["mine", "all"] as const).map((option) => (
+            <Button
+              key={option}
+              asChild
+              size="sm"
+              variant={scope === option ? "secondary" : "ghost"}
+              className={cn(scope !== option && "text-muted-foreground")}
+            >
+              <Link
+                href={{
+                  pathname: "/transport/voyages",
+                  query: {
+                    ...(option === "all" ? { scope: "all" } : {}),
+                    ...(date ? { date } : {}),
+                  },
+                }}
+              >
+                {option === "mine"
+                  ? t.transport.myVoyages
+                  : t.transport.voyagesAll}
+              </Link>
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+
   if (runs.length === 0) {
     return (
-      <EmptyState
-        icon={<BusIcon className="size-5" />}
-        title={driverMode ? t.transport.noRunsForDriver : t.transport.noRunsToday}
-      />
+      <div className="grid gap-3">
+        {switcher}
+        <EmptyState
+          icon={<BusIcon className="size-5" />}
+          title={
+            driverMode ? t.transport.noRunsForDriver : t.transport.noRunsToday
+          }
+        />
+      </div>
     );
   }
 
   return (
     <>
       <div className="grid gap-3">
+        {switcher}
         {runs.map((run) => (
           <VoyageCard
             key={run.id}
@@ -100,6 +168,7 @@ export function VoyageBoard({
             locale={locale}
             driverMode={driverMode}
             canCancel={canCancel}
+            date={date}
             busy={isPending && busyId === run.id}
             onMove={(next) => move(run, next)}
             onAskCancel={() => {
@@ -168,6 +237,7 @@ function VoyageCard({
   locale,
   driverMode,
   canCancel,
+  date,
   busy,
   onMove,
   onAskCancel,
@@ -176,6 +246,7 @@ function VoyageCard({
   locale: Parameters<typeof formatTime>[1];
   driverMode: boolean;
   canCancel: boolean;
+  date?: string;
   busy: boolean;
   onMove: (next: "EN_ROUTE" | "ARRIVED") => void;
   onAskCancel: () => void;
@@ -241,6 +312,18 @@ function VoyageCard({
             >
               <PlayIcon />
               {t.transport.runStart}
+            </Button>
+          ) : null}
+
+          {/* The register, once there is one. `Démarrer` navigates here on its
+              own; this is the way back for a driver who left the screen, and
+              the only way in now that the appel is off the sidebar. */}
+          {run.status === "EN_ROUTE" || run.status === "ARRIVED" ? (
+            <Button asChild variant="outline">
+              <Link href={registerHref(run, date)}>
+                <ClipboardListIcon />
+                {t.transport.busRegister}
+              </Link>
             </Button>
           ) : null}
 

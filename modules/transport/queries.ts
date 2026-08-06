@@ -1157,6 +1157,11 @@ export type TripRunRow = {
   routeId: string;
   routeCode: string;
   routeName: string;
+  /**
+   * The horaire, carried so the board can link to this run's register — which
+   * the attendance screen addresses as `routeId:scheduleId`, not by run.
+   */
+  scheduleId: string;
   scheduleName: string;
   direction: string;
   status: string;
@@ -1224,6 +1229,7 @@ function toTripRunRow(
     routeId: run.routeId,
     routeCode: run.route.code,
     routeName: run.route.name,
+    scheduleId: run.scheduleId,
     scheduleName: run.schedule.name,
     direction: run.schedule.direction,
     status: run.status,

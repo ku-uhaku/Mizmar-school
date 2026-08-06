@@ -9,6 +9,7 @@ import {
   STREETS,
   SURNAMES,
   pick,
+  pickUnique,
   spread,
 } from "@/prisma/seed/names";
 
@@ -161,6 +162,17 @@ export function buildRoster({
   const families: FamilySeed[] = [];
   const students: StudentSeed[] = [];
 
+  /*
+    Every full name this school hands out, pupils and guardians together.
+
+    One set rather than one per group, because the duplicate that matters is not
+    "two pupils" — it is two *people*: a father and a son on the same dossier
+    called Youssef Bennani is the reading a family screen must never produce.
+    See `pickUnique`, which walks the pool forward from where the hash landed
+    until it finds a combination this set has not seen.
+  */
+  const takenNames = new Set<string>();
+
   for (const [index, slot] of slots.entries()) {
     const familyIndex = familyIndexForSlot[index];
     const surname = pick(SURNAMES, spread(familyIndex + variant * 977));
@@ -168,14 +180,32 @@ export function buildRoster({
 
     if (families.length === familyIndex) {
       const situation = situationFor(familyIndex + variant);
-      const father = {
-        first: pick(FATHERS, spread(familyIndex + variant * 31)),
-        last: surname.fr,
-        profession: pick(PROFESSIONS, spread(familyIndex * 2 + variant)),
-        phone: phone("mobile", familyIndex * 2),
-      };
+      // Built only when the dossier has one: a widowed file keeps a single
+      // parent, and claiming a name for a father who is not recorded would
+      // spend it on nobody. `ensurePrimaryContact` promotes the mother.
+      const father =
+        situation === "WIDOWED"
+          ? undefined
+          : {
+              first: pickUnique(
+                FATHERS,
+                spread(familyIndex + variant * 31),
+                surname.fr,
+                takenNames,
+                (name) => name,
+              ),
+              last: surname.fr,
+              profession: pick(PROFESSIONS, spread(familyIndex * 2 + variant)),
+              phone: phone("mobile", familyIndex * 2),
+            };
       const mother = {
-        first: pick(MOTHERS, spread(familyIndex + variant * 53)),
+        first: pickUnique(
+          MOTHERS,
+          spread(familyIndex + variant * 53),
+          surname.fr,
+          takenNames,
+          (name) => name,
+        ),
         last: surname.fr,
         profession: pick(PROFESSIONS, spread(familyIndex * 2 + 1 + variant)),
         phone: phone("mobile", familyIndex * 2 + 1),
@@ -189,20 +219,31 @@ export function buildRoster({
         city: cityName,
         addressLine: `${(spread(familyIndex) % 180) + 1}, ${pick(STREETS, spread(familyIndex + variant * 7))}`,
         phone: phone("fixed", familyIndex),
-        // A widowed file keeps one parent, which is the point of recording the
-        // situation at all: `ensurePrimaryContact` has to promote the mother.
-        father: situation === "WIDOWED" ? undefined : father,
+        father,
         mother,
         // A divorced file gets a tuteur as well — several contacts on one
-        // dossier is the case the guardian screen exists for.
+        // dossier is the case the guardian screen exists for. Their own
+        // surname, since a tuteur is rarely of the household's family.
         guardian:
           situation === "DIVORCED"
-            ? {
-                first: pick(FATHERS, spread(familyIndex + 6)),
-                last: pick(SURNAMES, spread(familyIndex + 13)).fr,
-                profession: pick(PROFESSIONS, spread(familyIndex + 4)),
-                phone: phone("mobile", familyIndex * 2 + 500),
-              }
+            ? (() => {
+                const guardianSurname = pick(
+                  SURNAMES,
+                  spread(familyIndex + 13),
+                ).fr;
+                return {
+                  first: pickUnique(
+                    FATHERS,
+                    spread(familyIndex + 6),
+                    guardianSurname,
+                    takenNames,
+                    (name) => name,
+                  ),
+                  last: guardianSurname,
+                  profession: pick(PROFESSIONS, spread(familyIndex + 4)),
+                  phone: phone("mobile", familyIndex * 2 + 500),
+                };
+              })()
             : undefined,
       });
     }
@@ -210,7 +251,13 @@ export function buildRoster({
     // Scattered rather than alternated: the pupils of one class sit a fixed
     // stride apart in this list, so `index % 2` gave every class a single sex.
     const isBoy = spread(index + variant * 101) % 2 === 0;
-    const given = pick(isBoy ? BOYS : GIRLS, spread(index * 3 + variant * 211));
+    const given = pickUnique(
+      isBoy ? BOYS : GIRLS,
+      spread(index * 3 + variant * 211),
+      surname.fr,
+      takenNames,
+      (name) => name.fr,
+    );
 
     students.push({
       code: `E-${yearLabel}-${String(index + 1).padStart(4, "0")}`,

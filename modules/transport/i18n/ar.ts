@@ -20,7 +20,9 @@ const ar = {
     cancelRunTitle: "إلغاء هذه الرحلة؟",
     cancelRunHint: "تبقى في اللوحة كملغاة مع سببك. بيّن ما وقع: عطب، أو غياب سائق، أو طريق مقطوعة.",
     myVoyages: "رحلاتي",
-    myVoyagesHint: "رحلات اليوم للحافلة التي تسوقها.",
+    myVoyagesHint: "رحلات اليوم للحافلة التي أنت عليها. انطلاق الرحلة يفتح مناداتها.",
+    voyagesAll: "كل الخطوط",
+    busRegister: "المناداة",
     noRunsToday: "لا رحلة مقررة اليوم.",
     noRunsForDriver: "لا حافلة مسندة إليك اليوم.",
     plannedAt: "الانطلاق المقرر {time}",
@@ -339,10 +341,8 @@ const ar = {
 
 export const nav = {
   transportVoyages: "الرحلات",
-  transportMyVoyages: "رحلاتي",
   transportSchedules: "\u0645\u0648\u0627\u0639\u064a\u062f \u0627\u0644\u0646\u0642\u0644",
   transportConsumption: "\u0627\u0644\u0648\u0642\u0648\u062f",
-  transportAttendance: "نداء الحافلة",
   transportRoutes: "الخطوط",
   transportFleet: "الأسطول",
 };

@@ -24,7 +24,10 @@ const en = {
     cancelRunTitle: "Call off this voyage?",
     cancelRunHint: "It stays on the board as called off, with your reason. Say what happened — a breakdown, no driver, a closed road.",
     myVoyages: "My voyages",
-    myVoyagesHint: "Today's runs for the bus you drive.",
+    myVoyagesHint:
+      "Today's runs for the bus you are on. Starting one opens its register.",
+    voyagesAll: "Every line",
+    busRegister: "Register",
     noRunsToday: "No voyage is scheduled for today.",
     noRunsForDriver: "No bus is assigned to you today.",
     plannedAt: "Due out {time}",
@@ -332,10 +335,8 @@ const en = {
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
   transportVoyages: "Voyages",
-  transportMyVoyages: "My voyages",
   transportSchedules: "Timetables",
   transportConsumption: "Fuel",
-  transportAttendance: "Bus register",
   transportRoutes: "Routes",
   transportFleet: "Fleet",
 } as const;

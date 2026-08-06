@@ -24,7 +24,10 @@ const fr = {
     cancelRunTitle: "Annuler ce voyage ?",
     cancelRunHint: "Il reste au tableau comme annulé, avec votre motif. Dites ce qui s'est passé : une panne, pas de chauffeur, une route coupée.",
     myVoyages: "Mes voyages",
-    myVoyagesHint: "Les voyages du jour pour le bus que vous conduisez.",
+    myVoyagesHint:
+      "Les voyages du jour pour le bus où vous êtes. Démarrer un voyage ouvre son appel.",
+    voyagesAll: "Toutes les lignes",
+    busRegister: "Appel",
     noRunsToday: "Aucun voyage n'est prévu aujourd'hui.",
     noRunsForDriver: "Aucun bus ne vous est affecté aujourd'hui.",
     plannedAt: "Départ prévu {time}",
@@ -339,10 +342,8 @@ const fr = {
 
 export const nav = {
   transportVoyages: "Voyages",
-  transportMyVoyages: "Mes voyages",
   transportSchedules: "Horaires",
   transportConsumption: "Carburant",
-  transportAttendance: "Appel du bus",
   transportRoutes: "Lignes",
   transportFleet: "Flotte",
 };

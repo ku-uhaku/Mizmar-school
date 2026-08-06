@@ -31,6 +31,15 @@ export const transportModule = defineModule({
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
     },
     {
+      /*
+        The one voyage screen, and the whole of the crew's day.
+
+        It shows the runs of the bus the signed-in person is on; whoever holds
+        TRANSPORT_MANAGE gets a switch inside it to widen to every line. There
+        was a second entry — "mes voyages" — listing exactly the same runs, and
+        two sidebar links to one screen is how a driver ends up taking the
+        register on the wrong one.
+      */
       href: "/transport/voyages",
       icon: "routes",
       section: "logistique",
@@ -40,16 +49,6 @@ export const transportModule = defineModule({
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
     },
     {
-      href: "/transport/mon-voyage",
-      icon: "fleet",
-      section: "logistique",
-      labelKey: "transportMyVoyages",
-      order: 26,
-      // The driver's own code, so a chauffeur's role shows this and nothing
-      // else of the logistics section — see modules/transport/permissions.ts.
-      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_ATTENDANCE,
-    },
-    {
       href: "/transport/fleet",
       icon: "fleet",
       section: "logistique",
@@ -57,14 +56,18 @@ export const transportModule = defineModule({
       order: 30,
       schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_VIEW,
     },
-    {
-      href: "/transport/attendance",
-      icon: "attendance",
-      section: "logistique",
-      labelKey: "transportAttendance",
-      order: 50,
-      schoolPermission: TRANSPORT_PERMISSIONS.TRANSPORT_ATTENDANCE,
-    },
+    /*
+      L'appel is deliberately not in the sidebar.
+
+      It is reached from the voyage it belongs to — pressing "démarrer" lands on
+      it, and a run under way carries a link back. A standalone entry made the
+      register a place you go *before* deciding which voyage you are on, which
+      is precisely the mistake it invites: the screen defaulted to the first run
+      of the day, so an afternoon driver opening it marked the morning.
+
+      The route lives on at /transport/attendance and still authorizes on its
+      own — this only decides what the nav offers.
+    */
     {
       href: "/transport/consumption",
       icon: "decaissement",

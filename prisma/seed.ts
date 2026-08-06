@@ -61,9 +61,10 @@ import { buildRoster, type Cohort } from "@/prisma/seed/roster";
  *
  *   1 school  ×  1 school year  ×  3 cycles  ×  12 levels  ×  2 classes a level
  *
- * — 24 classes, 120 pupils across 50 dossiers rather than one apiece — see
- * `OUJDA_HOUSEHOLD_SIZES` — which is what a demo of a class list, a mark sheet
- * or a fee grid needs at a size a reader can actually hold in their head.
+ * — 24 classes of 20 places, 432 pupils across some 205 dossiers rather than one
+ * apiece — see `OUJDA_HOUSEHOLD_SIZES` — which is a school at a real working
+ * size: eighteen names on a class list, a mark sheet that has to scroll, a fee
+ * grid with enough rows to sort.
  * Plus everything those need to mean anything: subjects with their
  * components, the programme that weights them, rooms, semesters, the bell
  * schedule (standard and Ramadan), teaching assignments, a worked timetable,
@@ -104,10 +105,20 @@ const TRACK_FOR: Record<string, string | null> = {
   "2BAC": "2B-SVT",
 };
 
-/** Two parallel classes at every level, sized for the intake plus a few places. */
+/**
+ * Two parallel classes at every level, twenty places apiece, eighteen taken.
+ *
+ * Twenty is the school's declared class size. Filling eighteen of them rather
+ * than all twenty is deliberate: a class at capacity makes every screen that
+ * exists to show *remaining places* — the inscription form, the class card, the
+ * seat check that refuses an over-enrolment — read the same as one that is
+ * merely full, and the two are the states worth telling apart.
+ *
+ * 12 levels × 2 classes × 18 = 432 pupils, which is a school of a real size.
+ */
 const CLASSES_PER_LEVEL = 2;
-const PUPILS_PER_CLASS = 21;
-const CLASS_CAPACITY = 26;
+const PUPILS_PER_CLASS = 18;
+const CLASS_CAPACITY = 20;
 
 /**
  * What a full-time teacher gives in a week, in minutes — 22h, the usual
@@ -155,11 +166,15 @@ function cohortsFor(pupilsPerClass: number): Cohort[] {
 }
 
 /**
- * Oujda's household sizes, cycled: mostly two children, a third of them three —
- * averaging 2.4, so its 120 pupils land in 50 dossiers rather than the 60 a flat
- * pairing gives. See `householdSize` on `buildRoster`.
+ * Oujda's household sizes, cycled: an only child now and then, mostly two,
+ * a third of them three.
+ *
+ * Averaging 2.1, so its 432 pupils land in about 205 dossiers. The single-child
+ * files matter as much as the large ones — the sibling reduction has to be
+ * demonstrably *absent* somewhere, or a reader cannot tell it is being applied.
+ * See `householdSize` on `buildRoster`.
  */
-const OUJDA_HOUSEHOLD_SIZES = [2, 3, 2, 3, 2, 2, 3, 2, 3, 2];
+const OUJDA_HOUSEHOLD_SIZES = [2, 3, 1, 2, 3, 2, 1, 2, 3, 2];
 function oujdaHouseholdSize(familyIndex: number): number {
   return OUJDA_HOUSEHOLD_SIZES[familyIndex % OUJDA_HOUSEHOLD_SIZES.length];
 }
@@ -183,8 +198,7 @@ const PLANS: SchoolPlan[] = [
     cityCode: "OUJDA",
     cityName: "Oujda",
     variant: 0,
-    // 2 classes × 5 pupils × 12 levels = 120.
-    pupilsPerClass: 5,
+    // The network default: 2 classes × 18 pupils × 12 levels = 432.
     householdSize: oujdaHouseholdSize,
   },
 ];
