@@ -736,3 +736,97 @@ html.dark[data-accent="teal"] {
     print-color-adjust: exact;
   }
 }
+
+/* ── The sign-in panel's backdrop ─────────────────────────────────────────────
+   Three soft lights drifting behind the Mizmar mark, in the logo's own palette:
+   the cyan of its circuit traces, the deep blue of the flute, the copper of the
+   bell. Slow and out of phase, so the panel never repeats a pose a reader could
+   catch it in.
+
+   Only `transform` and `opacity` are animated — both composite on the GPU, so
+   this costs no layout or paint on a screen somebody is about to type a
+   password into. The blur is on a static parent rather than animated, for the
+   same reason.
+
+   Every duration here is deliberately long. A login screen is looked at for
+   about four seconds; motion fast enough to *notice* in that time is motion
+   that competes with the form. */
+@keyframes mizmar-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12%, 8%, 0) scale(1.18);
+  }
+}
+
+@keyframes mizmar-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  50% {
+    transform: translate3d(-14%, -10%, 0) scale(0.92);
+  }
+}
+
+@keyframes mizmar-drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.95);
+  }
+  50% {
+    transform: translate3d(8%, -12%, 0) scale(1.15);
+  }
+}
+
+/* The traces creep upward, the way the logo's own circuit lines run into the
+   flute. One grid cell per cycle, so the loop is seamless. */
+@keyframes mizmar-traces {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -56px, 0);
+  }
+}
+
+.mizmar-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  will-change: transform;
+}
+
+.mizmar-orb-a {
+  animation: mizmar-drift-a 26s ease-in-out infinite;
+}
+.mizmar-orb-b {
+  animation: mizmar-drift-b 34s ease-in-out infinite;
+}
+.mizmar-orb-c {
+  animation: mizmar-drift-c 30s ease-in-out infinite;
+}
+
+.mizmar-traces {
+  position: absolute;
+  inset: -56px 0 -56px 0;
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, white 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, white 7%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  animation: mizmar-traces 14s linear infinite;
+  will-change: transform;
+}
+
+/* Motion is decoration here and nothing else, so it goes entirely rather than
+   being slowed down. The composition still reads without it. */
+@media (prefers-reduced-motion: reduce) {
+  .mizmar-orb-a,
+  .mizmar-orb-b,
+  .mizmar-orb-c,
+  .mizmar-traces {
+    animation: none;
+  }
+}

@@ -6,6 +6,7 @@ import {
   MizmarMark,
   OrganizationMark,
 } from "@/modules/auth/components/brand-marks";
+import { AuroraBackdrop } from "@/modules/auth/components/aurora-backdrop";
 import { loadOrganizationBrand } from "@/modules/organization/queries";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
 import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
@@ -37,33 +38,30 @@ export default async function LoginPage(props: PageProps<"/login">) {
     <main className="grid min-h-svh lg:grid-cols-[1.1fr_1fr]">
       {/* Information side. Hidden below lg so the small-screen experience stays
           the form and nothing else. */}
-      <section className="bg-primary text-primary-foreground relative hidden flex-col justify-between overflow-hidden p-12 lg:flex">
-        <div
-          aria-hidden
-          className="from-primary-foreground/15 pointer-events-none absolute -top-24 -end-24 size-96 rounded-full bg-radial to-transparent"
-        />
+      <section className="relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex">
+        <AuroraBackdrop />
 
         {/* The product's mark leads this panel, because this panel is about the
             product. The customer's own crest sits beside the form instead. */}
         <div className="relative">
-          <MizmarMark className="h-14" />
-          <p className="text-primary-foreground/70 mt-6 text-sm font-medium tracking-wide uppercase">
-            {t.auth.brandTagline}
-          </p>
+          <MizmarMark className="h-24 xl:h-28" />
         </div>
 
         <div className="relative max-w-md">
-          <h1 className="text-4xl leading-tight font-semibold text-balance">
+          <p className="text-white/60 text-sm font-medium tracking-wide uppercase">
+            {t.auth.brandTagline}
+          </p>
+          <h1 className="mt-4 text-4xl leading-tight font-semibold text-balance">
             {t.auth.panelHeadline}
           </h1>
 
           <ul className="mt-10 grid gap-5">
             {highlights.map(({ icon: Icon, label }) => (
               <li key={label} className="flex items-start gap-3">
-                <span className="bg-primary-foreground/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+                <span className="bg-white/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
                   <Icon className="size-4" />
                 </span>
-                <span className="text-primary-foreground/85 text-sm leading-6">
+                <span className="text-white/80 text-sm leading-6">
                   {label}
                 </span>
               </li>
@@ -71,7 +69,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
           </ul>
         </div>
 
-        <p className="text-primary-foreground/50 relative text-xs">
+        <p className="relative text-xs text-white/45">
           © {new Date().getFullYear()}
         </p>
       </section>

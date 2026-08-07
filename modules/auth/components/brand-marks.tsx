@@ -14,20 +14,37 @@ import { cn } from "@/lib/utils";
  * they are on their own school's site.
  */
 
-/** The Mizmar wordmark. */
+/**
+ * The Mizmar brand: the mark, and the name set in the page's own type.
+ *
+ * ── Why the name is text and not the supplied logo ──────────────────────────
+ * `public/mizmar.png` sets "Mizmar" in a very dark navy — around #181848. That
+ * is right on the white background it was drawn for and invisible on the deep
+ * blue panel it now sits on, and recolouring the ink would have meant lifting
+ * every dark pixel in the file, including the flute's own body and its finger
+ * holes. So the artwork contributes the part that survives a dark background —
+ * the instrument and its traces — and the name is set in the interface's type,
+ * which inherits whatever colour the surface calls for and stays crisp at any
+ * size.
+ */
 export function MizmarMark({ className }: { className?: string }) {
   return (
-    <Image
-      src="/mizmar.png"
-      alt="Mizmar"
-      width={618}
-      height={398}
-      // Eager, and it is the one image on the page worth it: this sits at the
-      // top of the first screen anybody sees, and lazy-loading a logo that is
-      // already in the viewport only makes it arrive late.
-      priority
-      className={cn("h-12 w-auto", className)}
-    />
+    <div className={cn("flex items-center gap-4", className)}>
+      <Image
+        src="/mizmar-mark.png"
+        alt=""
+        width={512}
+        height={512}
+        // Eager, and it is the one image on the page worth it: this sits at the
+        // top of the first screen anybody sees, and lazy-loading a logo that is
+        // already in the viewport only makes it arrive late.
+        priority
+        className="h-full w-auto"
+      />
+      <span className="text-4xl font-semibold tracking-tight xl:text-5xl">
+        Mizmar
+      </span>
+    </div>
   );
 }
 
