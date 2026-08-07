@@ -12,6 +12,7 @@ const en = {
 
     // ── The four working sections ───────────────────────────────────────────
     sections: "Your sections",
+    quickActions: "Quick access",
 
     // ── The charts ──────────────────────────────────────────────────────────
     charts: "This year at a glance",

@@ -12,6 +12,7 @@ const fr = {
 
     // ── Les quatre sections de travail ──────────────────────────────────────
     sections: "Vos sections",
+    quickActions: "Accès rapide",
 
     charts: "L'année en un coup d'œil",
     pupilsPerLevel: "Élèves par niveau",

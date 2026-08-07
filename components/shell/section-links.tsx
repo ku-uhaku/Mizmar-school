@@ -16,6 +16,14 @@ import { cn } from "@/lib/utils";
  * Domain-free on purpose: callers pass already-resolved labels and hrefs, and
  * filter the list by permission before handing it over — a card rendered here is
  * a screen the reader may actually open.
+ *
+ * ── The colour comes from where the reader already is ───────────────────────
+ * Unlike the four cards on the main dashboard, these all belong to one section
+ * — every card on /transport leads somewhere in logistique — so they take
+ * `--section` from the page rather than deriving it per card. `SectionScope`
+ * has already bound it in the dashboard layout, which is why nothing here
+ * knows or is told which section it is in: the same markup comes out blue on
+ * /school-life and orange on /transport.
  */
 export type SectionLink = {
   href: string;
@@ -50,9 +58,9 @@ export function SectionLinks({
           href={link.href}
           className="group"
         >
-          <Card className="hover:border-primary/40 h-full gap-0 py-4 transition-colors">
+          <Card className="border-section/25 bg-section/10 hover:border-section/55 hover:bg-section/[0.16] h-full gap-0 py-4 transition-colors">
             <CardContent className="flex items-start gap-3 px-4">
-              <span className="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors">
+              <span className="bg-section/12 text-section flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors group-hover:bg-section/20">
                 {link.icon}
               </span>
 
@@ -77,7 +85,7 @@ export function SectionLinks({
                 </span>
               </span>
 
-              <ArrowRightIcon className="text-muted-foreground/60 rtl-flip mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+              <ArrowRightIcon className="text-section/70 rtl-flip mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
             </CardContent>
           </Card>
         </Link>

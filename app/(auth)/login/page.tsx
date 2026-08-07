@@ -69,8 +69,11 @@ export default async function LoginPage(props: PageProps<"/login">) {
           </ul>
         </div>
 
+        {/* The year is computed rather than written down: a copyright line
+          that says 2026 in 2027 is the sort of thing nobody notices until a
+          customer does. */}
         <p className="relative text-xs text-white/45">
-          © {new Date().getFullYear()}
+          © {new Date().getFullYear()} Mizmar
         </p>
       </section>
 
@@ -114,8 +117,10 @@ export default async function LoginPage(props: PageProps<"/login">) {
               </CardContent>
             </Card>
 
+            {/* "Édité par" had nothing after it — the publisher's name was
+              never rendered, so the line read as an unfinished sentence. */}
             <p className="text-muted-foreground mt-10 text-center text-xs">
-              {t.auth.poweredBy}
+              {t.auth.poweredBy} Mizmar
             </p>
           </div>
         </div>

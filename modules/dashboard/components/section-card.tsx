@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRightIcon } from "lucide-react";
 
 import { useLocale } from "@/components/providers/i18n-provider";
+import { sectionForPath } from "@/lib/nav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatNumber } from "@/lib/i18n/format";
@@ -17,6 +18,18 @@ import { cn } from "@/lib/utils";
  * thing inside it that is waiting on somebody. A section with nothing pending
  * shows no badge at all rather than a green "0", so the eye goes straight to the
  * cards that do.
+ *
+ * ── The colour is the section's own ─────────────────────────────────────────
+ * Each card binds `--section` from its own `href`, so vie scolaire comes out
+ * blue, la caisse teal, logistique orange and RH violet — the same hues the
+ * sidebar and every page header in that section already wear. It is derived
+ * rather than passed: a card whose href changes takes its new section's colour
+ * with it, and there is no second list of "which card is which colour" to fall
+ * out of step with `lib/nav.ts`.
+ *
+ * Kept to a tint and a border. These four cards sit side by side, so four
+ * saturated panels would read as a colour chart rather than as a way in — and
+ * the figure on each has to stay the thing you see first.
  */
 export function SectionCard({
   href,
@@ -42,13 +55,14 @@ export function SectionCard({
   attention?: string;
 }) {
   const locale = useLocale();
+  const section = sectionForPath(href);
 
   return (
-    <Link href={href} className="group">
-      <Card className="hover:border-primary/40 h-full gap-0 py-5 transition-colors">
+    <Link href={href} className="group" data-section={section ?? undefined}>
+      <Card className="border-section/25 bg-section/10 hover:border-section/55 hover:bg-section/[0.16] h-full gap-0 py-5 transition-colors">
         <CardContent className="flex h-full flex-col px-5">
           <div className="flex items-start gap-3">
-            <span className="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors">
+            <span className="bg-section/12 text-section flex size-9 shrink-0 items-center justify-center rounded-lg transition-colors group-hover:bg-section/20">
               {icon}
             </span>
             <div className="min-w-0 flex-1">
@@ -57,7 +71,7 @@ export function SectionCard({
                 {description}
               </p>
             </div>
-            <ArrowRightIcon className="text-muted-foreground/60 rtl-flip mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+            <ArrowRightIcon className="text-section/70 rtl-flip mt-1 size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
 
           <div className="mt-4 flex items-end justify-between gap-3">
