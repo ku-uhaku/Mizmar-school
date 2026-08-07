@@ -64,6 +64,7 @@ import {
 import type { ContractRow, StaffDetail } from "@/modules/hr/queries";
 import { FormField } from "@/components/form/form-field";
 import { useToastedTransition } from "@/components/form/use-toasted-transition";
+import { SectionHeading } from "@/components/shell/section-heading";
 
 /**
  * One employee's file: the contracts signed, the bulletins issued, the register
@@ -155,15 +156,17 @@ export function StaffPanel({
       {/* ── Contracts ────────────────────────────────────────────────────── */}
       {canPayroll ? (
         <section className="grid gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">{t.hr.contracts}</h2>
-            {canManage ? (
-              <Button size="sm" onClick={() => setCreating(true)}>
-                <PlusIcon className="size-4" />
-                {t.hr.newContract}
-              </Button>
-            ) : null}
-          </div>
+          <SectionHeading
+            label={t.hr.contracts}
+            action={
+              canManage ? (
+                <Button size="sm" onClick={() => setCreating(true)}>
+                  <PlusIcon className="size-4" />
+                  {t.hr.newContract}
+                </Button>
+              ) : null
+            }
+          />
           <p className="text-muted-foreground text-xs">{t.hr.supersededNote}</p>
 
           {person.contracts.length === 0 ? (
@@ -268,7 +271,7 @@ export function StaffPanel({
       {/* ── Payslips ─────────────────────────────────────────────────────── */}
       {canPayroll && person.salaries.length > 0 ? (
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.hr.payroll}</h2>
+          <SectionHeading label={t.hr.payroll} />
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -328,7 +331,7 @@ export function StaffPanel({
 
       {/* ── The register ─────────────────────────────────────────────────── */}
       <section className="grid gap-3">
-        <h2 className="text-sm font-medium">{t.hr.attendance}</h2>
+        <SectionHeading label={t.hr.attendance} />
         {person.attendance.length === 0 ? (
           <Card>
             <CardContent className="p-0">
@@ -391,7 +394,7 @@ export function StaffPanel({
       {/* ── Leave ────────────────────────────────────────────────────────── */}
       {person.leave.length > 0 ? (
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.hr.leave}</h2>
+          <SectionHeading label={t.hr.leave} />
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">

@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 
 import { ColumnChart } from "@/components/charts/column-chart";
+import { SectionHeading } from "@/components/shell/section-heading";
 import { StatTile } from "@/components/charts/stat-tile";
 import { EmptyState } from "@/components/shell/empty-state";
 import {
@@ -130,119 +131,132 @@ export function HrDashboard({
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label={t.hr.headcount}
-          value={summary.headcount}
-          detail={interpolate(t.hr.onLeaveCount, {
-            count: summary.onLeaveCount,
-          })}
-          icon={<UsersIcon className="size-4" />}
-          locale={locale}
-          href="/hr/staff"
-        />
-        <StatTile
-          label={t.hr.unmarkedToday}
-          value={summary.unmarkedToday}
-          detail={t.hr.unmarkedTodayHint}
-          icon={<CalendarCheckIcon className="size-4" />}
-          locale={locale}
-          href={permissions.canAttendance ? "/hr/attendance" : null}
-        />
-        <StatTile
-          label={t.hr.withoutContract}
-          value={summary.withoutContract}
-          detail={t.hr.withoutContractHint}
-          icon={<FileWarningIcon className="size-4" />}
-          locale={locale}
-          href="/hr/staff"
-        />
-        {permissions.canPayroll && summary.monthlyPayrollCentimes !== null ? (
+      {/* Three bands, the same three the main dashboard is built from and in the
+        same order: what the numbers say, where to go, then what the year looks
+        like. The headings are what make that order legible — without them the
+        page is one undifferentiated run of cards. */}
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.overview} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile
-            label={t.hr.monthlyPayroll}
-            // The tile formats counts, and a wage bill is money — the figure is
-            // passed already in dirhams so it is not read as a headcount.
-            value={Math.round(summary.monthlyPayrollCentimes / 100)}
-            suffix={` ${currency}`}
-            detail={interpolate(t.hr.unpaidCount, {
-              count: summary.unpaidThisMonth,
+            label={t.hr.headcount}
+            value={summary.headcount}
+            detail={interpolate(t.hr.onLeaveCount, {
+              count: summary.onLeaveCount,
             })}
-            icon={<BanknoteArrowUpIcon className="size-4" />}
+            icon={<UsersIcon className="size-4" />}
             locale={locale}
-            href="/hr/payroll"
+            href="/hr/staff"
           />
-        ) : (
           <StatTile
-            label={t.hr.pendingLeave}
-            value={summary.pendingLeave}
-            detail={t.hr.pendingLeaveHint}
-            icon={<CalendarOffIcon className="size-4" />}
+            label={t.hr.unmarkedToday}
+            value={summary.unmarkedToday}
+            detail={t.hr.unmarkedTodayHint}
+            icon={<CalendarCheckIcon className="size-4" />}
             locale={locale}
-            href="/hr/leave"
+            href={permissions.canAttendance ? "/hr/attendance" : null}
           />
-        )}
-      </div>
+          <StatTile
+            label={t.hr.withoutContract}
+            value={summary.withoutContract}
+            detail={t.hr.withoutContractHint}
+            icon={<FileWarningIcon className="size-4" />}
+            locale={locale}
+            href="/hr/staff"
+          />
+          {permissions.canPayroll && summary.monthlyPayrollCentimes !== null ? (
+            <StatTile
+              label={t.hr.monthlyPayroll}
+              // The tile formats counts, and a wage bill is money — the figure is
+              // passed already in dirhams so it is not read as a headcount.
+              value={Math.round(summary.monthlyPayrollCentimes / 100)}
+              suffix={` ${currency}`}
+              detail={interpolate(t.hr.unpaidCount, {
+                count: summary.unpaidThisMonth,
+              })}
+              icon={<BanknoteArrowUpIcon className="size-4" />}
+              locale={locale}
+              href="/hr/payroll"
+            />
+          ) : (
+            <StatTile
+              label={t.hr.pendingLeave}
+              value={summary.pendingLeave}
+              detail={t.hr.pendingLeaveHint}
+              icon={<CalendarOffIcon className="size-4" />}
+              locale={locale}
+              href="/hr/leave"
+            />
+          )}
+        </div>
+      </section>
 
-      <SectionLinks links={links} />
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.goTo} />
+        <SectionLinks links={links} />
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-4 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">{t.hr.byRole}</CardTitle>
-            <CardDescription>{t.hr.byRoleHint}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {byRole.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                {t.hr.noStaff}
-              </p>
-            ) : (
-              <ColumnChart
-                columns={byRole}
-                unitLabel={t.hr.staff}
-                tableCaption={t.dashboard.viewData}
-                categoryLabel={t.hr.jobRole}
-              />
-            )}
-          </CardContent>
-        </Card>
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.insights} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="gap-4 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">{t.hr.byRole}</CardTitle>
+              <CardDescription>{t.hr.byRoleHint}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {byRole.length === 0 ? (
+                <p className="text-muted-foreground py-6 text-center text-sm">
+                  {t.hr.noStaff}
+                </p>
+              ) : (
+                <ColumnChart
+                  columns={byRole}
+                  unitLabel={t.hr.staff}
+                  tableCaption={t.dashboard.viewData}
+                  categoryLabel={t.hr.jobRole}
+                />
+              )}
+            </CardContent>
+          </Card>
 
-        <Card className="gap-4">
-          <CardHeader>
-            <CardTitle className="text-base">{t.hr.pendingLeave}</CardTitle>
-            <CardDescription>{t.hr.pendingLeaveHint}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pendingLeave.length === 0 ? (
-              <EmptyState title={t.hr.noPendingLeave} />
-            ) : (
-              <ul className="divide-y">
-                {pendingLeave.slice(0, 6).map((request) => (
-                  <li
-                    key={request.id}
-                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {request.staffName}
-                      </p>
-                      <p className="text-muted-foreground truncate text-xs">
-                        {formatDate(request.startsOn, locale)} —{" "}
-                        {formatDate(request.endsOn, locale)}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="shrink-0">
-                      {t.hrOptions.leaveKinds[
-                        request.kind as keyof typeof t.hrOptions.leaveKinds
-                      ] ?? request.kind}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="gap-4">
+            <CardHeader>
+              <CardTitle className="text-base">{t.hr.pendingLeave}</CardTitle>
+              <CardDescription>{t.hr.pendingLeaveHint}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {pendingLeave.length === 0 ? (
+                <EmptyState title={t.hr.noPendingLeave} />
+              ) : (
+                <ul className="divide-y">
+                  {pendingLeave.slice(0, 6).map((request) => (
+                    <li
+                      key={request.id}
+                      className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {request.staffName}
+                        </p>
+                        <p className="text-muted-foreground truncate text-xs">
+                          {formatDate(request.startsOn, locale)} —{" "}
+                          {formatDate(request.endsOn, locale)}
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0">
+                        {t.hrOptions.leaveKinds[
+                          request.kind as keyof typeof t.hrOptions.leaveKinds
+                        ] ?? request.kind}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
       <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
         <Button size="sm" variant="outline" asChild>

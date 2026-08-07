@@ -13,6 +13,7 @@ import {
   listRegisters,
   listSessions,
 } from "@/modules/treasury/queries";
+import { SectionHeading } from "@/components/shell/section-heading";
 
 export const metadata: Metadata = { title: "Caisses" };
 
@@ -60,7 +61,7 @@ export default async function CashRegistersPage() {
             open one would be a detour for the commonest action of the day. */}
         {registers.length > 0 ? (
           <section className="grid gap-3">
-            <h2 className="text-sm font-medium">{t.treasury.sessions}</h2>
+            <SectionHeading label={t.treasury.sessions} />
             <SessionBar registers={registers} canManage={canManage} />
           </section>
         ) : null}
@@ -68,7 +69,7 @@ export default async function CashRegistersPage() {
         {/* Every opening, closed or still open — `listSessions` has always
             read this, nothing rendered it until now. */}
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.treasury.sessionHistory}</h2>
+          <SectionHeading label={t.treasury.sessionHistory} />
           <SessionsHistory sessions={sessions} />
         </section>
       </div>

@@ -97,38 +97,3 @@ export function SectionCard({
     </Link>
   );
 }
-
-/**
- * Rule-and-label divider between the bands of the dashboard.
- *
- * Every band on the page wears this one, charts included — a band that headed
- * itself with a full-sized `h2` would read as a second page title and flatten
- * the order the bands are deliberately in. It carries no margin of its own; the
- * band spaces itself, so the rhythm is set in one place rather than per caller.
- */
-export function SectionHeading({
-  label,
-  description,
-  action,
-}: {
-  label: string;
-  /** A clause after the label — kept on the rule line, never a second row. */
-  description?: string;
-  /** Rendered past the rule, at the inline end. */
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <h2 className="text-muted-foreground shrink-0 text-xs font-medium tracking-wide uppercase">
-        {label}
-      </h2>
-      {description ? (
-        <p className="text-muted-foreground/70 hidden truncate text-xs sm:block">
-          {description}
-        </p>
-      ) : null}
-      <span className="bg-border h-px min-w-4 flex-1" />
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
-  );
-}

@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SectionHeading } from "@/modules/dashboard/components/section-card";
+import { SectionHeading } from "@/components/shell/section-heading";
 import { formatMonth, interpolate } from "@/lib/i18n/format";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import type { DashboardCharts as ChartData } from "@/modules/dashboard/queries";

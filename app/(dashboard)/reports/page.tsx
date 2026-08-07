@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/shell/page-header";
+import { SectionHeading } from "@/components/shell/section-heading";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
@@ -75,14 +76,10 @@ export default async function ReportsPage() {
       <div className="grid gap-6">
         {starred.length > 0 ? (
           <section className="grid gap-3">
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {t.report.favourites}
-              </h2>
-              <span className="text-muted-foreground/70 text-xs">
-                {t.report.favouritesHint}
-              </span>
-            </div>
+            <SectionHeading
+              label={t.report.favourites}
+              description={t.report.favouritesHint}
+            />
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {starred.map(card)}
             </div>
@@ -97,9 +94,7 @@ export default async function ReportsPage() {
 
           return (
             <section key={section} className="grid gap-3">
-              <h2 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                {t.report.sections[section]}
-              </h2>
+              <SectionHeading label={t.report.sections[section]} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {inSection.map(card)}
               </div>

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PrinterIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/shell/page-header";
+import { SectionHeading } from "@/components/shell/section-heading";
 import { ForbiddenState } from "@/components/shell/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -137,7 +138,7 @@ export default async function CashSessionPage({
         </Card>
 
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.treasury.operations}</h2>
+          <SectionHeading label={t.treasury.operations} />
           <OperationsTable
             page={asSingleOperationsPage(operations)}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}

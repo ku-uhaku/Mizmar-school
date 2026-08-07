@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { TreasurySummary } from "@/modules/treasury/queries";
+import { SectionHeading } from "@/components/shell/section-heading";
 
 /**
  * The day's money, and the way into the four things a bursar does with it.
@@ -87,47 +88,56 @@ export function TreasuryDashboard({
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MoneyTile
-          label={t.treasury.inDrawer}
-          value={money(summary.drawerCentimes)}
-          hint={interpolate(t.treasury.openRegisterCount, {
-            count: summary.openRegisterCount,
-          })}
-          icon={<WalletIcon className="size-4" />}
-        />
-        <MoneyTile
-          label={t.treasury.collectedToday}
-          value={money(summary.collectedTodayCentimes)}
-          hint={t.treasury.todayHint}
-          icon={<BanknoteArrowDownIcon className="size-4" />}
-          tone="in"
-        />
-        <MoneyTile
-          label={t.treasury.disbursedToday}
-          value={money(summary.disbursedTodayCentimes)}
-          hint={t.treasury.todayHint}
-          icon={<BanknoteArrowUpIcon className="size-4" />}
-          tone="out"
-        />
-        <MoneyTile
-          label={t.treasury.chequesPending}
-          value={money(summary.chequesPendingCentimes)}
-          hint={
-            summary.chequesBouncedCount > 0
-              ? interpolate(t.treasury.bouncedCount, {
-                  count: summary.chequesBouncedCount,
-                })
-              : interpolate(t.treasury.heldCount, {
-                  count: summary.chequesPendingCount,
-                })
-          }
-          icon={<ReceiptTextIcon className="size-4" />}
-          tone={summary.chequesBouncedCount > 0 ? "bad" : "held"}
-        />
-      </div>
+      {/* The same bands the main dashboard uses: what the figures say, then the
+        way into the section. This one has no third band — the caisse's own
+        tables sit on the page below it, headed there. */}
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.overview} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MoneyTile
+            label={t.treasury.inDrawer}
+            value={money(summary.drawerCentimes)}
+            hint={interpolate(t.treasury.openRegisterCount, {
+              count: summary.openRegisterCount,
+            })}
+            icon={<WalletIcon className="size-4" />}
+          />
+          <MoneyTile
+            label={t.treasury.collectedToday}
+            value={money(summary.collectedTodayCentimes)}
+            hint={t.treasury.todayHint}
+            icon={<BanknoteArrowDownIcon className="size-4" />}
+            tone="in"
+          />
+          <MoneyTile
+            label={t.treasury.disbursedToday}
+            value={money(summary.disbursedTodayCentimes)}
+            hint={t.treasury.todayHint}
+            icon={<BanknoteArrowUpIcon className="size-4" />}
+            tone="out"
+          />
+          <MoneyTile
+            label={t.treasury.chequesPending}
+            value={money(summary.chequesPendingCentimes)}
+            hint={
+              summary.chequesBouncedCount > 0
+                ? interpolate(t.treasury.bouncedCount, {
+                    count: summary.chequesBouncedCount,
+                  })
+                : interpolate(t.treasury.heldCount, {
+                    count: summary.chequesPendingCount,
+                  })
+            }
+            icon={<ReceiptTextIcon className="size-4" />}
+            tone={summary.chequesBouncedCount > 0 ? "bad" : "held"}
+          />
+        </div>
+      </section>
 
-      <SectionLinks links={links} />
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.goTo} />
+        <SectionLinks links={links} />
+      </section>
     </div>
   );
 }

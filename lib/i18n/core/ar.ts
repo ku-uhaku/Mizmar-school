@@ -49,6 +49,12 @@ const core = {
     dangerZone: "منطقة الخطر",
     irreversible: "لا يمكن التراجع عن هذا الإجراء.",
   },
+  bands: {
+    overview: "نظرة عامة",
+    goTo: "الوصول",
+    insights: "في لمحة",
+    pending: "في الانتظار",
+  },
   validation: {
     required: "هذا الحقل مطلوب.",
     email: "أدخل بريدًا إلكترونيًا صالحًا.",

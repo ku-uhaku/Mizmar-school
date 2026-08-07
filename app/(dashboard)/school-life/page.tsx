@@ -39,6 +39,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import { TeacherActivity } from "@/modules/school-life/components/teacher-activity";
 import { loadSchoolLifeStats } from "@/modules/school-life/queries";
+import { SectionHeading } from "@/components/shell/section-heading";
 
 export const metadata: Metadata = { title: "Vie scolaire" };
 
@@ -216,214 +217,234 @@ export default async function SchoolLifePage() {
         ) : null}
       </PageHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.standing ? (
-          <StatTile
-            label={t.schoolLife.students}
-            value={stats.standing.total}
-            detail={interpolate(t.schoolLife.studentsDetail, {
-              count: formatNumber(stats.standing.enrolled, locale),
-            })}
-            icon={<GraduationCapIcon className="size-4" />}
-            locale={locale}
-            href="/students"
-          />
-        ) : null}
-        {stats.families === null ? null : (
-          <StatTile
-            label={t.schoolLife.families}
-            value={stats.families}
-            detail={t.schoolLife.familiesDetail}
-            icon={<HomeIcon className="size-4" />}
-            locale={locale}
-            href="/families"
-          />
-        )}
-        {stats.enrolment ? (
-          <StatTile
-            label={t.schoolLife.unplaced}
-            value={stats.enrolment.unplaced}
-            detail={t.schoolLife.unplacedDetail}
-            icon={<AlertCircleIcon className="size-4" />}
-            locale={locale}
-            href={context.can(PERMISSIONS.CLASS_VIEW) ? "/classes" : null}
-          />
-        ) : null}
-        {stats.billing ? (
-          <StatTile
-            label={t.schoolLife.billed}
-            // The figure is money and has to say so; `detail` carries the
-            // reductions it is already net of.
-            value={Math.round(centimesToDirhams(stats.billing.billedCentimes))}
-            suffix={context.settings.currencyCode}
-            detail={`${t.schoolLife.discounted}: ${formatMoney(
-              stats.billing.discountedCentimes,
-              locale,
-              context.settings.currencyCode,
-            )}`}
-            icon={<WalletIcon className="size-4" />}
-            locale={locale}
-          />
-        ) : null}
-      </div>
+      {/* Four bands, the main dashboard's three plus the day's own — see the
+        note on that fourth one below. The spacing is on the wrapper, so the
+        rhythm is set once rather than by whichever band came first. */}
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.overview} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.standing ? (
+            <StatTile
+              label={t.schoolLife.students}
+              value={stats.standing.total}
+              detail={interpolate(t.schoolLife.studentsDetail, {
+                count: formatNumber(stats.standing.enrolled, locale),
+              })}
+              icon={<GraduationCapIcon className="size-4" />}
+              locale={locale}
+              href="/students"
+            />
+          ) : null}
+          {stats.families === null ? null : (
+            <StatTile
+              label={t.schoolLife.families}
+              value={stats.families}
+              detail={t.schoolLife.familiesDetail}
+              icon={<HomeIcon className="size-4" />}
+              locale={locale}
+              href="/families"
+            />
+          )}
+          {stats.enrolment ? (
+            <StatTile
+              label={t.schoolLife.unplaced}
+              value={stats.enrolment.unplaced}
+              detail={t.schoolLife.unplacedDetail}
+              icon={<AlertCircleIcon className="size-4" />}
+              locale={locale}
+              href={context.can(PERMISSIONS.CLASS_VIEW) ? "/classes" : null}
+            />
+          ) : null}
+          {stats.billing ? (
+            <StatTile
+              label={t.schoolLife.billed}
+              // The figure is money and has to say so; `detail` carries the
+              // reductions it is already net of.
+              value={Math.round(
+                centimesToDirhams(stats.billing.billedCentimes),
+              )}
+              suffix={context.settings.currencyCode}
+              detail={`${t.schoolLife.discounted}: ${formatMoney(
+                stats.billing.discountedCentimes,
+                locale,
+                context.settings.currencyCode,
+              )}`}
+              icon={<WalletIcon className="size-4" />}
+              locale={locale}
+            />
+          ) : null}
+        </div>
+      </section>
 
-      <SectionLinks links={links} className="mt-4" />
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.goTo} />
+        <SectionLinks links={links} />
+      </section>
 
       {/* Above the year's shape on purpose: the figures below describe the
           year, while this is the day — the absences a teacher marked an hour
           ago and the marks somebody is waiting to have accepted. */}
-      <div className="mt-4">
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.pending} />
         <TeacherActivity
           classroom={stats.classroom}
           awaitingValidation={stats.awaitingValidation}
         />
-      </div>
+      </section>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* The ring and the gauge lead: they are the shape of the year, and the
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.insights} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* The ring and the gauge lead: they are the shape of the year, and the
           columns underneath are its detail. The three single-column cards come
           first so the full-width one closes the row rather than leaving a hole
           in it. */}
-        {stats.standing ? (
-          <Card className="gap-4">
-            <CardHeader>
-              <CardTitle className="text-base">
-                {t.schoolLife.standing}
-              </CardTitle>
-              <CardDescription>{t.schoolLife.standingHint}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DonutChart
-                slices={[
-                  {
-                    label: t.schoolLife.standingEnrolled,
-                    value: stats.standing.enrolled,
-                  },
-                  {
-                    label: t.schoolLife.standingPreRegistered,
-                    value: stats.standing.preRegistered,
-                  },
-                  {
-                    label: t.schoolLife.standingLeft,
-                    value: stats.standing.left,
-                  },
-                ]}
-                total={stats.standing.total}
-                totalLabel={t.schoolLife.pupilsTotal}
-                tableCaption={t.schoolLife.standing}
-                categoryLabel={t.schoolLife.standingColumn}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {context.can(PERMISSIONS.CLASS_VIEW) ? (
-          <>
+          {stats.standing ? (
             <Card className="gap-4">
               <CardHeader>
                 <CardTitle className="text-base">
-                  {t.schoolLife.occupancy}
+                  {t.schoolLife.standing}
                 </CardTitle>
-                <CardDescription>{t.schoolLife.occupancyHint}</CardDescription>
+                <CardDescription>{t.schoolLife.standingHint}</CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center justify-center">
-                <RadialGauge
-                  value={occupancyPercent}
-                  label={t.schoolLife.occupancy}
-                  caption={interpolate(t.schoolLife.occupancyCaption, {
-                    taken: formatNumber(occupancy.taken, locale),
-                    total: formatNumber(occupancy.capacity, locale),
-                  })}
+              <CardContent>
+                <DonutChart
+                  slices={[
+                    {
+                      label: t.schoolLife.standingEnrolled,
+                      value: stats.standing.enrolled,
+                    },
+                    {
+                      label: t.schoolLife.standingPreRegistered,
+                      value: stats.standing.preRegistered,
+                    },
+                    {
+                      label: t.schoolLife.standingLeft,
+                      value: stats.standing.left,
+                    },
+                  ]}
+                  total={stats.standing.total}
+                  totalLabel={t.schoolLife.pupilsTotal}
+                  tableCaption={t.schoolLife.standing}
+                  categoryLabel={t.schoolLife.standingColumn}
                 />
               </CardContent>
             </Card>
+          ) : null}
 
-            <Card className="gap-4">
-              <CardHeader className="flex flex-row items-start justify-between gap-2">
-                <div className="min-w-0">
+          {context.can(PERMISSIONS.CLASS_VIEW) ? (
+            <>
+              <Card className="gap-4">
+                <CardHeader>
                   <CardTitle className="text-base">
-                    {t.schoolLife.classFill}
+                    {t.schoolLife.occupancy}
                   </CardTitle>
                   <CardDescription>
-                    {t.schoolLife.classFillHint}
+                    {t.schoolLife.occupancyHint}
                   </CardDescription>
-                </div>
-                <Button asChild variant="ghost" size="sm" className="shrink-0">
-                  <Link href="/classes">{t.nav.classes}</Link>
-                </Button>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center">
+                  <RadialGauge
+                    value={occupancyPercent}
+                    label={t.schoolLife.occupancy}
+                    caption={interpolate(t.schoolLife.occupancyCaption, {
+                      taken: formatNumber(occupancy.taken, locale),
+                      total: formatNumber(occupancy.capacity, locale),
+                    })}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card className="gap-4">
+                <CardHeader className="flex flex-row items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="text-base">
+                      {t.schoolLife.classFill}
+                    </CardTitle>
+                    <CardDescription>
+                      {t.schoolLife.classFillHint}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                  >
+                    <Link href="/classes">{t.nav.classes}</Link>
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {fullestClasses.length === 0 ? (
+                    <p className="text-muted-foreground py-6 text-center text-sm">
+                      {t.schoolLife.noClasses}
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {fullestClasses.map((schoolClass) => (
+                        <Meter
+                          key={schoolClass.id}
+                          // A class with no cap has nothing to be a percentage of;
+                          // showing it as full would be a lie, so it reads as 0.
+                          value={
+                            schoolClass.capacity
+                              ? Math.min(
+                                  100,
+                                  Math.round(
+                                    (schoolClass.enrolled /
+                                      schoolClass.capacity) *
+                                      100,
+                                  ),
+                                )
+                              : 0
+                          }
+                          label={schoolClass.code}
+                          caption={
+                            schoolClass.capacity
+                              ? interpolate(t.schoolClass.fill, {
+                                  enrolled: schoolClass.enrolled,
+                                  capacity: schoolClass.capacity,
+                                })
+                              : `${formatNumber(schoolClass.enrolled, locale)} · ${
+                                  t.schoolClass.noCapacity
+                                }`
+                          }
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          {context.can(PERMISSIONS.ENROLMENT_VIEW) ? (
+            <Card className="gap-4 lg:col-span-3">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {t.schoolLife.byLevel}
+                </CardTitle>
+                <CardDescription>{t.schoolLife.byLevelHint}</CardDescription>
               </CardHeader>
               <CardContent>
-                {fullestClasses.length === 0 ? (
+                {levelColumns.length === 0 ? (
                   <p className="text-muted-foreground py-6 text-center text-sm">
-                    {t.schoolLife.noClasses}
+                    {t.schoolLife.noLevels}
                   </p>
                 ) : (
-                  <div className="space-y-4">
-                    {fullestClasses.map((schoolClass) => (
-                      <Meter
-                        key={schoolClass.id}
-                        // A class with no cap has nothing to be a percentage of;
-                        // showing it as full would be a lie, so it reads as 0.
-                        value={
-                          schoolClass.capacity
-                            ? Math.min(
-                                100,
-                                Math.round(
-                                  (schoolClass.enrolled /
-                                    schoolClass.capacity) *
-                                    100,
-                                ),
-                              )
-                            : 0
-                        }
-                        label={schoolClass.code}
-                        caption={
-                          schoolClass.capacity
-                            ? interpolate(t.schoolClass.fill, {
-                                enrolled: schoolClass.enrolled,
-                                capacity: schoolClass.capacity,
-                              })
-                            : `${formatNumber(schoolClass.enrolled, locale)} · ${
-                                t.schoolClass.noCapacity
-                              }`
-                        }
-                      />
-                    ))}
-                  </div>
+                  <ColumnChart
+                    columns={levelColumns}
+                    unitLabel={t.schoolLife.students}
+                    tableCaption={t.schoolLife.byLevel}
+                    categoryLabel={t.enrolment.level}
+                  />
                 )}
               </CardContent>
             </Card>
-          </>
-        ) : null}
+          ) : null}
+        </div>
 
-        {context.can(PERMISSIONS.ENROLMENT_VIEW) ? (
-          <Card className="gap-4 lg:col-span-3">
-            <CardHeader>
-              <CardTitle className="text-base">
-                {t.schoolLife.byLevel}
-              </CardTitle>
-              <CardDescription>{t.schoolLife.byLevelHint}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {levelColumns.length === 0 ? (
-                <p className="text-muted-foreground py-6 text-center text-sm">
-                  {t.schoolLife.noLevels}
-                </p>
-              ) : (
-                <ColumnChart
-                  columns={levelColumns}
-                  unitLabel={t.schoolLife.students}
-                  tableCaption={t.schoolLife.byLevel}
-                  categoryLabel={t.enrolment.level}
-                />
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
-
-      {stats.standing || stats.enrolment ? (
-        <div className="mt-4">
+        {stats.standing || stats.enrolment ? (
           <Card className="gap-4">
             <CardHeader>
               <CardTitle className="text-base">
@@ -478,8 +499,8 @@ export default async function SchoolLifePage() {
               )}
             </CardContent>
           </Card>
-        </div>
-      ) : null}
+        ) : null}
+      </section>
     </>
   );
 }

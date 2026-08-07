@@ -49,6 +49,18 @@ const core = {
     dangerZone: "Danger zone",
     irreversible: "This action cannot be undone.",
   },
+  /**
+   * The band headings a section dashboard is divided into — see
+   * `SectionHeading`. Core rather than per-module: every section splits the
+   * same three ways, and eight modules spelling "Overview" eight times is how
+   * they drift apart.
+   */
+  bands: {
+    overview: "Overview",
+    goTo: "Where to go",
+    insights: "At a glance",
+    pending: "Waiting on somebody",
+  },
   validation: {
     required: "This field is required.",
     email: "Enter a valid email address.",

@@ -14,10 +14,8 @@ import {
 
 import { StatTile } from "@/components/charts/stat-tile";
 import { PageHeader } from "@/components/shell/page-header";
-import {
-  SectionCard,
-  SectionHeading,
-} from "@/modules/dashboard/components/section-card";
+import { SectionHeading } from "@/components/shell/section-heading";
+import { SectionCard } from "@/modules/dashboard/components/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {

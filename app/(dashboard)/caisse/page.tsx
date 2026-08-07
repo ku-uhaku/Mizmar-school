@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/shell/page-header";
+import { SectionHeading } from "@/components/shell/section-heading";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
@@ -76,7 +77,7 @@ export default async function TreasuryPage({
         />
 
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.treasury.registers}</h2>
+          <SectionHeading label={t.treasury.registers} />
           <SessionBar
             registers={registers}
             canManage={context.can(PERMISSIONS.TREASURY_SESSION)}
@@ -84,7 +85,7 @@ export default async function TreasuryPage({
         </section>
 
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.treasury.receipts}</h2>
+          <SectionHeading label={t.treasury.receipts} />
           <ReceiptsTable
             payments={payments}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}
@@ -92,7 +93,7 @@ export default async function TreasuryPage({
         </section>
 
         <section className="grid gap-3">
-          <h2 className="text-sm font-medium">{t.treasury.operations}</h2>
+          <SectionHeading label={t.treasury.operations} />
           <OperationsTable
             page={operations}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}

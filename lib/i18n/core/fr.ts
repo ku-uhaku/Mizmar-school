@@ -49,6 +49,12 @@ const core = {
     dangerZone: "Zone sensible",
     irreversible: "Cette action est irréversible.",
   },
+  bands: {
+    overview: "Vue d'ensemble",
+    goTo: "Accès",
+    insights: "En un coup d'œil",
+    pending: "En attente",
+  },
   validation: {
     required: "Ce champ est obligatoire.",
     email: "Saisissez une adresse e-mail valide.",

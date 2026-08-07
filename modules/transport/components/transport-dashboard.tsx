@@ -31,6 +31,7 @@ import type {
   TransportSummary,
   VehicleRow,
 } from "@/modules/transport/queries";
+import { SectionHeading } from "@/components/shell/section-heading";
 
 /**
  * The logistics section, seen whole.
@@ -87,142 +88,157 @@ export function TransportDashboard({
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          label={t.transport.linesRunning}
-          value={summary.routeCount}
-          detail={interpolate(t.transport.stopsAcrossLines, {
-            count: routes.reduce((total, route) => total + route.stopCount, 0),
-          })}
-          icon={<RouteIcon className="size-4" />}
-          locale={locale}
-          href="/transport/routes"
-        />
-        <StatTile
-          label={t.transport.ridersTotal}
-          value={summary.riderCount}
-          detail={interpolate(t.transport.ofSeatsOffered, {
-            count: summary.seatsOffered,
-          })}
-          icon={<UsersIcon className="size-4" />}
-          locale={locale}
-        />
-        <StatTile
-          label={t.transport.seatsFree}
-          value={summary.seatsRemaining}
-          detail={t.transport.seatsFreeHint}
-          icon={<ArmchairIcon className="size-4" />}
-          locale={locale}
-        />
-        <StatTile
-          label={t.transport.paperworkDue}
-          value={summary.paperworkDue}
-          detail={interpolate(t.transport.busesInService, {
-            count: summary.activeVehicleCount,
-          })}
-          icon={<TriangleAlertIcon className="size-4" />}
-          locale={locale}
-          href="/transport/fleet"
-        />
-      </div>
+      {/* The main dashboard's three bands, in its order. */}
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.overview} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatTile
+            label={t.transport.linesRunning}
+            value={summary.routeCount}
+            detail={interpolate(t.transport.stopsAcrossLines, {
+              count: routes.reduce(
+                (total, route) => total + route.stopCount,
+                0,
+              ),
+            })}
+            icon={<RouteIcon className="size-4" />}
+            locale={locale}
+            href="/transport/routes"
+          />
+          <StatTile
+            label={t.transport.ridersTotal}
+            value={summary.riderCount}
+            detail={interpolate(t.transport.ofSeatsOffered, {
+              count: summary.seatsOffered,
+            })}
+            icon={<UsersIcon className="size-4" />}
+            locale={locale}
+          />
+          <StatTile
+            label={t.transport.seatsFree}
+            value={summary.seatsRemaining}
+            detail={t.transport.seatsFreeHint}
+            icon={<ArmchairIcon className="size-4" />}
+            locale={locale}
+          />
+          <StatTile
+            label={t.transport.paperworkDue}
+            value={summary.paperworkDue}
+            detail={interpolate(t.transport.busesInService, {
+              count: summary.activeVehicleCount,
+            })}
+            icon={<TriangleAlertIcon className="size-4" />}
+            locale={locale}
+            href="/transport/fleet"
+          />
+        </div>
+      </section>
 
-      <SectionLinks links={links} />
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.goTo} />
+        <SectionLinks links={links} />
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="gap-4 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">{t.transport.occupancy}</CardTitle>
-            <CardDescription>{t.transport.occupancyHint}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {routes.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                {t.transport.noRoutes}
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {routes.slice(0, 8).map((route) => (
-                  <Meter
-                    key={route.id}
-                    // A line with no bus offers no seats; drawing it as full
-                    // would read as the opposite of the problem it has.
-                    value={
-                      route.seats > 0
-                        ? Math.min(
-                            100,
-                            Math.round((route.taken / route.seats) * 100),
-                          )
-                        : 0
-                    }
-                    label={`${route.code} · ${route.name}`}
-                    caption={
-                      route.seats > 0
-                        ? interpolate(t.transport.seatsTaken, {
-                            taken: route.taken,
-                            seats: route.seats,
-                          })
-                        : t.transport.noVehicleAssigned
-                    }
-                  />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="gap-4">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {t.transport.paperworkDue}
-            </CardTitle>
-            <CardDescription>{t.transport.paperworkHint}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {expiring.length === 0 ? (
-              <EmptyState title={t.transport.allPapersValid} />
-            ) : (
-              <ul className="divide-y">
-                {expiring
-                  .slice(0, 6)
-                  .map(({ vehicle, insurance, inspection }) => (
-                    <li
-                      key={vehicle.id}
-                      className="py-2.5 first:pt-0 last:pb-0"
-                    >
-                      <p className="text-sm font-medium">
-                        {vehicle.registration}
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {insurance !== "OK" ? (
-                          <ExpiryBadge
-                            state={insurance}
-                            label={t.transport.insurance}
-                            date={vehicle.insuranceExpiresOn}
-                            expiredLabel={t.transport.expired}
-                            soonLabel={t.transport.expiringSoon}
-                            missingLabel={t.transport.noExpiryRecorded}
-                            locale={locale}
-                          />
-                        ) : null}
-                        {inspection !== "OK" ? (
-                          <ExpiryBadge
-                            state={inspection}
-                            label={t.transport.inspection}
-                            date={vehicle.inspectionExpiresOn}
-                            expiredLabel={t.transport.expired}
-                            soonLabel={t.transport.expiringSoon}
-                            missingLabel={t.transport.noExpiryRecorded}
-                            locale={locale}
-                          />
-                        ) : null}
-                      </div>
-                    </li>
+      <section className="grid gap-3">
+        <SectionHeading label={t.bands.insights} />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="gap-4 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">
+                {t.transport.occupancy}
+              </CardTitle>
+              <CardDescription>{t.transport.occupancyHint}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {routes.length === 0 ? (
+                <p className="text-muted-foreground py-6 text-center text-sm">
+                  {t.transport.noRoutes}
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {routes.slice(0, 8).map((route) => (
+                    <Meter
+                      key={route.id}
+                      // A line with no bus offers no seats; drawing it as full
+                      // would read as the opposite of the problem it has.
+                      value={
+                        route.seats > 0
+                          ? Math.min(
+                              100,
+                              Math.round((route.taken / route.seats) * 100),
+                            )
+                          : 0
+                      }
+                      label={`${route.code} · ${route.name}`}
+                      caption={
+                        route.seats > 0
+                          ? interpolate(t.transport.seatsTaken, {
+                              taken: route.taken,
+                              seats: route.seats,
+                            })
+                          : t.transport.noVehicleAssigned
+                      }
+                    />
                   ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="gap-4">
+            <CardHeader>
+              <CardTitle className="text-base">
+                {t.transport.paperworkDue}
+              </CardTitle>
+              <CardDescription>{t.transport.paperworkHint}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {expiring.length === 0 ? (
+                <EmptyState title={t.transport.allPapersValid} />
+              ) : (
+                <ul className="divide-y">
+                  {expiring
+                    .slice(0, 6)
+                    .map(({ vehicle, insurance, inspection }) => (
+                      <li
+                        key={vehicle.id}
+                        className="py-2.5 first:pt-0 last:pb-0"
+                      >
+                        <p className="text-sm font-medium">
+                          {vehicle.registration}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {insurance !== "OK" ? (
+                            <ExpiryBadge
+                              state={insurance}
+                              label={t.transport.insurance}
+                              date={vehicle.insuranceExpiresOn}
+                              expiredLabel={t.transport.expired}
+                              soonLabel={t.transport.expiringSoon}
+                              missingLabel={t.transport.noExpiryRecorded}
+                              locale={locale}
+                            />
+                          ) : null}
+                          {inspection !== "OK" ? (
+                            <ExpiryBadge
+                              state={inspection}
+                              label={t.transport.inspection}
+                              date={vehicle.inspectionExpiresOn}
+                              expiredLabel={t.transport.expired}
+                              soonLabel={t.transport.expiringSoon}
+                              missingLabel={t.transport.noExpiryRecorded}
+                              locale={locale}
+                            />
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
     </div>
   );
 }
