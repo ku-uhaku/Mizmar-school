@@ -21,6 +21,7 @@ import type {
   Remark,
   RunRegister,
   SeenTopic,
+  SupplyList,
   SchoolEvent,
   TeacherDay,
 } from "./types";
@@ -252,5 +253,17 @@ export function useMarkSeen(): UseMutationResult<Badges, Error, SeenTopic> {
         body: JSON.stringify({ topic }),
       }),
     onSuccess: (badges) => client.setQueryData(["badges"], badges),
+  });
+}
+
+export function useChildSupplies(
+  studentId: string,
+): UseQueryResult<SupplyList[]> {
+  return useQuery({
+    queryKey: ["child", studentId, "supplies"],
+    queryFn: () => api<SupplyList[]>(`/family/children/${studentId}/supplies`),
+    enabled: Boolean(studentId),
+    // A list is agreed at the rentrée and rarely touched after.
+    staleTime: 10 * 60_000,
   });
 }

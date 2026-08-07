@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams } from "expo-router";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useMarkSeen,
   useChild,
+  useChildSupplies,
   useChildDossier,
   useChildRemarks,
   useChildTimetable,
@@ -26,13 +28,14 @@ import {
   Stat,
 } from "../../../src/ui/components";
 import {
-  ATTENDANCE_LABELS,
+  ABSENCE_STATUS_LABELS,
   DIRECTION_LABELS,
   DOCUMENT_STATUS_LABELS,
   EVENT_KIND_LABELS,
   WEEKDAY_LABELS,
   label,
   money,
+  monthLabel,
   shortDate,
 } from "../../../src/ui/format";
 import { radius, spacing, useTheme } from "../../../src/ui/theme";
@@ -60,6 +63,7 @@ const TITLES: Record<string, string> = {
   remarques: "Remarques",
   "emploi-du-temps": "Emploi du temps",
   paiements: "Paiements",
+  fournitures: "Fournitures",
   dossier: "Dossier",
   transport: "Transport",
   evenements: "Événements",
@@ -123,6 +127,8 @@ function TopicBody({ studentId, topic }: { studentId: string; topic: string }) {
       return <Payments studentId={studentId} />;
     case "dossier":
       return <DossierView studentId={studentId} />;
+    case "fournitures":
+      return <Supplies studentId={studentId} />;
     case "transport":
       return <Transport studentId={studentId} />;
     case "evenements":
@@ -150,6 +156,7 @@ function Notes({ studentId }: { studentId: string }) {
   // Declared before the early returns: a hook may not be called conditionally,
   // and the guard above returns.
   const [term, setTerm] = useState(ALL);
+  const [subject, setSubject] = useState(ALL);
 
   if (guard) return guard;
   if (!detail.data) return null;
@@ -167,16 +174,38 @@ function Notes({ studentId }: { studentId: string }) {
     which is worse than not offering it.
   */
   const terms = [...new Set(marks.map((mark) => mark.termName))];
-  const shown = term === ALL ? marks : marks.filter((m) => m.termName === term);
+  // The subject list follows the term: filtering to a term whose subjects the
+  // second row still offers is a chip that answers nothing.
+  const inTerm = term === ALL ? marks : marks.filter((m) => m.termName === term);
+  const subjects = [...new Set(inTerm.map((mark) => mark.subjectName))].sort();
+
+  const shown =
+    subject === ALL
+      ? inTerm
+      : inTerm.filter((mark) => mark.subjectName === subject);
 
   return (
     <>
       <FilterChips
         value={term}
-        onChange={setTerm}
+        onChange={(next) => {
+          setTerm(next);
+          // The subject may not exist in the new term, and a filter matching
+          // nothing reads as "no marks" rather than as a stale chip.
+          setSubject(ALL);
+        }}
         options={[
           { value: ALL, label: "Tous" },
           ...terms.map((name) => ({ value: name, label: name })),
+        ]}
+      />
+
+      <FilterChips
+        value={subject}
+        onChange={setSubject}
+        options={[
+          { value: ALL, label: "Matières" },
+          ...subjects.map((name) => ({ value: name, label: name })),
         ]}
       />
 
@@ -228,21 +257,30 @@ function Notes({ studentId }: { studentId: string }) {
 function Absences({ studentId }: { studentId: string }) {
   const { detail, guard } = useDetail(studentId);
   const [filter, setFilter] = useState(ALL);
+  const [kind, setKind] = useState(ALL);
 
   if (guard) return guard;
   if (!detail.data) return null;
 
-  const { entries, missedCount, unjustifiedCount } = detail.data.attendance;
+  const { entries, lateCount, missedCount, unjustifiedCount } =
+    detail.data.attendance;
 
   // Justified against not is the only split that changes what a parent does:
   // an unjustified absence is a phone call to the school, a justified one is
   // already settled.
-  const shown =
+  const byJustification =
     filter === ALL
       ? entries
       : entries.filter((entry) =>
           filter === "justified" ? entry.isJustified : !entry.isJustified,
         );
+
+  // Absence and retard are different conversations — one is a missed lesson,
+  // the other is a habit — so they filter apart. See ATTENDANCE_STATUSES.
+  const shown =
+    kind === ALL
+      ? byJustification
+      : byJustification.filter((entry) => entry.status === kind);
 
   return (
     <>
@@ -260,6 +298,11 @@ function Absences({ studentId }: { studentId: string }) {
             label="Non justifiées"
             tone={unjustifiedCount > 0 ? "danger" : "success"}
           />
+          <Stat
+            value={lateCount}
+            label="Retards"
+            tone={lateCount > 0 ? "warning" : "success"}
+          />
         </View>
       </Card>
 
@@ -273,6 +316,17 @@ function Absences({ studentId }: { studentId: string }) {
         ]}
       />
 
+      <FilterChips
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: ALL, label: "Tous types" },
+          { value: "ABSENT", label: "Absences" },
+          { value: "LATE", label: "Retards" },
+          { value: "EXCUSED", label: "Excusés" },
+        ]}
+      />
+
       {shown.length === 0 ? (
         <Empty message="Aucune absence enregistrée." />
       ) : (
@@ -282,11 +336,16 @@ function Absences({ studentId }: { studentId: string }) {
               {index > 0 ? <Divider /> : null}
               <Row
                 label={shortDate(entry.date)}
-                value={label(ATTENDANCE_LABELS, entry.status)}
+                value={label(ABSENCE_STATUS_LABELS, entry.status)}
               />
               <Caption>
                 {[
                   entry.subjectName,
+                  // A retard says how late, which is the whole point of it
+                  // being its own status rather than a flag on "present".
+                  entry.status === "LATE" && entry.minutesLate
+                    ? `${entry.minutesLate} min`
+                    : null,
                   entry.isJustified ? "Justifiée" : "Non justifiée",
                 ]
                   .filter(Boolean)
@@ -535,6 +594,19 @@ function Payments({ studentId }: { studentId: string }) {
 
   const fees = detail.data.fees;
 
+  /*
+    ── Split by month, like the fee grid on the desktop ────────────────────────
+    A year's échéancier is thirty-odd lines — scolarité, transport, cantine,
+    each instalment its own row — and read as one list it is a wall. The web
+    app puts the months across the top for the same reason; a phone puts them
+    down the page.
+
+    The month comes from the server (`PortalFeeLine.month`) rather than being
+    sliced off the ISO date here: that string is UTC, and a due date stored at
+    local midnight would file January's instalment under December.
+  */
+  const months = [...new Set(fees.lines.map((line) => line.month))].sort();
+
   return (
     <>
       <Card>
@@ -561,25 +633,52 @@ function Payments({ studentId }: { studentId: string }) {
       {fees.lines.length === 0 ? (
         <Empty message="Aucune échéance." />
       ) : (
-        <Card>
-          {fees.lines.map((line, index) => (
-            <View key={line.id}>
-              {index > 0 ? <Divider /> : null}
-              <Row label={line.label} value={money(line.amountCentimes)} />
-              <Caption>
-                {[
-                  shortDate(line.dueDate),
-                  line.outstandingCentimes === 0
-                    ? "Réglée"
-                    : `${money(line.outstandingCentimes)} restant`,
-                  line.isOverdue ? "En retard" : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Caption>
-            </View>
-          ))}
-        </Card>
+        months.map((month) => {
+          const lines = fees.lines.filter((line) => line.month === month);
+          const due = lines.reduce(
+            (total, line) => total + line.outstandingCentimes,
+            0,
+          );
+          const settled = due === 0;
+
+          return (
+            <Card key={month}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: spacing.sm,
+                }}
+              >
+                <Heading>{monthLabel(month)}</Heading>
+                {/* The month's own balance, which is the figure a parent came
+                  for — "what do I owe for March", not "what do I owe". */}
+                <Badge tone={settled ? "success" : "warning"}>
+                  {settled ? "Réglé" : money(due)}
+                </Badge>
+              </View>
+
+              {lines.map((line, index) => (
+                <View key={line.id}>
+                  {index > 0 ? <Divider /> : null}
+                  <Row label={line.label} value={money(line.amountCentimes)} />
+                  <Caption>
+                    {[
+                      `échéance ${shortDate(line.dueDate)}`,
+                      line.outstandingCentimes === 0
+                        ? "réglée"
+                        : `${money(line.outstandingCentimes)} restant`,
+                      line.isOverdue ? "en retard" : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Caption>
+                </View>
+              ))}
+            </Card>
+          );
+        })
       )}
     </>
   );
@@ -628,6 +727,101 @@ function DossierView({ studentId }: { studentId: string }) {
           </View>
         ))}
       </Card>
+    </>
+  );
+}
+
+function Supplies({ studentId }: { studentId: string }) {
+  const theme = useTheme();
+  const lists = useChildSupplies(studentId);
+
+  if (lists.isPending) return <Loading />;
+  if (lists.isError) {
+    return <ErrorNote message="Impossible de charger les fournitures." />;
+  }
+  if (lists.data.length === 0) {
+    return (
+      <Empty message="Aucune liste de fournitures publiée pour cette classe." />
+    );
+  }
+
+  /*
+    One card per list, because a class usually has two — the general one and
+    one for arts plastiques — and running them together would leave a parent
+    unable to tell which teacher asked for what.
+
+    Optional items are marked rather than hidden: "facultatif" is the school
+    saying it would be nice, and a parent who cannot see the difference buys
+    everything.
+  */
+  return (
+    <>
+      {lists.data.map((list) => (
+        <Card key={list.id}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: spacing.sm,
+            }}
+          >
+            <Heading>{list.subjectName ?? list.title}</Heading>
+            <Badge>{`${list.items.length} articles`}</Badge>
+          </View>
+
+          {list.subjectName ? <Caption>{list.title}</Caption> : null}
+          {list.notes ? <Body muted>{list.notes}</Body> : null}
+
+          {list.items.map((item, index) => (
+            <View key={item.id}>
+              {index > 0 ? <Divider /> : null}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: spacing.sm,
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={
+                    item.isRequired
+                      ? "checkbox-blank-circle-outline"
+                      : "circle-small"
+                  }
+                  size={item.isRequired ? 15 : 22}
+                  color={item.isRequired ? theme.text : theme.muted}
+                />
+                <Text
+                  style={{ color: theme.text, flex: 1, fontSize: 14 }}
+                  numberOfLines={2}
+                >
+                  {item.label}
+                </Text>
+                {item.quantity ? (
+                  <Text
+                    style={{
+                      color: theme.muted,
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    ×{item.quantity}
+                  </Text>
+                ) : null}
+              </View>
+
+              {item.notes || !item.isRequired ? (
+                <Caption>
+                  {[item.notes, item.isRequired ? null : "facultatif"]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Caption>
+              ) : null}
+            </View>
+          ))}
+        </Card>
+      ))}
     </>
   );
 }

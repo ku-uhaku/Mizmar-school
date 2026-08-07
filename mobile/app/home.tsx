@@ -5,7 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { useBadges, useIdentity } from "../src/api/hooks";
+import { useBadges, useChannels, useIdentity } from "../src/api/hooks";
 import type { MobileSpace } from "../src/api/types";
 import { DirectorSpace } from "../src/spaces/director";
 import { DriverSpace } from "../src/spaces/driver";
@@ -162,25 +162,52 @@ export default function HomeScreen() {
 
 
 /**
- * The bell, and the count of things this family has not looked at.
+ * The bell: unread messages, and one tap to them.
  *
- * Silent when there is nothing: a bell with a zero on it is a bell that teaches
- * you to stop reading bells. Tapping opens the list, which is where the count
- * gets cleared — per topic, as each screen is opened.
+ * ── It used to open a summary, and that was wrong ───────────────────────────
+ * The first version counted four things — events, marks, remarks, messages —
+ * and opened a screen of tiles saying how many of each. Which meant a bell
+ * showing "3" led to a page that showed "3" again, and the message was still
+ * two taps away. Worse, the badge said something was new while the screen
+ * behind it had nothing to read, because a count is not an item.
+ *
+ * So the bell is about messages, which is the one thing here that is genuinely
+ * addressed *to* you and that you would want to answer. It opens the
+ * conversation. The other three still have their counts, and they are on the
+ * tiles of the child they belong to, where the number sits next to the thing it
+ * is about.
+ *
+ * Silent at zero: a bell with a nought on it teaches you to stop reading bells.
  */
 function NotificationBell() {
   const theme = useTheme();
   const router = useRouter();
   const badges = useBadges();
-  const total = badges.data?.total ?? 0;
+  const channels = useChannels();
+  const total = badges.data?.chat ?? 0;
+
+  // Straight to the conversation when there is only one, which is the ordinary
+  // case for a school that opened only the class groups or only the general
+  // one. The list is a choice, and a choice of one is not a choice.
+  const open = () => {
+    const only = channels.data?.length === 1 ? channels.data[0] : null;
+    if (only) {
+      router.push({
+        pathname: "/chat/[channelId]",
+        params: { channelId: only.id, title: only.label },
+      });
+      return;
+    }
+    router.push("/chat");
+  };
 
   return (
     <Pressable
-      onPress={() => router.push("/notifications")}
+      onPress={open}
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={
-        total > 0 ? `Notifications, ${total} nouveautés` : "Notifications"
+        total > 0 ? `Messages, ${total} non lus` : "Messages"
       }
       style={{
         width: 38,
@@ -194,7 +221,7 @@ function NotificationBell() {
       }}
     >
       <MaterialCommunityIcons
-        name={total > 0 ? "bell-badge-outline" : "bell-outline"}
+        name={total > 0 ? "message-badge-outline" : "message-outline"}
         size={20}
         color={total > 0 ? theme.primary : theme.text}
       />

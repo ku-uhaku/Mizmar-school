@@ -236,6 +236,8 @@ export type PortalAbsence = {
 
 export type PortalAttendance = {
   entries: PortalAbsence[];
+  /** Retards. Counted apart because a school acts on them by accumulation. */
+  lateCount: number;
   missedCount: number;
   unjustifiedCount: number;
 };
@@ -246,7 +248,8 @@ export async function loadChildAttendance(
   studentId: string,
 ): Promise<PortalAttendance> {
   const child = await resolveChild(userId, studentId);
-  if (!child) return { entries: [], missedCount: 0, unjustifiedCount: 0 };
+  if (!child)
+    return { entries: [], lateCount: 0, missedCount: 0, unjustifiedCount: 0 };
 
   const marks = await db.studentAttendance.findMany({
     where: {
@@ -282,6 +285,7 @@ export async function loadChildAttendance(
 
   return {
     entries,
+    lateCount: entries.filter((entry) => entry.status === "LATE").length,
     missedCount: missed.length,
     unjustifiedCount: missed.filter((entry) => !entry.isJustified).length,
   };
@@ -290,6 +294,14 @@ export async function loadChildAttendance(
 export type PortalFeeLine = {
   id: string;
   label: string;
+  /**
+   * `YYYY-MM` of the due date — what the phone groups by.
+   *
+   * Derived here rather than sliced off `dueDate` on the device: the ISO string
+   * is UTC and a due date stored at local midnight in a positive offset lands
+   * on the previous day, which would file January's instalment under December.
+   */
+  month: string;
   dueDate: string;
   amountCentimes: number;
   paidCentimes: number;
@@ -369,6 +381,10 @@ export async function loadChildFees(
     return {
       id: line.id,
       label: line.feeType.name,
+      // Local, not sliced off the ISO string — see the note on the field.
+      month: `${line.dueDate.getFullYear()}-${String(
+        line.dueDate.getMonth() + 1,
+      ).padStart(2, "0")}`,
       dueDate: line.dueDate.toISOString(),
       amountCentimes: line.amountCentimes,
       paidCentimes: linePaid,
@@ -1237,4 +1253,90 @@ export async function markTopicSeen(
     create: { userId, topic, seenAt: new Date() },
     update: { seenAt: new Date() },
   });
+}
+
+// ── Les fournitures ──────────────────────────────────────────────────────────
+
+export type PortalSupplyItem = {
+  id: string;
+  label: string;
+  labelAr: string | null;
+  quantity: number | null;
+  notes: string | null;
+  isRequired: boolean;
+};
+
+export type PortalSupplyList = {
+  id: string;
+  title: string;
+  /** Set when the list is for one subject — "pour les arts plastiques". */
+  subjectName: string | null;
+  notes: string | null;
+  items: PortalSupplyItem[];
+  requiredCount: number;
+};
+
+/**
+ * What this child's class has been asked to bring.
+ *
+ * ── The one filter that matters ─────────────────────────────────────────────
+ * `APPROVED` only, through the module's own `isVisibleToFamilies`. A list costs
+ * a family money, so it is written by whoever teaches and released by whoever
+ * answers for the school — see the note on `SupplyList`. A DRAFT is somebody
+ * thinking and a REJECTED one is a decision the teacher has to be able to read;
+ * neither is a shopping list, and putting either in front of a parent would
+ * have them buying things the school never agreed to ask for.
+ *
+ * Several lists per class is the ordinary case — a general one plus one for
+ * arts plastiques — so this returns them all rather than picking.
+ */
+export async function loadChildSupplies(
+  userId: string,
+  studentId: string,
+): Promise<PortalSupplyList[]> {
+  const child = await resolveChild(userId, studentId);
+  if (!child) return [];
+
+  const enrolment = await db.enrollment.findFirst({
+    where: { id: child.id },
+    select: { schoolClassId: true, schoolYearId: true },
+  });
+  if (!enrolment?.schoolClassId) return [];
+
+  const lists = await db.supplyList.findMany({
+    where: {
+      schoolClassId: enrolment.schoolClassId,
+      schoolYearId: enrolment.schoolYearId,
+      status: "APPROVED",
+    },
+    // The class's general list first — it is the one every family needs — then
+    // the per-subject ones by name.
+    orderBy: [{ subjectId: "asc" }, { title: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      notes: true,
+      subject: { select: { name: true } },
+      items: {
+        orderBy: [{ position: "asc" }, { label: "asc" }],
+        select: {
+          id: true,
+          label: true,
+          labelAr: true,
+          quantity: true,
+          notes: true,
+          isRequired: true,
+        },
+      },
+    },
+  });
+
+  return lists.map((list) => ({
+    id: list.id,
+    title: list.title,
+    subjectName: list.subject?.name ?? null,
+    notes: list.notes,
+    items: list.items,
+    requiredCount: list.items.filter((item) => item.isRequired).length,
+  }));
 }

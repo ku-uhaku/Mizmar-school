@@ -1,8 +1,6 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,12 +9,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useMarkSeen, useMessages, usePostMessage } from "../../src/api/hooks";
 import { Empty, ErrorNote, Loading } from "../../src/ui/components";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
+import { useKeyboardOverlap } from "../../src/ui/use-keyboard";
 
 /** Mirrors `MAX_MESSAGE_LENGTH` in modules/chat/enums.ts. */
 const MAX_LENGTH = 2000;
@@ -47,8 +45,14 @@ export default function ChannelScreen() {
     title?: string;
   }>();
 
-  const headerHeight = useHeaderHeight();
+  const overlap = useKeyboardOverlap();
   const scrollRef = useRef<ScrollView>(null);
+
+  // The keyboard taking half the screen would otherwise leave you looking at
+  // the middle of the thread with the newest message hidden behind it.
+  useEffect(() => {
+    if (overlap > 0) scrollRef.current?.scrollToEnd({ animated: true });
+  }, [overlap]);
   const messages = useMessages(channelId);
   const post = usePostMessage(channelId);
   // Stamped on open, not on close: a parent who reads half the thread and
@@ -81,21 +85,17 @@ export default function ChannelScreen() {
       />
 
       {/*
-        ── The composer has to stay above the keyboard ──────────────────────────
-        `behavior: undefined` on Android relies on `adjustResize`, which the
-        Expo Go shell does not always apply — so the keyboard covered the box
-        you were typing into. "height" is the behaviour that works on Android
-        regardless, and iOS keeps "padding", which is the one that works there.
+        ── The composer sits exactly on the keyboard ────────────────────────────
+        Not a `KeyboardAvoidingView`. Android's `softwareKeyboardLayoutMode`
+        defaults to "resize", so the window has already shrunk by the time that
+        component adds its own offset — the two stacked, and the composer ended
+        up far above the keyboard rather than on it.
 
-        The offset is the header's own height, taken from the navigation stack
-        rather than guessed: a hardcoded 44 is wrong on every device with a
-        notch, and wrong again in landscape.
+        `useKeyboardOverlap` measures what is actually left uncovered after the
+        resize, so the padding is the keyboard's height on iOS, nothing on an
+        Android that resized, and the difference on one that half did.
       */}
-      <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: theme.background }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={headerHeight}
-      >
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -152,7 +152,10 @@ export default function ChannelScreen() {
             alignItems: "flex-end",
             gap: spacing.sm,
             padding: spacing.md,
-            paddingBottom: insets.bottom + spacing.md,
+            // The safe-area inset is the home indicator's, and the keyboard
+            // covers it when it is up — so it is one or the other, never both.
+            paddingBottom:
+              overlap > 0 ? overlap + spacing.md : insets.bottom + spacing.md,
             borderTopWidth: StyleSheet.hairlineWidth,
             borderColor: theme.border,
             backgroundColor: theme.card,
@@ -197,7 +200,7 @@ export default function ChannelScreen() {
             <MaterialCommunityIcons name="send" size={19} color="#fff" />
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </>
   );
 }

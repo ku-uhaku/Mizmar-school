@@ -2,7 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useChild, useChildDossier } from "../../src/api/hooks";
+import { useBadges, useChild, useChildDossier } from "../../src/api/hooks";
 import {
   Caption,
   Card,
@@ -46,6 +46,9 @@ export default function ChildScreen() {
   // thing on this screen a parent can actually act on, so it should not wait
   // behind the fee schedule.
   const dossier = useChildDossier(studentId);
+  // The one count on this screen that the child's own data cannot supply: an
+  // announcement is new or it is not, and only the watermark knows which.
+  const badges = useBadges();
 
   const go = (topic: string) =>
     router.push({
@@ -196,6 +199,12 @@ export default function ChildScreen() {
                 onPress={() => go("dossier")}
               />
               <Tile
+                label="Fournitures"
+                icon="bag-personal-outline"
+                hint="Ce qu'il faut apporter"
+                onPress={() => go("fournitures")}
+              />
+              <Tile
                 label="Transport"
                 icon="bus"
                 hint="Le circuit et l'arrêt"
@@ -206,6 +215,14 @@ export default function ChildScreen() {
                 label="Événements"
                 icon="calendar-star"
                 hint="Ce que l'école annonce"
+                badge={
+                  badges.data && badges.data.events > 0
+                    ? `${badges.data.events} nouveau`
+                    : undefined
+                }
+                tone={
+                  badges.data && badges.data.events > 0 ? "warning" : "default"
+                }
                 onPress={() => go("evenements")}
               />
             </TileGrid>

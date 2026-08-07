@@ -27,7 +27,7 @@ import {
   seedPortalAccounts,
   type SeededPortalAccounts,
 } from "@/modules/portal/seed";
-import { seedSupplyArticles } from "@/modules/supplies/seed";
+import { seedSupplyArticles, seedSupplyLists } from "@/modules/supplies/seed";
 import { seedDocumentTypes } from "@/modules/documents/seed";
 import { seedFamilies } from "@/modules/families/seed";
 import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
@@ -474,6 +474,15 @@ async function main() {
         withStaffing: true,
         programmeByLevel: PROGRAMME_BY_LEVEL,
         subjectMinutes,
+      });
+
+      // What each class is asked to bring. After the classes, obviously, and
+      // after the article catalogue the items point at.
+      await seedSupplyLists(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        classIds: classes.map((klass) => klass.id),
+        authorId: adminId,
       });
 
       await seedTimetable(db, {

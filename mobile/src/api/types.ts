@@ -65,6 +65,8 @@ export type Absence = {
 export type FeeLine = {
   id: string;
   label: string;
+  /** `YYYY-MM` of the due date — what the payments screen groups by. */
+  month: string;
   dueDate: string;
   amountCentimes: number;
   paidCentimes: number;
@@ -77,6 +79,8 @@ export type ChildDetail = {
   marks: { marks: Mark[]; averageOutOf20: number | null };
   attendance: {
     entries: Absence[];
+    /** Retards, counted apart: a school acts on them by accumulation. */
+    lateCount: number;
     missedCount: number;
     unjustifiedCount: number;
   };
@@ -348,4 +352,29 @@ export type Badges = {
   marks: number;
   remarks: number;
   total: number;
+};
+
+/** One thing on a liste de fournitures. Mirrors `PortalSupplyItem`. */
+export type SupplyItem = {
+  id: string;
+  label: string;
+  labelAr: string | null;
+  quantity: number | null;
+  notes: string | null;
+  isRequired: boolean;
+};
+
+/**
+ * A class's liste de fournitures. Mirrors `PortalSupplyList`.
+ *
+ * Only approved lists reach this type — a draft or a rejected one is not a
+ * shopping list, and the filter is in the query rather than here.
+ */
+export type SupplyList = {
+  id: string;
+  title: string;
+  subjectName: string | null;
+  notes: string | null;
+  items: SupplyItem[];
+  requiredCount: number;
 };

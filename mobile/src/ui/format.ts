@@ -123,3 +123,23 @@ export const EVENT_KIND_LABELS: Record<string, string> = {
   HOLIDAY_INFO: "Vacances",
   OTHER: "Autre",
 };
+
+/** `"2026-03"` → `"mars 2026"`, for the payments screen's month headings. */
+const MONTH_NAMES = [
+  "janvier", "février", "mars", "avril", "mai", "juin",
+  "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+];
+
+export function monthLabel(month: string): string {
+  const [year, index] = month.split("-");
+  const name = MONTH_NAMES[Number(index) - 1];
+  return name ? `${name} ${year}` : month;
+}
+
+/** How a period was spent, as a parent reads it. */
+export const ABSENCE_STATUS_LABELS: Record<string, string> = {
+  ABSENT: "Absence",
+  LATE: "Retard",
+  EXCUSED: "Excusé",
+  PRESENT: "Présent",
+};
