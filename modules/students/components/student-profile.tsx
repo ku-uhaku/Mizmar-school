@@ -51,6 +51,7 @@ import {
   standingStateOf,
 } from "@/modules/treasury/payment-state";
 import { TransportPanel } from "@/modules/transport/components/transport-panel";
+import type { NeighbourhoodOption } from "@/modules/geography/queries";
 import type {
   NeighbourhoodChoice,
   RiderRow,
@@ -120,7 +121,7 @@ export function StudentProfile({
   /** The school's towns, for the birthplace picker on the information tab. */
   cities: { id: string; label: string }[];
   /** Its quartiers, for the address picker beside it. */
-  neighbourhoods: { id: string; label: string }[];
+  neighbourhoods: NeighbourhoodOption[];
   enrolment: EnrolmentDetail | null;
   offerings: OfferingChoice[];
   startMonths: StartMonthChoice[];

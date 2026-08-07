@@ -47,6 +47,17 @@ import type {
  * Absent is a checkbox rather than a score of zero, because they are different
  * facts: see the note on AssessmentGrade.score. Ticking it clears and disables
  * the mark, so the two cannot disagree.
+ *
+ * ── Enter walks down the column ──────────────────────────────────────────────
+ * A teacher types thirty marks off a pile of papers without looking up. Enter
+ * moves to the next pupil's box and selects what is in it, so the whole class
+ * goes in from the keyboard alone; Shift+Enter goes back up for the one that
+ * was mistyped. Rows marked absent are stepped over, since their box is
+ * disabled and stopping on it would break the rhythm the shortcut exists for.
+ *
+ * It also stops Enter from submitting. In a form with a submit button that is
+ * the browser default, so the very first Enter used to save a sheet with one
+ * mark on it — which is not what anybody pressing Enter mid-column meant.
  */
 export function MarkSheet({
   sheet,
@@ -97,6 +108,32 @@ export function MarkSheet({
       ...current,
       [enrollmentId]: { ...current[enrollmentId], ...patch },
     }));
+  }
+
+  /*
+    The score boxes are found by walking the rendered table rather than by
+    keeping a ref per row: document order is already what the parallel arrays
+    depend on (see the note in MarkRowCells), so reading the same order back out
+    of the DOM cannot drift from what the form will post.
+  */
+  const bodyRef = React.useRef<HTMLTableSectionElement>(null);
+
+  function stepScore(from: HTMLInputElement, direction: 1 | -1) {
+    const boxes = Array.from(
+      bodyRef.current?.querySelectorAll<HTMLInputElement>(
+        "input[data-score-cell]",
+      ) ?? [],
+      // A disabled box cannot be typed into, so an absent pupil is stepped over
+      // rather than landed on.
+    ).filter((box) => !box.disabled);
+
+    const next = boxes[boxes.indexOf(from) + direction];
+    if (!next) return;
+
+    next.focus();
+    // Selected, not just focused: the next thing typed replaces the mark
+    // instead of being appended to it, which is what makes the column fast.
+    next.select();
   }
 
   /** Everyone with no mark and no absence yet — the "rest" of the sheet. */
@@ -235,7 +272,7 @@ export function MarkSheet({
               </TableRow>
             </TableHeader>
 
-            <TableBody>
+            <TableBody ref={bodyRef}>
               {rows.map((row) => (
                 <MarkRowCells
                   key={row.enrollmentId}
@@ -245,6 +282,7 @@ export function MarkSheet({
                   passBps={settings.passMarkBps}
                   canGrade={canGrade}
                   onChange={update}
+                  onStep={stepScore}
                 />
               ))}
             </TableBody>
@@ -271,6 +309,7 @@ function MarkRowCells({
   passBps,
   canGrade,
   onChange,
+  onStep,
 }: {
   row: MarkRow;
   entry: {
@@ -292,6 +331,8 @@ function MarkRowCells({
       comment: string;
     }>,
   ) => void;
+  /** Moves to the next or previous pupil's score box — see the note on MarkSheet. */
+  onStep: (from: HTMLInputElement, direction: 1 | -1) => void;
 }) {
   const { t } = useI18n();
 
@@ -359,10 +400,18 @@ function MarkRowCells({
 
       <TableCell>
         <Input
+          data-score-cell=""
           value={entry.isAbsent ? "" : entry.score}
           onChange={(event) =>
             onChange(row.enrollmentId, { score: event.target.value })
           }
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            // Always prevented, even on the last row where there is nowhere to
+            // go: Enter in this column means "next pupil", never "save".
+            event.preventDefault();
+            onStep(event.currentTarget, event.shiftKey ? -1 : 1);
+          }}
           // Disabled rather than merely ignored: an absence and a mark are
           // contradictory, and a greyed box says so before anybody types.
           disabled={!canGrade || entry.isAbsent}

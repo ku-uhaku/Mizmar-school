@@ -49,16 +49,38 @@ export async function listCityChoices(
 }
 
 /**
- * Quartiers to pick from, labelled with their town.
+ * A quartier to pick from, and the town it sits in.
  *
- * The town is in the label rather than in a grouped dropdown because two towns
- * can each have a "Centre-ville", and a bare list of quartier names makes those
- * two rows indistinguishable at the moment of choosing.
+ * The town rides alongside the label rather than only inside it so a dropdown
+ * can group by it — see `listNeighbourhoodChoices`.
+ */
+export type NeighbourhoodOption = CityChoice & {
+  cityId: string;
+  cityName: string;
+};
+
+/**
+ * Quartiers to pick from, labelled with their town and ordered by it.
+ *
+ * ── Why the town is on the choice and not just in the label ──────────────────
+ * The label has always carried it, because two towns can each have a
+ * "Centre-ville" and a bare list of quartier names makes those two rows
+ * indistinguishable at the moment of choosing. What the label could not do is
+ * keep them apart in a long list: a school serving more than one town gave a
+ * secretary one flat run of names to scroll, with the five that applied to the
+ * child in front of them somewhere in the middle.
+ *
+ * Grouped rather than filtered, and that is deliberate. There is no *residence*
+ * town on a pupil to filter by — `Student.birthCityId` is where the child was
+ * born, and narrowing the address list by it would hide the right quartier for
+ * every child born somewhere other than where they live, which is most of them
+ * in a town like Oujda. The quartier *is* the address; its town is derived from
+ * it. So the list groups under its towns and stays complete.
  */
 export async function listNeighbourhoodChoices(
   context: AuthContext,
   include: (string | null)[] = [],
-): Promise<CityChoice[]> {
+): Promise<NeighbourhoodOption[]> {
   const kept = include.filter((id): id is string => Boolean(id));
 
   const neighbourhoods = await db.neighbourhood.findMany({
@@ -69,11 +91,17 @@ export async function listNeighbourhoodChoices(
         : { isActive: true }),
     },
     orderBy: [{ city: { name: "asc" } }, { name: "asc" }],
-    select: { id: true, name: true, city: { select: { name: true } } },
+    select: {
+      id: true,
+      name: true,
+      city: { select: { id: true, name: true } },
+    },
   });
 
   return neighbourhoods.map((neighbourhood) => ({
     id: neighbourhood.id,
     label: `${neighbourhood.city.name} · ${neighbourhood.name}`,
+    cityId: neighbourhood.city.id,
+    cityName: neighbourhood.city.name,
   }));
 }

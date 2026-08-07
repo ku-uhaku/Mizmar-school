@@ -386,10 +386,13 @@ async function main() {
     const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
     // Towns before pupils: a birthplace is now a reference, not a string.
     const cityIdByCode = await seedCities(db, school.id);
+    // The school's own town only: a quartier is a residential address, and this
+    // school's pupils all live in Oujda — see the note on `seedNeighbourhoods`.
     const neighbourhoodIdByCode = await seedNeighbourhoods(
       db,
       school.id,
       cityIdByCode,
+      plan.cityCode,
     );
     const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
 

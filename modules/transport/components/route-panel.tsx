@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import { toast } from "sonner";
 
 import { Combobox } from "@/components/form/combobox";
+import { NeighbourhoodOptions } from "@/components/form/neighbourhood-options";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useT } from "@/components/providers/i18n-provider";
@@ -67,6 +68,7 @@ import {
   SUBSCRIPTION_STATUSES,
   TRANSPORT_DIRECTIONS,
 } from "@/modules/transport/enums";
+import type { NeighbourhoodOption } from "@/modules/geography/queries";
 import type {
   RouteDetail,
   StopRow,
@@ -90,7 +92,7 @@ export function RoutePanel({
 }: {
   route: RouteDetail;
   /** The school's quartiers, for the stop dialog — see modules/geography. */
-  neighbourhoods: { id: string; label: string }[];
+  neighbourhoods: NeighbourhoodOption[];
   /** The year's runs, declared under /configuration/logistique. */
   schedules: { id: string; label: string; name: string; direction: string }[];
   subscribable: SubscribableStudent[];
@@ -238,7 +240,7 @@ function StopsTab({
 }: {
   route: RouteDetail;
   /** The school's quartiers, for the stop dialog — see modules/geography. */
-  neighbourhoods: { id: string; label: string }[];
+  neighbourhoods: NeighbourhoodOption[];
   canManage: boolean;
 }) {
   const t = useT();
@@ -394,7 +396,7 @@ function StopDialog({
   routeId: string;
   stop: StopRow | null;
   /** The school's quartiers, for the stop dialog — see modules/geography. */
-  neighbourhoods: { id: string; label: string }[];
+  neighbourhoods: NeighbourhoodOption[];
   nextPosition: number;
   onClose: () => void;
 }) {
@@ -455,11 +457,7 @@ function StopDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">{t.common.none}</SelectItem>
-                {neighbourhoods.map((neighbourhood) => (
-                  <SelectItem key={neighbourhood.id} value={neighbourhood.id}>
-                    {neighbourhood.label}
-                  </SelectItem>
-                ))}
+                <NeighbourhoodOptions neighbourhoods={neighbourhoods} />
               </SelectContent>
             </Select>
           </Field>

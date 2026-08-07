@@ -5,6 +5,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 
+import { NeighbourhoodOptions } from "@/components/form/neighbourhood-options";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
@@ -327,11 +328,7 @@ function SubscribeCard({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE}>{t.common.none}</SelectItem>
-                  {neighbourhoods.map((entry) => (
-                    <SelectItem key={entry.id} value={entry.id}>
-                      {entry.label}
-                    </SelectItem>
-                  ))}
+                  <NeighbourhoodOptions neighbourhoods={neighbourhoods} />
                 </SelectContent>
               </Select>
             </Field>

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { FormField, controlProps } from "@/components/form/form-field";
+import { NeighbourhoodOptions } from "@/components/form/neighbourhood-options";
 import { FormNav, type FormNavItem } from "@/components/form/form-nav";
 import { ImageField } from "@/components/form/image-field";
 import {
@@ -54,6 +55,7 @@ import {
   SCHOOLING_TYPES,
   siblingCountOf,
 } from "@/modules/students/enums";
+import type { NeighbourhoodOption } from "@/modules/geography/queries";
 import type { StudentDetail } from "@/modules/students/queries";
 
 /**
@@ -100,7 +102,7 @@ export function StudentForm({
   /** The school's towns, for the birthplace — see modules/geography. */
   cities: { id: string; label: string }[];
   /** The school's quartiers, for the address — same list, same module. */
-  neighbourhoods: { id: string; label: string }[];
+  neighbourhoods: NeighbourhoodOption[];
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -241,11 +243,7 @@ export function StudentForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">{t.common.none}</SelectItem>
-                {neighbourhoods.map((neighbourhood) => (
-                  <SelectItem key={neighbourhood.id} value={neighbourhood.id}>
-                    {neighbourhood.label}
-                  </SelectItem>
-                ))}
+                <NeighbourhoodOptions neighbourhoods={neighbourhoods} />
               </SelectContent>
             </Select>
           </FormField>

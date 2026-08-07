@@ -611,6 +611,8 @@ export type TransportRouteChoice = {
 export type NeighbourhoodChoice = {
   id: string;
   label: string;
+  /** The town it sits in, so the picker can group by it — see `NeighbourhoodOptions`. */
+  cityName: string;
   /** Circuits declared to serve this quartier — see RouteNeighbourhood. */
   routes: TransportRouteChoice[];
 };
@@ -677,6 +679,7 @@ export async function loadTransportChoices(
   return neighbourhoods.map((neighbourhood) => ({
     id: neighbourhood.id,
     label: `${neighbourhood.city.name} · ${neighbourhood.name}`,
+    cityName: neighbourhood.city.name,
     routes: routes
       .filter((route) =>
         route.neighbourhoods.some(

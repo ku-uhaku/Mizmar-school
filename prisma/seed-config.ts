@@ -9,7 +9,11 @@ import {
 } from "@/modules/billing/seed";
 import { seedDocumentTypes } from "@/modules/documents/seed";
 import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
-import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
+import {
+  cityCodeByName,
+  seedCities,
+  seedNeighbourhoods,
+} from "@/modules/geography/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
@@ -111,7 +115,15 @@ async function main() {
     // Towns and quartiers: a birthplace and an address are references here, so
     // they have to exist before the first dossier is opened by hand.
     const cityIdByCode = await seedCities(db, school.id);
-    await seedNeighbourhoods(db, school.id, cityIdByCode);
+    // Quartiers of the school's own town only — a real school starting from
+    // this seed adds the douars its pupils come from, and a list two-thirds
+    // full of another city's quartiers buries them.
+    await seedNeighbourhoods(
+      db,
+      school.id,
+      cityIdByCode,
+      cityCodeByName(school.city),
+    );
 
     // What the school may charge. How much is a fact of each year — see below.
     const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
