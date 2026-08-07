@@ -110,6 +110,8 @@ model User {
   chatMessages  ChatMessage[] @relation("ChatAuthor")
   chatModerated ChatMessage[] @relation("ChatModerator")
 
+  portalSeen PortalSeen[] @relation("PortalSeen")
+
   @@index([organizationId])
   @@map("users")
 }

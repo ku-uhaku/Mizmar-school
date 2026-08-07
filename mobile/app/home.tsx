@@ -3,9 +3,9 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { clearTokens } from "../src/api/client";
-import { useIdentity } from "../src/api/hooks";
+import { useBadges, useIdentity } from "../src/api/hooks";
 import type { MobileSpace } from "../src/api/types";
 import { DirectorSpace } from "../src/spaces/director";
 import { DriverSpace } from "../src/spaces/driver";
@@ -36,12 +36,6 @@ export default function HomeScreen() {
 
   const identity = useIdentity();
   const [chosen, setChosen] = useState<MobileSpace | null>(null);
-
-  const signOut = async () => {
-    await clearTokens();
-    queryClient.clear();
-    router.replace("/login");
-  };
 
   const space = chosen ?? identity.data?.defaultSpace ?? null;
 
@@ -81,11 +75,35 @@ export default function HomeScreen() {
           </Caption>
         </View>
 
-        <Pressable onPress={signOut} hitSlop={8}>
-          <Text style={{ color: theme.muted, fontSize: 13, fontWeight: "600" }}>
-            Déconnexion
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+          {/* Only the family space has anything to be notified about — the
+            other three are read from the school's side, where "what is new"
+            is the screen itself. */}
+          {space === "family" ? <NotificationBell /> : null}
+
+          <Pressable
+            onPress={() => router.push("/profile")}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Profil"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: theme.card,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: theme.border,
+            }}
+          >
+            <MaterialCommunityIcons
+              name="account-outline"
+              size={20}
+              color={theme.text}
+            />
+          </Pressable>
+        </View>
       </View>
 
       {identity.isPending ? <Loading /> : null}
@@ -139,5 +157,68 @@ export default function HomeScreen() {
         <Body muted>{identity.data.organizationName}</Body>
       ) : null}
     </ScrollView>
+  );
+}
+
+
+/**
+ * The bell, and the count of things this family has not looked at.
+ *
+ * Silent when there is nothing: a bell with a zero on it is a bell that teaches
+ * you to stop reading bells. Tapping opens the list, which is where the count
+ * gets cleared — per topic, as each screen is opened.
+ */
+function NotificationBell() {
+  const theme = useTheme();
+  const router = useRouter();
+  const badges = useBadges();
+  const total = badges.data?.total ?? 0;
+
+  return (
+    <Pressable
+      onPress={() => router.push("/notifications")}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={
+        total > 0 ? `Notifications, ${total} nouveautés` : "Notifications"
+      }
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: theme.border,
+      }}
+    >
+      <MaterialCommunityIcons
+        name={total > 0 ? "bell-badge-outline" : "bell-outline"}
+        size={20}
+        color={total > 0 ? theme.primary : theme.text}
+      />
+
+      {total > 0 ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            minWidth: 17,
+            height: 17,
+            paddingHorizontal: 4,
+            borderRadius: 9,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: theme.danger,
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>
+            {total > 99 ? "99+" : total}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }

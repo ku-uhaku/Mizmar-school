@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  useMarkSeen,
   useChild,
   useChildDossier,
   useChildRemarks,
@@ -64,6 +65,13 @@ const TITLES: Record<string, string> = {
   evenements: "Événements",
 };
 
+/** The topics that carry a badge, and what each is called on the server. */
+const SEEN_FOR: Record<string, "EVENTS" | "MARKS" | "REMARKS"> = {
+  evenements: "EVENTS",
+  notes: "MARKS",
+  remarques: "REMARKS",
+};
+
 export default function TopicScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -71,6 +79,15 @@ export default function TopicScreen() {
     studentId: string;
     topic: string;
   }>();
+
+  // Opening the screen is what clears its badge. Topics with no badge — the
+  // timetable, the dossier — stamp nothing.
+  const markSeen = useMarkSeen();
+  useEffect(() => {
+    const seen = SEEN_FOR[topic];
+    if (seen) markSeen.mutate(seen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic]);
 
   return (
     <>
@@ -334,13 +351,16 @@ function Remarques({ studentId }: { studentId: string }) {
 
 function Timetable({ studentId }: { studentId: string }) {
   const theme = useTheme();
-  const lessons = useChildTimetable(studentId);
+  const timetable = useChildTimetable(studentId);
 
-  if (lessons.isPending) return <Loading />;
-  if (lessons.isError) {
+  if (timetable.isPending) return <Loading />;
+  if (timetable.isError) {
     return <ErrorNote message="Impossible de charger l'emploi du temps." />;
   }
-  if (lessons.data.length === 0) {
+
+  const { teachingDays, lessons } = timetable.data;
+
+  if (teachingDays.length === 0) {
     return (
       <Empty message="Aucun emploi du temps — l'élève n'a pas encore de classe." />
     );
@@ -348,37 +368,43 @@ function Timetable({ studentId }: { studentId: string }) {
 
   /*
     ── The same grid the web app draws ─────────────────────────────────────────
-    Days down, periods across — a parent comparing "what does Tuesday look
-    like" against Wednesday reads a table, not eight stacked day cards. The
-    columns are derived here rather than sent: the API returns the week in
-    order, and the distinct (start, end) pairs *are* the columns, so shipping
-    them separately would be shipping the same fact twice.
+    Days down, periods across, each cell tinted with its subject's own colour at
+    the same weight the desktop grid uses — a parent and the head of studies
+    should be able to talk about "the blue one on Tuesday" and mean the same
+    lesson.
 
-    It scrolls sideways with the day column pinned outside the scroll view,
-    because a phone cannot show six periods at a readable width and a table
-    whose row labels scroll away is a table you cannot read.
+    The days come from the school's teaching week rather than from the lessons,
+    so a Wednesday with nothing on it is drawn as a free day instead of
+    vanishing and leaving the reader to wonder whether the week has five days
+    or six.
+
+    It scrolls sideways with the day column pinned outside the scroll view: a
+    phone cannot show six periods at a readable width, and a table whose row
+    labels scroll away is a table you cannot read.
   */
   const columns = [
     ...new Map(
-      lessons.data.map((lesson) => [
+      lessons.map((lesson) => [
         `${lesson.startTime}-${lesson.endTime}`,
         { startTime: lesson.startTime, endTime: lesson.endTime },
       ]),
     ).values(),
   ].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  const days = [...new Set(lessons.data.map((lesson) => lesson.dayOfWeek))].sort(
-    (a, b) => a - b,
-  );
+  if (columns.length === 0) {
+    return <Empty message="Aucun cours placé pour cette classe." />;
+  }
 
   const cellFor = (day: number, key: string) =>
-    lessons.data.find(
-      (lesson) => lesson.dayOfWeek === day && `${lesson.startTime}-${lesson.endTime}` === key,
+    lessons.find(
+      (lesson) =>
+        lesson.dayOfWeek === day &&
+        `${lesson.startTime}-${lesson.endTime}` === key,
     ) ?? null;
 
-  const DAY_W = 74;
+  const DAY_W = 62;
   const CELL_W = 104;
-  const ROW_H = 62;
+  const ROW_H = 64;
 
   const headerCell = {
     height: 34,
@@ -399,10 +425,15 @@ function Timetable({ studentId }: { studentId: string }) {
         overflow: "hidden",
       }}
     >
-      {/* The day column, outside the scroll view so it stays put. */}
-      <View style={{ width: DAY_W, borderRightWidth: StyleSheet.hairlineWidth, borderColor: theme.border }}>
+      <View
+        style={{
+          width: DAY_W,
+          borderRightWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.border,
+        }}
+      >
         <View style={headerCell} />
-        {days.map((day) => (
+        {teachingDays.map((day) => (
           <View
             key={day}
             style={{
@@ -428,14 +459,16 @@ function Timetable({ studentId }: { studentId: string }) {
                 key={`${column.startTime}-${column.endTime}`}
                 style={{ ...headerCell, width: CELL_W }}
               >
-                <Text style={{ color: theme.muted, fontSize: 11, fontWeight: "600" }}>
+                <Text
+                  style={{ color: theme.muted, fontSize: 11, fontWeight: "600" }}
+                >
                   {column.startTime}
                 </Text>
               </View>
             ))}
           </View>
 
-          {days.map((day) => (
+          {teachingDays.map((day) => (
             <View key={day} style={{ flexDirection: "row" }}>
               {columns.map((column) => {
                 const key = `${column.startTime}-${column.endTime}`;
@@ -451,18 +484,30 @@ function Timetable({ studentId }: { studentId: string }) {
                       borderTopWidth: StyleSheet.hairlineWidth,
                       borderLeftWidth: StyleSheet.hairlineWidth,
                       borderColor: theme.border,
+                      // `22` is the same alpha the desktop grid tints with, so
+                      // the two read as one colour scheme.
+                      backgroundColor: lesson?.colorHex
+                        ? `${lesson.colorHex}22`
+                        : undefined,
                     }}
                   >
                     {lesson ? (
                       <>
                         <Text
-                          style={{ color: theme.text, fontSize: 12, fontWeight: "600" }}
+                          style={{
+                            color: theme.text,
+                            fontSize: 12,
+                            fontWeight: "600",
+                          }}
                           numberOfLines={2}
                         >
-                          {lesson.subjectName}
+                          {lesson.subjectShort || lesson.subjectName}
                         </Text>
                         {lesson.roomName ? (
-                          <Text style={{ color: theme.muted, fontSize: 10 }} numberOfLines={1}>
+                          <Text
+                            style={{ color: theme.muted, fontSize: 10 }}
+                            numberOfLines={1}
+                          >
                             {lesson.roomName}
                           </Text>
                         ) : null}

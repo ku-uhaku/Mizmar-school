@@ -6,6 +6,7 @@ import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ApiError } from "../src/api/client";
+import { useTheme } from "../src/ui/theme";
 
 /**
  * The app shell.
@@ -15,6 +16,7 @@ import { ApiError } from "../src/api/client";
  */
 export default function RootLayout() {
   const scheme = useColorScheme();
+  const theme = useTheme();
 
   const [queryClient] = useState(
     () =>
@@ -39,7 +41,26 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
-        <Stack screenOptions={{ headerShown: false }} />
+        {/*
+          The header is painted from the app's own palette rather than left to
+          React Navigation's defaults. Its light theme is near-white and its
+          dark theme is a grey that is neither of ours, so a screen with a
+          header used to have a title bar in one colour scheme and a body in
+          another — most obviously in dark mode, where the bar stayed pale.
+
+          Set once on the Stack so no screen has to remember: every
+          `Stack.Screen` in the app inherits it.
+        */}
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            headerStyle: { backgroundColor: theme.card },
+            headerTintColor: theme.primary,
+            headerTitleStyle: { color: theme.text },
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: theme.background },
+          }}
+        />
       </SafeAreaProvider>
     </QueryClientProvider>
   );

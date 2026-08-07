@@ -275,8 +275,23 @@ export type ChildLesson = {
   startTime: string;
   endTime: string;
   subjectName: string;
+  /** The short form, for a cell too narrow for "Sciences de la vie". */
+  subjectShort: string;
+  /** The subject's own colour, so the phone's grid reads like the school's. */
+  colorHex: string | null;
   teacherName: string | null;
   roomName: string | null;
+};
+
+/**
+ * A child's week. Mirrors `PortalTimetable`.
+ *
+ * `teachingDays` travels with the lessons so the grid can draw the school's
+ * whole week — a Wednesday with nothing on it is a free day, not a missing one.
+ */
+export type Timetable = {
+  teachingDays: number[];
+  lessons: ChildLesson[];
 };
 
 /** One pièce of the dossier. Mirrors `PortalDossierPiece`. */
@@ -316,4 +331,21 @@ export type ChatMessage = {
   createdAt: string;
   /** True when this account wrote it, so the thread can align it right. */
   isMine: boolean;
+};
+
+/** The topics a badge can be about. Mirrors `SEEN_TOPICS`. */
+export type SeenTopic = "EVENTS" | "CHAT" | "MARKS" | "REMARKS";
+
+/**
+ * What is new for this household. Mirrors `PortalBadges`.
+ *
+ * Counts, not items: the watermark behind them can say how many are new but
+ * not which — see the note on `PortalSeen`. That is what a badge needs.
+ */
+export type Badges = {
+  events: number;
+  chat: number;
+  marks: number;
+  remarks: number;
+  total: number;
 };

@@ -182,6 +182,8 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Event: "vieScolaire",
   ChatChannel: "vieScolaire",
   ChatMessage: "vieScolaire",
+  // A read watermark is the account's own bookkeeping, not the school's.
+  PortalSeen: "access",
   EventAudience: "vieScolaire",
 };
 

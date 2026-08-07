@@ -2,6 +2,8 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { ensureChannel } from "@/modules/chat/service";
+import { settingsOf, teachingDaysOf } from "@/lib/school-settings";
+import { firstLookSince, isSeenTopic } from "@/modules/portal/enums";
 import { isSettled } from "@/modules/documents/enums";
 import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
 import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
@@ -687,6 +689,10 @@ export type PortalLesson = {
   startTime: string;
   endTime: string;
   subjectName: string;
+  /** The short form, for a cell too narrow for "Sciences de la vie". */
+  subjectShort: string;
+  /** The subject's own colour, so the phone's grid reads like the school's. */
+  colorHex: string | null;
   teacherName: string | null;
   roomName: string | null;
 };
@@ -701,31 +707,56 @@ export type PortalLesson = {
  *
  * Empty when the child has no class yet — a pupil admitted but not yet seated
  * has no timetable, which is a real state and not an error.
+ *
+ * The days themselves are *not* filtered to the ones with lessons: the phone
+ * draws the school's whole teaching week, so a Wednesday with nothing on it
+ * reads as a free day rather than as a day that does not exist. Which days
+ * those are is `SchoolSettings.teachingDays`, and it travels with the lessons —
+ * see `PortalTimetable`.
  */
+export type PortalTimetable = {
+  /** ISO weekday numbers the school teaches on, in order. */
+  teachingDays: number[];
+  lessons: PortalLesson[];
+};
+
 export async function loadChildTimetable(
   userId: string,
   studentId: string,
-): Promise<PortalLesson[]> {
+): Promise<PortalTimetable> {
+  const empty: PortalTimetable = { teachingDays: [], lessons: [] };
+
   const child = await resolveChild(userId, studentId);
-  if (!child) return [];
+  if (!child) return empty;
 
   const enrolment = await db.enrollment.findFirst({
     where: { id: child.id },
-    select: { schoolClassId: true },
+    select: { schoolClassId: true, student: { select: { schoolId: true } } },
   });
-  if (!enrolment?.schoolClassId) return [];
+  if (!enrolment?.schoolClassId) return empty;
+
+  const settings = await db.schoolSettings.findFirst({
+    where: { schoolId: enrolment.student.schoolId },
+    select: { teachingDays: true },
+  });
+  const teachingDays = teachingDaysOf(settingsOf(settings));
 
   const entries = await db.timetableEntry.findMany({
     where: {
       schoolClassId: enrolment.schoolClassId,
       timeSlot: { scheduleKind: "STANDARD" },
     },
-    orderBy: [{ timeSlot: { dayOfWeek: "asc" } }, { timeSlot: { startTime: "asc" } }],
+    orderBy: [
+      { timeSlot: { dayOfWeek: "asc" } },
+      { timeSlot: { startTime: "asc" } },
+    ],
     select: {
       timeSlot: {
         select: { dayOfWeek: true, startTime: true, endTime: true },
       },
-      subject: { select: { name: true } },
+      subject: {
+        select: { name: true, shortName: true, code: true, colorHex: true },
+      },
       room: { select: { name: true } },
       teacher: {
         select: {
@@ -736,18 +767,24 @@ export async function loadChildTimetable(
     },
   });
 
-  return entries.map((entry) => ({
-    dayOfWeek: entry.timeSlot.dayOfWeek,
-    startTime: entry.timeSlot.startTime,
-    endTime: entry.timeSlot.endTime,
-    subjectName: entry.subject.name,
-    teacherName: entry.teacher
-      ? (entry.teacher.profile
-          ? `${entry.teacher.profile.firstName} ${entry.teacher.profile.lastName}`.trim()
-          : "") || entry.teacher.email
-      : null,
-    roomName: entry.room?.name ?? null,
-  }));
+  return {
+    teachingDays: [...teachingDays],
+    lessons: entries.map((entry) => ({
+      dayOfWeek: entry.timeSlot.dayOfWeek,
+      startTime: entry.timeSlot.startTime,
+      endTime: entry.timeSlot.endTime,
+      subjectName: entry.subject.name,
+      subjectShort:
+        entry.subject.shortName || entry.subject.code || entry.subject.name,
+      colorHex: entry.subject.colorHex,
+      teacherName: entry.teacher
+        ? (entry.teacher.profile
+            ? `${entry.teacher.profile.firstName} ${entry.teacher.profile.lastName}`.trim()
+            : "") || entry.teacher.email
+        : null,
+      roomName: entry.room?.name ?? null,
+    })),
+  };
 }
 
 // ── Le dossier ───────────────────────────────────────────────────────────────
@@ -894,8 +931,11 @@ export async function listMyChannels(userId: string): Promise<PortalChannel[]> {
   });
   const settingFor = new Map(settings.map((row) => [row.schoolId, row]));
 
-  const wanted: { schoolId: string; schoolYearId: string; classId: string | null }[] =
-    [];
+  const wanted: {
+    schoolId: string;
+    schoolYearId: string;
+    classId: string | null;
+  }[] = [];
 
   for (const enrolment of enrolments) {
     const schoolId = enrolment.student.schoolId;
@@ -905,7 +945,11 @@ export async function listMyChannels(userId: string): Promise<PortalChannel[]> {
     if (!setting) continue;
 
     if (setting.parentChatEnabled) {
-      wanted.push({ schoolId, schoolYearId: enrolment.schoolYearId, classId: null });
+      wanted.push({
+        schoolId,
+        schoolYearId: enrolment.schoolYearId,
+        classId: null,
+      });
     }
     if (setting.parentClassChatEnabled && enrolment.schoolClassId) {
       wanted.push({
@@ -984,7 +1028,9 @@ export async function listMyChannels(userId: string): Promise<PortalChannel[]> {
       messageCount: channel._count.messages,
       lastMessageAt: channel.messages[0]?.createdAt.toISOString() ?? null,
     }))
-    .sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+    .sort(
+      (a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label),
+    );
 }
 
 export type PortalMessage = {
@@ -1054,4 +1100,141 @@ export async function canPostToChannel(
   const mine = await listMyChannels(userId);
   const channel = mine.find((row) => row.id === channelId);
   return Boolean(channel && !channel.isArchived);
+}
+
+// ── Ce qui est nouveau ───────────────────────────────────────────────────────
+
+export type PortalBadges = {
+  events: number;
+  chat: number;
+  marks: number;
+  remarks: number;
+  total: number;
+};
+
+/**
+ * What has happened in this household's corner of the app since it last looked.
+ *
+ * ── Counted, never stored ───────────────────────────────────────────────────
+ * Nothing is written when a school publishes an event or a teacher validates a
+ * paper. Each count is "rows newer than this account's watermark", which the
+ * indexes those tables already carry can answer — see the note on `PortalSeen`.
+ * The alternative, a notification row per family per happening, is a fan-out
+ * write on every publish and a second record of a fact that can drift from the
+ * first.
+ *
+ * Every count reuses the *same* scoped read the screen behind it uses, so a
+ * badge can never promise something the screen will not show: the marks count
+ * goes through `FAMILY_VISIBLE_STATUSES`, the remarks count through
+ * `isVisibleToFamily`, the chat count through the household's own channels.
+ */
+export async function loadBadges(userId: string): Promise<PortalBadges> {
+  const watermarks = await db.portalSeen.findMany({
+    where: { userId },
+    select: { topic: true, seenAt: true },
+  });
+  const seen = new Map(watermarks.map((row) => [row.topic, row.seenAt]));
+  const fallback = firstLookSince();
+  const since = (topic: string) => seen.get(topic) ?? fallback;
+
+  const enrolments = await db.enrollment.findMany({
+    where: { student: householdScope(userId) },
+    select: {
+      id: true,
+      schoolYearId: true,
+      schoolClassId: true,
+      levelOffering: { select: { levelId: true } },
+    },
+  });
+
+  if (enrolments.length === 0) {
+    return { events: 0, chat: 0, marks: 0, remarks: 0, total: 0 };
+  }
+
+  const enrolmentIds = enrolments.map((row) => row.id);
+  const yearIds = [...new Set(enrolments.map((row) => row.schoolYearId))];
+  const classIds = [
+    ...new Set(
+      enrolments
+        .map((row) => row.schoolClassId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+  const levelIds = [
+    ...new Set(enrolments.map((row) => row.levelOffering.levelId)),
+  ];
+
+  const channels = await listMyChannels(userId);
+  const channelIds = channels.map((channel) => channel.id);
+
+  const [events, chat, marks, remarks] = await Promise.all([
+    db.event.count({
+      where: {
+        schoolYearId: { in: yearIds },
+        status: { in: [...VISIBLE_EVENT_STATUSES] },
+        // Published, not created: an event drafted in September and announced
+        // in March is new in March.
+        publishedAt: { gt: since("EVENTS") },
+        OR: [
+          { isSchoolWide: true },
+          { audiences: { some: { schoolClassId: { in: classIds } } } },
+          { audiences: { some: { levelId: { in: levelIds } } } },
+        ],
+      },
+    }),
+    channelIds.length === 0
+      ? Promise.resolve(0)
+      : db.chatMessage.count({
+          where: {
+            channelId: { in: channelIds },
+            deletedAt: null,
+            createdAt: { gt: since("CHAT") },
+            // Your own messages are not news to you.
+            authorId: { not: userId },
+          },
+        }),
+    db.assessmentGrade.count({
+      where: {
+        enrollmentId: { in: enrolmentIds },
+        assessment: { status: { in: [...FAMILY_VISIBLE_STATUSES] } },
+        // The mark becoming visible is the event, and that is the paper being
+        // validated — which touches the grade row.
+        updatedAt: { gt: since("MARKS") },
+      },
+    }),
+    db.studentRemark.count({
+      where: {
+        enrollmentId: { in: enrolmentIds },
+        isVisibleToFamily: true,
+        updatedAt: { gt: since("REMARKS") },
+      },
+    }),
+  ]);
+
+  return {
+    events,
+    chat,
+    marks,
+    remarks,
+    total: events + chat + marks + remarks,
+  };
+}
+
+/**
+ * Moves this account's watermark for one topic to now.
+ *
+ * An upsert because the first look has no row yet, and `updateMany`-style
+ * idempotence is not wanted here: opening a screen twice should stamp twice.
+ */
+export async function markTopicSeen(
+  userId: string,
+  topic: string,
+): Promise<void> {
+  if (!isSeenTopic(topic)) return;
+
+  await db.portalSeen.upsert({
+    where: { userId_topic: { userId, topic } },
+    create: { userId, topic, seenAt: new Date() },
+    update: { seenAt: new Date() },
+  });
 }

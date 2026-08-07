@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,9 +11,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { useMessages, usePostMessage } from "../../src/api/hooks";
+import { useMarkSeen, useMessages, usePostMessage } from "../../src/api/hooks";
 import { Empty, ErrorNote, Loading } from "../../src/ui/components";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
@@ -23,12 +24,16 @@ const MAX_LENGTH = 2000;
 /**
  * One conversation.
  *
- * ── Newest at the top, not the bottom ───────────────────────────────────────
- * A messaging app scrolls to the bottom because you are having a conversation.
- * This is a parents' notice board that happens to be threaded: somebody opens
- * it to find out what they missed, and the thing they missed is the newest.
- * The API returns newest-first and the list keeps that order, which also means
- * no scroll-to-end dance on every poll.
+ * ── Oldest at the top, newest at the bottom ─────────────────────────────────
+ * It read newest-first, which is right for a notice board and wrong for this:
+ * a reply landed above the thing it replied to, so a conversation had to be
+ * read upwards. The API still returns newest-first — that is what makes `take`
+ * mean "the most recent hundred" — and the order is reversed here, at the one
+ * place that renders it.
+ *
+ * The view keeps itself at the bottom on new content, so opening the thread
+ * lands on the newest message and a reply arriving while you read does not
+ * jump the scroll.
  *
  * The thread polls — see `useMessages`. There is no push infrastructure here,
  * and pretending otherwise with a websocket the server does not have would be
@@ -42,9 +47,24 @@ export default function ChannelScreen() {
     title?: string;
   }>();
 
+  const headerHeight = useHeaderHeight();
+  const scrollRef = useRef<ScrollView>(null);
   const messages = useMessages(channelId);
   const post = usePostMessage(channelId);
+  // Stamped on open, not on close: a parent who reads half the thread and
+  // leaves has still seen what the badge was about.
+  const markSeen = useMarkSeen();
+  useEffect(() => {
+    markSeen.mutate("CHAT");
+    // Once per visit. `markSeen` is a stable mutation object; listing it would
+    // re-stamp on every render it happens to change identity on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId]);
   const [draft, setDraft] = useState("");
+
+  // Reversed for reading: see the note above. A copy, because the query cache
+  // owns that array and mutating it would reorder every other reader of it.
+  const ordered = messages.data ? [...messages.data].reverse() : [];
 
   const trimmed = draft.trim();
   const canSend = trimmed.length > 0 && trimmed.length <= MAX_LENGTH;
@@ -60,14 +80,29 @@ export default function ChannelScreen() {
         options={{ headerShown: true, title: title ?? "Discussion" }}
       />
 
+      {/*
+        ── The composer has to stay above the keyboard ──────────────────────────
+        `behavior: undefined` on Android relies on `adjustResize`, which the
+        Expo Go shell does not always apply — so the keyboard covered the box
+        you were typing into. "height" is the behaviour that works on Android
+        regardless, and iOS keeps "padding", which is the one that works there.
+
+        The offset is the header's own height, taken from the navigation stack
+        rather than guessed: a hardcoded 44 is wrong on every device with a
+        notch, and wrong again in landscape.
+      */}
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: theme.background }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={insets.top + 44}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={headerHeight}
       >
         <ScrollView
+          ref={scrollRef}
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+          onContentSizeChange={() =>
+            scrollRef.current?.scrollToEnd({ animated: false })
+          }
         >
           {messages.isPending ? <Loading /> : null}
           {messages.isError ? (
@@ -78,7 +113,7 @@ export default function ChannelScreen() {
             <Empty message="Rien n'a encore été écrit." />
           ) : null}
 
-          {messages.data?.map((message) => (
+          {ordered.map((message) => (
             <View
               key={message.id}
               style={{

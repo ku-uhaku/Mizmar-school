@@ -8,6 +8,7 @@ import {
 
 import { api } from "./client";
 import type {
+  Badges,
   Channel,
   ChatMessage,
   Child,
@@ -16,9 +17,10 @@ import type {
   Dossier,
   DriverDay,
   Identity,
-  ChildLesson,
+  Timetable,
   Remark,
   RunRegister,
+  SeenTopic,
   SchoolEvent,
   TeacherDay,
 } from "./types";
@@ -156,10 +158,10 @@ export function useChildRemarks(studentId: string): UseQueryResult<Remark[]> {
   });
 }
 
-export function useChildTimetable(studentId: string): UseQueryResult<ChildLesson[]> {
+export function useChildTimetable(studentId: string): UseQueryResult<Timetable> {
   return useQuery({
     queryKey: ["child", studentId, "timetable"],
-    queryFn: () => api<ChildLesson[]>(`/family/children/${studentId}/timetable`),
+    queryFn: () => api<Timetable>(`/family/children/${studentId}/timetable`),
     enabled: Boolean(studentId),
     // A class's week is settled at the rentrée and changes a few times a year.
     staleTime: 10 * 60_000,
@@ -219,5 +221,36 @@ export function usePostMessage(
       void client.invalidateQueries({ queryKey: ["channel", channelId] });
       void client.invalidateQueries({ queryKey: ["channels"] });
     },
+  });
+}
+
+// ── Ce qui est nouveau ───────────────────────────────────────────────────────
+
+export function useBadges(): UseQueryResult<Badges> {
+  return useQuery({
+    queryKey: ["badges"],
+    queryFn: () => api<Badges>("/family/badges"),
+    // The one poll in the app that runs wherever you are, so it is slow: a
+    // parent does not need to learn about a message within ten seconds of it
+    // being posted, and a minute costs almost nothing.
+    refetchInterval: 60_000,
+  });
+}
+
+/**
+ * Stamps a topic read, and takes the fresh counts back.
+ *
+ * Called when a screen opens rather than when it closes: a parent who reads
+ * half the thread and leaves has still seen what the badge was about.
+ */
+export function useMarkSeen(): UseMutationResult<Badges, Error, SeenTopic> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (topic: SeenTopic) =>
+      api<Badges>("/family/badges", {
+        method: "POST",
+        body: JSON.stringify({ topic }),
+      }),
+    onSuccess: (badges) => client.setQueryData(["badges"], badges),
   });
 }
