@@ -179,6 +179,8 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   City: "configuration",
   Neighbourhood: "configuration",
   SupplyArticle: "configuration",
+  Event: "vieScolaire",
+  EventAudience: "vieScolaire",
 };
 
 /** The domain an entry belongs to, including the two pseudo-entities. */

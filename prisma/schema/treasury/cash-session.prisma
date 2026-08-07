@@ -14,7 +14,7 @@ model CashSession {
   /// Restrict on both: a cashier with sessions in the ledger cannot be deleted
   /// out from under them, because "who held the drawer" is the whole point.
   openedById String
-  openedBy   User   @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  openedBy   User     @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   openedAt   DateTime @default(now())
 
   /// The fond de caisse the drawer starts with, counted in.

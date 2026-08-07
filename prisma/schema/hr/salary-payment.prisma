@@ -39,14 +39,14 @@ model SalaryPayment {
 
   // ── Gains ──────────────────────────────────────────────────────────────────
   /// Salaire de base, copied from the contract. See the note above.
-  baseCentimes Int @default(0)
+  baseCentimes      Int @default(0)
   /// Primes et indemnités — transport, panier, ancienneté, responsabilité.
   allowanceCentimes Int @default(0)
   /// Heures supplémentaires. Also where a vacataire's whole pay lands, since
   /// their contract carries no monthly base.
-  overtimeCentimes Int @default(0)
+  overtimeCentimes  Int @default(0)
   /// Bonuses that are not a monthly entitlement: 13ème mois, prime de rendement.
-  bonusCentimes Int @default(0)
+  bonusCentimes     Int @default(0)
 
   // ── Retenues ───────────────────────────────────────────────────────────────
   /// Retenue pour absence, in centimes.
@@ -56,15 +56,15 @@ model SalaryPayment {
   /// a rule invented here would dock somebody's wages by accident. The payroll
   /// screen shows the month's unjustified absences beside this box so the figure
   /// is typed with the facts in view.
-  absenceCentimes Int @default(0)
+  absenceCentimes        Int     @default(0)
   /// Avances sur salaire already handed over, recovered this month.
-  advanceCentimes Int @default(0)
+  advanceCentimes        Int     @default(0)
   /// Cotisations salariales — CNSS, AMO, retraite complémentaire.
-  socialCentimes Int @default(0)
+  socialCentimes         Int     @default(0)
   /// Impôt sur le revenu retenu à la source.
-  taxCentimes Int @default(0)
+  taxCentimes            Int     @default(0)
   /// Anything else withheld, named in `deductionLabel`.
-  otherDeductionCentimes Int @default(0)
+  otherDeductionCentimes Int     @default(0)
   deductionLabel         String?
 
   /// Net à payer, in centimes.

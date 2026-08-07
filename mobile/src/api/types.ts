@@ -220,3 +220,27 @@ export type DirectorDashboard = {
     byLevel: { label: string; levelCode: string; value: number }[];
   };
 };
+
+/**
+ * One announcement the school has published to this household.
+ *
+ * Hand-mirrored from `PortalEvent` in modules/portal/queries.ts — importing the
+ * query would drag `server-only` and Prisma into the phone bundle.
+ *
+ * `isAllDay` is what decides whether to print a time at all: an all-day event
+ * carries a real `startsAt` snapped to midnight, and rendering that as "00:00"
+ * is exactly the thing the flag exists to prevent.
+ */
+export type SchoolEvent = {
+  id: string;
+  title: string;
+  titleAr: string | null;
+  description: string | null;
+  kind: "MEETING" | "OUTING" | "CEREMONY" | "EXAM" | "HOLIDAY_INFO" | "OTHER";
+  /** CANCELLED stays on the list, marked — see the note on Event.status. */
+  status: "PUBLISHED" | "CANCELLED";
+  startsAt: string;
+  endsAt: string | null;
+  isAllDay: boolean;
+  location: string | null;
+};

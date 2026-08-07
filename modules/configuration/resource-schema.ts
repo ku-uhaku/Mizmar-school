@@ -72,6 +72,28 @@ const byYear = (context: AuthContext) => ({
 });
 
 export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
+  /*
+    The one singleton — the school's own billing policy.
+
+    ── Why this entry is the whole reason Settings "did not work" ──────────────
+    The resource used to exist in `resources.ts` with no row here. Saving went
+    through, because `saveSingletonAction` upserts `schoolSettings` directly,
+    but `findSingleton` resolves the table through `resourceSchema(id)` and got
+    `undefined` — so it returned null and the form redrew its *defaults* every
+    time. A school would set nine instalments, save, come back and read the
+    default again, with the saved row sitting in the database unread. That is
+    what "it did not work" meant, and it is fixed by being here.
+
+    `createData` is deliberately absent: the singleton is upserted against
+    `schoolId` taken from the authorized context, never assembled from a form.
+  */
+  "school-settings": {
+    table: () => db.schoolSettings as unknown as Delegate,
+    model: "SchoolSettings",
+    where: bySchool,
+    orderBy: [{ createdAt: "asc" }],
+  },
+
   "education-levels": {
     table: () => db.educationLevel as unknown as Delegate,
     model: "EducationLevel",

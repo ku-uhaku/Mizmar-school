@@ -20,7 +20,7 @@ model Bank {
   nameAr String?
 
   /// Branch or agency, when the school banks with a particular one.
-  agency String?
+  agency        String?
   /// The school's own account at this bank, for the virements it makes.
   accountNumber String?
 
@@ -30,8 +30,8 @@ model Bank {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cheques Cheque[]
-  tenders PaymentTender[]
+  cheques    Cheque[]
+  tenders    PaymentTender[]
   /// Transfers made to or from this bank — see CashOperation.bankId.
   operations CashOperation[]
 

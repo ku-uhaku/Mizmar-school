@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { BuildingIcon, ShieldCheckIcon, UsersIcon } from "lucide-react";
 
 import { LoginForm } from "@/modules/auth/components/login-form";
-import { GroupMark, OwnerMark } from "@/modules/auth/components/brand-marks";
+import {
+  MizmarMark,
+  OrganizationMark,
+} from "@/modules/auth/components/brand-marks";
+import { loadOrganizationBrand } from "@/modules/organization/queries";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
 import { ThemeModeToggle } from "@/modules/appearance/components/theme-mode-toggle";
 import {
@@ -19,6 +23,9 @@ export const metadata: Metadata = { title: "Connexion" };
 export default async function LoginPage(props: PageProps<"/login">) {
   const t = await getDictionary();
   const { callbackUrl } = await props.searchParams;
+  // Whose login page this is. Null before the first seed, which is a state the
+  // installer genuinely passes through — the form still has to render.
+  const brand = await loadOrganizationBrand();
 
   const highlights = [
     { icon: BuildingIcon, label: t.auth.highlightSchools },
@@ -36,9 +43,14 @@ export default async function LoginPage(props: PageProps<"/login">) {
           className="from-primary-foreground/15 pointer-events-none absolute -top-24 -end-24 size-96 rounded-full bg-radial to-transparent"
         />
 
-        <p className="text-primary-foreground/70 relative text-sm font-medium tracking-wide uppercase">
-          {t.auth.brandTagline}
-        </p>
+        {/* The product's mark leads this panel, because this panel is about the
+            product. The customer's own crest sits beside the form instead. */}
+        <div className="relative">
+          <MizmarMark className="h-14" />
+          <p className="text-primary-foreground/70 mt-6 text-sm font-medium tracking-wide uppercase">
+            {t.auth.brandTagline}
+          </p>
+        </div>
 
         <div className="relative max-w-md">
           <h1 className="text-4xl leading-tight font-semibold text-balance">
@@ -75,9 +87,17 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
         <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full max-w-sm">
-            <div className="mb-10 flex items-center justify-between gap-4">
-              <GroupMark className="size-11" />
-              <OwnerMark className="size-11" />
+            {/* Whose site this is, said plainly above the password box. */}
+            <div className="mb-10 flex items-center gap-3">
+              <OrganizationMark
+                name={brand?.name ?? ""}
+                logoUrl={brand?.logoUrl}
+              />
+              {brand ? (
+                <span className="min-w-0 truncate text-lg font-semibold">
+                  {brand.name}
+                </span>
+              ) : null}
             </div>
 
             {/* On a card, like every other form in the app: the inputs are the

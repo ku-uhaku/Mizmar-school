@@ -32,6 +32,8 @@ import { organizationModule } from "@/modules/organization/module";
 import { ORGANIZATION_PERMISSIONS } from "@/modules/organization/permissions";
 import { portalModule } from "@/modules/portal/module";
 import { profileModule } from "@/modules/profile/module";
+import { eventsModule } from "@/modules/events/module";
+import { EVENT_PERMISSIONS } from "@/modules/events/permissions";
 import { schoolLifeModule } from "@/modules/school-life/module";
 import { SCHOOL_LIFE_PERMISSIONS } from "@/modules/school-life/permissions";
 import { schoolYearsModule } from "@/modules/school-years/module";
@@ -103,6 +105,7 @@ export const MODULES: readonly AppModule[] = [
   // header search — and `enrolment` contributes no nav, since an inscription is
   // always reached through the pupil or the class it belongs to.
   schoolLifeModule,
+  eventsModule,
   familiesModule,
   studentsModule,
   enrolmentModule,
@@ -159,6 +162,7 @@ export const PERMISSIONS = {
   ...AUDIT_PERMISSIONS,
   ...HR_PERMISSIONS,
   ...SCHOOL_LIFE_PERMISSIONS,
+  ...EVENT_PERMISSIONS,
   ...FAMILY_PERMISSIONS,
   ...STUDENT_PERMISSIONS,
   ...ENROLMENT_PERMISSIONS,

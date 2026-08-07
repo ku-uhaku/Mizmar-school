@@ -25,7 +25,7 @@ model SchoolClass {
   /// *class*, not merely against its level and filière, so mapping the level
   /// alone is not enough to export one — see the note on Level.massarCode.
   massarCode String?
-  name String?
+  name       String?
 
   /// Section letter on its own ("A", "B", "C"), for sorting and for generating
   /// `code` consistently.
@@ -51,14 +51,16 @@ model SchoolClass {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  groups           ClassGroup[]
-  assignments      TeachingAssignment[]
-  timetableEntries TimetableEntry[]
-  supplyLists      SupplyList[]
+  groups              ClassGroup[]
+  assignments         TeachingAssignment[]
+  timetableEntries    TimetableEntry[]
+  supplyLists         SupplyList[]
   timetableExceptions TimetableException[]
-  assessments      Assessment[]
+  assessments         Assessment[]
   /// The roster: enrolments seated in this class.
-  enrollments      Enrollment[]
+  enrollments         Enrollment[]
+  /// Events aimed at this class rather than at the whole school.
+  eventAudiences      EventAudience[]
 
   @@unique([levelOfferingId, code])
   /// No two classes of one school may map to the same code. Many may be unmapped.

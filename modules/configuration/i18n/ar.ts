@@ -39,7 +39,9 @@ const ar = {
       year: "السنة الدراسية",
     },
 
-    groups: {},
+    groups: {
+      billing: "الأقساط",
+    },
 
     resources: {
       schoolWeeks: "أسابيع السنة",
@@ -68,12 +70,15 @@ const ar = {
       levelOfferings: "المستويات المفتوحة",
       schoolClasses: "الأقسام",
       classGroups: "الأفواج",
+      schoolSettings: "قواعد الفوترة",
       feeTypes: "أنواع الرسوم",
       feeRates: "لائحة الأسعار",
       discounts: "التخفيضات",
     },
 
     fields: {
+      defaultInstalmentCount: "عدد الأقساط في السنة",
+      feeDueDayOfMonth: "يستحق يوم",
       weekNumber: "الأسبوع",
       weekParity: "المناوبة",
       weekLabel: "التسمية",
@@ -167,6 +172,10 @@ const ar = {
     },
 
     hints: {
+      defaultInstalmentCount:
+        "عدد الأقساط التي يُقسَّم إليها رسم شهري. اتركه 0 ليتبع السنة الدراسية — فسنة من اثني عشر شهرًا تُفوتر اثنتي عشرة مرة. وتغلب التسعيرة التي تحدد عددها الخاص.",
+      feeDueDayOfMonth:
+        "اليوم من الشهر الذي يستحق فيه كل قسط. محدود بـ 28 حتى يوجد في فبراير.",
       supplierKind:
         "\u0627\u0644\u0648\u0643\u0627\u0644\u0627\u062a \u0648\u0627\u0644\u0645\u0643\u0631\u064a \u0648\u0645\u0642\u062f\u0651\u0645\u0648 \u0627\u0644\u062e\u062f\u0645\u0627\u062a \u062a\u0638\u0647\u0631 \u0641\u064a \u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631\u061b \u0648\u0627\u0644\u0645\u0632\u0648\u0651\u062f\u0648\u0646 \u0641\u064a \u0627\u0644\u0645\u0634\u062a\u0631\u064a\u0627\u062a.",
       defaultCategory:

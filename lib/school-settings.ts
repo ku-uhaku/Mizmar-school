@@ -42,6 +42,7 @@ export type SchoolSettingsValues = {
   studentCodeFormat: string;
   familyCodeFormat: string;
   staffCodeFormat: string;
+  /** 0 = as many instalments as the school year has months. See the column. */
   defaultInstalmentCount: number;
   feeDueDayOfMonth: number;
   /** How long one period rings for. See the note on the column. */
@@ -73,7 +74,9 @@ export const DEFAULT_SETTINGS: SchoolSettingsValues = {
   studentCodeFormat: "E-{year}-{seq:4}",
   familyCodeFormat: "F-{year}-{seq:4}",
   staffCodeFormat: "P-{year}-{seq:4}",
-  defaultInstalmentCount: 9,
+  // Zero, not nine: the school year's own length decides unless a school says
+  // otherwise — see the note on the column.
+  defaultInstalmentCount: 0,
   feeDueDayOfMonth: 5,
   periodMinutes: 60,
   dayStartsAt: "08:00",

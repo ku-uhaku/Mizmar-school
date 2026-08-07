@@ -37,8 +37,8 @@ model Staff {
   /// left blank, so every employee has a reference to write on a bulletin.
   code String
 
-  firstName String
-  lastName  String
+  firstName   String
+  lastName    String
   /// Arabic given and family name. Contracts, attestations de travail and the
   /// CNSS declarations are issued in Arabic as well as French, and
   /// transliterating on the fly gets somebody's name wrong on a legal document.

@@ -16,6 +16,7 @@ import {
   seedTeacherSubjects,
 } from "@/modules/hr/seed";
 import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
+import { seedEvents } from "@/modules/events/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
 import {
   seedAssessmentTypes,
@@ -436,6 +437,14 @@ async function main() {
       await seedHolidays(db, year.id, year.startDate, year.endDate);
       // After the holidays: which weeks are taught depends on them.
       await seedSchoolWeeks(db, year.id, year.startDate, year.endDate);
+      // What the school announces to its families. Dated off the year's own
+      // start, so the rentrée lands on the rentrée whatever shape the year is.
+      await seedEvents(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        yearStart: year.startDate,
+        publishedById: adminId,
+      });
       await seedTransport(db, {
         schoolId: school.id,
         schoolYearId: year.id,

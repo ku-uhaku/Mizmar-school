@@ -35,7 +35,7 @@ model TransportSchedule {
   departureTime String
   /// When the run is expected to finish. Null while a school knows when the bus
   /// leaves but has not timed the round yet.
-  arrivalTime String?
+  arrivalTime   String?
 
   position Int     @default(0)
   isActive Boolean @default(true)

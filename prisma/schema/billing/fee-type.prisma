@@ -37,8 +37,8 @@ model FeeType {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rates     FeeRate[]
-  discounts Discount[]
+  rates          FeeRate[]
+  discounts      Discount[]
   /// Pupils' schedule lines raised against this charge.
   enrollmentFees EnrollmentFee[]
 

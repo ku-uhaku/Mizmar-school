@@ -73,8 +73,15 @@ model SchoolSettings {
 
   // ── Facturation ───────────────────────────────────────────────────────────
   /// How many instalments a year's fees are split into when the fee rate does
-  /// not say. Nine is a Moroccan school year, September to May.
-  defaultInstalmentCount Int @default(9)
+  /// not say.
+  ///
+  /// **Zero means "as many months as the school year has"**, which is the
+  /// default: a fixed nine was right for a September–June year and wrong for
+  /// every other shape, and it cut a twelve-month year's fee grid off three
+  /// months early with nothing on screen to say why. A school that collects a
+  /// fixed number regardless of the calendar sets it here.
+  /// See `defaultInstalmentCount` in modules/enrolment/enums.ts.
+  defaultInstalmentCount Int @default(0)
 
   /// Day of the month an instalment falls due. Clamped to 1–28 so it exists in
   /// February — a schedule that skips a month once every four years is worse

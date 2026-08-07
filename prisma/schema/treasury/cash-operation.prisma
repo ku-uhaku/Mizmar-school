@@ -77,9 +77,9 @@ model CashOperation {
   /// twice. That is what keeps a closed session's total truthful after a mistake
   /// is found — the correction lands in the period it was made in, the way an
   /// accountant expects. Unique, so one movement can be cancelled only once.
-  reversesOperationId String?         @unique
-  reversesOperation   CashOperation?  @relation("OperationReversal", fields: [reversesOperationId], references: [id], onDelete: SetNull)
-  reversedBy          CashOperation?  @relation("OperationReversal")
+  reversesOperationId String?        @unique
+  reversesOperation   CashOperation? @relation("OperationReversal", fields: [reversesOperationId], references: [id], onDelete: SetNull)
+  reversedBy          CashOperation? @relation("OperationReversal")
 
   /// Set when this encaissement is a family paying fees. The allocation to
   /// individual schedule lines lives on the payment.

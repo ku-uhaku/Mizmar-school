@@ -35,8 +35,8 @@ model Student {
   /// here: many pupils may be unmapped, no two may claim the same code.
   massarCode String?
 
-  firstName String
-  lastName  String
+  firstName   String
+  lastName    String
   /// Arabic given and family name. Moroccan school paperwork — certificats de
   /// scolarité, relevés de notes, MASSAR itself — is issued in Arabic as well as
   /// French, and transliterating on the fly gets a child's name wrong.

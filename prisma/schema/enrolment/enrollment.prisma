@@ -43,7 +43,7 @@ model Enrollment {
 
   /// When the family signed. Distinct from `createdAt`, which is when a
   /// secretary got round to typing it in.
-  enrolledOn DateTime @default(now())
+  enrolledOn DateTime  @default(now())
   /// Set when the child leaves mid-year. Fee lines falling after it are the
   /// ones an accountant will want to cancel.
   leftOn     DateTime?

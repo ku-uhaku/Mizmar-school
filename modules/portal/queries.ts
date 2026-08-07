@@ -1,7 +1,8 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { COUNTED_STATUSES } from "@/modules/assessments/enums";
+import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
+import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
 import { MISSING_STATUSES } from "@/modules/classroom/enums";
 import { SEAT_HOLDING_STATUSES } from "@/modules/transport/enums";
 
@@ -144,9 +145,15 @@ export type PortalMarks = {
 };
 
 /**
- * Published marks only. A paper still being marked is not something a parent
- * should see — `COUNTED_STATUSES` is the same gate the staff screens use, so
- * the portal cannot leak a grade the school has not released.
+ * Validated marks only.
+ *
+ * This used to gate on `COUNTED_STATUSES` and claim, in this comment, that the
+ * portal therefore could not leak a grade the school had not released. It was
+ * not true: that list includes PUBLISHED, which is the status a paper takes the
+ * moment the office opens it for mark entry — so a family read each mark as its
+ * teacher typed it, and every correction made before validation looked like a
+ * grade that had changed. `FAMILY_VISIBLE_STATUSES` is the gate that actually
+ * says what it means; see the note on it.
  */
 export async function loadChildMarks(
   userId: string,
@@ -158,7 +165,7 @@ export async function loadChildMarks(
   const grades = await db.assessmentGrade.findMany({
     where: {
       enrollmentId: child.id,
-      assessment: { status: { in: [...COUNTED_STATUSES] } },
+      assessment: { status: { in: [...FAMILY_VISIBLE_STATUSES] } },
     },
     orderBy: [{ assessment: { scheduledOn: "desc" } }],
     take: 60,
@@ -489,4 +496,118 @@ export async function isGuardian(userId: string): Promise<boolean> {
     where: { userId, isActive: true },
   });
   return count > 0;
+}
+
+// ── Événements ───────────────────────────────────────────────────────────────
+
+export type PortalEvent = {
+  id: string;
+  title: string;
+  titleAr: string | null;
+  description: string | null;
+  kind: string;
+  /** PUBLISHED or CANCELLED — a called-off event stays on the list saying so. */
+  status: string;
+  /** ISO. The phone formats it, and reads `isAllDay` to decide about the time. */
+  startsAt: string;
+  endsAt: string | null;
+  isAllDay: boolean;
+  location: string | null;
+};
+
+/**
+ * What this household has been told about.
+ *
+ * ── The three filters, and why each one is load-bearing ──────────────────────
+ * A parent holds no membership and no permission, so this scopes on the
+ * household exactly as every other read in this file does — see `householdScope`.
+ * On top of that:
+ *
+ *   1. `status` is one of the visible ones. A draft is invisible to a phone
+ *      however the request is crafted; that is the only gate publishing has.
+ *   2. The event belongs to a school year one of their children is enrolled in,
+ *      so a family cannot read another school's calendar.
+ *   3. School-wide events reach everyone; a targeted one reaches a household
+ *      only if one of their children sits in a named class or is admitted to a
+ *      named level. This is the join `EventAudience` exists for.
+ *
+ * Past events are kept — a parent looking for "when was the réunion?" is asking
+ * a reasonable question — but the soonest come first and the caller may cut the
+ * list.
+ */
+export async function listMyEvents(
+  userId: string,
+  { limit = 50 }: { limit?: number } = {},
+): Promise<PortalEvent[]> {
+  // The years and the places this household actually occupies. Read first so
+  // the event query is a plain `in`, rather than a correlated subquery SQLite
+  // would have to re-run per row.
+  const enrolments = await db.enrollment.findMany({
+    where: { student: householdScope(userId) },
+    /*
+      The level arrives through the offering, which is where an enrolment
+      actually names it — `Enrollment.levelOfferingId` is the level *as opened
+      this year*, and `EventAudience.levelId` is the level itself. Joining the
+      two here is what lets a school announce to "3AP" without having to name
+      each filière's offering separately.
+    */
+    select: {
+      schoolYearId: true,
+      schoolClassId: true,
+      levelOffering: { select: { levelId: true } },
+    },
+  });
+
+  if (enrolments.length === 0) return [];
+
+  const yearIds = [...new Set(enrolments.map((row) => row.schoolYearId))];
+  const classIds = [
+    ...new Set(
+      enrolments
+        .map((row) => row.schoolClassId)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+  const levelIds = [
+    ...new Set(enrolments.map((row) => row.levelOffering.levelId)),
+  ];
+
+  const events = await db.event.findMany({
+    where: {
+      schoolYearId: { in: yearIds },
+      status: { in: [...VISIBLE_EVENT_STATUSES] },
+      OR: [
+        { isSchoolWide: true },
+        { audiences: { some: { schoolClassId: { in: classIds } } } },
+        { audiences: { some: { levelId: { in: levelIds } } } },
+      ],
+    },
+    orderBy: [{ startsAt: "asc" }],
+    take: limit,
+    select: {
+      id: true,
+      title: true,
+      titleAr: true,
+      description: true,
+      kind: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      isAllDay: true,
+      location: true,
+    },
+  });
+
+  return events.map((event) => ({
+    id: event.id,
+    title: event.title,
+    titleAr: event.titleAr,
+    description: event.description,
+    kind: event.kind,
+    status: event.status,
+    startsAt: event.startsAt.toISOString(),
+    endsAt: event.endsAt?.toISOString() ?? null,
+    isAllDay: event.isAllDay,
+    location: event.location,
+  }));
 }

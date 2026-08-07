@@ -7,21 +7,50 @@
 /**
  * Who an adult is to the children on the dossier.
  *
- * Three values and no more, because they are the three the school acts on: it
- * calls the mother, it invoices the father, and it lets the tuteur through the
- * gate. Anything finer (grandmother, uncle, elder brother) is a GUARDIAN with a
- * name — the relationship the school needs to *record* is not the one a family
- * would use to describe itself.
+ * ── Why this is no longer three values ──────────────────────────────────────
+ * It used to be FATHER, MOTHER and a catch-all GUARDIAN, on the reasoning that
+ * the school acts on three things — it calls the mother, invoices the father,
+ * and lets the tuteur through the gate — so anything finer was a GUARDIAN with
+ * a name beside it.
+ *
+ * That held for what the school *does* and not for what it has to *read*. A
+ * dossier with three GUARDIAN rows tells a secretary at the gate nothing about
+ * which of them is the grandmother who collects on Tuesdays; the distinction
+ * was there in the family and simply had nowhere to go but a free-text name.
+ * The kinship is now recorded, and the *rights* stay exactly where they were —
+ * `canCollect`, `isEmergencyContact` and the invoicing contact are their own
+ * columns and are still never derived from this one. See the note on
+ * `Guardian.canCollect`.
+ *
+ * GUARDIAN stays, and stays last: it is still the right answer for a tuteur
+ * légal who is none of the below, and for anyone a school would rather not
+ * classify.
  */
-export const GUARDIAN_RELATIONSHIPS = ["FATHER", "MOTHER", "GUARDIAN"] as const;
+export const GUARDIAN_RELATIONSHIPS = [
+  "FATHER",
+  "MOTHER",
+  "STEPFATHER",
+  "STEPMOTHER",
+  "GRANDFATHER",
+  "GRANDMOTHER",
+  "BROTHER",
+  "SISTER",
+  "UNCLE",
+  "AUNT",
+  "GUARDIAN",
+] as const;
 export type GuardianRelationship = (typeof GUARDIAN_RELATIONSHIPS)[number];
 
 /**
- * Relationships a family may hold at most one of. A tuteur is deliberately not
- * here: an uncle and a grandmother may both be on the same file.
+ * Relationships a family may hold at most one of.
+ *
+ * Only the two parents, deliberately. Everything else may repeat — a child can
+ * have two grandmothers on the file, and an uncle and an aunt besides — and a
+ * step-parent is left repeatable too rather than guessed at: a school recording
+ * a second remarriage should not be stopped by a rule invented here.
  *
  * Enforced in `modules/families/service.ts` rather than by a unique index,
- * because SQLite cannot express "unique only for two of the three values".
+ * because SQLite cannot express "unique only for two of the values".
  */
 export const SINGULAR_RELATIONSHIPS: readonly GuardianRelationship[] = [
   "FATHER",

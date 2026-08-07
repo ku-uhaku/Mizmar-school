@@ -49,7 +49,9 @@ const en = {
      * (it did not work and nobody used it — see the note on `RESOURCES`), but
      * the shape stays so the next one does not have to rebuild it.
      */
-    groups: {},
+    groups: {
+      billing: "Instalments",
+    },
 
     resources: {
       schoolWeeks: "Weeks of the year",
@@ -78,12 +80,15 @@ const en = {
       levelOfferings: "Levels offered",
       schoolClasses: "Classes",
       classGroups: "Groups",
+      schoolSettings: "Billing policy",
       feeTypes: "Fee types",
       feeRates: "Price list",
       discounts: "Discounts",
     },
 
     fields: {
+      defaultInstalmentCount: "Instalments per year",
+      feeDueDayOfMonth: "Due on the",
       weekNumber: "Week",
       weekParity: "Rotation",
       weekLabel: "Name",
@@ -176,6 +181,10 @@ const en = {
     },
 
     hints: {
+      defaultInstalmentCount:
+        "How many instalments a monthly fee is split into. Leave at 0 to follow the school year — a twelve-month year then bills twelve times. A price list that names its own count still wins.",
+      feeDueDayOfMonth:
+        "Day of the month each instalment falls due. Capped at 28 so it exists in February.",
       supplierKind:
         "Utilities, the landlord and service contracts appear on the Bills screen; vendors on the Purchases one.",
       defaultCategory:

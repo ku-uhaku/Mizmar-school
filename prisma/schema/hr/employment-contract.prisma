@@ -21,7 +21,7 @@ model EmploymentContract {
   startsOn DateTime
   /// Null for a CDI — an open-ended contract has no end date, and inventing one
   /// would make every permanent employee look like they were about to leave.
-  endsOn DateTime?
+  endsOn   DateTime?
 
   /// Fin de la période d'essai. Kept because it is the one date that changes
   /// what notice is owed, and nobody remembers it.

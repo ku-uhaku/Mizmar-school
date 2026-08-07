@@ -41,11 +41,13 @@ model Level {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tracks    Track[]
-  subjects  LevelSubject[]
-  offerings LevelOffering[]
+  tracks         Track[]
+  subjects       LevelSubject[]
+  offerings      LevelOffering[]
   /// Per-level pricing, e.g. scolarité is dearer at 2BAC than at 1AP.
-  feeRates  FeeRate[]
+  feeRates       FeeRate[]
+  /// Events aimed at this level rather than at the whole school.
+  eventAudiences EventAudience[]
 
   @@unique([schoolId, code])
   @@unique([schoolId, massarCode])

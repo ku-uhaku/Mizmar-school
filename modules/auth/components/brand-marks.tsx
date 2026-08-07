@@ -1,65 +1,87 @@
-/**
- * Placeholder brand marks for the sign-in screen.
- *
- * Both are inline SVG on purpose: the real artwork has not been supplied yet,
- * and inlining keeps the login screen free of a network request and of a
- * missing-asset 404 while it is still a placeholder. Replace the body of each
- * component with the real mark (or an <img> pointing at `public/`) when it
- * lands — nothing else on the page needs to change.
- */
+import Image from "next/image";
 
+import { isDisplayableImage } from "@/lib/images";
 import { cn } from "@/lib/utils";
 
-/** The school group's mark. */
-export function GroupMark({ className }: { className?: string }) {
+/**
+ * The two brands the sign-in screen carries, and they are not the same thing.
+ *
+ * `MizmarMark` is the product — whoever the school group is, the software is
+ * Mizmar, and it belongs on the panel that describes the software.
+ * `OrganizationMark` is the customer: the group whose login page this is, shown
+ * beside the form where somebody is about to type *their* password. Putting the
+ * product's logo there instead would tell a secretary nothing about whether
+ * they are on their own school's site.
+ */
+
+/** The Mizmar wordmark. */
+export function MizmarMark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 40 40"
-      role="img"
-      aria-hidden
-      className={cn("size-9", className)}
-    >
-      <rect width="40" height="40" rx="11" className="fill-primary" />
-      <path
-        d="M20 10.5 30 15.5 20 20.5 10 15.5 20 10.5Z"
-        className="fill-primary-foreground"
-      />
-      <path
-        d="M13.5 19v6.2c0 2.4 2.9 4.3 6.5 4.3s6.5-1.9 6.5-4.3V19L20 22.4 13.5 19Z"
-        className="fill-primary-foreground/70"
-      />
-    </svg>
+    <Image
+      src="/mizmar.png"
+      alt="Mizmar"
+      width={618}
+      height={398}
+      // Eager, and it is the one image on the page worth it: this sits at the
+      // top of the first screen anybody sees, and lazy-loading a logo that is
+      // already in the viewport only makes it arrive late.
+      priority
+      className={cn("h-12 w-auto", className)}
+    />
   );
 }
 
-/** The publisher's mark — placeholder until the real logo is provided. */
-export function OwnerMark({ className }: { className?: string }) {
+/**
+ * The group's own crest, or its initials when it has not uploaded one.
+ *
+ * The fallback is the initials rather than a generic building icon: a school
+ * group that has not got round to uploading a crest still has a name, and its
+ * own letters say more about whose login page this is than a stock glyph does.
+ */
+export function OrganizationMark({
+  name,
+  logoUrl,
+  className,
+}: {
+  name: string;
+  logoUrl?: string | null;
+  className?: string;
+}) {
+  if (isDisplayableImage(logoUrl)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl as string}
+        alt={name}
+        // `object-contain` on a fixed square: a crest is rarely square, and
+        // cropping one is how you cut the name off its own badge — the same
+        // rule the sidebar follows.
+        className={cn(
+          "bg-background size-12 shrink-0 rounded-xl object-contain",
+          className,
+        )}
+      />
+    );
+  }
+
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase() || "?";
+
   return (
-    <svg
-      viewBox="0 0 40 40"
-      role="img"
+    <div
       aria-hidden
-      className={cn("size-9", className)}
+      className={cn(
+        "bg-primary text-primary-foreground flex size-12 shrink-0 items-center justify-center rounded-xl text-lg font-semibold",
+        className,
+      )}
     >
-      <rect
-        x="0.75"
-        y="0.75"
-        width="38.5"
-        height="38.5"
-        rx="10.25"
-        className="fill-muted stroke-border"
-        strokeWidth="1.5"
-        strokeDasharray="4 3"
-      />
-      <path
-        d="M13 27V13h5.4a4.3 4.3 0 0 1 0 8.6H13"
-        className="stroke-muted-foreground"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-      <circle cx="25.5" cy="25.5" r="2" className="fill-muted-foreground" />
-    </svg>
+      {initials}
+    </div>
   );
 }

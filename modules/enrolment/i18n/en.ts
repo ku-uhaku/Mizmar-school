@@ -100,6 +100,7 @@ const en = {
     beforeDiscount: "Before reductions",
     totalDiscount: "Reductions granted",
     noCharge: "—",
+    notOwed: "No longer owed",
     feeType: "Charge",
   },
   enrolmentOptions: {

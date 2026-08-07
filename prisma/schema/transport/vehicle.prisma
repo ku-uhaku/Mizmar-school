@@ -18,8 +18,8 @@ model Vehicle {
   /// Matricule, as written on the plate: "12345-A-6".
   registration String
 
-  make  String?
-  model String?
+  make      String?
+  model     String?
   /// Year of first registration — mise en circulation.
   modelYear Int?
 

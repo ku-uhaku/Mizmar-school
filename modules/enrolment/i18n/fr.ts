@@ -100,6 +100,7 @@ const fr = {
     beforeDiscount: "Avant réductions",
     totalDiscount: "Réductions accordées",
     noCharge: "—",
+    notOwed: "Non dû",
     feeType: "Frais",
   },
   enrolmentOptions: {

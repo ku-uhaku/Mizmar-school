@@ -187,64 +187,138 @@ export function FeeGrid({
             </thead>
 
             <tbody>
-              {grid.rows.map((row) => (
-                <tr key={row.feeTypeId} className="border-b last:border-0">
-                  <th
-                    scope="row"
-                    className="bg-card sticky start-0 z-10 px-4 py-2 text-start font-normal"
-                  >
-                    <span className="block truncate font-medium">
-                      {row.name}
-                    </span>
-                    <span
-                      className="text-muted-foreground block truncate text-xs"
-                      dir="ltr"
+              {grid.rows.map((row) => {
+                /*
+                  A line that stopped being owed — annulé or exonéré — used to
+                  sit stacked in the month cell underneath the live one, struck
+                  through. In a month where a charge was cancelled and re-raised
+                  that put two amounts in one box and left a bursar working out
+                  which of them the family actually owes. They are split apart
+                  here: the month cells carry what is due, and everything that
+                  is not gets a sub-row of its own under the same fee type,
+                  still in its own month column so *when* it was cancelled is
+                  not lost.
+                */
+                const live = (key: string) =>
+                  (row.cells[key] ?? []).filter((cell) => cell.status === "DUE");
+                const inactive = (key: string) =>
+                  (row.cells[key] ?? []).filter((cell) => cell.status !== "DUE");
+
+                const hasInactive = grid.months.some(
+                  (month) => inactive(month.key).length > 0,
+                );
+
+                return (
+                  <React.Fragment key={row.feeTypeId}>
+                    <tr
+                      className={cn(
+                        "border-b last:border-0",
+                        // The pair reads as one block, so the rule goes under
+                        // the sub-row rather than between the two.
+                        hasInactive && "border-b-0",
+                      )}
                     >
-                      {row.code}
-                    </span>
-                  </th>
-
-                  {grid.months.map((month) => {
-                    const cells = row.cells[month.key] ?? [];
-
-                    if (cells.length === 0) {
-                      return (
-                        <td
-                          key={month.key}
-                          className="text-muted-foreground/40 px-2 py-2 text-center"
+                      <th
+                        scope="row"
+                        className="bg-card sticky start-0 z-10 px-4 py-2 text-start font-normal"
+                      >
+                        <span className="block truncate font-medium">
+                          {row.name}
+                        </span>
+                        <span
+                          className="text-muted-foreground block truncate text-xs"
+                          dir="ltr"
                         >
-                          {t.enrolment.noCharge}
-                        </td>
-                      );
-                    }
+                          {row.code}
+                        </span>
+                      </th>
 
-                    return (
-                      <td key={month.key} className="px-1 py-1 align-middle">
-                        <div className="flex flex-col gap-1">
-                          {cells.map((cell) => (
-                            <FeeCellButton
-                              key={cell.id}
-                              cell={cell}
-                              money={money}
-                              canManage={canManage}
-                              onEdit={() =>
-                                setEditing({
-                                  cell,
-                                  followingCount: followingDueCount(row, cell),
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
+                      {grid.months.map((month) => {
+                        const cells = live(month.key);
+
+                        if (cells.length === 0) {
+                          return (
+                            <td
+                              key={month.key}
+                              className="text-muted-foreground/40 px-2 py-2 text-center"
+                            >
+                              {t.enrolment.noCharge}
+                            </td>
+                          );
+                        }
+
+                        return (
+                          <td key={month.key} className="px-1 py-1 align-middle">
+                            <div className="flex flex-col gap-1">
+                              {cells.map((cell) => (
+                                <FeeCellButton
+                                  key={cell.id}
+                                  cell={cell}
+                                  money={money}
+                                  canManage={canManage}
+                                  onEdit={() =>
+                                    setEditing({
+                                      cell,
+                                      followingCount: followingDueCount(row, cell),
+                                    })
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </td>
+                        );
+                      })}
+
+                      <td className="px-4 py-2 text-end font-medium tabular-nums">
+                        {money(row.totalCentimes)}
                       </td>
-                    );
-                  })}
+                    </tr>
 
-                  <td className="px-4 py-2 text-end font-medium tabular-nums">
-                    {money(row.totalCentimes)}
-                  </td>
-                </tr>
-              ))}
+                    {hasInactive ? (
+                      <tr className="border-b last:border-0">
+                        <th
+                          scope="row"
+                          className="bg-card text-muted-foreground sticky start-0 z-10 px-4 pb-2 text-start text-xs font-normal"
+                        >
+                          {t.enrolment.notOwed}
+                        </th>
+
+                        {grid.months.map((month) => {
+                          const cells = inactive(month.key);
+                          if (cells.length === 0) {
+                            return <td key={month.key} className="px-2 pb-2" />;
+                          }
+
+                          return (
+                            <td key={month.key} className="px-1 pb-1 align-middle">
+                              <div className="flex flex-col gap-1">
+                                {cells.map((cell) => (
+                                  <FeeCellButton
+                                    key={cell.id}
+                                    cell={cell}
+                                    money={money}
+                                    canManage={canManage}
+                                    onEdit={() =>
+                                      setEditing({
+                                        cell,
+                                        followingCount: followingDueCount(row, cell),
+                                      })
+                                    }
+                                  />
+                                ))}
+                              </div>
+                            </td>
+                          );
+                        })}
+
+                        {/* The row total counts only what is owed, so this one
+                          has nothing of its own to add up. */}
+                        <td className="px-4 pb-2" />
+                      </tr>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
 
             <tfoot>

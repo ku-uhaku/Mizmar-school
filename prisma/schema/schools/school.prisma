@@ -82,7 +82,7 @@ model School {
   // ── Logistique ────────────────────────────────────────────────────────────
   /// The fleet. Year-independent: what each bus does in a given year is a
   /// TransportRoute. See prisma/schema/transport/.
-  vehicles Vehicle[]
+  vehicles     Vehicle[]
   /// What the fleet has been fuelled with, and who asked. Year-independent for
   /// the same reason the buses are.
   fuelRequests FuelRequest[]
@@ -106,16 +106,19 @@ model School {
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// The tills the school collects at, what it spends under, and every movement
   /// of money either way. See prisma/schema/treasury/.
-  cashRegisters     CashRegister[]
-  cashOperations    CashOperation[]
+  cashRegisters       CashRegister[]
+  cashOperations      CashOperation[]
   /// The chart the caisse posts against, and the banks it deals with. See
   /// prisma/schema/treasury/operation-category.prisma.
   banks               Bank[]
   operationCategories OperationCategory[]
   operationMotifs     OperationMotif[]
   suppliers           Supplier[]
-  payments          Payment[]
-  cheques           Cheque[]
+  payments            Payment[]
+  cheques             Cheque[]
+
+  /// What the school announces to its families — see modules/events.
+  events Event[]
 
   @@unique([organizationId, code])
   /// No two schools may map to the same establishment. Many may be unmapped.

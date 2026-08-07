@@ -22,7 +22,7 @@ model City {
   /// the town on, since two schools may spell the name differently.
   code String
 
-  name String
+  name   String
   /// The Arabic spelling, printed on the Arabic half of the paperwork. Agreed
   /// once per town, which is the whole reason this table exists.
   nameAr String?
@@ -40,8 +40,8 @@ model City {
   /// Restrict on both: a town with pupils born in it cannot be deleted out from
   /// under them. Deactivate it instead — `isActive` is what keeps a merged or
   /// misspelt entry out of the pickers without rewriting history.
-  studentsBornHere      Student[] @relation("StudentBirthCity")
-  studentsSchooledHere  Student[] @relation("StudentPreviousSchoolCity")
+  studentsBornHere     Student[] @relation("StudentBirthCity")
+  studentsSchooledHere Student[] @relation("StudentPreviousSchoolCity")
 
   /// Its quartiers — see prisma/schema/geography/neighbourhood.prisma.
   neighbourhoods Neighbourhood[]

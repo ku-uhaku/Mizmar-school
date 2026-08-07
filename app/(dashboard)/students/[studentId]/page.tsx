@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import {
   findEnrolment,
   loadEnrolmentChoices,
@@ -290,12 +289,6 @@ export default async function StudentPage({
           canSubscribeTransport: context.can(PERMISSIONS.TRANSPORT_SUBSCRIBE),
           canManageDocuments: context.can(PERMISSIONS.DOCUMENT_MANAGE),
         }}
-      />
-
-      <RecordHistoryPanel
-        context={context}
-        entity="Student"
-        entityId={student.id}
       />
     </>
   );

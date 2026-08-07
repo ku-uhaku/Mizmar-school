@@ -11,9 +11,9 @@ model Subject {
 
   /// Short stable code, e.g. "MATH", "AR", "FR", "EN", "SVT", "PC", "HG",
   /// "ISL", "EPS", "INFO", "PHILO", "AMZ".
-  code   String
-  name   String
-  nameAr String?
+  code      String
+  name      String
+  nameAr    String?
   /// Abbreviation for timetable cells, where a full name will not fit.
   shortName String?
 
@@ -49,26 +49,26 @@ model Subject {
 
   /// Languages and lab subjects are the ones normally taught in split groups,
   /// so the timetable UI offers group splitting for them first.
-  isLanguage    Boolean @default(false)
-  requiresLab   Boolean @default(false)
+  isLanguage  Boolean @default(false)
+  requiresLab Boolean @default(false)
 
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  levels           LevelSubject[]
-  classGroups      ClassGroup[]
-  assignments      TeachingAssignment[]
+  levels              LevelSubject[]
+  classGroups         ClassGroup[]
+  assignments         TeachingAssignment[]
   /// Teachers qualified to take it — see TeacherSubject.
-  qualifiedTeachers TeacherSubject[]
-  timetableEntries TimetableEntry[]
+  qualifiedTeachers   TeacherSubject[]
+  timetableEntries    TimetableEntry[]
   timetableExceptions TimetableException[]
   supplyLists         SupplyList[]
   /// Restrict on the other side: a subject with marks against it is history.
-  assessments      Assessment[]
-  attendance       StudentAttendance[]
-  remarks          StudentRemark[]
+  assessments         Assessment[]
+  attendance          StudentAttendance[]
+  remarks             StudentRemark[]
 
   @@unique([schoolId, code])
   /// No two subjects may map to the same MASSAR code. Many may be unmapped.

@@ -50,26 +50,38 @@ export const FEE_TYPES: FeeTypeSeed[] = [
   { code: "CLUB-THEATRE", name: "Club de théâtre", nameAr: "نادي المسرح", kind: "CLUB", billingCycle: "ANNUAL", isMandatory: false },
 ];
 
+/*
+  No rate names its own `instalmentCount`.
+
+  Every monthly rate here used to repeat `instalmentCount: 9`, and a rate's own
+  count beats everything — so the school's setting was dead the moment this seed
+  ran, and a year that was not September–June had its fee grid cut short with no
+  way to say otherwise short of editing nineteen price rows by hand. Leaving it
+  null is what lets `SchoolSettings.defaultInstalmentCount` decide, which is the
+  reason that column exists. A school with one charge genuinely collected over a
+  different number of months still sets it on that rate, which is what the
+  override is for.
+*/
 export const FEE_RATES: FeeRateSeed[] = [
   // Scolarité rises with the cycle — the whole reason a price is per level.
-  { feeCode: "SCOLARITE", levelCode: "1AP", dirhams: 15000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "2AP", dirhams: 15000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "3AP", dirhams: 16000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "4AP", dirhams: 16000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "5AP", dirhams: 16500, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "6AP", dirhams: 16500, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "1AC", dirhams: 19000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "2AC", dirhams: 19000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "3AC", dirhams: 19500, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "TC", dirhams: 22000, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "1BAC", dirhams: 23500, instalmentCount: 9 },
-  { feeCode: "SCOLARITE", levelCode: "2BAC", dirhams: 25000, instalmentCount: 9 },
+  { feeCode: "SCOLARITE", levelCode: "1AP", dirhams: 15000 },
+  { feeCode: "SCOLARITE", levelCode: "2AP", dirhams: 15000 },
+  { feeCode: "SCOLARITE", levelCode: "3AP", dirhams: 16000 },
+  { feeCode: "SCOLARITE", levelCode: "4AP", dirhams: 16000 },
+  { feeCode: "SCOLARITE", levelCode: "5AP", dirhams: 16500 },
+  { feeCode: "SCOLARITE", levelCode: "6AP", dirhams: 16500 },
+  { feeCode: "SCOLARITE", levelCode: "1AC", dirhams: 19000 },
+  { feeCode: "SCOLARITE", levelCode: "2AC", dirhams: 19000 },
+  { feeCode: "SCOLARITE", levelCode: "3AC", dirhams: 19500 },
+  { feeCode: "SCOLARITE", levelCode: "TC", dirhams: 22000 },
+  { feeCode: "SCOLARITE", levelCode: "1BAC", dirhams: 23500 },
+  { feeCode: "SCOLARITE", levelCode: "2BAC", dirhams: 25000 },
   // Flat charges, priced once for every level.
   { feeCode: "INSCRIPTION", levelCode: null, dirhams: 1500 },
   { feeCode: "ASSURANCE", levelCode: null, dirhams: 150 },
   { feeCode: "FOURNITURES", levelCode: null, dirhams: 800 },
-  { feeCode: "TRANSPORT", levelCode: null, dirhams: 4500, instalmentCount: 9 },
-  { feeCode: "CANTINE", levelCode: null, dirhams: 6300, instalmentCount: 9 },
+  { feeCode: "TRANSPORT", levelCode: null, dirhams: 4500 },
+  { feeCode: "CANTINE", levelCode: null, dirhams: 6300 },
   { feeCode: "CLUB-FOOT", levelCode: null, dirhams: 900 },
   { feeCode: "CLUB-THEATRE", levelCode: null, dirhams: 700 },
 ];

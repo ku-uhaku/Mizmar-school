@@ -950,6 +950,55 @@ export const RESOURCES: ResourceDef[] = [
   },
 
   // ── Facturation ───────────────────────────────────────────────────────────
+  /*
+    The one singleton, and first in its section because it decides what the
+    price lists under it *mean*: how many lines a monthly rate turns into, and
+    what day each falls due.
+
+    Both were constants nobody could see. `defaultInstalmentCount` sat at nine —
+    right for a September–June year and wrong for any other shape, and a year
+    running March to February had its fee grid cut off in November with three
+    months left to bill and nothing on screen to explain it. That is the test
+    for belonging here rather than in an `enums.ts`: it is a convention, not a
+    fact. See prisma/schema/schools/school-settings.prisma and
+    lib/school-settings.ts, which holds the defaults these fall back to.
+  */
+  {
+    id: "school-settings",
+    section: "billing",
+    labelKey: "schoolSettings",
+    scope: "SCHOOL",
+    kind: "singleton",
+    labelFields: ["id"],
+    fields: [
+      {
+        name: "defaultInstalmentCount",
+        type: "number",
+        labelKey: "defaultInstalmentCount",
+        hintKey: "defaultInstalmentCount",
+        groupKey: "billing",
+        required: true,
+        // Zero is admissible and is the useful default: it means "as many as
+        // the school year has months". Twelve is the ceiling because a year
+        // longer than that is not a year.
+        min: 0,
+        max: 12,
+        defaultValue: 0,
+      },
+      {
+        name: "feeDueDayOfMonth",
+        type: "number",
+        labelKey: "feeDueDayOfMonth",
+        hintKey: "feeDueDayOfMonth",
+        groupKey: "billing",
+        required: true,
+        // 28 rather than 31 so the day exists in February — see the column.
+        min: 1,
+        max: 28,
+        defaultValue: 5,
+      },
+    ],
+  },
   {
     id: "fee-types",
     section: "billing",

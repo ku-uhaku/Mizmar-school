@@ -57,6 +57,10 @@ import families, {
   nav as familiesNav,
   permissions as familiesPermissions,
 } from "@/modules/families/i18n/ar";
+import events, {
+  nav as eventsNav,
+  permissions as eventsPermissions,
+} from "@/modules/events/i18n/ar";
 import schoolLife, {
   nav as schoolLifeNav,
   permissions as schoolLifePermissions,
@@ -118,6 +122,7 @@ const ar: Dictionary = {
 
   // Vie scolaire.
   ...schoolLife,
+  ...events,
   ...families,
   ...students,
   ...supplies,
@@ -150,6 +155,7 @@ const ar: Dictionary = {
     ...appearanceNav,
     ...auditNav,
     ...schoolLifeNav,
+    ...eventsNav,
     ...familiesNav,
     ...studentsNav,
     ...suppliesNav,
@@ -172,6 +178,7 @@ const ar: Dictionary = {
       ...auditPermissions.groups,
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
+      ...eventsPermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
       ...suppliesPermissions.groups,
@@ -196,6 +203,7 @@ const ar: Dictionary = {
       ...auditPermissions.codes,
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
+      ...eventsPermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,
       ...suppliesPermissions.codes,

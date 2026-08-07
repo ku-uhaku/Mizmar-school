@@ -46,6 +46,10 @@ model SchoolYear {
   transportRoutes    TransportRoute[]
   transportSchedules TransportSchedule[]
 
+  /// This year's announcements. Scoped to the year so last year's calendar
+  /// keeps resolving after this year's is drawn up.
+  events Event[]
+
   @@unique([schoolId, name])
   @@index([schoolId])
   @@map("school_years")

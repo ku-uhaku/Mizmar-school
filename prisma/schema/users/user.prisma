@@ -31,38 +31,38 @@ model User {
 
   // ── Teaching ──────────────────────────────────────────────────────────────
   /// Classes this user is professeur principal of.
-  mainTeacherOf       SchoolClass[]        @relation("ClassMainTeacher")
-  teachingAssignments TeachingAssignment[] @relation("TeacherAssignments")
+  mainTeacherOf       SchoolClass[]           @relation("ClassMainTeacher")
+  teachingAssignments TeachingAssignment[]    @relation("TeacherAssignments")
   /// What this teacher may be given, as opposed to what they have been —
   /// see prisma/schema/hr/teacher-subject.prisma.
-  subjectsQualified   TeacherSubject[]     @relation("TeacherSubjects")
-  timetableEntries    TimetableEntry[]     @relation("TeacherTimetable")
+  subjectsQualified   TeacherSubject[]        @relation("TeacherSubjects")
+  timetableEntries    TimetableEntry[]        @relation("TeacherTimetable")
   /// Periods of the week this teacher does not work. A hard constraint on the
   /// grid — see prisma/schema/timetable/teacher-unavailability.prisma.
   unavailability      TeacherUnavailability[] @relation("TeacherUnavailability")
   /// Days away, and the lessons somebody else covers — see
   /// prisma/schema/timetable/teacher-absence.prisma.
-  absences            TeacherAbsence[]     @relation("TeacherAbsences")
-  substitutions       TeacherAbsence[]     @relation("TeacherSubstitutions")
+  absences            TeacherAbsence[]        @relation("TeacherAbsences")
+  substitutions       TeacherAbsence[]        @relation("TeacherSubstitutions")
   /// One-off changes to a week's grid.
-  timetableExceptions   TimetableException[] @relation("TeacherTimetableExceptions")
-  authoredExceptions    TimetableException[] @relation("TimetableExceptionAuthor")
+  timetableExceptions TimetableException[]    @relation("TeacherTimetableExceptions")
+  authoredExceptions  TimetableException[]    @relation("TimetableExceptionAuthor")
   /// Listes de fournitures written, and reviewed.
-  supplyListsAuthored   SupplyList[]         @relation("SupplyListAuthor")
-  documentsRecorded     StudentDocument[]    @relation("StudentDocumentRecorder")
+  supplyListsAuthored SupplyList[]            @relation("SupplyListAuthor")
+  documentsRecorded   StudentDocument[]       @relation("StudentDocumentRecorder")
   /// The till this person holds, if any — see CashRegister.holderId.
-  cashRegisterHeld      CashRegister?        @relation("CashRegisterHolder")
-  advancesApproved      SalaryAdvance[]      @relation("AdvanceApprover")
-  supplyListsReviewed   SupplyList[]         @relation("SupplyListReviewer")
+  cashRegisterHeld    CashRegister?           @relation("CashRegisterHolder")
+  advancesApproved    SalaryAdvance[]         @relation("AdvanceApprover")
+  supplyListsReviewed SupplyList[]            @relation("SupplyListReviewer")
   /// Contrôles this user is answerable for, set, and has marked. SetNull on all
   /// three — a paper outlives the account that created it.
-  assessmentsTeaching Assessment[]         @relation("TeacherAssessments")
-  assessmentsAuthored Assessment[]         @relation("AssessmentAuthor")
-  gradesEntered       AssessmentGrade[]    @relation("GradeAuthor")
+  assessmentsTeaching Assessment[]            @relation("TeacherAssessments")
+  assessmentsAuthored Assessment[]            @relation("AssessmentAuthor")
+  gradesEntered       AssessmentGrade[]       @relation("GradeAuthor")
   /// Registers taken and observations written in the classroom. SetNull on
   /// both: a register outlives the account that took it.
-  pupilAttendance     StudentAttendance[]  @relation("AttendanceRecordedByTeacher")
-  pupilRemarks        StudentRemark[]      @relation("RemarkAuthor")
+  pupilAttendance     StudentAttendance[]     @relation("AttendanceRecordedByTeacher")
+  pupilRemarks        StudentRemark[]         @relation("RemarkAuthor")
 
   /// Portal accounts opened for parents. Almost always empty — a guardian is a
   /// row in the dossier familial, and only becomes a User if a school chooses
@@ -73,7 +73,7 @@ model User {
   /// The employment record, when this account belongs to somebody on the
   /// payroll. Usually set, but never assumed: most of the payroll never signs
   /// in, and some accounts are not employees. See the note on Staff.userId.
-  staffRecord Staff? @relation("StaffAccount")
+  staffRecord        Staff?            @relation("StaffAccount")
   /// Registers marked and leave decided. Restrict and SetNull respectively —
   /// see the notes on those columns.
   attendanceRecorded StaffAttendance[] @relation("AttendanceRecordedBy")
@@ -82,27 +82,30 @@ model User {
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// Who held the drawer and who posted what. All Restrict on the other side:
   /// the ledger must always be able to name the person behind a movement.
-  sessionsOpened    CashSession[]   @relation("SessionOpenedBy")
-  sessionsClosed    CashSession[]   @relation("SessionClosedBy")
-  operationsCreated CashOperation[] @relation("OperationCreatedBy")
-  paymentsCreated   Payment[]       @relation("PaymentCreatedBy")
+  sessionsOpened    CashSession[]     @relation("SessionOpenedBy")
+  sessionsClosed    CashSession[]     @relation("SessionClosedBy")
+  operationsCreated CashOperation[]   @relation("OperationCreatedBy")
+  paymentsCreated   Payment[]         @relation("PaymentCreatedBy")
   reportFavourites  ReportFavourite[] @relation("ReportFavourites")
-  feeLinesCancelled EnrollmentFee[] @relation("FeeLineCancelledBy")
+  feeLinesCancelled EnrollmentFee[]   @relation("FeeLineCancelledBy")
   /// SetNull on the other side, unlike the Restrict above: cancellations must
   /// outlive the cashier who made them, and the note explains itself.
-  paymentsCancelled Payment[]       @relation("PaymentCancelledBy")
+  paymentsCancelled Payment[]         @relation("PaymentCancelledBy")
   /// Voyages this account started or closed. SetNull on the other side: a run
   /// outlives the driver whose account was later removed.
-  tripRunsStarted   TripRun[]       @relation("TripRunStartedBy")
-  tripRunsArrived   TripRun[]       @relation("TripRunArrivedBy")
+  tripRunsStarted   TripRun[]         @relation("TripRunStartedBy")
+  tripRunsArrived   TripRun[]         @relation("TripRunArrivedBy")
 
   // ── Logistique ────────────────────────────────────────────────────────────
   /// Fuel requests this account decided. SetNull on the other side: an approval
   /// must degrade to "by an account since removed" rather than block a leaver.
-  fuelDecisions FuelRequest[] @relation("FuelRequestDecidedBy")
+  fuelDecisions     FuelRequest[]         @relation("FuelRequestDecidedBy")
   /// Bus registers this account took. SetNull on the other side — a register
   /// outlives the account of whoever marked it.
   busRegistersTaken TransportAttendance[] @relation("BusRegisterRecordedBy")
+
+  eventsAuthored  Event[] @relation("EventAuthor")
+  eventsPublished Event[] @relation("EventPublisher")
 
   @@index([organizationId])
   @@map("users")

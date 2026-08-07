@@ -140,6 +140,14 @@ const en = {
       GRADED: "Marked",
       CANCELLED: "Cancelled",
     },
+    /** Whose move it is — see `ASSESSMENT_STAGES`. */
+    stages: {
+      ALL: "All",
+      TO_PUBLISH: "To open",
+      MARKING: "Being marked",
+      TO_VALIDATE: "To validate",
+      DONE: "Validated",
+    },
   },
 } as const;
 

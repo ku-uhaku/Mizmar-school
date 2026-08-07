@@ -93,6 +93,7 @@ const ar = {
     beforeDiscount: "قبل التخفيضات",
     totalDiscount: "التخفيضات الممنوحة",
     noCharge: "—",
+    notOwed: "غير مستحق",
     feeType: "الرسم",
   },
   enrolmentOptions: {

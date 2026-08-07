@@ -48,14 +48,14 @@ model TimeSlot {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  timetableEntries TimetableEntry[]
+  timetableEntries    TimetableEntry[]
   timetableExceptions TimetableException[]
   /// Teachers who do not work this period — see
   /// prisma/schema/timetable/teacher-unavailability.prisma.
-  unavailability   TeacherUnavailability[]
+  unavailability      TeacherUnavailability[]
   /// Registers taken during this period. SetNull: rewriting the bell schedule
   /// must not delete last term's absences.
-  attendance       StudentAttendance[]
+  attendance          StudentAttendance[]
 
   @@unique([schoolYearId, scheduleKind, dayOfWeek, startTime])
   @@index([schoolYearId])

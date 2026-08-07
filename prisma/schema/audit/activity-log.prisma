@@ -48,13 +48,13 @@ model ActivityLog {
   /// "CREATE" | "UPDATE" | "DELETE" | "CREATE_MANY" | "UPDATE_MANY" |
   /// "DELETE_MANY" | "LOGIN" | "LOGIN_FAILED" | "LOGIN_BLOCKED" | "LOGOUT" |
   /// "DENIED" — see modules/audit/enums.ts.
-  action String
+  action      String
   /// The Prisma model the write landed on ("Student", "Payment"), or the
   /// pseudo-entity an auth event carries ("Session", "Access"). Kept as the
   /// model name rather than the table name so it matches what the code says.
-  entity String
+  entity      String
   /// The affected row. Null for the many-row operations and for auth events.
-  entityId String?
+  entityId    String?
   /// How the row read at the time — a pupil's name, a receipt's number. Null
   /// when the entity has no sensible label.
   entityLabel String?
@@ -67,7 +67,7 @@ model ActivityLog {
   ///
   /// A String because SQLite has no JSON column; read it through
   /// `parseChanges` rather than `JSON.parse` at the call site.
-  changes String?
+  changes  String?
   /// JSON: anything the action itself wanted recorded — the permission code a
   /// denial was refused for, the number of rows a bulk write touched.
   metadata String?

@@ -13,6 +13,7 @@ import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,11 @@ import {
 import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { deleteAssessmentAction } from "@/modules/assessments/actions";
-import { ASSESSMENT_STATUSES } from "@/modules/assessments/enums";
+import {
+  ASSESSMENT_STAGES,
+  ASSESSMENT_STATUSES,
+  stageOf,
+} from "@/modules/assessments/enums";
 import { GenerateDialog } from "@/modules/assessments/components/generate-dialog";
 import type {
   AssessmentRow,
@@ -32,6 +37,9 @@ import type {
   ProgrammeEntry,
   TermOption,
 } from "@/modules/assessments/queries";
+
+/** Radix Tabs needs a non-empty value, and "no stage filter" has to be one. */
+const ALL_STAGES = "__all__";
 
 /**
  * The papers of a class and term.
@@ -232,10 +240,45 @@ export function AssessmentsManager({
     [t, locale, permissions.canDelete],
   );
 
+  /*
+    ── Whose move is it ───────────────────────────────────────────────────────
+    The status facet answers "what state is this in"; these tabs answer "what
+    is waiting on me", which is the question the office and the teacher both
+    open the screen with. A head of studies wants the pile to validate; a
+    teacher wants the pile to mark. Both used to mean reading a status column
+    and knowing what each value implied about who acts next.
+
+    A tab rather than a preset facet value, because it is the frame the rest of
+    the filters sit inside — the kind and subject facets narrow *within* a
+    stage, and the counts have to be of the stage rather than of the table.
+
+    CANCELLED papers appear only under "All": they are a real status and no
+    stage at all, since nobody is waiting on them. See `ASSESSMENT_STAGES`.
+  */
+  const [stage, setStage] = React.useState<string>(ALL_STAGES);
+
+  const stageCounts = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of assessments) {
+      const rowStage = stageOf(row.status);
+      if (!rowStage) continue;
+      counts.set(rowStage, (counts.get(rowStage) ?? 0) + 1);
+    }
+    return counts;
+  }, [assessments]);
+
+  const visible = React.useMemo(
+    () =>
+      stage === ALL_STAGES
+        ? assessments
+        : assessments.filter((row) => stageOf(row.status) === stage),
+    [assessments, stage],
+  );
+
   const facets = React.useMemo<FacetDef[]>(() => {
-    const subjects = [
-      ...new Set(assessments.map((row) => row.subjectName)),
-    ].sort();
+    // Built from the visible rows so a facet never offers a value that would
+    // match nothing inside the stage the reader is looking at.
+    const subjects = [...new Set(visible.map((row) => row.subjectName))].sort();
 
     return [
       {
@@ -249,7 +292,7 @@ export function AssessmentsManager({
       {
         columnId: "typeName",
         label: t.assessment.kind,
-        options: [...new Set(assessments.map((row) => row.typeName))]
+        options: [...new Set(visible.map((row) => row.typeName))]
           .sort()
           .map((name) => ({ value: name, label: name })),
       },
@@ -263,7 +306,7 @@ export function AssessmentsManager({
           ]
         : []),
     ];
-  }, [assessments, t]);
+  }, [visible, t]);
 
   const generateButton = permissions.canManage ? (
     <GenerateDialog
@@ -314,9 +357,42 @@ export function AssessmentsManager({
         </Select>
       </div>
 
+      <Tabs value={stage} onValueChange={setStage}>
+        <TabsList>
+          <TabsTrigger value={ALL_STAGES}>
+            {t.assessmentOptions.stages.ALL}
+            <Badge variant="secondary" className="ms-2">
+              {assessments.length}
+            </Badge>
+          </TabsTrigger>
+          {ASSESSMENT_STAGES.map((value) => (
+            <TabsTrigger key={value} value={value}>
+              {t.assessmentOptions.stages[value]}
+              {(stageCounts.get(value) ?? 0) > 0 ? (
+                <Badge
+                  // The two piles somebody has to act on are the ones worth
+                  // colouring; the rest are just where things are.
+                  variant={
+                    value === "TO_VALIDATE" || value === "TO_PUBLISH"
+                      ? "default"
+                      : "secondary"
+                  }
+                  className="ms-2"
+                >
+                  {stageCounts.get(value)}
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <DataTable
+        // Keyed on the stage so the table's own paging resets: staying on page
+        // three after switching to a stage with four rows shows an empty table.
+        key={stage}
         columns={columns}
-        data={assessments}
+        data={visible}
         searchPlaceholder={t.assessment.searchPlaceholder}
         facets={facets}
         initialColumnVisibility={{ subjectName: false }}

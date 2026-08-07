@@ -15,7 +15,7 @@ model EducationLevel {
   cycle String
 
   /// Name as the school writes it, e.g. "Enseignement primaire".
-  name String
+  name   String
   /// Arabic name. School-entered data cannot live in the UI dictionaries, and
   /// Moroccan school paperwork is issued in both Arabic and French.
   nameAr String?

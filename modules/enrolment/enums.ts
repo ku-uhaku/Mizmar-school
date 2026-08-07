@@ -82,10 +82,20 @@ export function defaultInstalmentCount(
   monthsInYear: number,
   termCount: number,
   /**
-   * The school's declared instalments per year (SchoolSettings). A monthly
-   * charge follows it rather than the calendar: a Moroccan school year has ten
-   * months in it and is almost always collected in nine, which is why every
-   * seeded scolarité rate used to repeat `instalmentCount: 9` by hand.
+   * The school's declared instalments per year (`SchoolSettings`), or **0 to
+   * follow the school year** — which is what the setting now defaults to.
+   *
+   * ── Why zero is the default and not nine ────────────────────────────────────
+   * It was a fixed nine, on the reasoning that a Moroccan school year runs ten
+   * months and is almost always collected in nine. True of a September–June
+   * year, and silently wrong of any other: a year running 5 March to 17
+   * February is twelve months long, and nine instalments stopped its fee grid
+   * dead in November with three months of the year left to bill. Nothing said
+   * so on screen, because nine was a number no form ever showed.
+   *
+   * So the calendar decides unless a school overrides it. A school that really
+   * does collect nine over a ten-month year still says nine — it just has to
+   * say it, rather than have it assumed on its behalf.
    */
   schoolInstalments: number = 0,
 ): number {

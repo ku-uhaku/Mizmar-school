@@ -28,11 +28,11 @@ model ClassGroup {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  assignments      TeachingAssignment[]
-  assessments      Assessment[]
-  timetableEntries TimetableEntry[]
+  assignments         TeachingAssignment[]
+  assessments         Assessment[]
+  timetableEntries    TimetableEntry[]
   timetableExceptions TimetableException[]
-  enrollments      Enrollment[]
+  enrollments         Enrollment[]
 
   @@unique([schoolClassId, code])
   @@index([schoolClassId])

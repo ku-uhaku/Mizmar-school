@@ -16,12 +16,18 @@ model Guardian {
   familyId String
   family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 
-  /// "FATHER" | "MOTHER" | "GUARDIAN" — see modules/families/enums.ts.
+  /// "FATHER" | "MOTHER" | "STEPFATHER" | "STEPMOTHER" | "GRANDFATHER" |
+  /// "GRANDMOTHER" | "BROTHER" | "SISTER" | "UNCLE" | "AUNT" | "GUARDIAN" —
+  /// see modules/families/enums.ts.
+  ///
+  /// The kinship only. What an adult may *do* — collect at the gate, be rung
+  /// first, receive the invoice — lives in its own columns below and is never
+  /// derived from this one, because a custody order can separate the two.
   ///
   /// INVARIANT (service layer): a family has at most one FATHER and at most one
-  /// MOTHER, but any number of GUARDIAN rows — an uncle and a grandmother may
-  /// both be on the file. A unique index cannot say "only for two of the three
-  /// values", so the rule is enforced on write.
+  /// MOTHER; every other value may repeat — two grandmothers, an uncle and an
+  /// aunt may all be on the file. A unique index cannot say "only for two of
+  /// the values", so the rule is enforced on write.
   relationship String
 
   firstName String

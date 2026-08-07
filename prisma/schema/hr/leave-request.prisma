@@ -40,9 +40,9 @@ model LeaveRequest {
 
   /// Who decided, and when. Both null while PENDING. SetNull: a director's
   /// account being deleted must not erase the fact that leave was granted.
-  decidedById String?
-  decidedBy   User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
-  decidedAt   DateTime?
+  decidedById  String?
+  decidedBy    User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt    DateTime?
   decisionNote String?
 
   createdAt DateTime @default(now())

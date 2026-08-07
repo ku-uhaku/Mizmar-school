@@ -143,6 +143,14 @@ const fr = {
       GRADED: "Corrigé",
       CANCELLED: "Annulé",
     },
+    /** À qui de jouer — voir `ASSESSMENT_STAGES`. */
+    stages: {
+      ALL: "Tous",
+      TO_PUBLISH: "À ouvrir",
+      MARKING: "En saisie",
+      TO_VALIDATE: "À valider",
+      DONE: "Validés",
+    },
   },
 };
 

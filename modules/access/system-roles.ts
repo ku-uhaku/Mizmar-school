@@ -44,6 +44,10 @@ export const SYSTEM_ROLES: {
       // Reads the whole vie scolaire across the schools they oversee, and runs
       // the pedagogical side of it — but does not touch fee schedules.
       PERMISSIONS.SCHOOL_LIFE_VIEW,
+      // Prepares announcements but does not send them: publishing to every
+      // family is the director's call, in their own school.
+      PERMISSIONS.EVENT_VIEW,
+      PERMISSIONS.EVENT_MANAGE,
       PERMISSIONS.FAMILY_VIEW,
       PERMISSIONS.STUDENT_VIEW,
       PERMISSIONS.ENROLMENT_VIEW,
@@ -92,6 +96,11 @@ export const SYSTEM_ROLES: {
       // The whole vie scolaire of their own school, fees included — a director
       // is who a family negotiates a reduction with.
       PERMISSIONS.SCHOOL_LIFE_VIEW,
+      // Announces to the families of their own school, and is answerable for it.
+      PERMISSIONS.EVENT_VIEW,
+      PERMISSIONS.EVENT_MANAGE,
+      PERMISSIONS.EVENT_PUBLISH,
+      PERMISSIONS.EVENT_DELETE,
       PERMISSIONS.FAMILY_VIEW,
       PERMISSIONS.FAMILY_CREATE,
       PERMISSIONS.FAMILY_UPDATE,
@@ -186,6 +195,9 @@ export const SYSTEM_ROLES: {
       // ENROLMENT_FEES — what a family is charged is the bursar's, and the
       // whole point of that code being separate.
       PERMISSIONS.SCHOOL_LIFE_VIEW,
+      // Types the réunion up; somebody answerable presses Publish.
+      PERMISSIONS.EVENT_VIEW,
+      PERMISSIONS.EVENT_MANAGE,
       PERMISSIONS.FAMILY_VIEW,
       PERMISSIONS.FAMILY_CREATE,
       PERMISSIONS.FAMILY_UPDATE,

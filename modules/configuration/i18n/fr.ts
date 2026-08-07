@@ -39,7 +39,9 @@ const fr = {
       year: "Année scolaire",
     },
 
-    groups: {},
+    groups: {
+      billing: "Échéances",
+    },
 
     resources: {
       schoolWeeks: "Semaines de l'année",
@@ -68,12 +70,15 @@ const fr = {
       levelOfferings: "Niveaux ouverts",
       schoolClasses: "Classes",
       classGroups: "Groupes",
+      schoolSettings: "Règles de facturation",
       feeTypes: "Types de frais",
       feeRates: "Grille tarifaire",
       discounts: "Remises",
     },
 
     fields: {
+      defaultInstalmentCount: "Échéances par an",
+      feeDueDayOfMonth: "Exigible le",
       weekNumber: "Semaine",
       weekParity: "Rotation",
       weekLabel: "Libellé",
@@ -166,6 +171,10 @@ const fr = {
     },
 
     hints: {
+      defaultInstalmentCount:
+        "En combien d'échéances un frais mensuel est réparti. Laissez 0 pour suivre l'année scolaire — une année de douze mois est alors facturée douze fois. Un tarif qui fixe son propre nombre l'emporte.",
+      feeDueDayOfMonth:
+        "Jour du mois où chaque échéance tombe. Plafonné à 28 pour qu'il existe en février.",
       supplierKind:
         "Les r\u00e9gies, le bailleur et les prestataires apparaissent sur l\u2019\u00e9cran Factures ; les fournisseurs sur Achats.",
       defaultCategory:

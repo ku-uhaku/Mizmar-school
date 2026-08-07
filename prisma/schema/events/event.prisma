@@ -1,0 +1,119 @@
+/// Something the school puts in front of its families: a réunion de parents, a
+/// sortie, la rentrée, une fête de fin d'année.
+///
+/// ── Why it is its own table and not a SchoolHoliday ─────────────────────────
+/// A holiday closes the school and is read by the timetable; an event is an
+/// announcement and is read by parents. They share a date and nothing else —
+/// an event does not stop lessons, and a holiday is not something anybody
+/// publishes or drafts. See prisma/schema/timetable/school-holiday.prisma.
+///
+/// ── Draft until it is not ───────────────────────────────────────────────────
+/// Nothing reaches a family until somebody publishes it. `status` is what the
+/// portal reads and it is the only gate: `modules/portal/queries.ts` filters on
+/// PUBLISHED, so an event being prepared is invisible to a phone however the
+/// request is crafted.
+model Event {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  /// The year it belongs to, so last year's calendar keeps resolving after this
+  /// year's is drawn up — the same rule the rest of the vie scolaire follows.
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  title   String
+  titleAr String?
+
+  /// What the parent reads under the title. Plain text — this is an
+  /// announcement, not a document store.
+  description String?
+
+  /// "MEETING" | "OUTING" | "CEREMONY" | "EXAM" | "HOLIDAY_INFO" | "OTHER" —
+  /// see modules/events/enums.ts.
+  kind String @default("OTHER")
+
+  /// "DRAFT" | "PUBLISHED" | "CANCELLED" — see modules/events/enums.ts.
+  ///
+  /// CANCELLED rather than deleted: a réunion called off after families were
+  /// told has to stay visible saying so, or a parent turns up to a locked gate.
+  status String @default("DRAFT")
+
+  /// When it starts, and when it ends for something spanning days.
+  ///
+  /// `endsAt` is null for a single moment. Both are stored even when
+  /// `isAllDay` is set — the date half is what is read then, and keeping one
+  /// column rather than two shapes means the sort is the same either way.
+  startsAt DateTime
+  endsAt   DateTime?
+
+  /// True when the event has no clock time — "le 12 mars", not "le 12 mars à
+  /// 14h30". What a parent's screen reads to decide whether to print a time at
+  /// all, so an all-day event does not advertise a meaningless 00:00.
+  isAllDay Boolean @default(false)
+
+  /// Where it happens, free text: "Salle polyvalente", "Cour", "Musée
+  /// archéologique d'Oujda". Not a Room reference — most events are not in one.
+  location String?
+
+  /// Whether every family in the school sees it.
+  ///
+  /// True is the ordinary case and carries no `audiences` rows. False means the
+  /// event is aimed at the levels and classes listed in `audiences`, and an
+  /// event with no audience row reaches nobody — which the service refuses to
+  /// publish, since a published event nobody can see is always a mistake.
+  isSchoolWide Boolean @default(true)
+
+  audiences EventAudience[]
+
+  /// Who published it, and when. Null while it is a draft.
+  publishedAt   DateTime?
+  publishedById String?
+  publishedBy   User?     @relation("EventPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("EventAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([schoolYearId])
+  @@index([publishedById])
+  @@index([createdById])
+  /// What the parent portal reads on: this year's published events, soonest
+  /// first.
+  @@index([schoolYearId, status, startsAt])
+  @@map("events")
+}
+
+/// One level or one class an event is aimed at.
+///
+/// A row per target rather than a list column, so the parent query can join on
+/// the child's enrolment instead of parsing a string — see `householdScope` in
+/// modules/portal/queries.ts.
+///
+/// Exactly one of `levelId` / `schoolClassId` is set. SQLite cannot express
+/// that, so `modules/events/service.ts` enforces it on write.
+model EventAudience {
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  /// Everyone admitted to this level, whichever class they sit in.
+  levelId String?
+  level   Level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  /// One class only.
+  schoolClassId String?
+  schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, levelId])
+  @@unique([eventId, schoolClassId])
+  @@index([eventId])
+  @@index([levelId])
+  @@index([schoolClassId])
+  @@map("event_audiences")
+}

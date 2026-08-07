@@ -135,6 +135,14 @@ const ar = {
       GRADED: "مصحَّح",
       CANCELLED: "ملغى",
     },
+    /** لمن الدور — انظر `ASSESSMENT_STAGES`. */
+    stages: {
+      ALL: "الكل",
+      TO_PUBLISH: "للفتح",
+      MARKING: "قيد التسجيل",
+      TO_VALIDATE: "للمصادقة",
+      DONE: "مصادق عليها",
+    },
   },
 };
 

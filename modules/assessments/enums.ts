@@ -42,6 +42,25 @@ export const COUNTED_STATUSES: readonly AssessmentStatus[] = [
 ];
 
 /**
+ * Statuses a family may see a mark in — and deliberately not `COUNTED_STATUSES`.
+ *
+ * ── Two questions that look like one ────────────────────────────────────────
+ * "Does this mark count toward the average?" and "may a parent read it?" are
+ * different, and the portal used to answer the second with the first. A paper
+ * goes PUBLISHED the moment the office opens it for mark entry, so a family saw
+ * each mark as its teacher typed it: a half-marked sheet read as a result, a
+ * correction made before validation read as a grade that had changed, and the
+ * office's own validation step meant nothing to the people it was for.
+ *
+ * Only GRADED here. That is the school having accepted the marking — the point
+ * in the workflow where the result stops being provisional, which is exactly
+ * what a family is entitled to be told. Staff screens keep using
+ * `COUNTED_STATUSES`, because a running average across a term genuinely should
+ * include a paper still being marked.
+ */
+export const FAMILY_VISIBLE_STATUSES: readonly AssessmentStatus[] = ["GRADED"];
+
+/**
  * Marks may only be entered against a paper that has actually been set.
  *
  * SUBMITTED still accepts them: handing a paper back is not a lock, and the
@@ -52,6 +71,43 @@ export function acceptsMarks(status: string): boolean {
   return (
     status === "PUBLISHED" || status === "SUBMITTED" || status === "GRADED"
   );
+}
+
+/**
+ * The workflow read as "whose move is it", which is the question the office and
+ * the teacher both actually open the screen with.
+ *
+ * A status says where a paper *is*; a stage says who has to do something about
+ * it. They are not the same list, and CANCELLED is the proof: it is a real
+ * status and no stage at all, because nobody is waiting on it.
+ *
+ *   TO_PUBLISH  drafted; the office has to open it before anybody can mark
+ *   MARKING     open; the teacher is entering marks
+ *   TO_VALIDATE the teacher has handed it back; the office has to accept it
+ *   DONE        validated — and, from here, what a family may read
+ *
+ * Ordered as the work flows, so the tabs read left to right the way the term
+ * does.
+ */
+export const ASSESSMENT_STAGES = [
+  "TO_PUBLISH",
+  "MARKING",
+  "TO_VALIDATE",
+  "DONE",
+] as const;
+export type AssessmentStage = (typeof ASSESSMENT_STAGES)[number];
+
+const STAGE_OF: Partial<Record<AssessmentStatus, AssessmentStage>> = {
+  DRAFT: "TO_PUBLISH",
+  PUBLISHED: "MARKING",
+  SUBMITTED: "TO_VALIDATE",
+  GRADED: "DONE",
+  // CANCELLED is deliberately absent — see above.
+};
+
+/** The stage a paper sits in, or null when nobody is waiting on it. */
+export function stageOf(status: string): AssessmentStage | null {
+  return STAGE_OF[status as AssessmentStatus] ?? null;
 }
 
 /**
