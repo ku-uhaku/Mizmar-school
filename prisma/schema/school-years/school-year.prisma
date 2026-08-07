@@ -50,6 +50,10 @@ model SchoolYear {
   /// keeps resolving after this year's is drawn up.
   events Event[]
 
+  /// This year's parent channels. Scoped to the year so last year's
+  /// conversation stops appearing when this year's classes are drawn up.
+  chatChannels ChatChannel[]
+
   @@unique([schoolId, name])
   @@index([schoolId])
   @@map("school_years")

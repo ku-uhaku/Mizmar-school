@@ -83,6 +83,21 @@ model SchoolSettings {
   /// See `defaultInstalmentCount` in modules/enrolment/enums.ts.
   defaultInstalmentCount Int @default(0)
 
+  // ── Espace parents ────────────────────────────────────────────────────────
+  /// Whether parents may use the school-wide conversation.
+  ///
+  /// Off by default, and deliberately: a parents' group is a thing a school
+  /// decides to open, not something it discovers it has. Both switches are the
+  /// manager's, on the Configuration screen — see modules/chat.
+  parentChatEnabled Boolean @default(false)
+
+  /// Whether each class gets a conversation between its own parents.
+  ///
+  /// Separate from the one above because the split is real: plenty of schools
+  /// want a class group for one year-group and no school-wide one, where
+  /// anybody's argument reaches everybody.
+  parentClassChatEnabled Boolean @default(false)
+
   /// Day of the month an instalment falls due. Clamped to 1–28 so it exists in
   /// February — a schedule that skips a month once every four years is worse
   /// than one that is always on the 28th.

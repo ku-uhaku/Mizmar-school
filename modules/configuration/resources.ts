@@ -986,6 +986,22 @@ export const RESOURCES: ResourceDef[] = [
         defaultValue: 0,
       },
       {
+        name: "parentChatEnabled",
+        type: "boolean",
+        labelKey: "parentChatEnabled",
+        hintKey: "parentChatEnabled",
+        groupKey: "parents",
+        defaultValue: false,
+      },
+      {
+        name: "parentClassChatEnabled",
+        type: "boolean",
+        labelKey: "parentClassChatEnabled",
+        hintKey: "parentClassChatEnabled",
+        groupKey: "parents",
+        defaultValue: false,
+      },
+      {
         name: "feeDueDayOfMonth",
         type: "number",
         labelKey: "feeDueDayOfMonth",

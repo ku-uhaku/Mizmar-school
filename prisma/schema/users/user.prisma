@@ -107,6 +107,9 @@ model User {
   eventsAuthored  Event[] @relation("EventAuthor")
   eventsPublished Event[] @relation("EventPublisher")
 
+  chatMessages  ChatMessage[] @relation("ChatAuthor")
+  chatModerated ChatMessage[] @relation("ChatModerator")
+
   @@index([organizationId])
   @@map("users")
 }

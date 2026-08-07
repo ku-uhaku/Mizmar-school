@@ -120,6 +120,9 @@ model School {
   /// What the school announces to its families — see modules/events.
   events Event[]
 
+  /// The parents' conversations — see modules/chat.
+  chatChannels ChatChannel[]
+
   @@unique([organizationId, code])
   /// No two schools may map to the same establishment. Many may be unmapped.
   @@unique([organizationId, massarCode])

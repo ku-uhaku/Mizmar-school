@@ -244,3 +244,76 @@ export type SchoolEvent = {
   isAllDay: boolean;
   location: string | null;
 };
+
+/**
+ * One line of the carnet de liaison the school released to the family.
+ *
+ * Hand-mirrored from `PortalRemark`. Only remarks a teacher marked visible
+ * reach this type at all — the filter is in the query, not here, and it is the
+ * only thing between a private note and this screen.
+ */
+export type Remark = {
+  id: string;
+  kind: string;
+  tone: string;
+  body: string;
+  occurredOn: string;
+  subjectName: string | null;
+  authorName: string | null;
+};
+
+/**
+ * One lesson of the child's week. Mirrors `PortalLesson`.
+ *
+ * Not the teacher space's `Lesson`, which carries what a teacher needs to take
+ * a register — the ids, the group, whether it is marked. A parent reads the
+ * week, so this is the same period seen from the other side.
+ */
+export type ChildLesson = {
+  /** ISO day: 1 = Monday. */
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  subjectName: string;
+  teacherName: string | null;
+  roomName: string | null;
+};
+
+/** One pièce of the dossier. Mirrors `PortalDossierPiece`. */
+export type DossierPiece = {
+  code: string;
+  name: string;
+  isRequired: boolean;
+  isSettled: boolean;
+  status: "MISSING" | "RECEIVED" | "REJECTED" | "EXEMPTED";
+  receivedOn: string | null;
+};
+
+/** Mirrors `PortalDossier`. Completeness counts required pièces only. */
+export type Dossier = {
+  pieces: DossierPiece[];
+  requiredCount: number;
+  providedCount: number;
+  isComplete: boolean;
+};
+
+/** One parents' conversation. Mirrors `PortalChannel`. */
+export type Channel = {
+  id: string;
+  kind: "GENERAL" | "CLASS";
+  label: string;
+  /** Closed to new messages, still readable. */
+  isArchived: boolean;
+  messageCount: number;
+  lastMessageAt: string | null;
+};
+
+/** One thing somebody said. Mirrors `PortalMessage`. */
+export type ChatMessage = {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  /** True when this account wrote it, so the thread can align it right. */
+  isMine: boolean;
+};

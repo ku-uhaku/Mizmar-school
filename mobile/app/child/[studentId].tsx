@@ -1,43 +1,61 @@
-import { Stack, useLocalSearchParams } from "expo-router";
-import { Linking, ScrollView, View } from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useChild } from "../../src/api/hooks";
+import { useChild, useChildDossier } from "../../src/api/hooks";
 import {
-  Badge,
-  Body,
-  Button,
   Caption,
   Card,
-  Divider,
-  Empty,
   ErrorNote,
-  Heading,
   Loading,
-  Row,
   Stat,
+  Tile,
+  TileGrid,
   Title,
 } from "../../src/ui/components";
-import {
-  ATTENDANCE_LABELS,
-  DIRECTION_LABELS,
-  label,
-  money,
-  shortDate,
-} from "../../src/ui/format";
+import { money } from "../../src/ui/format";
 import { spacing, useTheme } from "../../src/ui/theme";
 
 /**
- * One child, four things: how they are doing, how often they are there, what
- * is owed, and which bus they take.
+ * One child, as a menu.
  *
- * The order is deliberate — it is the order a parent asks in.
+ * ── Why a grid and not the long page this used to be ────────────────────────
+ * It was four stacked sections — résultats, assiduité, scolarité, bus — and a
+ * parent looking for one of them scrolled past the other three every time. The
+ * four became six and the scroll became the screen's whole character.
+ *
+ * A grid says what is *there* in one glance, which is the question a parent
+ * opens the app with, and each tile carries the one figure that decides whether
+ * it needs opening at all: three unjustified absences, two missing pièces, a
+ * balance outstanding. A tile with nothing to report shows no badge rather than
+ * a green zero, so the eye goes to the ones that do — the same rule the web
+ * dashboard's section cards follow.
+ *
+ * The three figures above the grid are the ones a parent checks *without*
+ * wanting detail: the average, what is owed, whether the register is clean.
+ * Everything else is one tap.
  */
 export default function ChildScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
+
   const detail = useChild(studentId);
+  // The dossier is its own read because its badge — "2 manquantes" — is the one
+  // thing on this screen a parent can actually act on, so it should not wait
+  // behind the fee schedule.
+  const dossier = useChildDossier(studentId);
+
+  const go = (topic: string) =>
+    router.push({
+      pathname: "/child/[studentId]/[topic]",
+      params: { studentId, topic },
+    });
+
+  const missingPieces = dossier.data
+    ? dossier.data.requiredCount - dossier.data.providedCount
+    : 0;
 
   return (
     <>
@@ -76,158 +94,121 @@ export default function ChildScreen() {
               </Caption>
             </View>
 
-            {/* Résultats */}
+            {/* The three a parent checks without wanting detail. */}
             <Card>
-              <Heading>Résultats</Heading>
-              {detail.data.marks.marks.length === 0 ? (
-                <Empty message="Aucune note publiée pour le moment." />
-              ) : (
-                <>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
-                    <Stat
-                      value={detail.data.marks.averageOutOf20 ?? "—"}
-                      label="Moyenne générale /20"
-                      tone={
-                        (detail.data.marks.averageOutOf20 ?? 0) >= 10
-                          ? "success"
-                          : "warning"
-                      }
-                    />
-                    <Stat
-                      value={detail.data.marks.marks.length}
-                      label="Notes publiées"
-                    />
-                  </View>
-
-                  <Divider />
-
-                  {detail.data.marks.marks.slice(0, 8).map((mark) => (
-                    <Row
-                      key={mark.id}
-                      label={`${mark.subjectName} — ${mark.typeName}`}
-                      value={
-                        mark.isAbsent
-                          ? "Absent"
-                          : `${mark.score ?? "—"} / ${mark.maxScore}`
-                      }
-                      tone={
-                        mark.isAbsent
-                          ? "warning"
-                          : (mark.score ?? 0) / mark.maxScore >= 0.5
-                            ? "success"
-                            : "danger"
-                      }
-                    />
-                  ))}
-                </>
-              )}
-            </Card>
-
-            {/* Assiduité */}
-            <Card>
-              <Heading>Assiduité</Heading>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: spacing.md,
+                }}
+              >
                 <Stat
-                  value={detail.data.attendance.missedCount}
-                  label="Absences"
-                  tone={detail.data.attendance.missedCount > 0 ? "warning" : "success"}
-                />
-                <Stat
-                  value={detail.data.attendance.unjustifiedCount}
-                  label="Non justifiées"
+                  value={detail.data.marks.averageOutOf20 ?? "—"}
+                  label="Moyenne /20"
                   tone={
-                    detail.data.attendance.unjustifiedCount > 0 ? "danger" : "success"
+                    detail.data.marks.averageOutOf20 === null
+                      ? "default"
+                      : detail.data.marks.averageOutOf20 >= 10
+                        ? "success"
+                        : "danger"
                   }
                 />
-              </View>
-
-              {detail.data.attendance.entries.length === 0 ? (
-                <Body muted>Aucune absence enregistrée cette année.</Body>
-              ) : (
-                <>
-                  <Divider />
-                  {detail.data.attendance.entries.slice(0, 8).map((entry) => (
-                    <Row
-                      key={entry.id}
-                      label={`${shortDate(entry.date)}${
-                        entry.subjectName ? ` · ${entry.subjectName}` : ""
-                      }`}
-                      value={`${label(ATTENDANCE_LABELS, entry.status)}${
-                        entry.isJustified ? " (justifié)" : ""
-                      }`}
-                      tone={entry.isJustified ? "default" : "warning"}
-                    />
-                  ))}
-                </>
-              )}
-            </Card>
-
-            {/* Scolarité */}
-            <Card>
-              <Heading>Scolarité</Heading>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}>
                 <Stat
                   value={money(detail.data.fees.outstandingCentimes)}
                   label="Reste à payer"
-                  tone={detail.data.fees.isUpToDate ? "default" : "warning"}
+                  tone={detail.data.fees.isUpToDate ? "success" : "warning"}
                 />
                 <Stat
-                  value={money(detail.data.fees.overdueCentimes)}
-                  label="Échu"
-                  tone={detail.data.fees.overdueCentimes > 0 ? "danger" : "success"}
+                  value={detail.data.attendance.unjustifiedCount}
+                  label="Absences non justifiées"
+                  tone={
+                    detail.data.attendance.unjustifiedCount > 0
+                      ? "danger"
+                      : "success"
+                  }
                 />
               </View>
-
-              <Badge tone={detail.data.fees.isUpToDate ? "success" : "danger"}>
-                {detail.data.fees.isUpToDate ? "À jour" : "Échéance dépassée"}
-              </Badge>
-
-              <Divider />
-
-              {detail.data.fees.lines
-                .filter((line) => line.outstandingCentimes > 0)
-                .slice(0, 8)
-                .map((line) => (
-                  <Row
-                    key={line.id}
-                    label={`${line.label} · ${shortDate(line.dueDate)}`}
-                    value={money(line.outstandingCentimes)}
-                    tone={line.isOverdue ? "danger" : "default"}
-                  />
-                ))}
             </Card>
 
-            {/* Transport */}
-            {detail.data.transport ? (
-              <Card>
-                <Heading>Transport</Heading>
-                <Row label="Circuit" value={detail.data.transport.routeName} />
-                <Row label="Arrêt" value={detail.data.transport.stopName} />
-                <Row
-                  label="Sens"
-                  value={label(DIRECTION_LABELS, detail.data.transport.direction)}
-                />
-                {detail.data.transport.vehiclePlate ? (
-                  <Row label="Véhicule" value={detail.data.transport.vehiclePlate} />
-                ) : null}
-                {detail.data.transport.driverName ? (
-                  <Row label="Chauffeur" value={detail.data.transport.driverName} />
-                ) : null}
-
-                {detail.data.transport.driverPhone ? (
-                  <>
-                    <Divider />
-                    <Button
-                      label={`Appeler ${detail.data.transport.driverPhone}`}
-                      variant="ghost"
-                      onPress={() =>
-                        Linking.openURL(`tel:${detail.data!.transport!.driverPhone}`)
-                      }
-                    />
-                  </>
-                ) : null}
-              </Card>
-            ) : null}
+            <TileGrid>
+              <Tile
+                label="Notes"
+                icon="notebook-outline"
+                hint="Les résultats publiés"
+                badge={
+                  detail.data.marks.marks.length > 0
+                    ? String(detail.data.marks.marks.length)
+                    : undefined
+                }
+                onPress={() => go("notes")}
+              />
+              <Tile
+                label="Absences"
+                icon="calendar-remove-outline"
+                hint="Le registre d'assiduité"
+                badge={
+                  detail.data.attendance.unjustifiedCount > 0
+                    ? `${detail.data.attendance.unjustifiedCount} non just.`
+                    : undefined
+                }
+                tone={
+                  detail.data.attendance.unjustifiedCount > 0
+                    ? "danger"
+                    : "default"
+                }
+                onPress={() => go("absences")}
+              />
+              <Tile
+                label="Remarques"
+                icon="comment-text-outline"
+                hint="Le carnet de liaison"
+                onPress={() => go("remarques")}
+              />
+              <Tile
+                label="Emploi du temps"
+                icon="timetable"
+                hint="La semaine de la classe"
+                onPress={() => go("emploi-du-temps")}
+              />
+              <Tile
+                label="Paiements"
+                icon="cash-multiple"
+                hint="L'échéancier et ce qui reste"
+                badge={
+                  detail.data.fees.isUpToDate
+                    ? undefined
+                    : money(detail.data.fees.outstandingCentimes)
+                }
+                tone={
+                  detail.data.fees.overdueCentimes > 0 ? "danger" : "warning"
+                }
+                onPress={() => go("paiements")}
+              />
+              <Tile
+                label="Dossier"
+                icon="folder-account-outline"
+                hint="Les pièces demandées"
+                badge={
+                  missingPieces > 0 ? `${missingPieces} manquantes` : undefined
+                }
+                tone={missingPieces > 0 ? "warning" : "default"}
+                onPress={() => go("dossier")}
+              />
+              <Tile
+                label="Transport"
+                icon="bus"
+                hint="Le circuit et l'arrêt"
+                badge={detail.data.transport ? undefined : "Aucun"}
+                onPress={() => go("transport")}
+              />
+              <Tile
+                label="Événements"
+                icon="calendar-star"
+                hint="Ce que l'école annonce"
+                onPress={() => go("evenements")}
+              />
+            </TileGrid>
           </>
         ) : null}
       </ScrollView>

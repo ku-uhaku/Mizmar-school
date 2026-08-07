@@ -1,0 +1,60 @@
+/// A conversation between the parents of a school, or of one class.
+///
+/// ── Why channels are rows and not derived ───────────────────────────────────
+/// "The parents of 3AP-A" is derivable from the class, so a channel could have
+/// been a virtual thing keyed on a class id. It is a row because a conversation
+/// accumulates: messages hang off it, a school may want it closed without
+/// closing the class, and "when did this channel last see a message" is a
+/// question a list screen asks constantly and a derived channel cannot answer
+/// without scanning every message in the school.
+///
+/// ── The switch is not here ──────────────────────────────────────────────────
+/// Whether parents may use the chat at all is `SchoolSettings.parentChatEnabled`
+/// and `parentClassChatEnabled` — one decision for the school, not one per
+/// channel. `isArchived` below is the per-channel lever, for the one class that
+/// needs silencing without turning the feature off for everybody.
+model ChatChannel {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  /// The year it belongs to, so last year's conversation stops appearing when
+  /// this year's classes are drawn up — the same rule the rest of the vie
+  /// scolaire follows.
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// "GENERAL" | "CLASS" — see modules/chat/enums.ts.
+  kind String
+
+  /// The class this channel belongs to. Null for GENERAL, set for CLASS.
+  ///
+  /// INVARIANT (service layer): set when and only when `kind` is CLASS. SQLite
+  /// cannot express a conditional NOT NULL, so it is enforced on write — see
+  /// `ensureChannel`.
+  schoolClassId String?      @unique
+  schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// What stops a year having two general channels.
+  ///
+  /// The year id when `kind` is GENERAL, null otherwise — so SQLite's "NULLs
+  /// are distinct" behaviour exempts every class channel from the unique index
+  /// while admitting only one general one per year. `schoolClassId` carries its
+  /// own `@unique` and covers the class case. See lib/db-keys.ts for the
+  /// pattern, and `activeContractKey` for the same trick on a contract.
+  generalKey String?
+
+  /// Closed to new messages, but still readable. A school that mutes a class
+  /// mid-argument must not also delete what was said.
+  isArchived Boolean @default(false)
+
+  messages ChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([generalKey])
+  @@index([schoolId])
+  @@index([schoolYearId, kind])
+  @@index([schoolClassId])
+  @@map("chat_channels")
+}

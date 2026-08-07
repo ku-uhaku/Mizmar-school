@@ -1,0 +1,36 @@
+/// One thing somebody said in a parents' channel.
+///
+/// ── Deleted, never gone ─────────────────────────────────────────────────────
+/// Moderation is a soft delete: `deletedAt` is stamped and the body stays. A
+/// school that removes a message may have to say later what it removed and who
+/// removed it — to the parent who wrote it, or to somebody's lawyer — and a row
+/// that is actually gone cannot answer that. The reads filter it out; nothing
+/// but a moderator's own screen ever sees it again.
+model ChatMessage {
+  id        String      @id @default(cuid())
+  channelId String
+  channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  /// Who wrote it. Kept on delete of the account — `SetNull` would lose the
+  /// authorship of everything a departing parent ever said, so the row is
+  /// restricted and an account with messages is deactivated rather than
+  /// deleted, the same way a member of staff with payslips is.
+  authorId String
+  author   User   @relation("ChatAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  body String
+
+  /// Set when a moderator removed it. Null for a live message.
+  deletedAt   DateTime?
+  deletedById String?
+  deletedBy   User?     @relation("ChatModerator", fields: [deletedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([deletedById])
+  /// What a thread reads on: one channel's live messages, newest first.
+  @@index([channelId, deletedAt, createdAt])
+  @@map("chat_messages")
+}

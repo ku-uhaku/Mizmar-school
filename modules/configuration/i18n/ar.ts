@@ -41,6 +41,7 @@ const ar = {
 
     groups: {
       billing: "الأقساط",
+      parents: "فضاء الآباء",
     },
 
     resources: {
@@ -77,6 +78,8 @@ const ar = {
     },
 
     fields: {
+      parentChatEnabled: "مجموعة جميع الآباء",
+      parentClassChatEnabled: "مجموعات الأقسام",
       defaultInstalmentCount: "عدد الأقساط في السنة",
       feeDueDayOfMonth: "يستحق يوم",
       weekNumber: "الأسبوع",
@@ -172,6 +175,10 @@ const ar = {
     },
 
     hints: {
+      parentChatEnabled:
+        "محادثة بين جميع آباء المدرسة. عند التعطيل لا أحد يقرؤها أو يكتب فيها.",
+      parentClassChatEnabled:
+        "محادثة لكل قسم، بين آباء ذلك القسم وحدهم. مستقلة عن محادثة المدرسة.",
       defaultInstalmentCount:
         "عدد الأقساط التي يُقسَّم إليها رسم شهري. اتركه 0 ليتبع السنة الدراسية — فسنة من اثني عشر شهرًا تُفوتر اثنتي عشرة مرة. وتغلب التسعيرة التي تحدد عددها الخاص.",
       feeDueDayOfMonth:

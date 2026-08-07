@@ -1,7 +1,7 @@
 import { Link } from "expo-router";
 import { Pressable, View } from "react-native";
 
-import { useChildren } from "../api/hooks";
+import { useChannels, useChildren } from "../api/hooks";
 import {
   Badge,
   Body,
@@ -39,6 +39,11 @@ export function FamilySpace() {
 
   return (
     <View style={{ gap: spacing.md }}>
+      {/* The parents' space is the one thing here that is not about one child,
+        so it sits above the list rather than inside a child's menu. It renders
+        nothing at all when the school has not opened it — see `useChannels`. */}
+      <ParentSpaceLink />
+
       <Heading>Mes enfants</Heading>
 
       {children.data.map((child) => (
@@ -85,5 +90,50 @@ export function FamilySpace() {
         </Link>
       ))}
     </View>
+  );
+}
+
+
+/**
+ * The way into the parents' space, when there is one.
+ *
+ * Absent rather than disabled when the school has both switches off: a control
+ * that explains it is turned off teaches a parent the school withheld
+ * something, which is not the school's message to send.
+ */
+function ParentSpaceLink() {
+  const channels = useChannels();
+  const unread = channels.data?.reduce(
+    (total, channel) => total + channel.messageCount,
+    0,
+  );
+
+  if (!channels.data || channels.data.length === 0) return null;
+
+  return (
+    <Link href="/chat" asChild>
+      <Pressable>
+        <Card>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: spacing.md,
+            }}
+          >
+            <View style={{ flexShrink: 1, gap: 2 }}>
+              <Heading>Espace parents</Heading>
+              <Caption>
+                {channels.data.length === 1
+                  ? channels.data[0].label
+                  : `${channels.data.length} discussions`}
+              </Caption>
+            </View>
+            <Badge>{String(unread ?? 0)}</Badge>
+          </View>
+        </Card>
+      </Pressable>
+    </Link>
   );
 }

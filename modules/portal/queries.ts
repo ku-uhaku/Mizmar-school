@@ -1,6 +1,8 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { ensureChannel } from "@/modules/chat/service";
+import { isSettled } from "@/modules/documents/enums";
 import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
 import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
 import { MISSING_STATUSES } from "@/modules/classroom/enums";
@@ -610,4 +612,446 @@ export async function listMyEvents(
     isAllDay: event.isAllDay,
     location: event.location,
   }));
+}
+
+// ── Le carnet de liaison ─────────────────────────────────────────────────────
+
+export type PortalRemark = {
+  id: string;
+  kind: string;
+  tone: string;
+  body: string;
+  /** ISO. */
+  occurredOn: string;
+  subjectName: string | null;
+  authorName: string | null;
+};
+
+/**
+ * What this child's teachers have written that the family is meant to read.
+ *
+ * ── The one filter that matters ─────────────────────────────────────────────
+ * `isVisibleToFamily` is false by default on `StudentRemark`, and deliberately
+ * so: a teacher writes the carnet for the class council first, and decides
+ * separately that a given line is one to say out loud. The staff screen shows
+ * the whole carnet because the reader there is the office; this shows only what
+ * was released, and that flag is the only thing standing between a private note
+ * and a parent's phone. It is not a display preference.
+ */
+export async function loadChildRemarks(
+  userId: string,
+  studentId: string,
+): Promise<PortalRemark[]> {
+  const child = await resolveChild(userId, studentId);
+  if (!child) return [];
+
+  const remarks = await db.studentRemark.findMany({
+    where: { enrollmentId: child.id, isVisibleToFamily: true },
+    orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
+    take: 40,
+    select: {
+      id: true,
+      kind: true,
+      tone: true,
+      body: true,
+      occurredOn: true,
+      subject: { select: { name: true } },
+      author: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  return remarks.map((remark) => ({
+    id: remark.id,
+    kind: remark.kind,
+    tone: remark.tone,
+    body: remark.body,
+    occurredOn: remark.occurredOn.toISOString(),
+    subjectName: remark.subject?.name ?? null,
+    authorName: remark.author
+      ? (remark.author.profile
+          ? `${remark.author.profile.firstName} ${remark.author.profile.lastName}`.trim()
+          : "") || remark.author.email
+      : null,
+  }));
+}
+
+// ── L'emploi du temps ────────────────────────────────────────────────────────
+
+export type PortalLesson = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  subjectName: string;
+  teacherName: string | null;
+  roomName: string | null;
+};
+
+/**
+ * The child's week, as a flat list of lessons.
+ *
+ * Flat rather than the staff screen's grid: `TimetableGrid` is columns-by-rows
+ * because a desktop draws a table, and a phone reads a day at a time. Shaping it
+ * here rather than on the device keeps the hand-mirrored DTO simple and means
+ * the app never has to know what a slot column is.
+ *
+ * Empty when the child has no class yet — a pupil admitted but not yet seated
+ * has no timetable, which is a real state and not an error.
+ */
+export async function loadChildTimetable(
+  userId: string,
+  studentId: string,
+): Promise<PortalLesson[]> {
+  const child = await resolveChild(userId, studentId);
+  if (!child) return [];
+
+  const enrolment = await db.enrollment.findFirst({
+    where: { id: child.id },
+    select: { schoolClassId: true },
+  });
+  if (!enrolment?.schoolClassId) return [];
+
+  const entries = await db.timetableEntry.findMany({
+    where: {
+      schoolClassId: enrolment.schoolClassId,
+      timeSlot: { scheduleKind: "STANDARD" },
+    },
+    orderBy: [{ timeSlot: { dayOfWeek: "asc" } }, { timeSlot: { startTime: "asc" } }],
+    select: {
+      timeSlot: {
+        select: { dayOfWeek: true, startTime: true, endTime: true },
+      },
+      subject: { select: { name: true } },
+      room: { select: { name: true } },
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  return entries.map((entry) => ({
+    dayOfWeek: entry.timeSlot.dayOfWeek,
+    startTime: entry.timeSlot.startTime,
+    endTime: entry.timeSlot.endTime,
+    subjectName: entry.subject.name,
+    teacherName: entry.teacher
+      ? (entry.teacher.profile
+          ? `${entry.teacher.profile.firstName} ${entry.teacher.profile.lastName}`.trim()
+          : "") || entry.teacher.email
+      : null,
+    roomName: entry.room?.name ?? null,
+  }));
+}
+
+// ── Le dossier ───────────────────────────────────────────────────────────────
+
+export type PortalDossierPiece = {
+  code: string;
+  name: string;
+  isRequired: boolean;
+  /** RECEIVED or EXEMPTED — see `isSettled`. */
+  isSettled: boolean;
+  status: string;
+  /** ISO, when the school recorded receiving it. */
+  receivedOn: string | null;
+};
+
+export type PortalDossier = {
+  pieces: PortalDossierPiece[];
+  requiredCount: number;
+  providedCount: number;
+  isComplete: boolean;
+};
+
+/**
+ * What the school still needs from this family, and what it already has.
+ *
+ * The catalogue leads and the recorded rows join onto it — the same way round
+ * as the staff screen, and for the same reason: a pièce the school starts
+ * asking for on Monday appears on every dossier on Tuesday without touching a
+ * single row. See `loadStudentDossier` in modules/documents/queries.ts.
+ *
+ * This is the one screen in the parent space that exists to produce an action:
+ * the point is the missing acte de naissance, so completeness is computed here
+ * rather than left for the phone to count.
+ */
+export async function loadChildDossier(
+  userId: string,
+  studentId: string,
+): Promise<PortalDossier> {
+  const empty: PortalDossier = {
+    pieces: [],
+    requiredCount: 0,
+    providedCount: 0,
+    isComplete: true,
+  };
+
+  const child = await resolveChild(userId, studentId);
+  if (!child) return empty;
+
+  const student = await db.student.findFirst({
+    where: { id: studentId },
+    select: { schoolId: true },
+  });
+  if (!student) return empty;
+
+  const [catalogue, recorded] = await Promise.all([
+    db.documentType.findMany({
+      where: { schoolId: student.schoolId, isActive: true },
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+      select: { id: true, code: true, name: true, isRequired: true },
+    }),
+    db.studentDocument.findMany({
+      where: { studentId },
+      select: { documentTypeId: true, status: true, receivedOn: true },
+    }),
+  ]);
+
+  const byType = new Map(recorded.map((row) => [row.documentTypeId, row]));
+
+  const pieces = catalogue.map((type) => {
+    const row = byType.get(type.id);
+    // No row at all is MISSING, not an error: a pupil nobody has recorded
+    // anything for is missing everything, which is the state a new dossier
+    // starts in. See the note on DOCUMENT_STATUSES.
+    const status = row?.status ?? "MISSING";
+    return {
+      code: type.code,
+      name: type.name,
+      isRequired: type.isRequired,
+      isSettled: isSettled(status),
+      status,
+      receivedOn: row?.receivedOn?.toISOString() ?? null,
+    };
+  });
+
+  const required = pieces.filter((piece) => piece.isRequired);
+
+  return {
+    pieces,
+    requiredCount: required.length,
+    providedCount: required.filter((piece) => piece.isSettled).length,
+    isComplete: required.every((piece) => piece.isSettled),
+  };
+}
+
+// ── L'espace parents ─────────────────────────────────────────────────────────
+
+export type PortalChannel = {
+  id: string;
+  kind: string;
+  /** What the phone shows as the channel's name. */
+  label: string;
+  isArchived: boolean;
+  messageCount: number;
+  lastMessageAt: string | null;
+};
+
+/**
+ * The conversations this household may open.
+ *
+ * ── Three gates, and the switches are the first ─────────────────────────────
+ * 1. The school's own settings. `parentChatEnabled` and `parentClassChatEnabled`
+ *    are the manager's decision and they are checked *here*, not on the phone:
+ *    a client that ignored them would otherwise read a channel the school had
+ *    turned off. A school with both off gets an empty list and no way round it.
+ * 2. The household. Channels come from the child's own school and class, so a
+ *    parent sees their children's classes and nobody else's.
+ * 3. The year. Last year's conversation stops appearing when this year's
+ *    classes are drawn up.
+ *
+ * Channels are created on demand — see `ensureChannel` — so a school that has
+ * just switched the feature on shows the right list before anybody has posted.
+ */
+export async function listMyChannels(userId: string): Promise<PortalChannel[]> {
+  const enrolments = await db.enrollment.findMany({
+    where: { student: householdScope(userId) },
+    select: {
+      schoolYearId: true,
+      schoolClassId: true,
+      schoolClass: { select: { id: true, name: true, code: true } },
+      student: { select: { schoolId: true } },
+    },
+  });
+  if (enrolments.length === 0) return [];
+
+  const schoolIds = [...new Set(enrolments.map((row) => row.student.schoolId))];
+
+  const settings = await db.schoolSettings.findMany({
+    where: { schoolId: { in: schoolIds } },
+    select: {
+      schoolId: true,
+      parentChatEnabled: true,
+      parentClassChatEnabled: true,
+    },
+  });
+  const settingFor = new Map(settings.map((row) => [row.schoolId, row]));
+
+  const wanted: { schoolId: string; schoolYearId: string; classId: string | null }[] =
+    [];
+
+  for (const enrolment of enrolments) {
+    const schoolId = enrolment.student.schoolId;
+    // No settings row means every switch is at its default, and both default
+    // to off — see the note on the columns.
+    const setting = settingFor.get(schoolId);
+    if (!setting) continue;
+
+    if (setting.parentChatEnabled) {
+      wanted.push({ schoolId, schoolYearId: enrolment.schoolYearId, classId: null });
+    }
+    if (setting.parentClassChatEnabled && enrolment.schoolClassId) {
+      wanted.push({
+        schoolId,
+        schoolYearId: enrolment.schoolYearId,
+        classId: enrolment.schoolClassId,
+      });
+    }
+  }
+
+  if (wanted.length === 0) return [];
+
+  // Two children in the same class share one channel.
+  const unique = [
+    ...new Map(
+      wanted.map((row) => [`${row.schoolYearId}:${row.classId ?? ""}`, row]),
+    ).values(),
+  ];
+
+  /*
+    ── Why a read creates rows ─────────────────────────────────────────────────
+    Channels come into being the first time somebody opens one — a school with
+    24 classes does not want 25 empty rows the moment a switch is flicked, and a
+    class created in November would miss any provisioning pass. So the list has
+    to make what it is about to list.
+
+    It happens *here*, inside the same function that decides which channels this
+    household may see, and not in the route: the two gates would otherwise be
+    two copies of the settings-and-enrolment logic above, and a divergence
+    between "which channels get made" and "which channels get shown" is a parent
+    reading a conversation the school did not open. `ensureChannel` is
+    idempotent, so the ordinary case — the rows already exist — is one extra
+    indexed read apiece.
+  */
+  await Promise.all(
+    unique.map((row) =>
+      ensureChannel({
+        schoolId: row.schoolId,
+        schoolYearId: row.schoolYearId,
+        kind: row.classId ? "CLASS" : "GENERAL",
+        schoolClassId: row.classId,
+      }),
+    ),
+  );
+
+  const channels = await db.chatChannel.findMany({
+    where: {
+      OR: unique.map((row) => ({
+        schoolYearId: row.schoolYearId,
+        schoolClassId: row.classId,
+      })),
+    },
+    select: {
+      id: true,
+      kind: true,
+      isArchived: true,
+      schoolClass: { select: { name: true, code: true } },
+      _count: { select: { messages: { where: { deletedAt: null } } } },
+      messages: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { createdAt: true },
+      },
+    },
+  });
+
+  return channels
+    .map((channel) => ({
+      id: channel.id,
+      kind: channel.kind,
+      label: channel.schoolClass
+        ? `Parents de ${channel.schoolClass.name || channel.schoolClass.code}`
+        : "Tous les parents",
+      isArchived: channel.isArchived,
+      messageCount: channel._count.messages,
+      lastMessageAt: channel.messages[0]?.createdAt.toISOString() ?? null,
+    }))
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label));
+}
+
+export type PortalMessage = {
+  id: string;
+  body: string;
+  authorName: string;
+  createdAt: string;
+  /** True when this account wrote it, so the phone can align it right. */
+  isMine: boolean;
+};
+
+/**
+ * One channel's messages, for a parent.
+ *
+ * Removed messages are absent, not marked: the moderation screen shows a school
+ * what it took down, and a parent seeing "message removed" where an argument
+ * used to be is an invitation to ask what it said.
+ *
+ * The channel is re-checked against this household's own list rather than
+ * trusted from the request — a channel id is guessable, and without this a
+ * parent could read another class's conversation by changing one segment of a
+ * URL.
+ */
+export async function loadChannelMessages(
+  userId: string,
+  channelId: string,
+  { limit = 100 }: { limit?: number } = {},
+): Promise<PortalMessage[] | null> {
+  const mine = await listMyChannels(userId);
+  if (!mine.some((channel) => channel.id === channelId)) return null;
+
+  const messages = await db.chatMessage.findMany({
+    where: { channelId, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      authorId: true,
+      author: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  return messages.map((message) => ({
+    id: message.id,
+    body: message.body,
+    authorName: message.author.profile
+      ? `${message.author.profile.firstName} ${message.author.profile.lastName}`.trim() ||
+        message.author.email
+      : message.author.email,
+    createdAt: message.createdAt.toISOString(),
+    isMine: message.authorId === userId,
+  }));
+}
+
+/** Whether this account may post into that channel — the same gate as reading. */
+export async function canPostToChannel(
+  userId: string,
+  channelId: string,
+): Promise<boolean> {
+  const mine = await listMyChannels(userId);
+  const channel = mine.find((row) => row.id === channelId);
+  return Boolean(channel && !channel.isArchived);
 }

@@ -61,6 +61,8 @@ model SchoolClass {
   enrollments         Enrollment[]
   /// Events aimed at this class rather than at the whole school.
   eventAudiences      EventAudience[]
+  /// The conversation between this class's parents, if the school opened one.
+  chatChannel         ChatChannel?
 
   @@unique([levelOfferingId, code])
   /// No two classes of one school may map to the same code. Many may be unmapped.

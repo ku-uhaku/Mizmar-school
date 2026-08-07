@@ -55,6 +55,10 @@ import families, {
   nav as familiesNav,
   permissions as familiesPermissions,
 } from "@/modules/families/i18n/en";
+import chat, {
+  nav as chatNav,
+  permissions as chatPermissions,
+} from "@/modules/chat/i18n/en";
 import events, {
   nav as eventsNav,
   permissions as eventsPermissions,
@@ -132,6 +136,7 @@ const en = {
   // Vie scolaire.
   ...schoolLife,
   ...events,
+  ...chat,
   ...families,
   ...students,
   ...supplies,
@@ -166,6 +171,7 @@ const en = {
     ...auditNav,
     ...schoolLifeNav,
     ...eventsNav,
+    ...chatNav,
     ...familiesNav,
     ...studentsNav,
     ...suppliesNav,
@@ -189,6 +195,7 @@ const en = {
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...eventsPermissions.groups,
+      ...chatPermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
       ...suppliesPermissions.groups,
@@ -214,6 +221,7 @@ const en = {
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...eventsPermissions.codes,
+      ...chatPermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,
       ...suppliesPermissions.codes,

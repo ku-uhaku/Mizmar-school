@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import type { ComponentProps, ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -277,5 +279,188 @@ export function ErrorNote({ message }: { message: string }) {
     >
       <Text style={{ color: theme.danger, fontSize: 14 }}>{message}</Text>
     </View>
+  );
+}
+
+/**
+ * One tile of a child's menu.
+ *
+ * Two per row, tall enough to hit without aiming — this is the control a parent
+ * uses one-handed on a phone, standing up. The badge is where the tile earns
+ * its place: "3 non justifiées" or "2 pièces manquantes" is what makes the grid
+ * worth reading rather than a list of words you already knew were there.
+ */
+export function Tile({
+  label,
+  hint,
+  icon,
+  badge,
+  tone = "default",
+  onPress,
+}: {
+  label: string;
+  hint?: string;
+  /** A Material Community glyph name — see the tiles in app/child/[studentId]. */
+  icon: ComponentProps<typeof MaterialCommunityIcons>["name"];
+  /** A short figure, e.g. "3" or "2 manquantes". Absent when there is nothing to say. */
+  badge?: string;
+  tone?: "default" | "success" | "warning" | "danger";
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const toneColor =
+    tone === "success"
+      ? theme.success
+      : tone === "warning"
+        ? theme.warning
+        : tone === "danger"
+          ? theme.danger
+          : theme.primary;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
+      style={({ pressed }) => ({
+        flexBasis: "48%",
+        flexGrow: 1,
+        backgroundColor: theme.card,
+        borderColor: pressed ? toneColor : theme.border,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: radius.md,
+        padding: spacing.lg,
+        gap: spacing.xs,
+        opacity: pressed ? 0.85 : 1,
+      })}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: spacing.sm,
+        }}
+      >
+        {/* The glyph carries the tone, not the whole card: a grid of eight
+          coloured panels is a colour chart, and the badge beside it is what
+          the parent is actually meant to notice. */}
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: radius.sm,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: `${toneColor}1a`,
+          }}
+        >
+          <MaterialCommunityIcons name={icon} size={19} color={toneColor} />
+        </View>
+        {badge ? (
+          <View
+            style={{
+              backgroundColor: `${toneColor}22`,
+              borderRadius: radius.sm,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 2,
+            }}
+          >
+            <Text style={{ color: toneColor, fontSize: 12, fontWeight: "700" }}>
+              {badge}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      <Text
+        style={{ color: theme.text, fontSize: 15, fontWeight: "600" }}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+
+      {hint ? (
+        <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={2}>
+          {hint}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/** The grid the tiles sit in. Two columns, wrapping. */
+export function TileGrid({ children }: { children: ReactNode }) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: spacing.md,
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
+/**
+ * A row of one-tap filters.
+ *
+ * Chips rather than a picker: there are three or four options, a phone has room
+ * for them, and a filter you can see the state of without opening anything is
+ * the difference between a control people use and one they do not find. The
+ * first chip is always the one that clears — "Tous" is a filter value here, not
+ * a separate reset button nobody presses.
+ */
+export function FilterChips({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const theme = useTheme();
+
+  if (options.length <= 2) return null;
+
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: spacing.sm, paddingVertical: 2 }}
+    >
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <Pressable
+            key={option.value}
+            onPress={() => onChange(option.value)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
+            style={{
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.sm - 2,
+              borderRadius: radius.lg,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: active ? theme.primary : theme.border,
+              backgroundColor: active ? `${theme.primary}1a` : theme.card,
+            }}
+          >
+            <Text
+              style={{
+                color: active ? theme.primary : theme.muted,
+                fontSize: 13,
+                fontWeight: active ? "700" : "500",
+              }}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }

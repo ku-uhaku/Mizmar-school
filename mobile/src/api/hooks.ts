@@ -8,12 +8,18 @@ import {
 
 import { api } from "./client";
 import type {
+  Channel,
+  ChatMessage,
   Child,
   ChildDetail,
   DirectorDashboard,
+  Dossier,
   DriverDay,
   Identity,
+  ChildLesson,
+  Remark,
   RunRegister,
+  SchoolEvent,
   TeacherDay,
 } from "./types";
 
@@ -131,5 +137,87 @@ export function useDirectorDashboard(): UseQueryResult<DirectorDashboard> {
   return useQuery({
     queryKey: ["director"],
     queryFn: () => api<DirectorDashboard>("/director/dashboard"),
+  });
+}
+
+/*
+  The per-topic reads behind the child's menu.
+
+  One hook per screen rather than one fat `useChild`: a parent opening the
+  timetable should not wait on the fee schedule, and each screen keeps its own
+  cache entry so going back and forth between two topics costs nothing.
+*/
+
+export function useChildRemarks(studentId: string): UseQueryResult<Remark[]> {
+  return useQuery({
+    queryKey: ["child", studentId, "remarks"],
+    queryFn: () => api<Remark[]>(`/family/children/${studentId}/remarks`),
+    enabled: Boolean(studentId),
+  });
+}
+
+export function useChildTimetable(studentId: string): UseQueryResult<ChildLesson[]> {
+  return useQuery({
+    queryKey: ["child", studentId, "timetable"],
+    queryFn: () => api<ChildLesson[]>(`/family/children/${studentId}/timetable`),
+    enabled: Boolean(studentId),
+    // A class's week is settled at the rentrée and changes a few times a year.
+    staleTime: 10 * 60_000,
+  });
+}
+
+export function useChildDossier(studentId: string): UseQueryResult<Dossier> {
+  return useQuery({
+    queryKey: ["child", studentId, "dossier"],
+    queryFn: () => api<Dossier>(`/family/children/${studentId}/dossier`),
+    enabled: Boolean(studentId),
+  });
+}
+
+export function useEvents(): UseQueryResult<SchoolEvent[]> {
+  return useQuery({
+    queryKey: ["events"],
+    queryFn: () => api<SchoolEvent[]>("/family/events"),
+  });
+}
+
+// ── L'espace parents ─────────────────────────────────────────────────────────
+
+export function useChannels(): UseQueryResult<Channel[]> {
+  return useQuery({
+    queryKey: ["channels"],
+    queryFn: () => api<Channel[]>("/family/channels"),
+  });
+}
+
+export function useMessages(channelId: string): UseQueryResult<ChatMessage[]> {
+  return useQuery({
+    queryKey: ["channel", channelId],
+    queryFn: () => api<ChatMessage[]>(`/family/channels/${channelId}/messages`),
+    enabled: Boolean(channelId),
+    // There is no push here, so the thread polls while it is on screen. Ten
+    // seconds is slow enough to cost nothing and fast enough that a reply
+    // arrives before somebody wonders whether it sent.
+    refetchInterval: 10_000,
+  });
+}
+
+export function usePostMessage(
+  channelId: string,
+): UseMutationResult<{ id: string }, Error, string> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      api<{ id: string }>(`/family/channels/${channelId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      }),
+    // Refetch rather than append: the answer from the server is the one with
+    // the real id and timestamp, and a thread that shows a message twice for a
+    // second reads as a double send.
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["channel", channelId] });
+      void client.invalidateQueries({ queryKey: ["channels"] });
+    },
   });
 }

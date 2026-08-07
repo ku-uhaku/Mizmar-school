@@ -41,6 +41,7 @@ const fr = {
 
     groups: {
       billing: "Échéances",
+      parents: "Espace parents",
     },
 
     resources: {
@@ -77,6 +78,8 @@ const fr = {
     },
 
     fields: {
+      parentChatEnabled: "Groupe de tous les parents",
+      parentClassChatEnabled: "Groupes par classe",
       defaultInstalmentCount: "Échéances par an",
       feeDueDayOfMonth: "Exigible le",
       weekNumber: "Semaine",
@@ -171,6 +174,10 @@ const fr = {
     },
 
     hints: {
+      parentChatEnabled:
+        "Une discussion entre tous les parents de l'école. Désactivé, personne ne peut la lire ni y écrire.",
+      parentClassChatEnabled:
+        "Une discussion par classe, entre les parents de cette classe seulement. Indépendante de celle de l'école.",
       defaultInstalmentCount:
         "En combien d'échéances un frais mensuel est réparti. Laissez 0 pour suivre l'année scolaire — une année de douze mois est alors facturée douze fois. Un tarif qui fixe son propre nombre l'emporte.",
       feeDueDayOfMonth:

@@ -36,6 +36,7 @@ export type NavIcon =
   | "hr"
   | "schoolLife"
   | "events"
+  | "chat"
   | "students"
   | "families"
   | "classes"

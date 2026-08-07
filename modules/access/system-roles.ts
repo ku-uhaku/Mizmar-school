@@ -96,6 +96,10 @@ export const SYSTEM_ROLES: {
       // The whole vie scolaire of their own school, fees included — a director
       // is who a family negotiates a reduction with.
       PERMISSIONS.SCHOOL_LIFE_VIEW,
+      // Reads the parents' space and can take a message out of it — the power
+      // that makes opening the space to families a defensible decision.
+      PERMISSIONS.CHAT_VIEW,
+      PERMISSIONS.CHAT_MODERATE,
       // Announces to the families of their own school, and is answerable for it.
       PERMISSIONS.EVENT_VIEW,
       PERMISSIONS.EVENT_MANAGE,
@@ -195,6 +199,8 @@ export const SYSTEM_ROLES: {
       // ENROLMENT_FEES — what a family is charged is the bursar's, and the
       // whole point of that code being separate.
       PERMISSIONS.SCHOOL_LIFE_VIEW,
+      // Reads the parents' space; removing from it is the director's.
+      PERMISSIONS.CHAT_VIEW,
       // Types the réunion up; somebody answerable presses Publish.
       PERMISSIONS.EVENT_VIEW,
       PERMISSIONS.EVENT_MANAGE,

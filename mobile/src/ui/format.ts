@@ -94,3 +94,32 @@ export function label(
   if (!value) return "—";
   return dictionary[value] ?? value;
 }
+
+/** ISO weekday (1 = Monday) → its name, for the child's timetable. */
+export const WEEKDAY_LABELS: Record<string, string> = {
+  "1": "Lundi",
+  "2": "Mardi",
+  "3": "Mercredi",
+  "4": "Jeudi",
+  "5": "Vendredi",
+  "6": "Samedi",
+  "7": "Dimanche",
+};
+
+/** What the school has, or still wants, of one pièce du dossier. */
+export const DOCUMENT_STATUS_LABELS: Record<string, string> = {
+  MISSING: "Manquante",
+  RECEIVED: "Reçue",
+  REJECTED: "Refusée",
+  EXEMPTED: "Dispensée",
+};
+
+/** The kinds of announcement a school publishes. */
+export const EVENT_KIND_LABELS: Record<string, string> = {
+  MEETING: "Réunion",
+  OUTING: "Sortie",
+  CEREMONY: "Cérémonie",
+  EXAM: "Examens",
+  HOLIDAY_INFO: "Vacances",
+  OTHER: "Autre",
+};

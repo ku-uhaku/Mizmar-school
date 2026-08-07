@@ -180,6 +180,8 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Neighbourhood: "configuration",
   SupplyArticle: "configuration",
   Event: "vieScolaire",
+  ChatChannel: "vieScolaire",
+  ChatMessage: "vieScolaire",
   EventAudience: "vieScolaire",
 };
 

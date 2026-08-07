@@ -51,6 +51,7 @@ const en = {
      */
     groups: {
       billing: "Instalments",
+      parents: "Parents' space",
     },
 
     resources: {
@@ -87,6 +88,8 @@ const en = {
     },
 
     fields: {
+      parentChatEnabled: "School-wide parent group",
+      parentClassChatEnabled: "Class parent groups",
       defaultInstalmentCount: "Instalments per year",
       feeDueDayOfMonth: "Due on the",
       weekNumber: "Week",
@@ -181,6 +184,10 @@ const en = {
     },
 
     hints: {
+      parentChatEnabled:
+        "One conversation between every parent in the school. Off means nobody can read or post it.",
+      parentClassChatEnabled:
+        "A conversation per class, between that class's parents only. Independent of the school-wide one.",
       defaultInstalmentCount:
         "How many instalments a monthly fee is split into. Leave at 0 to follow the school year — a twelve-month year then bills twelve times. A price list that names its own count still wins.",
       feeDueDayOfMonth:
