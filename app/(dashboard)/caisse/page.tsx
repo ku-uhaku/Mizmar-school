@@ -12,7 +12,7 @@ import {
 import { SessionBar } from "@/modules/treasury/components/session-bar";
 import { TreasuryDashboard } from "@/modules/treasury/components/treasury-dashboard";
 import {
-  listOperations,
+  listOperationsPage,
   listPayments,
   listRegisters,
   treasurySummary,
@@ -26,18 +26,37 @@ export const metadata: Metadata = { title: "Caisse" };
  * ledger. Thin, as every page here is — it authorizes, calls the module's
  * queries and renders.
  */
-export default async function TreasuryPage() {
+export default async function TreasuryPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const context = await requireAuth();
   const t = await getDictionary();
+  const params = await searchParams;
 
   if (!context.can(PERMISSIONS.TREASURY_VIEW)) {
     return <ForbiddenState />;
   }
 
+  const single = (key: string): string | undefined => {
+    const value = params[key];
+    return typeof value === "string" && value !== "" ? value : undefined;
+  };
+
   const [summary, registers, operations, payments] = await Promise.all([
     treasurySummary(context),
     listRegisters(context),
-    listOperations(context),
+    // The ledger's window, its filters and its order are all decided here — see
+    // the note on `listOperationsPage`.
+    listOperationsPage(context, {
+      kinds: single("kind") ? [single("kind")!] : undefined,
+      methods: single("method") ? [single("method")!] : undefined,
+      search: single("search"),
+      from: single("from"),
+      to: single("to"),
+      page: Number(single("page") ?? 1) || 1,
+    }),
     listPayments(context, 25),
   ]);
 
@@ -75,7 +94,7 @@ export default async function TreasuryPage() {
         <section className="grid gap-3">
           <h2 className="text-sm font-medium">{t.treasury.operations}</h2>
           <OperationsTable
-            operations={operations}
+            page={operations}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}
           />
         </section>

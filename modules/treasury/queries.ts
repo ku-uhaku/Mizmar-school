@@ -347,37 +347,165 @@ export type OperationFilters = {
   sessionId?: string;
 };
 
-/** The Opérations ledger: everything that moved, newest first. */
-export async function listOperations(
+/**
+ * One page of the ledger, and what the reader is looking at within it.
+ *
+ * Mirrors `ActivityPage` in modules/audit/queries.ts, which is the other read
+ * in the app whose table outgrows any window worth loading at once.
+ */
+export type OperationsPage = {
+  rows: OperationRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+export type OperationsPageFilters = {
+  /** Multi-select on the ledger's facets — empty means every one. */
+  kinds?: string[];
+  methods?: string[];
+  /** Matches the label, the reference or the beneficiary. */
+  search?: string;
+  /** ISO dates, inclusive. */
+  from?: string;
+  to?: string;
+  page?: number;
+};
+
+const OPERATIONS_PAGE_SIZE = 50;
+
+const EMPTY_OPERATIONS_PAGE: OperationsPage = {
+  rows: [],
+  total: 0,
+  page: 1,
+  pageSize: OPERATIONS_PAGE_SIZE,
+  pageCount: 0,
+};
+
+/**
+ * The Opérations ledger, one page at a time.
+ *
+ * ── Why this is not `listOperations` with a bigger number ────────────────────
+ * The ledger used to be the newest 200 rows, filtered and paged in the browser.
+ * On a school with 1 124 operations — an ordinary year — that window silently
+ * dropped everything older, and *older* is not the same as *earlier entered*:
+ * the seeded encaissements carry future `occurredAt` dates, so a salary
+ * décaissement written today ranked 309th and never appeared at all. The
+ * dashboard, which aggregates over every row, went on counting it. A bursar was
+ * therefore shown a total they could not reach a line of, and — because the
+ * Cancel action lives on the row — could not correct.
+ *
+ * So the filtering, the sorting and the window all move to the database, which
+ * is the only place that can see every row. The facets narrow the whole ledger
+ * rather than the page in front of the reader, which is what a filter is for.
+ */
+export async function listOperationsPage(
   context: AuthContext,
-  filters: OperationFilters = {},
-  limit = 200,
-): Promise<OperationRow[]> {
+  filters: OperationsPageFilters = {},
+): Promise<OperationsPage> {
+  const school = context.currentSchool?.id;
+  if (!school) return EMPTY_OPERATIONS_PAGE;
+
+  const search = filters.search?.trim();
+
+  const where = {
+    schoolId: school,
+    ...(filters.kinds?.length ? { kind: { in: filters.kinds } } : {}),
+    ...(filters.methods?.length ? { method: { in: filters.methods } } : {}),
+    // Both ends inclusive: `to` names a day, and a row stamped at any time on
+    // that day belongs to it.
+    ...(filters.from || filters.to
+      ? {
+          occurredAt: {
+            ...(filters.from ? { gte: startOfDayLocal(filters.from) } : {}),
+            ...(filters.to ? { lte: endOfDayLocal(filters.to) } : {}),
+          },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { label: { contains: search } },
+            { reference: { contains: search } },
+            { beneficiaryName: { contains: search } },
+          ],
+        }
+      : {}),
+  };
+
+  const total = await db.cashOperation.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / OPERATIONS_PAGE_SIZE));
+  // Clamped rather than trusted: a page number past the end is a stale link or
+  // a hand-edited query string, and an empty table reads as "no operations".
+  const page = Math.min(Math.max(1, Math.trunc(filters.page ?? 1)), pageCount);
+
   const operations = await db.cashOperation.findMany({
-    where: {
-      ...schoolScope(context),
-      ...(filters.kind ? { kind: filters.kind } : {}),
-      ...(filters.status ? { status: filters.status } : {}),
-      ...(filters.sessionId ? { cashSessionId: filters.sessionId } : {}),
-    },
+    where,
     orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-    take: limit,
-    include: {
-      cashSession: { select: { cashRegister: { select: { name: true } } } },
-      category: { select: { name: true } },
-      subcategory: { select: { name: true } },
-      createdBy: {
-        select: {
-          email: true,
-          profile: { select: { firstName: true, lastName: true } },
-        },
-      },
-      payment: { select: { id: true, code: true } },
-      reversedBy: { select: { id: true } },
-    },
+    skip: (page - 1) * OPERATIONS_PAGE_SIZE,
+    take: OPERATIONS_PAGE_SIZE,
+    include: OPERATION_INCLUDE,
   });
 
-  return operations.map((operation) => ({
+  return {
+    rows: operations.map(toOperationRow),
+    total,
+    page,
+    pageSize: OPERATIONS_PAGE_SIZE,
+    pageCount,
+  };
+}
+
+/**
+ * A bounded list dressed as a page, for the screens that legitimately hold all
+ * of their rows — a session's operations, which the print sheet needs whole.
+ * Keeps one component rendering the ledger everywhere it appears.
+ */
+export function asSingleOperationsPage(rows: OperationRow[]): OperationsPage {
+  return {
+    rows,
+    total: rows.length,
+    page: 1,
+    pageSize: rows.length,
+    pageCount: 1,
+  };
+}
+
+/** Local midnight, so a day filter means the day the bursar had at the school. */
+function startOfDayLocal(iso: string): Date {
+  const date = new Date(iso);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfDayLocal(iso: string): Date {
+  const date = new Date(iso);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+/** The ledger's whole read shape, shared so the paged and session reads agree. */
+const OPERATION_INCLUDE = {
+  cashSession: { select: { cashRegister: { select: { name: true } } } },
+  category: { select: { name: true } },
+  subcategory: { select: { name: true } },
+  createdBy: {
+    select: {
+      email: true,
+      profile: { select: { firstName: true, lastName: true } },
+    },
+  },
+  payment: { select: { id: true, code: true } },
+  reversedBy: { select: { id: true } },
+} as const;
+
+type OperationRecord = Awaited<
+  ReturnType<typeof db.cashOperation.findMany<{ include: typeof OPERATION_INCLUDE }>>
+>[number];
+
+function toOperationRow(operation: OperationRecord): OperationRow {
+  return {
     id: operation.id,
     kind: operation.kind,
     method: operation.method,
@@ -396,7 +524,34 @@ export async function listOperations(
     paymentCode: operation.payment?.code ?? null,
     isReversal: operation.reversesOperationId !== null,
     isReversed: operation.reversedBy !== null,
-  }));
+  };
+}
+
+/**
+ * Every operation of one session, newest first.
+ *
+ * Stays unpaged: a session is one person's shift at one till, so the count is
+ * bounded by the day rather than by the school's history — the print view
+ * genuinely needs all of them on one sheet.
+ */
+export async function listOperations(
+  context: AuthContext,
+  filters: OperationFilters = {},
+  limit = 200,
+): Promise<OperationRow[]> {
+  const operations = await db.cashOperation.findMany({
+    where: {
+      ...schoolScope(context),
+      ...(filters.kind ? { kind: filters.kind } : {}),
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.sessionId ? { cashSessionId: filters.sessionId } : {}),
+    },
+    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+    include: OPERATION_INCLUDE,
+  });
+
+  return operations.map(toOperationRow);
 }
 
 export type ChequeRow = {

@@ -14,6 +14,7 @@ import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import {
+  canMoveCheque,
   categoryKindsFor,
   chequeUndoesReceipt,
 } from "@/modules/treasury/enums";
@@ -832,8 +833,23 @@ export async function setChequeStatusAction(
       where: { id: parsed.data.id, schoolId },
       select: {
         id: true,
+        status: true,
         direction: true,
         tender: { select: { payment: { select: { status: true } } } },
+        /*
+          The movement this cheque paid, when it is one the school wrote. Only
+          a live one counts: a décaissement already reversed by hand has
+          nothing left to undo, and an entry that is itself a correction is
+          never the thing being corrected.
+        */
+        operations: {
+          where: {
+            status: "POSTED",
+            reversesOperationId: null,
+            reversedBy: { is: null },
+          },
+          select: { id: true },
+        },
       },
     });
     if (!cheque) return failure(t.errors.notFound);
@@ -866,6 +882,88 @@ export async function setChequeStatusAction(
         : parsed.data.status === "CANCELLED"
           ? t.treasury.cancelledChequeCancelled
           : t.treasury.cancelledChequeBounced;
+
+    /*
+      ── A cheque the school wrote, coming back unpaid ─────────────────────────
+      The mirror of the incoming case, and it used to do nothing at all. Ending
+      an outgoing cheque only ever stamped the row, so a salary cheque the bank
+      refused left its décaissement POSTED and the bulletin still marked PAID:
+      the employee read as paid with money that never left, and the only lever
+      that would have put it right — cancelling the movement — was on another
+      screen entirely.
+
+      Reversing it here is the same act as cancelling the movement, through the
+      same function and the same hooks, so there is exactly one way a
+      décaissement is ever undone.
+    */
+    const undoesDisbursement =
+      chequeUndoesReceipt(parsed.data.status) &&
+      cheque.direction === "OUTGOING" &&
+      cheque.operations.length > 0;
+
+    if (undoesDisbursement) {
+      await authorizeSchool(schoolId, PERMISSIONS.TREASURY_CANCEL);
+
+      // `setChequeStatus` guards the move and is bypassed below, so the table
+      // is consulted here instead — a crafted POST must not reverse a payment
+      // by way of a transition the lifecycle forbids.
+      if (!canMoveCheque(cheque.status, parsed.data.status)) {
+        return failure(t.errors.invalid, {}, formValues(formData));
+      }
+
+      const result = await cancelOperation(
+        cheque.operations[0].id,
+        schoolId,
+        context.user.id,
+        parsed.data.bounceReason
+          ? `${t.treasury.reversalOf} · ${written} — ${parsed.data.bounceReason}`
+          : `${t.treasury.reversalOf} · ${written}`,
+        async (tx, operationIds) => {
+          await detachPayrollFromOperations(tx, operationIds);
+          await detachFuelFromOperations(tx, operationIds);
+
+          /*
+            Stamped inside the reversal's own transaction, and deliberately
+            after it: `cancelOperation` voids the paper it undoes as a blanket
+            CANCELLED, which would lose the difference between a cheque the
+            bank refused and one the bursar struck out. Writing the chosen
+            ending last keeps that distinction without opening a window where
+            the money is reversed and the cheque still reads as outstanding.
+          */
+          await tx.cheque.update({
+            where: { id: cheque.id },
+            data: {
+              status: parsed.data.status,
+              settledOn: parsed.data.settledOn ?? new Date(),
+              bounceReason:
+                parsed.data.status === "BOUNCED"
+                  ? (parsed.data.bounceReason ?? null)
+                  : null,
+            },
+          });
+        },
+      );
+
+      if (!result.ok) {
+        switch (result.reason) {
+          case "NOT_FOUND":
+            return failure(t.errors.notFound);
+          case "IS_RECEIPT":
+            return failure(t.treasury.cancelReceiptInstead);
+          case "ALREADY_REVERSED":
+            return failure(t.treasury.alreadyReversed);
+          case "NO_DRAWER":
+            return failure(t.treasury.cancelNeedsDrawer);
+          case "INSUFFICIENT_CASH":
+            return failure(t.treasury.cancelNeedsCash);
+          case "BLOCKED":
+            return failure(t.treasury.reversalBlocked);
+        }
+      }
+
+      refresh();
+      return success(t.treasury.chequeUpdated);
+    }
 
     await setChequeStatus(cheque.id, schoolId, parsed.data.status, context.user.id, {
       settledOn: parsed.data.settledOn,

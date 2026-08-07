@@ -1114,7 +1114,10 @@ export async function setChequeStatus(
     existed and the caisse went on counting the money.
 
     Outgoing cheques and cheques tracked on their own settle no receipt, so
-    ending them moves nothing but the row itself.
+    ending them moves nothing but the row itself *here*. An outgoing cheque
+    that paid a décaissement is undone by reversing that movement instead, and
+    `setChequeStatusAction` routes it through `cancelOperation` before it ever
+    reaches this function — see the note there.
   */
   const undoingReceipt =
     chequeUndoesReceipt(status) &&

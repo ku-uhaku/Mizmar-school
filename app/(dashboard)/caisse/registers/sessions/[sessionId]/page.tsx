@@ -13,7 +13,11 @@ import { formatDate, formatMoney } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { OperationsTable } from "@/modules/treasury/components/operations-table";
-import { findSessionDetail, listOperations } from "@/modules/treasury/queries";
+import {
+  asSingleOperationsPage,
+  findSessionDetail,
+  listOperations,
+} from "@/modules/treasury/queries";
 
 export const metadata: Metadata = { title: "Session de caisse" };
 
@@ -135,8 +139,9 @@ export default async function CashSessionPage({
         <section className="grid gap-3">
           <h2 className="text-sm font-medium">{t.treasury.operations}</h2>
           <OperationsTable
-            operations={operations}
+            page={asSingleOperationsPage(operations)}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}
+            filterable={false}
           />
         </section>
       </div>
