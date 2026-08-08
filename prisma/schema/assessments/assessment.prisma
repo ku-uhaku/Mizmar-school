@@ -80,6 +80,19 @@ model Assessment {
 
   notes String?
 
+  /// The GUID this contrôle is filed under in MASSAR, taken from the hidden
+  /// `E5` of a NotesCC export — see modules/massar/notes-file.ts.
+  ///
+  /// It is what makes the round trip safe. A mark sheet leaves MASSAR, is
+  /// marked here, and goes back; without the ministry's own identity on the row
+  /// the only way to recognise the returning file is to re-derive it from
+  /// class + subject + term + sequence, and a school that renamed a class
+  /// between the download and the upload would silently file the marks against
+  /// the wrong paper. Stamped once, on the import that first matched.
+  ///
+  /// Null for every contrôle the school set itself, which is most of them.
+  massarCode String?
+
   /// Mirrors the nullable `classGroupId` so the unique index below actually
   /// fires. Without it two "whole class" rows for the same subject and sequence
   /// would both be accepted and the generator would stop being idempotent.
@@ -98,6 +111,8 @@ model Assessment {
   questions AssessmentQuestion[]
 
   @@unique([schoolClassId, subjectId, termId, assessmentTypeId, sequence, scopeKey])
+  /// No two papers may claim the same MASSAR sheet. Many hold none.
+  @@unique([schoolId, massarCode])
   @@index([schoolId])
   @@index([schoolClassId])
   @@index([classGroupId])

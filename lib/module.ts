@@ -41,6 +41,7 @@ export type NavIcon =
   | "families"
   | "classes"
   | "assessments"
+  | "massar"
   | "supplies"
   | "timetable"
   | "cashRegister"

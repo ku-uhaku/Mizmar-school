@@ -59,6 +59,12 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_VIEW,
       PERMISSIONS.ASSESSMENT_MANAGE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
+      // Checks a MASSAR sheet and fills one from our marks, across the schools
+      // they oversee. Not MASSAR_IMPORT, which writes marks, and not MASSAR_MAP:
+      // deciding that this class *is* that class in the ministry's records is
+      // the school's own call, not the inspectorate's.
+      PERMISSIONS.MASSAR_RECONCILE,
+      PERMISSIONS.MASSAR_EXPORT,
       // Reads the registers and the carnets of the schools they oversee, and
       // writes in neither — they are not in the room.
       PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW,
@@ -128,6 +134,13 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_GRADE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
       PERMISSIONS.ASSESSMENT_DELETE,
+      // The whole MASSAR round trip, mapping included. Adopting the ministry's
+      // codes onto a class is the one step nobody else here gets, because
+      // everything filed afterwards depends on it having been got right.
+      PERMISSIONS.MASSAR_RECONCILE,
+      PERMISSIONS.MASSAR_IMPORT,
+      PERMISSIONS.MASSAR_EXPORT,
+      PERMISSIONS.MASSAR_MAP,
       // Including the two decisions a teacher does not get: accepting a
       // justification, and releasing a remark to the family.
       PERMISSIONS.CLASSROOM_WORKSPACE,
@@ -230,6 +243,9 @@ export const SYSTEM_ROLES: {
       // enters no mark: a mark is the teacher's, and the desk is not where it
       // gets decided.
       PERMISSIONS.ASSESSMENT_VIEW,
+      // May check whether a MASSAR sheet is the right class — the question the
+      // desk gets asked — and may act on none of it.
+      PERMISSIONS.MASSAR_RECONCILE,
       // The office end of the register: chasing absences and filing the
       // justifications families bring in. Marking itself stays with whoever was
       // in the room.

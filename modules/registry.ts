@@ -24,6 +24,8 @@ import { facilitiesModule } from "@/modules/facilities/module";
 import { geographyModule } from "@/modules/geography/module";
 import { hrModule } from "@/modules/hr/module";
 import { importsModule } from "@/modules/imports/module";
+import { massarModule } from "@/modules/massar/module";
+import { MASSAR_PERMISSIONS } from "@/modules/massar/permissions";
 import { IMPORT_PERMISSIONS } from "@/modules/imports/permissions";
 import { HR_PERMISSIONS } from "@/modules/hr/permissions";
 import { familiesModule } from "@/modules/families/module";
@@ -114,6 +116,7 @@ export const MODULES: readonly AppModule[] = [
   enrolmentModule,
   classesModule,
   assessmentsModule,
+  massarModule,
   classroomModule,
   timetableModule,
   suppliesModule,
@@ -172,6 +175,7 @@ export const PERMISSIONS = {
   ...ENROLMENT_PERMISSIONS,
   ...CLASS_PERMISSIONS,
   ...ASSESSMENT_PERMISSIONS,
+  ...MASSAR_PERMISSIONS,
   ...CLASSROOM_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,
   ...SUPPLY_PERMISSIONS,

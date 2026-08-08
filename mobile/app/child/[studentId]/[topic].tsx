@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
@@ -16,6 +16,7 @@ import {
 import {
   Badge,
   Body,
+  Button,
   Caption,
   Card,
   Divider,
@@ -39,6 +40,7 @@ import {
   shortDate,
 } from "../../../src/ui/format";
 import { radius, spacing, useTheme } from "../../../src/ui/theme";
+import { useChecklist } from "../../../src/ui/use-checklist";
 
 /**
  * One topic of one child.
@@ -176,7 +178,8 @@ function Notes({ studentId }: { studentId: string }) {
   const terms = [...new Set(marks.map((mark) => mark.termName))];
   // The subject list follows the term: filtering to a term whose subjects the
   // second row still offers is a chip that answers nothing.
-  const inTerm = term === ALL ? marks : marks.filter((m) => m.termName === term);
+  const inTerm =
+    term === ALL ? marks : marks.filter((m) => m.termName === term);
   const subjects = [...new Set(inTerm.map((mark) => mark.subjectName))].sort();
 
   const shown =
@@ -233,7 +236,9 @@ function Notes({ studentId }: { studentId: string }) {
               <Row
                 label={mark.subjectName}
                 value={
-                  mark.isAbsent ? "Absent" : `${mark.score ?? "—"}/${mark.maxScore}`
+                  mark.isAbsent
+                    ? "Absent"
+                    : `${mark.score ?? "—"}/${mark.maxScore}`
                 }
               />
               <Caption>
@@ -503,7 +508,9 @@ function Timetable({ studentId }: { studentId: string }) {
               borderColor: theme.border,
             }}
           >
-            <Text style={{ color: theme.text, fontSize: 12, fontWeight: "700" }}>
+            <Text
+              style={{ color: theme.text, fontSize: 12, fontWeight: "700" }}
+            >
               {label(WEEKDAY_LABELS, String(day)).slice(0, 3)}
             </Text>
           </View>
@@ -519,7 +526,11 @@ function Timetable({ studentId }: { studentId: string }) {
                 style={{ ...headerCell, width: CELL_W }}
               >
                 <Text
-                  style={{ color: theme.muted, fontSize: 11, fontWeight: "600" }}
+                  style={{
+                    color: theme.muted,
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
                 >
                   {column.startTime}
                 </Text>
@@ -574,7 +585,9 @@ function Timetable({ studentId }: { studentId: string }) {
                     ) : (
                       // An empty period is drawn, not skipped: a blank cell is
                       // what tells a parent the child is free then.
-                      <Text style={{ color: theme.muted, fontSize: 12 }}>—</Text>
+                      <Text style={{ color: theme.muted, fontSize: 12 }}>
+                        —
+                      </Text>
                     )}
                   </View>
                 );
@@ -719,7 +732,9 @@ function DossierView({ studentId }: { studentId: string }) {
             <Caption>
               {[
                 piece.isRequired ? "Obligatoire" : "Facultative",
-                piece.receivedOn ? `Reçue le ${shortDate(piece.receivedOn)}` : null,
+                piece.receivedOn
+                  ? `Reçue le ${shortDate(piece.receivedOn)}`
+                  : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -735,7 +750,24 @@ function Supplies({ studentId }: { studentId: string }) {
   const theme = useTheme();
   const lists = useChildSupplies(studentId);
 
-  if (lists.isPending) return <Loading />;
+  /*
+    ── Ticked off, and kept on the phone ───────────────────────────────────────
+    A parent reads this standing in a shop, so the list has to remember what is
+    already in the basket — across the trip home, and across closing the app.
+
+    Kept on the device and nowhere near the school. A tick means "I have this",
+    which is a fact about the person holding the phone rather than about the
+    child; two parents share one household account, so a tick sent to the
+    server would tell the other one the cahiers were bought. See
+    `useChecklist`.
+
+    Keyed per child, because two children get two lists and two baskets.
+  */
+  const { ticked, toggle, clear, isReady } = useChecklist(
+    `supplies:${studentId}`,
+  );
+
+  if (lists.isPending || !isReady) return <Loading />;
   if (lists.isError) {
     return <ErrorNote message="Impossible de charger les fournitures." />;
   }
@@ -754,74 +786,111 @@ function Supplies({ studentId }: { studentId: string }) {
     saying it would be nice, and a parent who cannot see the difference buys
     everything.
   */
+  const totalTicked = lists.data.reduce(
+    (total, list) => total + list.items.filter((i) => ticked.has(i.id)).length,
+    0,
+  );
+
   return (
     <>
-      {lists.data.map((list) => (
-        <Card key={list.id}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: spacing.sm,
-            }}
-          >
-            <Heading>{list.subjectName ?? list.title}</Heading>
-            <Badge>{`${list.items.length} articles`}</Badge>
-          </View>
+      {/* The ticks survive closing the app, so there has to be a way back to a
+        clean list — next term, or after a trip that did not go to plan. Shown
+        only when there is something to clear. */}
+      {totalTicked > 0 ? (
+        <Button
+          label={`Tout décocher (${totalTicked})`}
+          onPress={clear}
+          variant="ghost"
+        />
+      ) : null}
 
-          {list.subjectName ? <Caption>{list.title}</Caption> : null}
-          {list.notes ? <Body muted>{list.notes}</Body> : null}
+      {lists.data.map((list) => {
+        const done = list.items.filter((item) => ticked.has(item.id)).length;
+        return (
+          <Card key={list.id}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: spacing.sm,
+              }}
+            >
+              <Heading>{list.subjectName ?? list.title}</Heading>
+              {/* Counts up as the basket fills, and goes green when the list is
+              done — the one thing somebody in a shop actually wants to know. */}
+              <Badge tone={done === list.items.length ? "success" : "default"}>
+                {`${done}/${list.items.length}`}
+              </Badge>
+            </View>
 
-          {list.items.map((item, index) => (
-            <View key={item.id}>
-              {index > 0 ? <Divider /> : null}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.sm,
-                }}
-              >
-                <MaterialCommunityIcons
-                  name={
-                    item.isRequired
-                      ? "checkbox-blank-circle-outline"
-                      : "circle-small"
-                  }
-                  size={item.isRequired ? 15 : 22}
-                  color={item.isRequired ? theme.text : theme.muted}
-                />
-                <Text
-                  style={{ color: theme.text, flex: 1, fontSize: 14 }}
-                  numberOfLines={2}
+            {list.subjectName ? <Caption>{list.title}</Caption> : null}
+            {list.notes ? <Body muted>{list.notes}</Body> : null}
+
+            {list.items.map((item, index) => {
+              const done = ticked.has(item.id);
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => toggle(item.id)}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: done }}
+                  accessibilityLabel={item.label}
+                  // The whole row is the target, not the little box: this is
+                  // tapped one-handed while the other hand holds a basket.
+                  style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
                 >
-                  {item.label}
-                </Text>
-                {item.quantity ? (
-                  <Text
+                  {index > 0 ? <Divider /> : null}
+                  <View
                     style={{
-                      color: theme.muted,
-                      fontSize: 13,
-                      fontWeight: "700",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: spacing.sm,
+                      paddingVertical: spacing.xs,
                     }}
                   >
-                    ×{item.quantity}
-                  </Text>
-                ) : null}
-              </View>
+                    <MaterialCommunityIcons
+                      name={done ? "checkbox-marked" : "checkbox-blank-outline"}
+                      size={20}
+                      color={done ? theme.success : theme.muted}
+                    />
+                    <Text
+                      style={{
+                        color: done ? theme.muted : theme.text,
+                        flex: 1,
+                        fontSize: 14,
+                        textDecorationLine: done ? "line-through" : "none",
+                      }}
+                      numberOfLines={2}
+                    >
+                      {item.label}
+                    </Text>
+                    {item.quantity ? (
+                      <Text
+                        style={{
+                          color: theme.muted,
+                          fontSize: 13,
+                          fontWeight: "700",
+                        }}
+                      >
+                        ×{item.quantity}
+                      </Text>
+                    ) : null}
+                  </View>
 
-              {item.notes || !item.isRequired ? (
-                <Caption>
-                  {[item.notes, item.isRequired ? null : "facultatif"]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </Caption>
-              ) : null}
-            </View>
-          ))}
-        </Card>
-      ))}
+                  {item.notes || !item.isRequired ? (
+                    <Caption>
+                      {[item.notes, item.isRequired ? null : "facultatif"]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Caption>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </Card>
+        );
+      })}
     </>
   );
 }
@@ -841,10 +910,7 @@ function Transport({ studentId }: { studentId: string }) {
       <Heading>{transport.routeName}</Heading>
       <Row label="Arrêt" value={transport.stopName} />
       <Divider />
-      <Row
-        label="Sens"
-        value={label(DIRECTION_LABELS, transport.direction)}
-      />
+      <Row label="Sens" value={label(DIRECTION_LABELS, transport.direction)} />
     </Card>
   );
 }

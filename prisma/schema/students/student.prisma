@@ -35,6 +35,20 @@ model Student {
   /// here: many pupils may be unmapped, no two may claim the same code.
   massarCode String?
 
+  /// MASSAR's own row number for the pupil — the "رقم التلميذ" in the hidden `B`
+  /// column of a NotesCC export, e.g. "14162830".
+  ///
+  /// Not a duplicate of `massarCode`. The code (`R185066146`) is what a pupil is
+  /// called on paper and what a secretary types; this is the surrogate key
+  /// MASSAR joins on internally, and it is the column a mark sheet is keyed by.
+  /// Both are needed: a returning file identifies its rows by this number, and a
+  /// school that only ever mapped the printed code could not match them back.
+  ///
+  /// Kept as a String, not an Int. It is an opaque identifier issued elsewhere —
+  /// nothing here counts or sums it, and a leading zero appearing in some future
+  /// batch must not be eaten.
+  massarNumber String?
+
   firstName   String
   lastName    String
   /// Arabic given and family name. Moroccan school paperwork — certificats de
@@ -199,6 +213,9 @@ model Student {
   @@unique([schoolId, code])
   /// No two pupils may map to the same MASSAR code. Many may be unmapped.
   @@unique([schoolId, massarCode])
+  /// Likewise for MASSAR's internal number — it is the key a mark sheet joins
+  /// on, so two pupils sharing one would misfile a whole class's marks.
+  @@unique([schoolId, massarNumber])
   @@index([schoolId])
   @@index([familyId])
   @@index([neighbourhoodId])
