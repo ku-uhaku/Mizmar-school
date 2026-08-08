@@ -46,6 +46,7 @@ import {
   interpolate,
   toDateInputValue,
 } from "@/lib/i18n/format";
+import { localKey } from "@/lib/local-key";
 import { cn } from "@/lib/utils";
 import { recordPaymentAction } from "@/modules/treasury/actions";
 import {
@@ -120,7 +121,7 @@ type Tender = {
 
 function emptyTender(method: TenderMethod = "CASH"): Tender {
   return {
-    key: crypto.randomUUID(),
+    key: localKey("tender"),
     method,
     amount: "",
     reference: "",
@@ -207,7 +208,9 @@ export function PaymentConsole({
 
   /** Fee line id → the amount being paid against it, in dirhams. */
   const [selection, setSelection] = React.useState<Record<string, string>>({});
-  const [tenders, setTenders] = React.useState<Tender[]>([emptyTender()]);
+  // Lazy: the initialiser hands out a key, and re-running it on every render
+  // would burn one per keystroke elsewhere in the form for nothing.
+  const [tenders, setTenders] = React.useState<Tender[]>(() => [emptyTender()]);
 
   const money = (centimes: number) => formatAmount(centimes, locale);
 

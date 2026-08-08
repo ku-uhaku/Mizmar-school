@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
 import { interpolate } from "@/lib/i18n/format";
+import { localKey } from "@/lib/local-key";
 import { saveSupplyListAction } from "@/modules/supplies/actions";
 import type {
   ClassChoice,
@@ -61,7 +62,7 @@ type DraftItem = {
 
 function emptyItem(): DraftItem {
   return {
-    key: crypto.randomUUID(),
+    key: localKey("item"),
     articleId: "",
     label: "",
     quantity: "",

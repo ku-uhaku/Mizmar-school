@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
+import { localKey } from "@/lib/local-key";
 import { cn } from "@/lib/utils";
 import { createDevoirAction } from "@/modules/assessments/actions";
 import type {
@@ -108,7 +109,7 @@ export function DevoirsManager({
   function addQuestion() {
     setQuestions((rows) => [
       ...rows,
-      { key: crypto.randomUUID(), text: "", points: "" },
+      { key: localKey("question"), text: "", points: "" },
     ]);
   }
 
