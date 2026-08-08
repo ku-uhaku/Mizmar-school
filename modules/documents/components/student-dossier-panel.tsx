@@ -28,7 +28,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { interpolate } from "@/lib/i18n/format";
-import { cn } from "@/lib/utils";
+import { cn, toDateInputValue } from "@/lib/utils";
 import { recordStudentDocumentAction } from "@/modules/documents/actions";
 import {
   DOCUMENT_STATUSES,
@@ -218,8 +218,12 @@ function RecordDialog({
   // Today, for the ordinary case: the paper is being recorded as it crosses the
   // counter. Only ever a starting value — a dossier caught up on in October
   // still needs the date it was actually handed in.
+  //
+  // Read in local time, never `toISOString().slice(0, 10)`: that reads the *UTC*
+  // day, which in Morocco is yesterday for the first hour of every morning. A
+  // guichet opening the dialog at 00:30 would have proposed the wrong date.
   const [receivedOn, setReceivedOn] = React.useState(
-    piece.receivedOn || new Date().toISOString().slice(0, 10),
+    piece.receivedOn || toDateInputValue(new Date()),
   );
 
   return (

@@ -2394,6 +2394,17 @@ const RUNNERS: Record<string, Runner> = {
           schoolId: schoolId(context),
           ...(params.staffId ? { id: params.staffId } : {}),
         },
+        /*
+          Narrowed to the years the range covers before the take, not only after
+          it. The month test below is the exact one and stays, but without a
+          bound in SQL the take returned the *newest* 5000 bulletins whatever was
+          asked for — so a school past that many would report an old month as
+          empty rather than as truncated, which reads as "nobody was paid".
+        */
+        periodYear: {
+          gte: range.from.getFullYear(),
+          lte: range.to.getFullYear(),
+        },
       },
       orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
       take: ROW_CAP + 1,
@@ -2571,7 +2582,11 @@ export async function runReport(
   params: ReportParams,
 ): Promise<ReportResult | null> {
   const definition = findReport(reportId);
-  const runner = RUNNERS[reportId];
+  // `Object.hasOwn` rather than a bare lookup: `RUNNERS` is a plain object, so
+  // `RUNNERS["constructor"]` would otherwise answer a function and sail past the
+  // truthiness check below. The catalogue is array-scanned and would refuse it
+  // first — this is the belt behind that brace.
+  const runner = Object.hasOwn(RUNNERS, reportId) ? RUNNERS[reportId] : undefined;
   if (!definition || !runner) return null;
   if (!context.can(definition.permission as never)) return null;
 
@@ -2584,13 +2599,26 @@ export async function runReport(
   const truncated = all.length > ROW_CAP;
   const rows = truncated ? all.slice(0, ROW_CAP) : all;
 
+  /*
+    No totals row on a truncated report.
+
+    The runners stop reading at `ROW_CAP + 1`, so once a report is cut there is
+    no honest total to publish: summing the rows that survived would print a
+    figure labelled "Total" that is short by however much was left behind, and a
+    bursar reading a partial takings figure as the day's takings is worse than
+    reading no figure at all. The caption already says how many rows of how many
+    are shown — the answer is to narrow the range, not to trust the sum. Same
+    rule as the columns that decline a total because they would need weighting.
+  */
   const totals: Record<string, number> = {};
-  for (const column of definition.columns) {
-    if (!column.total) continue;
-    totals[column.key] = rows.reduce((sum, row) => {
-      const value = row[column.key];
-      return sum + (typeof value === "number" ? value : 0);
-    }, 0);
+  if (!truncated) {
+    for (const column of definition.columns) {
+      if (!column.total) continue;
+      totals[column.key] = rows.reduce((sum, row) => {
+        const value = row[column.key];
+        return sum + (typeof value === "number" ? value : 0);
+      }, 0);
+    }
   }
 
   return { rows, totals, rowCount: all.length, truncated };

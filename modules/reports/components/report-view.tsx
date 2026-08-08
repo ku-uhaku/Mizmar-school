@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/shell/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toCsv } from "@/lib/csv";
 import { formatDate, formatMoney, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { ReportFilterChoices } from "@/modules/reports/queries";
@@ -118,6 +119,15 @@ export function ReportView({
    * user is looking at, and an export that disagrees with the screen is worse
    * than no export. Values are raw — a date stays ISO and money stays a number,
    * because a spreadsheet wants to sort them, not read them.
+   *
+   * ── Serialised by `lib/csv.ts`, not by hand ─────────────────────────────────
+   * This used to build the text itself, and quoted a cell without neutralising
+   * it. Half of what a report prints is text somebody typed into the app — a
+   * pupil's name, a guardian's profession, a note on a dossier — so a name
+   * beginning `=` is a formula the moment a secretary double-clicks the
+   * download, and quoting does not help because CSV quotes are stripped before
+   * the cell is parsed. `toCsv` marks those as text and writes the BOM, which
+   * is also what stops every Arabic name arriving mangled.
    */
   function exportCsv() {
     if (!result) return;
@@ -127,16 +137,11 @@ export function ReportView({
         const value = row[column.key];
         if (value === null) return "";
         // Money is stored in centimes; a spreadsheet wants dirhams.
-        const raw = column.kind === "money" ? Number(value) / 100 : value;
-        const text = String(raw);
-        return /[",;\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+        return String(column.kind === "money" ? Number(value) / 100 : value);
       }),
     );
 
-    const csv = [header, ...lines].map((row) => row.join(";")).join("\r\n");
-    // The BOM is what makes Excel open a UTF-8 file as UTF-8 — without it every
-    // accent and every Arabic name arrives mangled.
-    const blob = new Blob([`﻿${csv}`], {
+    const blob = new Blob([toCsv([header, ...lines])], {
       type: "text/csv;charset=utf-8",
     });
 

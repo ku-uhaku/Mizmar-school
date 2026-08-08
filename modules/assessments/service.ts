@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
   acceptsMarks,
   assessmentScopeKey,
@@ -73,7 +74,7 @@ export async function resolveProgramme(
 
   const { levelId, trackId } = schoolClass.levelOffering;
 
-  const rows = await db.levelSubject.findMany({
+  const declared = await db.levelSubject.findMany({
     where: {
       levelId,
       isGraded: true,
@@ -83,12 +84,22 @@ export async function resolveProgramme(
     },
     orderBy: [{ position: "asc" }],
     select: {
+      trackId: true,
       coefficient: true,
       subject: {
         select: { id: true, code: true, name: true, parentId: true },
       },
     },
   });
+
+  // A subject declared both level-wide and for this track is one subject, not
+  // two — the track's row wins. Left as a bare union it appeared twice on the
+  // generator's picker, and the second tick wrote nothing but confused the
+  // count. See `resolveProgrammeRows`.
+  const rows = resolveProgrammeRows(
+    declared.map((row) => ({ ...row, subjectId: row.subject.id })),
+    trackId,
+  );
 
   // Rule 2: a matière that has at least one of its components in this same
   // programme is marked through them, not directly — unless the kind of paper

@@ -418,8 +418,23 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
 /** Referenced by TeachingAssignment when that screen is built. */
 export { assignmentScopeKey };
 
+/**
+ * The database half of a resource, or undefined when there is not one.
+ *
+ * `Object.hasOwn` rather than a bare index: the resource id arrives in a form
+ * field, and a plain object answers `Object.prototype` for `"__proto__"` and a
+ * function for `"constructor"`. Both are truthy, so a caller testing the result
+ * for existence would sail past the check and then crash on `.table()`.
+ *
+ * `authorizeResource` happens to resolve the descriptor first — and that lookup
+ * is an array scan, which has no such hole — so this is not reachable today.
+ * It is written this way so it stays unreachable from whichever caller comes
+ * next.
+ */
 export function resourceSchema(resourceId: string): ResourceSchema | undefined {
-  return RESOURCE_SCHEMAS[resourceId];
+  return Object.hasOwn(RESOURCE_SCHEMAS, resourceId)
+    ? RESOURCE_SCHEMAS[resourceId]
+    : undefined;
 }
 
 // ── Guarding a delete against what still points at the row ───────────────────

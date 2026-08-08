@@ -59,7 +59,21 @@ async function findScopedAssessment(
    * about a colleague's paper is indistinguishable from asking about one that
    * does not exist.
    */
-  scope: { teacherId?: string } = {},
+  scope: {
+    teacherId?: string;
+    /**
+     * Narrows to the papers this reader may actually open, which is not the
+     * same as the papers of their school.
+     *
+     * `findMarkSheet` refuses a colleague's devoir — a piece of work a teacher
+     * set for their own class is theirs — but the write path used to ask only
+     * for the school and the year, so a mark could be posted onto a sheet the
+     * poster could not read. A Server Function is reachable by direct POST, so
+     * the two must agree; this is that same clause, and it lives beside the
+     * read it mirrors.
+     */
+    readableBy?: string;
+  } = {},
 ) {
   const context = await requireAuth();
   return db.assessment.findFirst({
@@ -68,6 +82,17 @@ async function findScopedAssessment(
       schoolId,
       term: { schoolYearId: currentSchoolYearId(context) },
       ...(scope.teacherId ? { teacherId: scope.teacherId } : {}),
+      ...(scope.readableBy
+        ? {
+            OR: [
+              // Anybody's to mark: the kinds only the office may set. Covering
+              // for an absent colleague is the ordinary case.
+              { assessmentType: { allowTeacherCreate: false } },
+              { teacherId: scope.readableBy },
+              { createdById: scope.readableBy },
+            ],
+          }
+        : {}),
     },
     select: { id: true, status: true, maxScore: true },
   });
@@ -419,7 +444,12 @@ export async function saveMarksAction(
     await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_GRADE);
 
     const id = field(formData, "assessmentId");
-    const existing = await findScopedAssessment(schoolId, id);
+    // The same paper the reader could have opened, and no other — see
+    // `readableBy`. Not-found rather than forbidden, so a colleague's devoir
+    // cannot be probed for its existence either.
+    const existing = await findScopedAssessment(schoolId, id, {
+      readableBy: context.user.id,
+    });
     if (!existing) return failure(t.errors.notFound);
 
     const enrollmentIds = listField(formData, "enrollmentId");

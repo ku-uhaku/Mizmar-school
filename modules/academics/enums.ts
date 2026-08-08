@@ -73,3 +73,33 @@ export function levelSubjectScopeKey(
 ): string {
   return nullableKey(trackId);
 }
+
+/**
+ * A class's programme: one row per subject, with the track's own row winning.
+ *
+ * The unique index is on (level, subject, scopeKey), so a level may legitimately
+ * declare a subject twice — once for every track, once for one of them. That is
+ * the point: Maths is 4 across 2BAC and 7 in Sciences Maths. Resolved as a bare
+ * union, both rows survive, and everything downstream then has to guess: the
+ * generator's picker offered the subject twice, and a pupil's overall average
+ * took whichever coefficient the database happened to return last.
+ *
+ * So the union is settled here, once, in the only way that means anything: the
+ * more specific declaration overrides the general one for the track it names.
+ * Rows for another track are not this class's programme at all.
+ *
+ * Order is preserved — every caller reads the programme in `position` order.
+ */
+export function resolveProgrammeRows<
+  T extends { subjectId: string; trackId: string | null },
+>(rows: readonly T[], trackId: string | null): T[] {
+  const chosen = new Map<string, T>();
+  for (const row of rows) {
+    if (row.trackId !== null && row.trackId !== trackId) continue;
+    const held = chosen.get(row.subjectId);
+    // A row already held for this track is never displaced by the general one.
+    if (held && held.trackId !== null) continue;
+    chosen.set(row.subjectId, row);
+  }
+  return rows.filter((row) => chosen.get(row.subjectId) === row);
+}

@@ -105,9 +105,20 @@ const STAGE_OF: Partial<Record<AssessmentStatus, AssessmentStage>> = {
   // CANCELLED is deliberately absent — see above.
 };
 
-/** The stage a paper sits in, or null when nobody is waiting on it. */
+/**
+ * The stage a paper sits in, or null when nobody is waiting on it.
+ *
+ * `Object.hasOwn` rather than a bare lookup: `STAGE_OF` is a plain object, so
+ * `stageOf("constructor")` answered a function and `stageOf("__proto__")` an
+ * object — both truthy, so `?? null` never fired and the return broke its own
+ * type. Nothing reaches it with such a value today, because a status is checked
+ * against the enum before it is ever written; this is what keeps that true if
+ * something else ever calls it with an unchecked string.
+ */
 export function stageOf(status: string): AssessmentStage | null {
-  return STAGE_OF[status as AssessmentStatus] ?? null;
+  return Object.hasOwn(STAGE_OF, status)
+    ? (STAGE_OF[status as AssessmentStatus] ?? null)
+    : null;
 }
 
 /**

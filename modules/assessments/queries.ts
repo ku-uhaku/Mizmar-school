@@ -4,6 +4,7 @@ import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
+import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
   COUNTED_STATUSES,
   markStatistics,
@@ -237,11 +238,14 @@ export async function loadProgrammesByClass(
     const { levelId, trackId } = schoolClass.levelOffering;
 
     // Same rule 1 as `resolveProgramme` in the service — this one exists to
-    // *show* the list, that one to write it, and they must agree.
-    const forClass = rows.filter(
-      (row) =>
-        row.levelId === levelId &&
-        (row.trackId === null || row.trackId === trackId),
+    // *show* the list, that one to write it, and they must agree. Which is why
+    // the track override is resolved through the same helper: a subject the
+    // level declares twice must be one line on the picker, not two.
+    const forClass = resolveProgrammeRows(
+      rows
+        .filter((row) => row.levelId === levelId)
+        .map((row) => ({ ...row, subjectId: row.subject.id })),
+      trackId,
     );
 
     /*
@@ -931,13 +935,17 @@ export async function loadPupilMarks(
     },
   });
 
-  const weightOf = new Map<string, number>();
-  for (const row of enrolment?.levelOffering.level.subjects ?? []) {
-    // A track-specific weight wins over the level-wide one for that track.
-    const applies =
-      row.trackId === null || row.trackId === enrolment?.levelOffering.trackId;
-    if (applies) weightOf.set(row.subjectId, row.coefficient);
-  }
+  // A track-specific weight wins over the level-wide one for that track. Read
+  // through the same resolver the programme and the picker use — done inline
+  // here it was a last-write-wins loop over an unordered query, so a subject
+  // declared both ways took whichever coefficient the database happened to
+  // return second, and a pupil's overall average was not reproducible.
+  const weightOf = new Map(
+    resolveProgrammeRows(
+      enrolment?.levelOffering.level.subjects ?? [],
+      enrolment?.levelOffering.trackId ?? null,
+    ).map((row) => [row.subjectId, row.coefficient] as const),
+  );
 
   const bySubject = new Map<string, PupilSubjectMarks>();
 
