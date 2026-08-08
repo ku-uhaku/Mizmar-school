@@ -27,6 +27,7 @@ import {
   generateSchoolWeeks,
   generateTimeSlots,
   saveLessonBlock,
+  type Clash,
   setTeacherAvailability,
   type GeneratorRequest,
   type PreviewResult,
@@ -254,6 +255,23 @@ export async function saveTimetableEntryAction(
       .map((entry) => entry.id);
     const keepIds = existing.map((entry) => entry.id);
 
+    /** The sentence a grid-builder can act on, for a clash from either check. */
+    const clashMessage = (clash: Clash) =>
+      interpolate(
+        clash.kind === "TEACHER"
+          ? t.timetable.teacherClash
+          : clash.kind === "ROOM"
+            ? t.timetable.roomClash
+            : clash.kind === "UNAVAILABLE"
+              ? t.timetable.teacherUnavailable
+              : t.timetable.classClash,
+        { class: clash.className, slot: clash.slotLabel },
+      );
+
+    // Checked here so the refusal can name the class and the period before
+    // anything is touched. `saveLessonBlock` checks again inside the
+    // transaction it writes in, which is what makes the answer true under two
+    // people editing the grid at once.
     for (const timeSlotId of timeSlotIds) {
       const clash = await findClash({
         timeSlotId,
@@ -268,22 +286,7 @@ export async function saveTimetableEntryAction(
         exceptEntryIds: keepIds,
       });
 
-      if (clash) {
-        const message =
-          clash.kind === "TEACHER"
-            ? t.timetable.teacherClash
-            : clash.kind === "ROOM"
-              ? t.timetable.roomClash
-              : clash.kind === "UNAVAILABLE"
-                ? t.timetable.teacherUnavailable
-                : t.timetable.classClash;
-        return failure(
-          interpolate(message, {
-            class: clash.className,
-            slot: clash.slotLabel,
-          }),
-        );
-      }
+      if (clash) return failure(clashMessage(clash));
     }
 
     /*
@@ -306,7 +309,7 @@ export async function saveTimetableEntryAction(
       ended = closed.ended;
     }
 
-    const written = await saveLessonBlock(
+    const saved = await saveLessonBlock(
       {
         schoolClassId: schoolClass.id,
         timeSlotIds,
@@ -321,6 +324,11 @@ export async function saveTimetableEntryAction(
       },
       replaceIds,
     );
+
+    // Somebody else took the slot between the check above and the write. The
+    // transaction rolled back, so nothing was half-written.
+    if (!saved.ok) return failure(clashMessage(saved.clash));
+    const written = saved.written;
 
     refresh();
 

@@ -460,15 +460,50 @@ export type FuelDecisionResult =
   | { ok: false; reason: FuelDecisionFailure };
 
 /**
+ * Thrown when a second decision beat this one to the request.
+ *
+ * Thrown rather than returned, because a returned failure would commit the
+ * décaissement written a few lines above it. The same device, and the same
+ * reason, as `PayoutRaceLost` in modules/hr/service.ts.
+ */
+class FuelDecisionRaceLost extends Error {
+  constructor() {
+    super("Fuel request already decided");
+    this.name = "FuelDecisionRaceLost";
+  }
+}
+
+function isFuelRaceLost(error: unknown): boolean {
+  return (
+    error instanceof FuelDecisionRaceLost ||
+    (error as Error)?.name === "FuelDecisionRaceLost"
+  );
+}
+
+/**
  * Decides a driver's fuel request, and — when it is agreed — posts the money.
  *
- * ── Why the two are one call ────────────────────────────────────────────────
+ * ── Why the two are one transaction ─────────────────────────────────────────
  * An approved request with no décaissement behind it is a promise the ledger
  * has never heard of, and a décaissement with no request behind it is a spend
  * nobody signed for. Neither is a state worth being able to reach, so the
- * approval and the movement are written together and the unique index on
- * `cashOperationId` is what stops a double-click paying twice — the same guard
- * `payStaffSalary` leans on.
+ * approval and the movement are written together.
+ *
+ * ── Why the unique index is not the guard ───────────────────────────────────
+ * This used to read the request, check it was pending, post the money, and then
+ * write the link — three statements, each its own transaction — on the stated
+ * reasoning that the unique index on `cashOperationId` would stop a double
+ * click paying twice. It could not: that index stops two *requests* claiming
+ * one movement, which is the opposite direction. Two approvals of one request
+ * each created their own operation and violated nothing, so a double-clicked
+ * Approve posted a tank of diesel twice and left the first movement orphaned
+ * with nothing pointing at it.
+ *
+ * `payStaffSalary` hit exactly this and closed it the same way: the state the
+ * decision was made against is restated as a `where` on a conditional update
+ * inside the transaction, so whichever call gets there second matches no rows
+ * and rolls its own movement back. See the note on `recordDisbursement`, which
+ * takes the transaction for this purpose.
  *
  * A rejection writes no movement, for the obvious reason. It is still recorded
  * rather than deleted, so a second ask for the same tank reads as a second ask.
@@ -476,91 +511,123 @@ export type FuelDecisionResult =
 export async function decideFuelRequest(
   input: FuelDecisionInput,
 ): Promise<FuelDecisionResult> {
-  const request = await db.fuelRequest.findFirst({
-    // Scoped by the school from the working context, never by id alone.
-    where: { id: input.requestId, schoolId: input.schoolId },
-    select: {
-      id: true,
-      status: true,
-      amountCentimes: true,
-      litresTenths: true,
-      occurredOn: true,
-      cashOperationId: true,
-      requestedById: true,
-      requestedByName: true,
-      vehicle: { select: { registration: true } },
-      requestedBy: { select: { firstName: true, lastName: true } },
-    },
-  });
-  if (!request) return { ok: false, reason: "NOT_FOUND" };
-
-  // Deciding is once. Re-deciding a settled request would either orphan the
-  // first movement or post a second one for the same tank.
-  if (request.status !== "PENDING" || request.cashOperationId) {
-    return { ok: false, reason: "ALREADY_DECIDED" };
+  try {
+    return await decideFuelRequestInTransaction(input);
+  } catch (error) {
+    if (isFuelRaceLost(error)) {
+      return { ok: false, reason: "ALREADY_DECIDED" };
+    }
+    throw error;
   }
+}
 
-  if (input.status === "REJECTED") {
-    await db.fuelRequest.update({
-      where: { id: request.id },
+function decideFuelRequestInTransaction(
+  input: FuelDecisionInput,
+): Promise<FuelDecisionResult> {
+  return db.$transaction(async (tx) => {
+    const request = await tx.fuelRequest.findFirst({
+      // Scoped by the school from the working context, never by id alone.
+      where: { id: input.requestId, schoolId: input.schoolId },
+      select: {
+        id: true,
+        status: true,
+        amountCentimes: true,
+        litresTenths: true,
+        occurredOn: true,
+        cashOperationId: true,
+        requestedById: true,
+        requestedByName: true,
+        vehicle: { select: { registration: true } },
+        requestedBy: { select: { firstName: true, lastName: true } },
+      },
+    });
+    if (!request) return { ok: false, reason: "NOT_FOUND" } as const;
+
+    // Deciding is once. Re-deciding a settled request would either orphan the
+    // first movement or post a second one for the same tank.
+    if (request.status !== "PENDING" || request.cashOperationId) {
+      return { ok: false, reason: "ALREADY_DECIDED" } as const;
+    }
+
+    /** The state this decision was made against, restated as a condition. */
+    const stillPending = {
+      id: request.id,
+      schoolId: input.schoolId,
+      status: "PENDING",
+      cashOperationId: null,
+    };
+
+    if (input.status === "REJECTED") {
+      const rejected = await tx.fuelRequest.updateMany({
+        where: stillPending,
+        data: {
+          status: "REJECTED",
+          decidedById: input.decidedById,
+          decidedAt: new Date(),
+          notes: input.notes ?? undefined,
+        },
+      });
+      if (rejected.count === 0) {
+        return { ok: false, reason: "ALREADY_DECIDED" } as const;
+      }
+      return { ok: true, operationId: null } as const;
+    }
+
+    if (request.amountCentimes <= 0) {
+      return { ok: false, reason: "NOTHING_TO_PAY" } as const;
+    }
+
+    const beneficiaryName =
+      driverLabel(
+        request.requestedBy
+          ? `${request.requestedBy.firstName} ${request.requestedBy.lastName}`
+          : null,
+        request.requestedByName,
+      ) ?? request.vehicle.registration;
+
+    const operation = await recordDisbursement(
+      {
+        schoolId: input.schoolId,
+        createdById: input.decidedById,
+        cashSessionId: input.cashSessionId,
+        categoryId: input.categoryId,
+        subcategoryId: null,
+        motifId: null,
+        notes: null,
+        bankId: null,
+        bankName: null,
+        beneficiaryStaffId: request.requestedById,
+        beneficiaryName,
+        // The bus is in the label because that is what makes the line
+        // answerable three months later: "Carburant — 12345-A-6, 45,0 L".
+        label: `Carburant — ${request.vehicle.registration}, ${tenthsToLitres(
+          request.litresTenths,
+        ).toFixed(1)} L`,
+        method: "CASH",
+        amountCentimes: request.amountCentimes,
+        reference: null,
+        chequeNumber: null,
+        occurredAt: request.occurredOn,
+      },
+      tx,
+    );
+
+    const claimed = await tx.fuelRequest.updateMany({
+      where: stillPending,
       data: {
-        status: "REJECTED",
+        status: input.status,
         decidedById: input.decidedById,
         decidedAt: new Date(),
+        cashOperationId: operation.id,
         notes: input.notes ?? undefined,
       },
     });
-    return { ok: true, operationId: null };
-  }
+    // Thrown, not returned: a returned failure would commit the décaissement
+    // written a few lines up. See `FuelDecisionRaceLost`.
+    if (claimed.count === 0) throw new FuelDecisionRaceLost();
 
-  if (request.amountCentimes <= 0) {
-    return { ok: false, reason: "NOTHING_TO_PAY" };
-  }
-
-  const beneficiaryName =
-    driverLabel(
-      request.requestedBy
-        ? `${request.requestedBy.firstName} ${request.requestedBy.lastName}`
-        : null,
-      request.requestedByName,
-    ) ?? request.vehicle.registration;
-
-  const operation = await recordDisbursement({
-    schoolId: input.schoolId,
-    createdById: input.decidedById,
-    cashSessionId: input.cashSessionId,
-    categoryId: input.categoryId,
-    subcategoryId: null,
-    motifId: null,
-    notes: null,
-    bankId: null,
-    bankName: null,
-    beneficiaryStaffId: request.requestedById,
-    beneficiaryName,
-    // The bus is in the label because that is what makes the line answerable
-    // three months later: "Carburant — 12345-A-6, 45,0 L".
-    label: `Carburant — ${request.vehicle.registration}, ${tenthsToLitres(
-      request.litresTenths,
-    ).toFixed(1)} L`,
-    method: "CASH",
-    amountCentimes: request.amountCentimes,
-    reference: null,
-    chequeNumber: null,
-    occurredAt: request.occurredOn,
+    return { ok: true, operationId: operation.id } as const;
   });
-
-  await db.fuelRequest.update({
-    where: { id: request.id },
-    data: {
-      status: input.status,
-      decidedById: input.decidedById,
-      decidedAt: new Date(),
-      cashOperationId: operation.id,
-      notes: input.notes ?? undefined,
-    },
-  });
-
-  return { ok: true, operationId: operation.id };
 }
 
 // ── Assignment ───────────────────────────────────────────────────────────────

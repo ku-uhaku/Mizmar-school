@@ -219,6 +219,11 @@ export async function writeRemark(
  */
 export async function justifyAbsence(
   attendanceId: string,
+  /**
+   * What the row says now. Taken from the caller's own scoped lookup rather
+   * than re-read here, and load-bearing: the status this writes depends on it.
+   */
+  currentStatus: string,
   isJustified: boolean,
   reason: string | null,
 ): Promise<void> {
@@ -226,9 +231,20 @@ export async function justifyAbsence(
     where: { id: attendanceId },
     data: {
       isJustified,
-      // Promoting a plain absence to an excused one keeps the two consistent;
-      // withdrawing the justification puts it back.
-      status: isJustified ? "EXCUSED" : "ABSENT",
+      /*
+        Promoting a plain absence to an excused one keeps the two consistent;
+        withdrawing the justification puts it back.
+
+        A retard keeps its own status. This used to rewrite every row it touched
+        as EXCUSED or ABSENT, which turned a justified late into an absence — and
+        a school counts lates by accumulation, so erasing one erases the third
+        retard that was about to be written home about. The pupil's file has
+        always counted unjustified lates separately; the write simply did not
+        know about them.
+      */
+      ...(currentStatus === "LATE"
+        ? {}
+        : { status: isJustified ? "EXCUSED" : "ABSENT" }),
       ...(reason !== null ? { reason } : {}),
     },
   });

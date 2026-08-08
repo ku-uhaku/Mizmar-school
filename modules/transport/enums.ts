@@ -366,9 +366,21 @@ export const TRIP_RUN_TRANSITIONS: Record<string, readonly TripRunStatus[]> = {
   CANCELLED: [],
 };
 
-/** Whether a run may move to `next` from where it is now. */
+/**
+ * Whether a run may move to `next` from where it is now.
+ *
+ * `Object.hasOwn` rather than a bare lookup: `TRIP_RUN_TRANSITIONS` is a plain
+ * object, so `canMoveTripRun("constructor", …)` resolved to a function, the
+ * `?? []` never fired, and calling `.includes` on it threw rather than
+ * answering false. Nothing reaches it with such a value — `from` is the run's
+ * stored status — and a transition table should still say no rather than
+ * explode when asked about a state it has never heard of.
+ */
 export function canMoveTripRun(from: string, next: string): boolean {
-  return (TRIP_RUN_TRANSITIONS[from] ?? []).includes(next as TripRunStatus);
+  const allowed = Object.hasOwn(TRIP_RUN_TRANSITIONS, from)
+    ? TRIP_RUN_TRANSITIONS[from]
+    : undefined;
+  return (allowed ?? []).includes(next as TripRunStatus);
 }
 
 /** Runs a bus is out on right now — what the board shows at the top. */
@@ -429,6 +441,29 @@ export const RUN_WINDOW_BEFORE_MINUTES = 60;
 export const RUN_WINDOW_AFTER_MINUTES = 180;
 
 /**
+ * `"07:30"` → `[7, 30]`, and anything else → `[0, 0]`.
+ *
+ * Written out because the obvious spelling does not fail the way it reads.
+ * `"nonsense".split(":").map(Number)` gives `[NaN]`, so the *minutes* come back
+ * `undefined` — and `Number.isNaN(undefined)` is false, so a guard written
+ * against NaN lets it through to `setHours`, which turns the whole date
+ * Invalid. Every comparison against an Invalid Date is false, so the window
+ * that was supposed to fail CLOSED failed **OPEN**: a run with an unreadable or
+ * empty departure was tappable on a driver's phone at any hour of any day,
+ * including yesterday's and next week's.
+ *
+ * So the shape is checked before it is read rather than patched afterwards.
+ * `"0700"` is the case that shows why: it parses as the finite number 700, and
+ * `setHours(700)` rolls the date a month forward instead of failing.
+ */
+function wallClock(time: string): [hours: number, minutes: number] {
+  if (!isTimeOfDay(time)) return [0, 0];
+
+  const [hours, minutes] = time.split(":");
+  return [Number(hours), Number(minutes)];
+}
+
+/**
  * Where a run stands against the clock.
  *
  * `date` is the run's own day at midnight and `plannedDepartureTime` its
@@ -445,18 +480,12 @@ export function tripRunWindow(
   plannedDepartureTime: string,
   now: Date,
 ): RunWindow {
-  const [hours, minutes] = plannedDepartureTime.split(":").map(Number);
-
   const planned = new Date(date);
   // An unreadable time leaves the run at its day's midnight, which puts the
   // window over the small hours and reads CLOSED for the rest of the day — the
   // safe way round for a column no form should have been able to corrupt.
-  planned.setHours(
-    Number.isNaN(hours) ? 0 : hours,
-    Number.isNaN(minutes) ? 0 : minutes,
-    0,
-    0,
-  );
+  const [hours, minutes] = wallClock(plannedDepartureTime);
+  planned.setHours(hours, minutes, 0, 0);
 
   const offsetMinutes = (now.getTime() - planned.getTime()) / 60_000;
 
@@ -478,9 +507,12 @@ export function departureDelayMinutes(
   startedAt: Date | null,
 ): number | null {
   if (!startedAt) return null;
+  // The same `undefined`-not-NaN trap as `tripRunWindow`: a time with no colon
+  // used to reach `setHours` and give back a delay of NaN, which renders as
+  // "NaN min late" rather than as no answer.
+  if (!isTimeOfDay(plannedDepartureTime)) return null;
 
-  const [hours, minutes] = plannedDepartureTime.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  const [hours, minutes] = wallClock(plannedDepartureTime);
 
   // Compared in the run's own local day: the planned time is wall-clock text
   // and the stamp is an instant, so the two only line up on the same date.

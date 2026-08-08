@@ -16,7 +16,10 @@ import {
 } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
-import { ATTENDANCE_STATUSES } from "@/modules/classroom/enums";
+import {
+  ATTENDANCE_STATUSES,
+  JUSTIFIABLE_STATUSES,
+} from "@/modules/classroom/enums";
 import {
   justifyAbsence,
   saveRegister,
@@ -246,15 +249,23 @@ export async function justifyAbsenceAction(
 
     const id = field(formData, "attendanceId");
 
-    // Re-derived against the school in context before anything is written.
+    // Re-derived against the school in context before anything is written, and
+    // narrowed to the rows a justification can apply to at all — a `where`
+    // rather than an `if`, so a mark for a pupil who was in the room reads as
+    // absent rather than as refused.
     const existing = await db.studentAttendance.findFirst({
-      where: { id, enrollment: { student: { schoolId } } },
-      select: { id: true },
+      where: {
+        id,
+        enrollment: { student: { schoolId } },
+        status: { in: [...JUSTIFIABLE_STATUSES] },
+      },
+      select: { id: true, status: true },
     });
     if (!existing) return failure(t.errors.notFound);
 
     await justifyAbsence(
       existing.id,
+      existing.status,
       boolField(formData, "isJustified"),
       field(formData, "reason") || null,
     );

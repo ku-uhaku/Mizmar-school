@@ -315,7 +315,11 @@ export async function assignClass(
 ): Promise<boolean> {
   const enrolment = await db.enrollment.findUnique({
     where: { id: enrollmentId },
-    select: { schoolYearId: true, schoolClassId: true },
+    select: {
+      schoolYearId: true,
+      schoolClassId: true,
+      levelOfferingId: true,
+    },
   });
   if (!enrolment) return false;
 
@@ -330,6 +334,22 @@ export async function assignClass(
   const schoolClass = await db.schoolClass.findFirst({
     where: {
       id: schoolClassId,
+      /*
+        The class must be one of the pupil's *own* level, not merely one of the
+        year's.
+
+        Both pickers already offer only that — the enrolment form clears the
+        class when the level changes, saying in its own comment that "the server
+        will refuse" a class of the old level, and the roster screen only ever
+        offers pupils of the class's level. The server did not refuse it: an id
+        posted directly seated a 1AP child in a 2BAC class, where they would
+        appear on its list, sit its timetable and be read against its programme
+        — while their échéancier went on being priced for 1AP.
+
+        That is the same mismatch `canChangeLevel` exists to prevent, arriving
+        by the other door.
+      */
+      levelOfferingId: enrolment.levelOfferingId,
       levelOffering: { schoolYearId: enrolment.schoolYearId },
     },
     select: { id: true },
@@ -537,11 +557,32 @@ export async function setEnrolmentStatus(
   status: string,
   leftOn: Date | null = null,
 ): Promise<void> {
+  const left = status === "TRANSFERRED" || status === "WITHDRAWN";
+
+  /*
+    ── The departure date is stamped once ─────────────────────────────────────
+    `leftOn` used to be rewritten on every save, and the enrolment form calls
+    this on every save — so a pupil who withdrew on 15 January had their
+    departure moved to June the first time somebody edited their notes. Nothing
+    said so, because no form shows the field.
+
+    It is not a cosmetic date: it is what an accountant cancels the remaining
+    instalments against, and what the radiés report prints. So it is set the day
+    the pupil actually leaves and left alone afterwards, and cleared only when
+    they come back onto the roll.
+  */
+  const current = left
+    ? await db.enrollment.findUnique({
+        where: { id: enrollmentId },
+        select: { leftOn: true },
+      })
+    : null;
+
   const enrolment = await db.enrollment.update({
     where: { id: enrollmentId },
     data: {
       status,
-      leftOn: status === "TRANSFERRED" || status === "WITHDRAWN" ? leftOn : null,
+      leftOn: left ? (current?.leftOn ?? leftOn ?? new Date()) : null,
     },
     select: { studentId: true },
   });

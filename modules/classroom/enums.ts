@@ -35,6 +35,21 @@ export const MISSING_STATUSES: readonly AttendanceStatus[] = [
   "EXCUSED",
 ];
 
+/**
+ * The statuses a justification can be accepted against.
+ *
+ * A retard is here as well as an absence: a note explaining why a child arrived
+ * at half past eight is the same piece of paper, and the pupil's file counts
+ * unjustified lates separately from unjustified absences. What is *not* here is
+ * PRESENT — there is nothing to excuse about a pupil who was in the room on
+ * time, and accepting one would turn them into an absentee.
+ */
+export const JUSTIFIABLE_STATUSES: readonly AttendanceStatus[] = [
+  "ABSENT",
+  "EXCUSED",
+  "LATE",
+];
+
 /** Was the pupil there at all? LATE counts as attending — they turned up. */
 export function wasPresent(status: string): boolean {
   return status === "PRESENT" || status === "LATE";

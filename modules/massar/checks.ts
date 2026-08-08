@@ -380,6 +380,8 @@ export function runChecks(file: MassarNotesFile, db: MassarDbContext): MassarRep
   const rejected = new Set<number>();
   const seen = new Map<string, number>();
   const claimed = new Set<string>();
+  /** Which line first resolved to each child — see the duplicate check below. */
+  const claimedBy = new Map<string, number>();
 
   const reject = (issue: RowIssue) => {
     rows.push(issue);
@@ -438,7 +440,37 @@ export function runChecks(file: MassarNotesFile, db: MassarDbContext): MassarRep
       );
       continue;
     }
+
+    /*
+      Two file rows that resolve to the same child.
+
+      The duplicate check above is on the printed code, which catches the same
+      code written twice. It cannot catch this: a row matched on its code and a
+      later row matched on MASSAR's internal *number* can land on one pupil
+      while carrying two different codes, so nothing above fires. Both rows then
+      reached `matched`, `saveMarks` upserted on (assessment, enrolment) twice,
+      and the second silently overwrote the first — one child ending up with
+      whichever mark happened to be lower down the sheet, and no report saying
+      so.
+
+      Named against the line that got there first, exactly as PUPIL_DUPLICATE
+      does, because that is the pair of rows somebody has to go and look at.
+    */
+    const claimedOn = claimedBy.get(pupil.studentId);
+    if (claimedOn !== undefined) {
+      reject({
+        id: "PUPIL_DUPLICATE",
+        severity: "ERROR",
+        line: row.line,
+        sheetRow: row.sheetRow,
+        massarCode: row.massarCode,
+        expected: `line ${claimedOn}`,
+        found: `line ${row.line}`,
+      });
+      continue;
+    }
     claimed.add(pupil.studentId);
+    claimedBy.set(pupil.studentId, row.line);
 
     // A number already held that disagrees is not a mapping to fill in — it is
     // two different children being confused, and writing marks on that basis is

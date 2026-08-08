@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import type { TxClient } from "@/modules/treasury/service";
 import { teachingDaysOf } from "@/lib/school-settings";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import { LAB_ROOM_KINDS } from "@/modules/facilities/enums";
@@ -71,20 +72,31 @@ export type Clash =
  * does not work then, the teacher is elsewhere, the room is taken, the class is
  * already sat down.
  */
-export async function findClash(input: {
-  timeSlotId: string;
-  schoolClassId: string;
-  teacherId: string | null;
-  roomId: string | null;
-  classGroupId: string | null;
-  termId: string | null;
-  /** "ALL" | "A" | "B" — lessons on opposite weeks never collide. */
-  weekParity?: string | null;
-  /** The weeks the incoming lesson is in force for. */
-  fromWeek?: number | null;
-  toWeek?: number | null;
-  exceptEntryIds?: string[];
-}): Promise<Clash | null> {
+export async function findClash(
+  input: {
+    timeSlotId: string;
+    schoolClassId: string;
+    teacherId: string | null;
+    roomId: string | null;
+    classGroupId: string | null;
+    termId: string | null;
+    /** "ALL" | "A" | "B" — lessons on opposite weeks never collide. */
+    weekParity?: string | null;
+    /** The weeks the incoming lesson is in force for. */
+    fromWeek?: number | null;
+    toWeek?: number | null;
+    exceptEntryIds?: string[];
+  },
+  /**
+   * The transaction to read in, when the caller is about to write in one.
+   *
+   * Called bare it reads the committed grid, which is what the dialog wants for
+   * its message. `saveLessonBlock` passes its own, so the check and the write
+   * see the same snapshot — see the note there.
+   */
+  client: TxClient | typeof db = db,
+): Promise<Clash | null> {
+  const db = client;
   const except = input.exceptEntryIds ?? [];
 
   // Checked before the bookings: a teacher who does not work this period is not
@@ -181,6 +193,11 @@ export async function findClash(input: {
   return null;
 }
 
+export type SaveLessonResult =
+  | { ok: true; written: number }
+  /** Somebody else took the slot between the dialog's check and this write. */
+  | { ok: false; clash: Clash };
+
 export type LessonBlock = {
   schoolClassId: string;
   /** The slots the lesson occupies — one per period, per day it runs on. */
@@ -213,7 +230,7 @@ export type LessonBlock = {
 export async function saveLessonBlock(
   block: LessonBlock,
   replaceEntryIds: string[] = [],
-): Promise<number> {
+): Promise<SaveLessonResult> {
   const bookingKey = bookingKeyOf(
     block.classGroupId,
     block.termId,
@@ -227,6 +244,41 @@ export async function saveLessonBlock(
       await tx.timetableEntry.deleteMany({
         where: { id: { in: replaceEntryIds } },
       });
+    }
+
+    /*
+      ── The clash rules are checked here, where the write happens ─────────────
+      Rule 1 is a property of one row's key and the unique index enforces it.
+      Rules 2 and 3 — a teacher in two rooms, a room hosting two classes — span
+      rows no constraint can see, and they used to be checked only in the action
+      *before* this transaction opened. Two people building the grid in
+      September, which is exactly when two people build the grid, could both
+      pass the check and both write: nothing refused the second, and nothing
+      afterwards noticed. The grid simply had a teacher in two rooms.
+
+      So the authoritative check is inside the transaction, reading through
+      `tx`. The action still checks first — it is what produces a message naming
+      the class and the period — and this is what makes the answer true.
+    */
+    for (const timeSlotId of block.timeSlotIds) {
+      const clash = await findClash(
+        {
+          timeSlotId,
+          schoolClassId: block.schoolClassId,
+          teacherId: block.teacherId,
+          roomId: block.roomId,
+          classGroupId: block.classGroupId,
+          termId: block.termId,
+          weekParity: block.weekParity,
+          fromWeek: block.fromWeek,
+          toWeek: block.toWeek,
+          // The rows being replaced are gone above, but a repeat across days
+          // still has to be allowed to land on its own previous self.
+          exceptEntryIds: replaceEntryIds,
+        },
+        tx,
+      );
+      if (clash) return { ok: false, clash } as const;
     }
 
     for (const timeSlotId of block.timeSlotIds) {
@@ -267,7 +319,7 @@ export async function saveLessonBlock(
       });
     }
 
-    return block.timeSlotIds.length;
+    return { ok: true, written: block.timeSlotIds.length } as const;
   });
 }
 
