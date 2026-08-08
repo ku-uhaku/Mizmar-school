@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { CheckIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
@@ -25,11 +26,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { interpolate } from "@/lib/i18n/format";
 import { cn, toDateInputValue } from "@/lib/utils";
-import { recordStudentDocumentAction } from "@/modules/documents/actions";
+import {
+  recordStudentDocumentAction,
+  toggleStudentDocumentAction,
+} from "@/modules/documents/actions";
 import {
   DOCUMENT_STATUSES,
   acceptsReceivedOn,
@@ -171,14 +176,21 @@ export function StudentDossierPanel({
                 </Badge>
 
                 {canManage ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditing(piece)}
-                  >
-                    {t.document.record}
-                  </Button>
+                  <>
+                    {/* The guichet's common case, in one click. The button
+                      beside it is still the way to refuse, to waive, or to
+                      write down a number — a switch has two positions and a
+                      dossier has four states. */}
+                    <ReceivedSwitch studentId={studentId} piece={piece} />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditing(piece)}
+                    >
+                      {t.document.record}
+                    </Button>
+                  </>
                 ) : null}
               </div>
             );
@@ -194,6 +206,59 @@ export function StudentDossierPanel({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * "We have it" / "we do not", inline on the row.
+ *
+ * On means RECEIVED and nothing else: a pièce refused or waived reads as off,
+ * because the school is still not holding the paper. Flipping such a row on is
+ * allowed — a family that eventually brings the acte de naissance it was waived
+ * from should not need the dialog to say so.
+ *
+ * Optimistic, and deliberately: the guichet works down a pile of documents with
+ * a parent at the counter, and a switch that waits for the round trip before it
+ * moves is a switch they click twice. The server's answer still wins — the
+ * guess is dropped when the transition ends, so a refusal snaps the row back
+ * and the toast says why.
+ */
+function ReceivedSwitch({
+  studentId,
+  piece,
+}: {
+  studentId: string;
+  piece: DossierPiece;
+}) {
+  const t = useT();
+  const received = piece.status === "RECEIVED";
+  // Same treatment as the star on a report — see FavouriteButton. The guess is
+  // discarded when the transition ends, so the row falls back to whatever the
+  // refresh actually brought back and a refusal needs no undoing by hand.
+  const [optimistic, setOptimistic] = React.useOptimistic(received);
+  const [isPending, startTransition] = React.useTransition();
+
+  return (
+    <Switch
+      checked={optimistic}
+      disabled={isPending}
+      aria-label={t.document.markReceived}
+      onCheckedChange={(next) => {
+        startTransition(async () => {
+          setOptimistic(next);
+          const result = await toggleStudentDocumentAction(
+            studentId,
+            piece.documentTypeId,
+            next,
+          );
+          if (result.status === "success") {
+            toast.success(result.message ?? t.document.recorded);
+            return;
+          }
+          toast.error(result.message ?? t.errors.unexpected);
+        });
+      }}
+    />
   );
 }
 

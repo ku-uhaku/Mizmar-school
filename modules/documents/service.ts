@@ -88,3 +88,71 @@ export async function recordDocument(
 
   return { ok: true };
 }
+
+/**
+ * The guichet's one-click verdict, behind the dossier's switch.
+ *
+ * Delegates to `recordDocument` rather than writing its own row, so both paths
+ * obey the same invariants — the date belongs to RECEIVED alone, and MISSING
+ * clears the row instead of storing it.
+ *
+ * The one judgement it makes is what happens to the paperwork already on file.
+ * The `reference` is a fact about the document itself — a numéro d'acte does
+ * not change because somebody re-recorded the pièce — so it travels forward.
+ * The `notes` do not: they exist to explain a refusal or a waiver, and that
+ * explanation has stopped being true the moment the guichet says the paper is
+ * in. Leaving "illisible" under a pièce now marked reçu is how a dossier comes
+ * to contradict itself.
+ *
+ * Switching a pièce *off* goes through MISSING, which deletes the row and with
+ * it the date and the reference. That is what missing means here, and it is the
+ * same thing the dialog does when MISSING is chosen — the switch only makes it
+ * one click instead of three.
+ */
+export async function setDocumentReceived(
+  input: {
+    studentId: string;
+    documentTypeId: string;
+    received: boolean;
+    recordedById: string;
+  },
+  schoolId: string,
+): Promise<RecordResult> {
+  const common = {
+    studentId: input.studentId,
+    documentTypeId: input.documentTypeId,
+    recordedById: input.recordedById,
+    notes: null,
+  };
+
+  if (!input.received) {
+    return recordDocument(
+      { ...common, status: "MISSING", receivedOn: null, reference: null },
+      schoolId,
+    );
+  }
+
+  // Scoped through the pupil, so a documentTypeId from another tenant cannot
+  // even be read from here — `recordDocument` would refuse the write, but a
+  // read that never happens is the stronger guarantee.
+  const existing = await db.studentDocument.findFirst({
+    where: {
+      studentId: input.studentId,
+      documentTypeId: input.documentTypeId,
+      student: { schoolId },
+    },
+    select: { reference: true },
+  });
+
+  return recordDocument(
+    {
+      ...common,
+      status: "RECEIVED",
+      // Today: the switch is flipped as the paper crosses the counter, which is
+      // exactly what `receivedOn` records.
+      receivedOn: new Date(),
+      reference: existing?.reference ?? null,
+    },
+    schoolId,
+  );
+}

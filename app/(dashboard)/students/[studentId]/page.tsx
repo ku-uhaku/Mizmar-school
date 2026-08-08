@@ -36,6 +36,7 @@ import {
   studentTransport,
 } from "@/modules/transport/queries";
 import {
+  asSinglePaymentsPage,
   familyPaymentStanding,
   findOpenSession,
   findPayableFamily,
@@ -154,7 +155,11 @@ export default async function StudentPage({
       : null,
     // Gated with the rest of the money: the receipts say what a family paid and
     // when, which is exactly what TREASURY_VIEW exists to withhold.
-    canSeeMoney ? listStudentPayments(context, student.id) : [],
+    // Dressed as a page because the receipts table is server-paged on /caisse;
+    // a pupil's own receipts are bounded, so they all arrive at once.
+    canSeeMoney
+      ? listStudentPayments(context, student.id).then(asSinglePaymentsPage)
+      : asSinglePaymentsPage([]),
     // All three hang off the enrolment — no place this year, nothing to show.
     enrolment && canSeeAttendance
       ? loadPupilAttendance(context, enrolment.id)

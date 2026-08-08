@@ -41,7 +41,7 @@ import type {
   BankOption,
   FamilyStanding,
   PayableFamily,
-  PaymentRow,
+  PaymentsPage,
   PaymentStanding,
   ServiceStanding,
 } from "@/modules/treasury/queries";
@@ -88,7 +88,7 @@ export function StudentPaymentPanel({
   canCollect: boolean;
   canCancel: boolean;
   /** Receipts that settled this pupil's lines — see `listStudentPayments`. */
-  payments: PaymentRow[];
+  payments: PaymentsPage;
   /**
    * The household's payable schedule, when the reader may collect. Loaded with
    * the file rather than on demand: a sheet that fetched on open was one more
@@ -314,13 +314,19 @@ export function StudentPaymentPanel({
         <div className="flex items-center gap-2">
           <ReceiptTextIcon className="text-muted-foreground size-4" />
           <h3 className="text-sm font-medium">{t.treasury.receipts}</h3>
-          {payments.length > 0 ? (
+          {payments.total > 0 ? (
             <Badge variant="secondary" className="tabular-nums">
-              {payments.length}
+              {payments.total}
             </Badge>
           ) : null}
         </div>
-        <ReceiptsTable payments={payments} canCancel={canCancel} />
+        {/* Not filterable: this list is already narrowed to one child, and a
+            facet writing to the URL here would be silently ignored. */}
+        <ReceiptsTable
+          page={payments}
+          canCancel={canCancel}
+          filterable={false}
+        />
       </div>
 
       {/*

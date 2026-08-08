@@ -27,6 +27,26 @@ import { isOverdue } from "@/modules/treasury/payment-state";
 /** Posted rows only — cancelled movements stay in the ledger but count nowhere. */
 const POSTED = { status: "POSTED" } as const;
 
+/**
+ * Newest-entered first, everywhere a receipt or a movement is listed.
+ *
+ * By `createdAt` and not by `paidAt` / `occurredAt`. Those are the day the money
+ * changed hands, which on a school collecting an échéancier is months away from
+ * the day the row was written: ordering by them opened the caisse on receipts
+ * dated next June and ranked the one the cashier had just taken several
+ * hundredth. Cancelling and reprinting both live on the row, so a receipt these
+ * lists could not show was also one nobody could undo.
+ *
+ * The date column still shows the business date — that is what the receipt says
+ * and what a parent will quote. The *order* answers "what have I just done",
+ * which is what these screens are actually read for.
+ *
+ * `id` breaks ties so paging stays stable: a seed writes hundreds of rows inside
+ * one millisecond, and an order the database may resolve differently between two
+ * queries drops and repeats rows across page boundaries.
+ */
+const NEWEST_FIRST = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+
 export type RegisterRow = {
   id: string;
   code: string;
@@ -389,16 +409,15 @@ const EMPTY_OPERATIONS_PAGE: OperationsPage = {
  * ── Why this is not `listOperations` with a bigger number ────────────────────
  * The ledger used to be the newest 200 rows, filtered and paged in the browser.
  * On a school with 1 124 operations — an ordinary year — that window silently
- * dropped everything older, and *older* is not the same as *earlier entered*:
- * the seeded encaissements carry future `occurredAt` dates, so a salary
- * décaissement written today ranked 309th and never appeared at all. The
- * dashboard, which aggregates over every row, went on counting it. A bursar was
- * therefore shown a total they could not reach a line of, and — because the
- * Cancel action lives on the row — could not correct.
+ * dropped everything past it, and the dashboard, which aggregates over every
+ * row, went on counting what it dropped. A bursar was therefore shown a total
+ * they could not reach a line of, and — because the Cancel action lives on the
+ * row — could not correct.
  *
  * So the filtering, the sorting and the window all move to the database, which
  * is the only place that can see every row. The facets narrow the whole ledger
- * rather than the page in front of the reader, which is what a filter is for.
+ * rather than the page in front of the reader, which is what a filter is for,
+ * and the order is `NEWEST_FIRST` — see the note there.
  */
 export async function listOperationsPage(
   context: AuthContext,
@@ -442,7 +461,7 @@ export async function listOperationsPage(
 
   const operations = await db.cashOperation.findMany({
     where,
-    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+    orderBy: NEWEST_FIRST,
     skip: (page - 1) * OPERATIONS_PAGE_SIZE,
     take: OPERATIONS_PAGE_SIZE,
     include: OPERATION_INCLUDE,
@@ -546,7 +565,7 @@ export async function listOperations(
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.sessionId ? { cashSessionId: filters.sessionId } : {}),
     },
-    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+    orderBy: NEWEST_FIRST,
     take: limit,
     include: OPERATION_INCLUDE,
   });
@@ -1216,18 +1235,122 @@ function toPaymentRow(payment: PaymentWithRowIncludes): PaymentRow {
   };
 }
 
-export async function listPayments(
+export type PaymentsPage = {
+  rows: PaymentRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+};
+
+export type PaymentsPageFilters = {
+  /** Matches the receipt number or the family's name. */
+  search?: string;
+  /** Multi-select on the facets — empty means every one. */
+  methods?: string[];
+  statuses?: string[];
+  /** ISO dates, inclusive. */
+  from?: string;
+  to?: string;
+  page?: number;
+};
+
+const PAYMENTS_PAGE_SIZE = 25;
+
+const EMPTY_PAYMENTS_PAGE: PaymentsPage = {
+  rows: [],
+  total: 0,
+  page: 1,
+  pageSize: PAYMENTS_PAGE_SIZE,
+  pageCount: 0,
+};
+
+/**
+ * The Reçus list, one page at a time.
+ *
+ * Paged on the server for the reason `listOperationsPage` is: a fixed newest-25
+ * window silently dropped everything past it, and cancelling and reprinting both
+ * live on the row, so a receipt this table could not show was also one nobody
+ * could undo.
+ *
+ * The window and the facets are decided here, over every row, and the caller
+ * passes the reader's position rather than a limit. The order is `NEWEST_FIRST`
+ * — see the note there for why it is not `paidAt`.
+ */
+export async function listPaymentsPage(
   context: AuthContext,
-  limit = 100,
-): Promise<PaymentRow[]> {
+  filters: PaymentsPageFilters = {},
+): Promise<PaymentsPage> {
+  const school = context.currentSchool?.id;
+  if (!school) return EMPTY_PAYMENTS_PAGE;
+
+  const search = filters.search?.trim();
+
+  const where = {
+    schoolId: school,
+    ...(filters.statuses?.length ? { status: { in: filters.statuses } } : {}),
+    // A receipt's method lives on its tenders, so the facet asks whether any
+    // tender was of that form: "CASH" matches a receipt half settled by cheque,
+    // which is what a bursar looking for cash taken that day means by it.
+    ...(filters.methods?.length
+      ? { tenders: { some: { method: { in: filters.methods } } } }
+      : {}),
+    // Both ends inclusive: `to` names a day, and a receipt stamped at any time
+    // on that day belongs to it.
+    ...(filters.from || filters.to
+      ? {
+          paidAt: {
+            ...(filters.from ? { gte: startOfDayLocal(filters.from) } : {}),
+            ...(filters.to ? { lte: endOfDayLocal(filters.to) } : {}),
+          },
+        }
+      : {}),
+    ...(search
+      ? {
+          OR: [
+            { code: { contains: search } },
+            { family: { name: { contains: search } } },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.PaymentWhereInput;
+
+  const total = await db.payment.count({ where });
+  const pageCount = Math.max(1, Math.ceil(total / PAYMENTS_PAGE_SIZE));
+  // Clamped rather than trusted: a page number past the end is a stale link or
+  // a hand-edited query string, and an empty table reads as "no receipts".
+  const page = Math.min(Math.max(1, Math.trunc(filters.page ?? 1)), pageCount);
+
   const payments = await db.payment.findMany({
-    where: schoolScope(context),
-    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
-    take: limit,
+    where,
+    orderBy: NEWEST_FIRST,
+    skip: (page - 1) * PAYMENTS_PAGE_SIZE,
+    take: PAYMENTS_PAGE_SIZE,
     include: paymentRowInclude,
   });
 
-  return payments.map(toPaymentRow);
+  return {
+    rows: payments.map(toPaymentRow),
+    total,
+    page,
+    pageSize: PAYMENTS_PAGE_SIZE,
+    pageCount,
+  };
+}
+
+/**
+ * A bounded list dressed as a page, for the screens that legitimately hold all
+ * of their receipts — a pupil's own file. Mirrors `asSingleOperationsPage`, and
+ * for the same reason: one component renders the receipts everywhere they appear.
+ */
+export function asSinglePaymentsPage(rows: PaymentRow[]): PaymentsPage {
+  return {
+    rows,
+    total: rows.length,
+    page: 1,
+    pageSize: rows.length,
+    pageCount: 1,
+  };
 }
 
 /**
@@ -1254,7 +1377,7 @@ export async function listStudentPayments(
         some: { enrollmentFee: { enrollment: { studentId } } },
       },
     },
-    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+    orderBy: NEWEST_FIRST,
     take: limit,
     include: paymentRowInclude,
   });
@@ -1895,7 +2018,7 @@ export async function listFamilyReceipts(
       schoolYearId: currentSchoolYearId(context),
       familyId,
     },
-    orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
+    orderBy: NEWEST_FIRST,
     take: limit,
     include: paymentRowInclude,
   });

@@ -42,6 +42,8 @@ const core = {
     clearFilter: "Effacer le filtre",
     unknown: "Inconnu",
     of: "sur",
+    page: "Page {page}",
+    morePages: "Autres pages",
     selected: "sélectionné(s)",
     openMenu: "Ouvrir le menu",
     notSet: "Non renseigné",

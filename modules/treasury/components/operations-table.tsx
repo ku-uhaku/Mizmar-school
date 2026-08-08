@@ -4,18 +4,15 @@ import Link from "next/link";
 
 import { usePathname, useSearchParams } from "next/navigation";
 
-import type { ColumnDef } from "@tanstack/react-table";
 import {
   BanIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   PrinterIcon,
   ReceiptTextIcon,
 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
-import { DataTable } from "@/components/data-table/data-table";
+import { TablePagination } from "@/components/data-table/table-pagination";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Card } from "@/components/ui/card";
 import {
@@ -52,69 +49,48 @@ import {
   cancelOperationAction,
   cancelPaymentAction,
 } from "@/modules/treasury/actions";
-import { OperationsFilters } from "@/modules/treasury/components/operations-filters";
+import {
+  OperationsFilters,
+  ReceiptsFilters,
+} from "@/modules/treasury/components/table-filters";
 import type {
   OperationRow,
   OperationsPage,
   PaymentRow,
+  PaymentsPage,
 } from "@/modules/treasury/queries";
 
 /** What the receipts table renders. Aliased so the props read plainly. */
 type PaymentSummary = PaymentRow;
 
-/** Moves the ledger's window, keeping every filter already in the URL. */
-function OperationsPagination({ page }: { page: OperationsPage }) {
-  const t = useT();
+/**
+ * Moves one table's window, keeping every filter already in the URL.
+ *
+ * `pageKey` rather than a hardcoded "page": the ledger and the receipts sit on
+ * the same screen and page independently — see the note in table-filters.tsx.
+ * The numbers themselves are the app's one pager, shared with `DataTable`, so a
+ * server-paged table is worked the same way as a client-side one.
+ */
+function LedgerPagination({
+  page,
+  pageKey,
+}: {
+  page: { page: number; pageCount: number };
+  pageKey: string;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  if (page.pageCount <= 1) return null;
-
-  const hrefFor = (target: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("page", String(target));
-    return `${pathname}?${params.toString()}`;
-  };
-
   return (
-    <div className="flex items-center gap-2">
-      <span className="tabular-nums">
-        {interpolate(t.treasury.operationPage, {
-          page: page.page,
-          pages: page.pageCount,
-        })}
-      </span>
-      <Button
-        asChild={page.page > 1}
-        variant="outline"
-        size="icon"
-        disabled={page.page <= 1}
-        aria-label={t.common.previous}
-      >
-        {page.page > 1 ? (
-          <Link href={hrefFor(page.page - 1)}>
-            <ChevronLeftIcon className="rtl:rotate-180" />
-          </Link>
-        ) : (
-          <ChevronLeftIcon className="rtl:rotate-180" />
-        )}
-      </Button>
-      <Button
-        asChild={page.page < page.pageCount}
-        variant="outline"
-        size="icon"
-        disabled={page.page >= page.pageCount}
-        aria-label={t.common.next}
-      >
-        {page.page < page.pageCount ? (
-          <Link href={hrefFor(page.page + 1)}>
-            <ChevronRightIcon className="rtl:rotate-180" />
-          </Link>
-        ) : (
-          <ChevronRightIcon className="rtl:rotate-180" />
-        )}
-      </Button>
-    </div>
+    <TablePagination
+      page={page.page}
+      pageCount={page.pageCount}
+      hrefFor={(target) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set(pageKey, String(target));
+        return `${pathname}?${params.toString()}`;
+      }}
+    />
   );
 }
 
@@ -354,7 +330,7 @@ export function OperationsTable({
             <span>
               {interpolate(t.treasury.operationCount, { count: page.total })}
             </span>
-            <OperationsPagination page={page} />
+            <LedgerPagination page={page} pageKey="page" />
           </div>
         </>
       )}
@@ -437,17 +413,30 @@ export function OperationsTable({
 /**
  * The receipts list.
  *
+ * Server-paged and server-filtered, like the ledger above it and for the same
+ * reason — see `listPaymentsPage`. Newest-entered first, so the receipt just
+ * taken is the top row: the date column carries the day the money changed
+ * hands, which is not the day it was written down.
+ *
  * Cancelling is handled in here rather than through a callback prop: this is
  * rendered from a Server Component, which cannot hand a function across the
  * boundary. The confirmation is not ceremony — cancelling puts money back on a
  * family's account, and the dialog names the receipt it is about to undo.
  */
 export function ReceiptsTable({
-  payments,
+  page,
   canCancel,
+  filterable = true,
 }: {
-  payments: PaymentSummary[];
+  page: PaymentsPage;
+  /** `TREASURY_CANCEL`. */
   canCancel: boolean;
+  /**
+   * Off for a list already narrowed to one thing — a pupil's own receipts.
+   * Filters that wrote to that URL would be silently ignored, which is worse
+   * than not offering them.
+   */
+  filterable?: boolean;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -480,152 +469,161 @@ export function ReceiptsTable({
     });
   }
 
-  const columns = React.useMemo<ColumnDef<PaymentSummary, unknown>[]>(
-    () => [
-      {
-        accessorKey: "code",
-        header: t.treasury.receipt,
-        cell: ({ row }) => {
-          const payment = row.original;
-          if (payment.status !== "CANCELLED") {
-            return <span className="font-medium">{payment.code}</span>;
-          }
-
-          // A struck-out receipt used to say only that it was struck out. The
-          // motif and the name travel on the row, so the answer to "who did
-          // this and why" is a hover away instead of a trip to whoever was on
-          // the desk that morning.
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="font-medium line-through decoration-destructive/60 underline-offset-2 cursor-help">
-                  {payment.code}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs space-y-1">
-                <p className="font-medium">{t.treasury.cancellationTrail}</p>
-                {payment.cancelReason ? (
-                  <p className="text-xs">{payment.cancelReason}</p>
-                ) : null}
-                <p className="text-xs opacity-80">
-                  {payment.cancelledByName ?? "—"}
-                  {payment.cancelledAt
-                    ? ` · ${formatDate(payment.cancelledAt, locale)}`
-                    : ""}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          );
-        },
-      },
-      {
-        id: "family",
-        accessorFn: (row) => row.familyName ?? "",
-        header: t.treasury.family,
-        cell: ({ row }) => (
-          <span className="text-sm">{row.original.familyName ?? "—"}</span>
-        ),
-      },
-      {
-        accessorKey: "paidAt",
-        header: t.treasury.paidAt,
-        cell: ({ row }) => (
-          <span className="text-sm whitespace-nowrap">
-            {formatDate(row.original.paidAt, locale)}
-          </span>
-        ),
-      },
-      {
-        id: "method",
-        // A receipt can be settled with more than one method; the joined string
-        // is what the facet matches on, so "CASH + CHEQUE" is its own value.
-        accessorFn: (row) => row.methods.join(" + "),
-        header: t.treasury.method,
-        meta: { className: "hidden @2xl/table:table-cell" },
-        cell: ({ row }) => (
-          <span className="text-xs">
-            {row.original.methods
-              .map(
-                (method) =>
-                  t.treasuryOptions.methods[
-                    method as keyof typeof t.treasuryOptions.methods
-                  ],
-              )
-              .join(" + ")}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "totalCentimes",
-        header: t.treasury.amount,
-        meta: { className: "text-end" },
-        cell: ({ row }) => (
-          <span
-            className={cn(
-              "tabular-nums",
-              row.original.status === "CANCELLED" && "line-through",
-            )}
-          >
-            {formatAmount(row.original.totalCentimes, locale)}
-          </span>
-        ),
-      },
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const payment = row.original;
-          const cancelled = payment.status === "CANCELLED";
-
-          return (
-            <div className="flex justify-end gap-1">
-              {/* Offered on cancelled receipts too: somebody holding the paper
-                  copy needs to be able to reprint it and see the void stamped
-                  across it. */}
-              <Button asChild variant="ghost" size="icon-sm">
-                <Link
-                  href={`/print/payment/${payment.id}`}
-                  aria-label={t.print.receipt}
-                >
-                  <PrinterIcon />
-                </Link>
-              </Button>
-              {canCancel && !cancelled ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t.treasury.cancelPayment}
-                  onClick={() => setPending(payment)}
-                >
-                  <BanIcon />
-                </Button>
-              ) : null}
-            </div>
-          );
-        },
-      },
-    ],
-    [t, locale, canCancel],
+  // An empty list and a filter that matched nothing are different stories, and
+  // the difference is only knowable from the URL now that the narrowing happens
+  // on the server.
+  const searchParams = useSearchParams();
+  const isFiltered = ["rsearch", "rmethod", "rstatus", "rfrom", "rto"].some(
+    (key) => searchParams.get(key),
   );
+
+  const rows = page.rows;
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={payments}
-        pageSize={20}
-        rowClassName={(payment) =>
-          payment.status === "CANCELLED" ? "text-muted-foreground" : undefined
-        }
-        emptyState={
+      {filterable ? <ReceiptsFilters /> : null}
+
+      {rows.length === 0 ? (
+        <Card className="py-0">
           <EmptyState
             icon={<ReceiptTextIcon className="size-5" />}
-            title={t.treasury.noReceipts}
+            title={
+              !filterable || !isFiltered
+                ? t.treasury.noReceipts
+                : t.treasury.noReceiptMatches
+            }
           />
-        }
-      />
+        </Card>
+      ) : (
+        <>
+          <div className="@container/table bg-card overflow-hidden rounded-xl ring-1 ring-foreground/10">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t.treasury.receipt}</TableHead>
+                    <TableHead>{t.treasury.family}</TableHead>
+                    <TableHead>{t.treasury.paidAt}</TableHead>
+                    <TableHead className="hidden @2xl/table:table-cell">
+                      {t.treasury.method}
+                    </TableHead>
+                    <TableHead className="text-end">
+                      {t.treasury.amount}
+                    </TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((payment) => {
+                    const cancelled = payment.status === "CANCELLED";
+
+                    return (
+                      <TableRow
+                        key={payment.id}
+                        className={cn(cancelled && "text-muted-foreground")}
+                      >
+                        <TableCell className="whitespace-nowrap">
+                          {cancelled ? (
+                            // A struck-out receipt used to say only that it was
+                            // struck out. The motif and the name travel on the
+                            // row, so the answer to "who did this and why" is a
+                            // hover away instead of a trip to whoever was on the
+                            // desk that morning.
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help font-medium line-through decoration-destructive/60 underline-offset-2">
+                                  {payment.code}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs space-y-1">
+                                <p className="font-medium">
+                                  {t.treasury.cancellationTrail}
+                                </p>
+                                {payment.cancelReason ? (
+                                  <p className="text-xs">
+                                    {payment.cancelReason}
+                                  </p>
+                                ) : null}
+                                <p className="text-xs opacity-80">
+                                  {payment.cancelledByName ?? "—"}
+                                  {payment.cancelledAt
+                                    ? ` · ${formatDate(payment.cancelledAt, locale)}`
+                                    : ""}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            <span className="font-medium">{payment.code}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {payment.familyName ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {formatDate(payment.paidAt, locale)}
+                        </TableCell>
+                        <TableCell className="hidden text-xs @2xl/table:table-cell">
+                          {payment.methods
+                            .map(
+                              (method) =>
+                                t.treasuryOptions.methods[
+                                  method as keyof typeof t.treasuryOptions.methods
+                                ],
+                            )
+                            .join(" + ")}
+                        </TableCell>
+                        <TableCell className="text-end">
+                          <span
+                            className={cn(
+                              "tabular-nums",
+                              cancelled && "line-through",
+                            )}
+                          >
+                            {formatAmount(payment.totalCentimes, locale)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-1">
+                            {/* Offered on cancelled receipts too: somebody
+                                holding the paper copy needs to be able to
+                                reprint it and see the void stamped across it. */}
+                            <Button asChild variant="ghost" size="icon-sm">
+                              <Link
+                                href={`/print/payment/${payment.id}`}
+                                aria-label={t.print.receipt}
+                              >
+                                <PrinterIcon />
+                              </Link>
+                            </Button>
+                            {canCancel && !cancelled ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={t.treasury.cancelPayment}
+                                onClick={() => setPending(payment)}
+                              >
+                                <BanIcon />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div className="text-muted-foreground mt-3 flex items-center justify-between text-sm">
+            <span>
+              {interpolate(t.treasury.receiptCount, { count: page.total })}
+            </span>
+            <LedgerPagination page={page} pageKey="rpage" />
+          </div>
+        </>
+      )}
 
       <AlertDialog
         open={pending !== null}

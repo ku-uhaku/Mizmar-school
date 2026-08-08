@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import type { ColumnDef } from "@tanstack/react-table";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   FileSpreadsheetIcon,
   GraduationCapIcon,
@@ -12,14 +12,22 @@ import {
   Trash2Icon,
 } from "lucide-react";
 
-import { DataTable } from "@/components/data-table/data-table";
-import type { FacetDef } from "@/components/data-table/data-table-facet";
+import { TablePagination } from "@/components/data-table/table-pagination";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,255 +39,45 @@ import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { ageFrom } from "@/lib/utils";
 import { deleteStudentAction } from "@/modules/students/actions";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
-import { GENDERS, STUDENT_STATUSES } from "@/modules/students/enums";
-import type { StudentRow } from "@/modules/students/queries";
-
-/** Stands in for "no class yet" in the placement facet — see the note there. */
-const UNPLACED = "__unplaced__";
+import { StudentsFilters } from "@/modules/students/components/students-filters";
+import type {
+  StudentFacetOptions,
+  StudentRow,
+  StudentsPage,
+} from "@/modules/students/queries";
 
 /**
- * The students list.
+ * The pupils list.
  *
  * Placement — level and class — is shown alongside identity because "who is not
  * yet in a class" is the question this screen is opened to answer far more often
  * than "what is this child's date of birth".
+ *
+ * ── Why this is not the app's `DataTable` ────────────────────────────────────
+ * That component filters, sorts and pages in the browser, which is the right
+ * trade for one organisation's schools or roles — a few hundred rows, and
+ * instant search worth the payload. A school's roll has no ceiling: it grows
+ * every rentrée, and shipping a row per pupil with their placement before
+ * anybody has typed anything is a page that gets slower every year and never
+ * gets faster. It is the second such table after the caisse ledger, and it is
+ * built the same way — the window, the search, the facets and the order are all
+ * decided on the server and read from the URL, so a filter narrows the whole
+ * roll rather than the twenty rows in front of the reader.
  */
 export function StudentsManager({
-  students,
+  page,
+  facetOptions,
   permissions,
 }: {
-  students: StudentRow[];
+  page: StudentsPage;
+  /** What the level and class facets may offer — see `listStudentFacetOptions`. */
+  facetOptions: StudentFacetOptions;
   permissions: { canCreate: boolean; canUpdate: boolean; canDelete: boolean };
 }) {
   const { t, locale } = useI18n();
   const [deleting, setDeleting] = React.useState<StudentRow | null>(null);
-
-  const columns = React.useMemo<ColumnDef<StudentRow, unknown>[]>(
-    () => [
-      {
-        id: "student",
-        accessorFn: (row) =>
-          `${row.firstName} ${row.lastName} ${row.firstNameAr ?? ""} ${
-            row.lastNameAr ?? ""
-          } ${row.code} ${row.massarCode ?? ""}`,
-        header: t.student.studentColumn,
-        cell: ({ row }) => {
-          const student = row.original;
-          const initials = `${student.firstName[0] ?? ""}${
-            student.lastName[0] ?? ""
-          }`
-            .toUpperCase()
-            .trim();
-
-          return (
-            <div className="flex min-w-0 items-center gap-3">
-              <Avatar className="size-9 shrink-0">
-                {student.photoUrl ? (
-                  <AvatarImage src={student.photoUrl} alt="" />
-                ) : null}
-                <AvatarFallback className="text-xs">
-                  {initials || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <Link
-                  href={`/students/${student.id}`}
-                  className="truncate font-medium hover:underline"
-                >
-                  {student.firstName} {student.lastName}
-                </Link>
-                <p className="text-muted-foreground truncate text-xs" dir="ltr">
-                  {student.code}
-                </p>
-              </div>
-            </div>
-          );
-        },
-      },
-      /*
-        Level and class are separate columns rather than one "placement" cell so
-        each can carry its own facet — "show me 3AP" and "show me who is not in
-        a class" are the two questions this screen is opened for, and neither is
-        answerable by typing into a search box.
-      */
-      {
-        id: "level",
-        accessorFn: (row) => row.levelName ?? "",
-        header: t.enrolment.level,
-        cell: ({ row }) =>
-          row.original.levelName ? (
-            <Badge variant="secondary">{row.original.levelName}</Badge>
-          ) : (
-            <span className="text-muted-foreground text-sm">
-              {t.student.notEnrolled}
-            </span>
-          ),
-      },
-      {
-        id: "class",
-        // Unplaced pupils get a sentinel rather than "": an empty string is
-        // indistinguishable from a missing value in the facet list, and "who
-        // has no class yet" is exactly what somebody comes here to filter on.
-        accessorFn: (row) => row.className ?? UNPLACED,
-        header: t.schoolClass.title,
-        cell: ({ row }) =>
-          row.original.className ? (
-            <Badge variant="outline">{row.original.className}</Badge>
-          ) : (
-            <span className="text-muted-foreground text-sm">
-              {t.student.notPlaced}
-            </span>
-          ),
-      },
-      {
-        id: "age",
-        accessorFn: (row) => ageFrom(row.birthDate) ?? -1,
-        header: t.student.age,
-        meta: { className: "hidden @3xl/table:table-cell" },
-        cell: ({ row }) => {
-          const age = ageFrom(row.original.birthDate);
-          return age === null ? (
-            <span className="text-muted-foreground">—</span>
-          ) : (
-            <span className="tabular-nums">{formatNumber(age, locale)}</span>
-          );
-        },
-      },
-      {
-        accessorKey: "gender",
-        header: t.student.gender,
-        meta: { className: "hidden @4xl/table:table-cell" },
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {
-              t.studentOptions.genders[
-                row.original.gender as keyof typeof t.studentOptions.genders
-              ]
-            }
-          </span>
-        ),
-      },
-      {
-        accessorKey: "familyName",
-        header: t.student.family,
-        meta: { className: "hidden @5xl/table:table-cell" },
-        cell: ({ row }) =>
-          row.original.familyId ? (
-            <Link
-              href={`/families/${row.original.familyId}`}
-              className="text-sm hover:underline"
-            >
-              {row.original.familyName}
-            </Link>
-          ) : (
-            <span className="text-muted-foreground text-sm">
-              {t.family.noContact}
-            </span>
-          ),
-      },
-      {
-        accessorKey: "status",
-        header: t.school.status,
-        cell: ({ row }) => <StudentStatusBadge status={row.original.status} />,
-      },
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        cell: ({ row }) => {
-          if (!permissions.canUpdate && !permissions.canDelete) return null;
-
-          return (
-            <div className="flex justify-end">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t.common.openMenu}
-                  >
-                    <MoreHorizontalIcon />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {permissions.canUpdate ? (
-                    <DropdownMenuItem asChild>
-                      <Link href={`/students/${row.original.id}`}>
-                        <PencilIcon />
-                        {t.common.edit}
-                      </Link>
-                    </DropdownMenuItem>
-                  ) : null}
-                  {permissions.canDelete ? (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => setDeleting(row.original)}
-                      >
-                        <Trash2Icon />
-                        {t.common.delete}
-                      </DropdownMenuItem>
-                    </>
-                  ) : null}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          );
-        },
-      },
-    ],
-    [t, locale, permissions.canUpdate, permissions.canDelete],
-  );
-
-  /**
-   * Levels and classes come from the rows rather than from a fixed list: the
-   * school opens a different set every year, and offering a facet value with
-   * nothing behind it is worse than not offering it.
-   */
-  const facets = React.useMemo<FacetDef[]>(() => {
-    const levels = [
-      ...new Set(students.map((s) => s.levelName).filter(Boolean)),
-    ].sort() as string[];
-    const classes = [
-      ...new Set(students.map((s) => s.className).filter(Boolean)),
-    ].sort() as string[];
-
-    return [
-      {
-        columnId: "status",
-        label: t.school.status,
-        options: STUDENT_STATUSES.map((status) => ({
-          value: status,
-          label: t.studentOptions.statuses[status],
-        })),
-      },
-      {
-        columnId: "level",
-        label: t.enrolment.level,
-        options: levels.map((level) => ({ value: level, label: level })),
-      },
-      {
-        columnId: "class",
-        label: t.schoolClass.title,
-        options: [
-          ...classes.map((className) => ({
-            value: className,
-            label: className,
-          })),
-          { value: UNPLACED, label: t.student.notPlaced },
-        ],
-      },
-      {
-        columnId: "gender",
-        label: t.student.gender,
-        options: GENDERS.map((gender) => ({
-          value: gender,
-          label: t.studentOptions.genders[gender],
-        })),
-      },
-    ];
-  }, [students, t]);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const newButton = permissions.canCreate ? (
     <Button asChild>
@@ -309,24 +107,232 @@ export function StudentsManager({
     </div>
   );
 
+  // An empty roll and a filter that matched nothing are different stories, and
+  // the difference is only knowable from the URL now that the narrowing happens
+  // on the server.
+  const isFiltered = ["q", "status", "level", "class", "gender"].some((key) =>
+    searchParams.get(key),
+  );
+
+  if (page.total === 0 && !isFiltered) {
+    return (
+      <Card className="overflow-hidden py-0">
+        <EmptyState
+          icon={<GraduationCapIcon className="size-5" />}
+          title={t.student.noStudents}
+          description={t.student.subtitle}
+          action={toolbar}
+        />
+      </Card>
+    );
+  }
+
   return (
     <>
-      <DataTable
-        columns={columns}
-        data={students}
-        searchPlaceholder={t.student.searchPlaceholder}
-        facets={facets}
-        pageSize={15}
-        emptyState={
+      <div className="@container/table bg-card ring-foreground/10 overflow-hidden rounded-xl ring-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          <span className="text-muted-foreground text-sm tabular-nums">
+            {interpolate(t.student.studentCount, { count: page.total })}
+          </span>
+          {toolbar}
+        </div>
+
+        <StudentsFilters facetOptions={facetOptions} />
+
+        {page.rows.length === 0 ? (
           <EmptyState
             icon={<GraduationCapIcon className="size-5" />}
-            title={t.student.noStudents}
-            description={t.student.subtitle}
-            action={toolbar}
+            title={t.student.noStudentMatches}
           />
-        }
-        toolbar={toolbar}
-      />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t.student.studentColumn}</TableHead>
+                    <TableHead>{t.enrolment.level}</TableHead>
+                    <TableHead>{t.schoolClass.title}</TableHead>
+                    <TableHead className="hidden @3xl/table:table-cell">
+                      {t.student.age}
+                    </TableHead>
+                    <TableHead className="hidden @4xl/table:table-cell">
+                      {t.student.gender}
+                    </TableHead>
+                    <TableHead className="hidden @5xl/table:table-cell">
+                      {t.student.family}
+                    </TableHead>
+                    <TableHead>{t.school.status}</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {page.rows.map((student) => {
+                    const initials = `${student.firstName[0] ?? ""}${
+                      student.lastName[0] ?? ""
+                    }`
+                      .toUpperCase()
+                      .trim();
+                    const age = ageFrom(student.birthDate);
+
+                    return (
+                      <TableRow key={student.id}>
+                        <TableCell>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Avatar className="size-9 shrink-0">
+                              {student.photoUrl ? (
+                                <AvatarImage src={student.photoUrl} alt="" />
+                              ) : null}
+                              <AvatarFallback className="text-xs">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <Link
+                                href={`/students/${student.id}`}
+                                className="truncate font-medium hover:underline"
+                              >
+                                {student.firstName} {student.lastName}
+                              </Link>
+                              <p
+                                className="text-muted-foreground truncate text-xs"
+                                dir="ltr"
+                              >
+                                {student.code}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/*
+                          Level and class stay separate columns rather than one
+                          "placement" cell so each can carry its own facet —
+                          "show me 3AP" and "show me who is not in a class" are
+                          the two questions this screen is opened for, and
+                          neither is answerable by typing into a search box.
+                        */}
+                        <TableCell>
+                          {student.levelName ? (
+                            <Badge variant="secondary">{student.levelName}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">
+                              {t.student.notEnrolled}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          {student.className ? (
+                            <Badge variant="outline">{student.className}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">
+                              {t.student.notPlaced}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="hidden @3xl/table:table-cell">
+                          {age === null ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <span className="tabular-nums">
+                              {formatNumber(age, locale)}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="hidden text-sm @4xl/table:table-cell">
+                          {
+                            t.studentOptions.genders[
+                              student.gender as keyof typeof t.studentOptions.genders
+                            ]
+                          }
+                        </TableCell>
+
+                        <TableCell className="hidden @5xl/table:table-cell">
+                          {student.familyId ? (
+                            <Link
+                              href={`/families/${student.familyId}`}
+                              className="text-sm hover:underline"
+                            >
+                              {student.familyName}
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">
+                              {t.family.noContact}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <StudentStatusBadge status={student.status} />
+                        </TableCell>
+
+                        <TableCell>
+                          {permissions.canUpdate || permissions.canDelete ? (
+                            <div className="flex justify-end">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={t.common.openMenu}
+                                  >
+                                    <MoreHorizontalIcon />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {permissions.canUpdate ? (
+                                    <DropdownMenuItem asChild>
+                                      <Link href={`/students/${student.id}`}>
+                                        <PencilIcon />
+                                        {t.common.edit}
+                                      </Link>
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                  {permissions.canDelete ? (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onSelect={() => setDeleting(student)}
+                                      >
+                                        <Trash2Icon />
+                                        {t.common.delete}
+                                      </DropdownMenuItem>
+                                    </>
+                                  ) : null}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {page.pageCount > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
+                <p className="text-muted-foreground text-sm tabular-nums">
+                  {page.page} {t.common.of} {page.pageCount}
+                </p>
+                <TablePagination
+                  page={page.page}
+                  pageCount={page.pageCount}
+                  hrefFor={(target) => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("page", String(target));
+                    return `${pathname}?${params.toString()}`;
+                  }}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
 
       {deleting ? (
         <ConfirmDelete

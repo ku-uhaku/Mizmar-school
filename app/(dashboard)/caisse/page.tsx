@@ -14,7 +14,7 @@ import { SessionBar } from "@/modules/treasury/components/session-bar";
 import { TreasuryDashboard } from "@/modules/treasury/components/treasury-dashboard";
 import {
   listOperationsPage,
-  listPayments,
+  listPaymentsPage,
   listRegisters,
   treasurySummary,
 } from "@/modules/treasury/queries";
@@ -58,7 +58,16 @@ export default async function TreasuryPage({
       to: single("to"),
       page: Number(single("page") ?? 1) || 1,
     }),
-    listPayments(context, 25),
+    // The receipts have their own window, filters and position in the query
+    // string — both tables are on this screen, so neither may move the other.
+    listPaymentsPage(context, {
+      methods: single("rmethod") ? [single("rmethod")!] : undefined,
+      statuses: single("rstatus") ? [single("rstatus")!] : undefined,
+      search: single("rsearch"),
+      from: single("rfrom"),
+      to: single("rto"),
+      page: Number(single("rpage") ?? 1) || 1,
+    }),
   ]);
 
   return (
@@ -87,7 +96,7 @@ export default async function TreasuryPage({
         <section className="grid gap-3">
           <SectionHeading label={t.treasury.receipts} />
           <ReceiptsTable
-            payments={payments}
+            page={payments}
             canCancel={context.can(PERMISSIONS.TREASURY_CANCEL)}
           />
         </section>

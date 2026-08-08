@@ -25,3 +25,18 @@ export function studentDocumentSchema(t: Dictionary) {
     notes: optionalText(500),
   });
 }
+
+/**
+ * The dossier's switch: the two ids, and nothing else to get wrong.
+ *
+ * Separate from `studentDocumentSchema` rather than a looser version of it —
+ * the toggle carries no status to validate, and a schema whose fields are all
+ * optional would stop catching the form that forgot one.
+ */
+export function toggleDocumentSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    studentId: requiredText(v, { max: 40 }),
+    documentTypeId: requiredText(v, { max: 40 }),
+  });
+}

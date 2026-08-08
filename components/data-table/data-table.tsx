@@ -20,8 +20,6 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   ChevronsUpDownIcon,
   ArrowUpIcon,
   SearchIcon,
@@ -30,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { DataTableFacet, type FacetDef } from "@/components/data-table/data-table-facet";
+import { TablePagination } from "@/components/data-table/table-pagination";
 import { useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -352,31 +351,16 @@ export function DataTable<TData>({
       </div>
 
       {table.getPageCount() > 1 ? (
-        <div className="flex items-center justify-between gap-2 border-t px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-3">
           <p className="text-muted-foreground text-sm tabular-nums">
             {table.getState().pagination.pageIndex + 1} {t.common.of}{" "}
             {table.getPageCount()}
           </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeftIcon className="rtl-flip" />
-              {t.common.previous}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              {t.common.next}
-              <ChevronRightIcon className="rtl-flip" />
-            </Button>
-          </div>
+          <TablePagination
+            page={table.getState().pagination.pageIndex + 1}
+            pageCount={table.getPageCount()}
+            onPage={(page) => table.setPageIndex(page - 1)}
+          />
         </div>
       ) : null}
     </div>

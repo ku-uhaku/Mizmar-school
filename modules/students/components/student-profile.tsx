@@ -43,7 +43,7 @@ import type {
   BankOption,
   FamilyStanding,
   PayableFamily,
-  PaymentRow,
+  PaymentsPage,
   PaymentStanding,
 } from "@/modules/treasury/queries";
 import {
@@ -142,7 +142,7 @@ export function StudentProfile({
   /** The rest of the household, for the fratrie switch on the payment tab. */
   familyStanding: FamilyStanding | null;
   /** Receipts already taken against this pupil. Empty when money is hidden. */
-  payments: PaymentRow[];
+  payments: PaymentsPage;
   /**
    * The three below all hang off the enrolment: null when the child has no
    * place this year, and there is nothing to show rather than an empty tab.

@@ -64,6 +64,14 @@ const nextConfig: NextConfig = {
   // Volunteers the framework and its version to anyone scanning. No reason to.
   poweredByHeader: false,
 
+  /*
+    The dev server blocks cross-origin requests to its own assets, and reaching
+    it by LAN address is cross-origin even on the same machine. Listed so the
+    console can be shown on a phone or another desk without HMR breaking.
+    Development only — `next start` ignores it.
+  */
+  allowedDevOrigins: ["10.1.15.2"],
+
   headers() {
     return Promise.resolve([{ source: "/:path*", headers: SECURITY_HEADERS }]);
   },

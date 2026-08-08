@@ -42,6 +42,8 @@ const core = {
     clearFilter: "مسح عامل التصفية",
     unknown: "غير معروف",
     of: "من",
+    page: "الصفحة {page}",
+    morePages: "صفحات أخرى",
     selected: "محدد",
     openMenu: "فتح القائمة",
     notSet: "غير محدد",

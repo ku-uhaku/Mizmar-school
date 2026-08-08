@@ -44,47 +44,34 @@ export type FacetDef = {
 };
 
 /**
- * A multi-select filter over one column, in the shape people already know from
- * issue trackers: a dashed "+ Status" button that fills with the chosen values.
+ * A multi-select filter, in the shape people already know from issue trackers:
+ * a dashed "+ Status" button that fills with the chosen values.
  *
- * Counts come from the rows the *other* filters have already left, so a value
- * showing 0 genuinely has nothing behind it in the current view rather than
- * being empty in the table as a whole.
+ * Presentational and state-free, so the same control serves both kinds of table
+ * in the app — a client-side `DataTable`, which holds the selection in the
+ * column, and a server-paged screen, which holds it in the URL. Counts are
+ * optional because only the first can know them: a screen with twenty of four
+ * hundred rows in hand cannot say how many pupils a value has behind it without
+ * asking the database, and a number that counted only the page would be a lie.
  */
-export function DataTableFacet<TData>({
-  column,
+export function FacetFilter({
   label,
   options,
+  selected,
+  counts,
+  onToggle,
+  onClear,
 }: {
-  column: Column<TData, unknown>;
   label: string;
   options: FacetOption[];
+  selected: readonly string[];
+  /** Rows behind each value, where the caller can know it. */
+  counts?: Map<string, number>;
+  onToggle: (value: string) => void;
+  onClear: () => void;
 }) {
   const t = useT();
-
-  /*
-    Re-keyed as strings to match `FacetOption.value`. `getFacetedUniqueValues`
-    keys by the raw cell value, so a boolean column yields `true`/`false` and a
-    lookup by "true" would silently report every value as empty — while the
-    filter itself, which stringifies, went on working. Counts and filtering have
-    to agree on the key or the numbers quietly lie.
-  */
-  const counts = new Map<string, number>();
-  for (const [value, count] of column.getFacetedUniqueValues()) {
-    const key = String(value);
-    counts.set(key, (counts.get(key) ?? 0) + count);
-  }
-
-  const selected = new Set((column.getFilterValue() as string[]) ?? []);
-
-  function toggle(value: string) {
-    const next = new Set(selected);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
-    // An empty set is "no filter", not "match nothing" — passing `[]` through
-    // would leave the column filtered to nothing at all.
-    column.setFilterValue(next.size > 0 ? Array.from(next) : undefined);
-  }
+  const chosen = new Set(selected);
 
   return (
     <Popover>
@@ -92,17 +79,17 @@ export function DataTableFacet<TData>({
         <Button variant="outline" size="sm" className="border-dashed">
           <PlusCircleIcon />
           {label}
-          {selected.size > 0 ? (
+          {chosen.size > 0 ? (
             <>
               <Separator orientation="vertical" className="mx-0.5 h-4" />
               <span className="flex gap-1">
-                {selected.size > 2 ? (
+                {chosen.size > 2 ? (
                   <Badge variant="secondary" className="tabular-nums">
-                    {selected.size}
+                    {chosen.size}
                   </Badge>
                 ) : (
                   options
-                    .filter((option) => selected.has(option.value))
+                    .filter((option) => chosen.has(option.value))
                     .map((option) => (
                       <Badge key={option.value} variant="secondary">
                         {option.label}
@@ -122,11 +109,11 @@ export function DataTableFacet<TData>({
             <CommandEmpty>{t.common.noResults}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
-                const isSelected = selected.has(option.value);
+                const isSelected = chosen.has(option.value);
                 return (
                   <CommandItem
                     key={option.value}
-                    onSelect={() => toggle(option.value)}
+                    onSelect={() => onToggle(option.value)}
                   >
                     <span
                       className={cn(
@@ -142,22 +129,21 @@ export function DataTableFacet<TData>({
                     </span>
                     {option.icon}
                     <span className="truncate">{option.label}</span>
-                    <span className="text-muted-foreground ms-auto text-xs tabular-nums">
-                      {counts.get(option.value) ?? 0}
-                    </span>
+                    {counts ? (
+                      <span className="text-muted-foreground ms-auto text-xs tabular-nums">
+                        {counts.get(option.value) ?? 0}
+                      </span>
+                    ) : null}
                   </CommandItem>
                 );
               })}
             </CommandGroup>
 
-            {selected.size > 0 ? (
+            {chosen.size > 0 ? (
               <>
                 <CommandSeparator />
                 <CommandGroup>
-                  <CommandItem
-                    onSelect={() => column.setFilterValue(undefined)}
-                    className="justify-center"
-                  >
+                  <CommandItem onSelect={onClear} className="justify-center">
                     {t.common.clearFilter}
                   </CommandItem>
                 </CommandGroup>
@@ -167,5 +153,55 @@ export function DataTableFacet<TData>({
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * The column-bound version, for `DataTable`.
+ *
+ * Counts come from the rows the *other* filters have already left, so a value
+ * showing 0 genuinely has nothing behind it in the current view rather than
+ * being empty in the table as a whole.
+ */
+export function DataTableFacet<TData>({
+  column,
+  label,
+  options,
+}: {
+  column: Column<TData, unknown>;
+  label: string;
+  options: FacetOption[];
+}) {
+  /*
+    Re-keyed as strings to match `FacetOption.value`. `getFacetedUniqueValues`
+    keys by the raw cell value, so a boolean column yields `true`/`false` and a
+    lookup by "true" would silently report every value as empty — while the
+    filter itself, which stringifies, went on working. Counts and filtering have
+    to agree on the key or the numbers quietly lie.
+  */
+  const counts = new Map<string, number>();
+  for (const [value, count] of column.getFacetedUniqueValues()) {
+    const key = String(value);
+    counts.set(key, (counts.get(key) ?? 0) + count);
+  }
+
+  const selected = (column.getFilterValue() as string[]) ?? [];
+
+  return (
+    <FacetFilter
+      label={label}
+      options={options}
+      selected={selected}
+      counts={counts}
+      onToggle={(value) => {
+        const next = new Set(selected);
+        if (next.has(value)) next.delete(value);
+        else next.add(value);
+        // An empty set is "no filter", not "match nothing" — passing `[]`
+        // through would leave the column filtered to nothing at all.
+        column.setFilterValue(next.size > 0 ? Array.from(next) : undefined);
+      }}
+      onClear={() => column.setFilterValue(undefined)}
+    />
   );
 }
