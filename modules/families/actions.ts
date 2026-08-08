@@ -82,7 +82,8 @@ async function authorizeFamily(
 ) {
   const family = await db.family.findUnique({
     where: { id: familyId },
-    select: { id: true, schoolId: true },
+    // The code comes back so an edit can keep it — see `updateFamilyAction`.
+    select: { id: true, schoolId: true, code: true },
   });
   if (!family) return null;
 
@@ -149,8 +150,16 @@ export async function updateFamilyAction(
       );
     }
 
-    const code =
-      parsed.data.code ?? (await allocateFamilyCode(existing.schoolId));
+    /*
+      Blank means "leave it as it is", not "give me a new one".
+
+      Allocation belongs to opening a file — see `allocateFamilyCode`, whose own
+      note says as much. On an edit it renumbered the dossier: a secretary who
+      cleared the field, or any request that simply did not carry it, walked
+      away with a family filed under a different number from the one on every
+      piece of paper they had already been given.
+    */
+    const code = parsed.data.code ?? existing.code;
 
     const duplicate = await db.family.findFirst({
       where: { schoolId: existing.schoolId, code, NOT: { id: familyId } },
@@ -225,6 +234,24 @@ export async function saveGuardianAction(
       return failure(t.family.relationshipTaken, {
         relationship: t.family.relationshipTaken,
       });
+    }
+
+    /*
+      The guardian is resolved before anything is demoted.
+
+      Promoting a first contact clears whoever held it, and that used to run
+      ahead of the write — so a `guardianId` belonging to another dossier
+      demoted this family's first contact and *then* reported not-found. The
+      repair, `ensurePrimaryContact`, sits after the early return and never ran,
+      which left the dossier in exactly the state it exists to prevent: a file
+      with nobody to ring.
+    */
+    if (guardianId) {
+      const target = await db.guardian.findFirst({
+        where: { id: guardianId, familyId },
+        select: { id: true },
+      });
+      if (!target) return failure(t.errors.notFound);
     }
 
     if (parsed.data.isPrimaryContact) {

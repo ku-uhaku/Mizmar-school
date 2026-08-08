@@ -24,7 +24,8 @@ const fr = {
     currentPassword: "Mot de passe actuel",
     newPassword: "Nouveau mot de passe",
     confirmPassword: "Confirmer le nouveau mot de passe",
-    passwordChanged: "Mot de passe modifié.",
+    passwordChanged:
+      "Mot de passe modifié. Vous devrez vous reconnecter ici, et tous vos autres appareils ont été déconnectés.",
     passwordMismatch: "Les deux mots de passe ne correspondent pas.",
     wrongCurrentPassword: "Votre mot de passe actuel est incorrect.",
     access: "Vos accès",

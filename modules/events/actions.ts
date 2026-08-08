@@ -137,6 +137,8 @@ export async function publishEventAction(
           return failure(t.event.published);
         case "NO_AUDIENCE":
           return failure(t.event.audienceEmpty);
+        case "CANCELLED":
+          return failure(t.event.cannotPublishCancelled);
       }
     }
 

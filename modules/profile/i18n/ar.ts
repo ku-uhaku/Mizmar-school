@@ -24,7 +24,8 @@ const ar = {
     currentPassword: "كلمة المرور الحالية",
     newPassword: "كلمة المرور الجديدة",
     confirmPassword: "تأكيد كلمة المرور الجديدة",
-    passwordChanged: "تم تغيير كلمة المرور.",
+    passwordChanged:
+      "تم تغيير كلمة المرور. ستحتاج إلى تسجيل الدخول من جديد هنا، وتم تسجيل الخروج من كل أجهزتك الأخرى.",
     passwordMismatch: "كلمتا المرور غير متطابقتين.",
     wrongCurrentPassword: "كلمة المرور الحالية غير صحيحة.",
     access: "صلاحياتك",

@@ -1,7 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { endOfDay, startOfDay } from "@/modules/events/enums";
+import {
+  endOfDay,
+  isPublishable,
+  startOfDay,
+} from "@/modules/events/enums";
 
 /**
  * Writes and data invariants for the events module.
@@ -183,7 +187,10 @@ export async function updateEvent(
 
 export type PublishResult =
   | { ok: true }
-  | { ok: false; reason: "NOT_FOUND" | "ALREADY_PUBLISHED" | "NO_AUDIENCE" };
+  | {
+      ok: false;
+      reason: "NOT_FOUND" | "ALREADY_PUBLISHED" | "NO_AUDIENCE" | "CANCELLED";
+    };
 
 /**
  * Puts an event in front of families.
@@ -216,12 +223,31 @@ export async function publishEvent(
   if (event.status === "PUBLISHED") {
     return { ok: false, reason: "ALREADY_PUBLISHED" };
   }
+  /*
+    Only a draft may be announced — `isPublishable`, the same predicate the
+    manager uses to decide whether to draw the button.
+
+    It used to accept anything that was not already published, which let a
+    *cancelled* event be announced again by a direct POST: the status went back
+    to PUBLISHED and `publishedAt` was restamped, so the line a family had been
+    shown saying the réunion was called off silently became a line saying it was
+    on. CANCELLED is kept and shown rather than deleted for exactly that reason
+    — and `deleteEventAction` refuses a published event on the same grounds —
+    so this was the one door left open onto the record the rest of the module
+    protects. Calling an event back on is a new announcement, not an undo.
+  */
+  if (!isPublishable(event.status)) {
+    return { ok: false, reason: "CANCELLED" };
+  }
   if (!event.isSchoolWide && event._count.audiences === 0) {
     return { ok: false, reason: "NO_AUDIENCE" };
   }
 
   const claimed = await db.event.updateMany({
-    where: { id: eventId, schoolId, status: { not: "PUBLISHED" } },
+    // The state this decision was made against, restated as a condition: two
+    // people pressing Publish at once means the second matches no rows instead
+    // of overwriting the first one's stamp.
+    where: { id: eventId, schoolId, status: "DRAFT" },
     data: { status: "PUBLISHED", publishedAt: new Date(), publishedById },
   });
 

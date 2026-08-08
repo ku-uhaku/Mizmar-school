@@ -109,7 +109,45 @@ export function settingsOf(
   row: Partial<SchoolSettingsValues> | null | undefined,
 ): SchoolSettingsValues {
   if (!row) return DEFAULT_SETTINGS;
-  return { ...DEFAULT_SETTINGS, ...stripNullish(row) };
+  const merged = { ...DEFAULT_SETTINGS, ...stripNullish(row) };
+
+  /*
+    ── A matricule format that cannot number anybody is not used ──────────────
+    A format with no `{seq}` renders the same string for every pupil of a year.
+    The unique index then refuses them one at a time, so the school stops being
+    able to enrol anybody and the message says "code taken" — which sends a
+    secretary hunting for a duplicate that does not exist.
+
+    `codeFormatHasSequence` was written to stop that at the settings form, and
+    says so in its own note. There is no such form: the three formats are seeded
+    and not editable, so the check has never been called. That is the whole
+    reason it belongs *here* instead — the settings resource is one line away
+    from offering these fields, and a guard that lives at the read is true
+    whatever a future screen allows.
+
+    Falling back rather than throwing, and silently: the setting is what is
+    wrong, not the inscription somebody is halfway through.
+  */
+  return {
+    ...merged,
+    studentCodeFormat: usableCodeFormat(
+      merged.studentCodeFormat,
+      DEFAULT_SETTINGS.studentCodeFormat,
+    ),
+    familyCodeFormat: usableCodeFormat(
+      merged.familyCodeFormat,
+      DEFAULT_SETTINGS.familyCodeFormat,
+    ),
+    staffCodeFormat: usableCodeFormat(
+      merged.staffCodeFormat,
+      DEFAULT_SETTINGS.staffCodeFormat,
+    ),
+  };
+}
+
+/** The configured format when it can number a cohort, the default when it cannot. */
+function usableCodeFormat(format: string, fallback: string): string {
+  return codeFormatHasSequence(format) ? format : fallback;
 }
 
 function stripNullish(

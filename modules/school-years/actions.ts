@@ -176,6 +176,31 @@ export async function deleteSchoolYearAction(
 
     await authorizeSchool(existing.schoolId, PERMISSIONS.SCHOOL_YEAR_DELETE);
 
+    /*
+      ── A year with pupils on it is not deletable ──────────────────────────────
+      Thirteen tables cascade from SchoolYear, and `Enrollment` is one of them —
+      which drags `EnrollmentFee` behind it. So deleting a year took every
+      inscription, every échéancier and the whole of that year's vie scolaire
+      with it, from one button, with nothing asked.
+
+      Where a receipt had settled a line the database refused instead, on the
+      `Restrict` that protects a paid allocation — but as a raw constraint
+      error, which surfaces as "something went wrong" and tells a bursar
+      nothing. Where nothing had been paid it simply succeeded.
+
+      So the year is refused while it has pupils, the way a dossier familial is
+      refused while it has children. A year entered in error has none and still
+      deletes; a year that ran is closed, not removed.
+    */
+    const enrolled = await db.enrollment.count({
+      where: { schoolYearId: yearId },
+    });
+    if (enrolled > 0) {
+      return failure(
+        interpolate(t.schoolYear.hasEnrolments, { count: enrolled }),
+      );
+    }
+
     await db.schoolYear.delete({ where: { id: yearId } });
 
     refresh();

@@ -44,6 +44,31 @@ export async function POST(
     return apiError("invalid", "Expected a JSON body.", 400);
   }
 
+  /*
+    Checked here, where a client mistake is answerable as one.
+
+    `postMessage` refuses an empty or over-long message too, and this used to
+    lean on that — but a refusal from inside the handler becomes `PostRefused`,
+    which `withAuth` logs and answers 500. So `POST {}` from any client that was
+    not the first-party app got a server error and a line in the log, for what
+    is plainly a bad request. The rule the rest of the app follows is that an
+    expected failure is returned and only a genuine bug throws.
+
+    Measured against the same `MAX_MESSAGE_LENGTH` the service uses, so the two
+    cannot disagree about what is too long.
+  */
+  const trimmed = body.trim();
+  if (trimmed === "") {
+    return apiError("invalid", "A message needs something in it.", 400);
+  }
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+    return apiError(
+      "invalid",
+      `A message may run to ${MAX_MESSAGE_LENGTH} characters.`,
+      400,
+    );
+  }
+
   return withAuth(async (context) => {
     if (!(await canPostToChannel(context.user.id, channelId))) {
       // Null rather than a 403: whether the channel exists is not something a
@@ -60,15 +85,19 @@ export async function POST(
 }
 
 /**
- * Thrown so `withAuth` logs and answers 500 — deliberately, because every
- * reason it can carry is one the client was told about before posting.
- * `EMPTY` and `TOO_LONG` are checked on the phone against the same
- * `MAX_MESSAGE_LENGTH`, and `ARCHIVED` is on the channel the phone just listed.
- * Reaching here means the two disagree, which is a bug and not a user error.
+ * Thrown so `withAuth` logs and answers 500, for the reasons that genuinely
+ * cannot happen by the time the handler runs.
+ *
+ * `EMPTY` and `TOO_LONG` are refused above, as the bad requests they are.
+ * `NOT_FOUND` cannot arise either: `canPostToChannel` has already resolved the
+ * channel against this household. That leaves `ARCHIVED`, in the sliver between
+ * that check and the write — a moderator closing a channel in the second a
+ * parent presses send. Rare enough to be worth a log, and the phone re-lists
+ * the channel on its next poll and finds it closed.
  */
 class PostRefused extends Error {
   constructor(reason: string) {
-    super(`message refused: ${reason} (max ${MAX_MESSAGE_LENGTH})`);
+    super(`message refused: ${reason}`);
     this.name = "PostRefused";
   }
 }

@@ -92,10 +92,27 @@ export async function changeOwnPasswordAction(
       });
     }
 
-    // Stamped alongside the hash, never separately: lib/dal.ts refuses every
-    // credential older than this, which is what signs the user's other devices
-    // out. Changing your password is the one action whose whole point is that
-    // whoever else had it stops being you.
+    /*
+      Stamped alongside the hash, never separately: lib/dal.ts refuses every
+      credential older than this, which is what signs the user's other devices
+      out. Changing your password is the one action whose whole point is that
+      whoever else had it stops being you.
+
+      ── It signs this device out too, and the message says so ────────────────
+      The cookie in the browser that just made the change was minted before it,
+      so it is one of the credentials now refused — the next navigation lands on
+      the sign-in screen. That is the safe way round and not worth engineering
+      away, but it is not obvious: somebody who reads "Password changed." and
+      then finds themselves at a login box concludes it did not take, and tries
+      the old one. So the message tells them, rather than the app pretending
+      nothing happened.
+
+      Keeping the seat would mean re-stamping the session cookie through
+      next-auth's `unstable_update` and handling `trigger === "update"` in the
+      jwt callback. Worth doing when that API stops being unstable; until then
+      a failure there would leave the password changed and the user told
+      otherwise, which is the worse trade.
+    */
     await db.user.update({
       where: { id: context.user.id },
       data: {

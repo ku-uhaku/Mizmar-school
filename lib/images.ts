@@ -82,10 +82,22 @@ export function checkImageValue(value: string): ImageProblem | null {
   } catch {
     return "bad-url";
   }
-  // `javascript:` and friends must never reach an `src`.
-  return url.protocol === "http:" || url.protocol === "https:"
-    ? null
-    : "bad-url";
+
+  /*
+    `https:` only — `javascript:` and friends must never reach an `src`, and
+    plain `http:` is refused for a duller reason: it cannot work.
+
+    The note at the top of this file has always said `https:`, and the check
+    accepted both. Every browser blocks a plaintext image on an https page as
+    mixed content, so an `http:` crest saved without complaint is a crest that
+    silently never appears — and the one place it is most visible is the login
+    screen, which is public, where it would also mean an unauthenticated
+    plaintext request to somebody else's host for every visitor.
+
+    Refusing it at the form is what tells an administrator to fix the link
+    rather than leaving them to wonder why the logo is missing.
+  */
+  return url.protocol === "https:" ? null : "bad-url";
 }
 
 /** Whether a value is safe to hand to an `<img src>`. */

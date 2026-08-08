@@ -58,13 +58,11 @@ export default async function DashboardPage() {
   const t = await getDictionary();
   const locale = await getLocale();
 
-  const [
-    { activeSchools, userCount, activeUserCount, roleCount, yearCount },
-    headlines,
-  ] = await Promise.all([
-    loadDashboardStats(context),
-    loadSectionHeadlines(context),
-  ]);
+  const [{ activeSchools, users, roleCount, yearCount }, headlines] =
+    await Promise.all([
+      loadDashboardStats(context),
+      loadSectionHeadlines(context),
+    ]);
 
   // The charts read the same permission-scoped module queries the counts do, so
   // a reader who may not open a section is not charted one either.
@@ -198,39 +196,47 @@ export default async function DashboardPage() {
                 locale={locale}
                 href={context.can(PERMISSIONS.SCHOOL_VIEW) ? "/schools" : null}
               />
-              <StatTile
-                compact
-                label={t.dashboard.users}
-                value={userCount}
-                detail={`${formatNumber(activeUserCount, locale)} ${t.dashboard.activeUsers}`}
-                icon={<UsersIcon className="size-4" />}
-                locale={locale}
-                href={context.can(PERMISSIONS.USER_VIEW) ? "/users" : null}
-              />
-              <StatTile
-                compact
-                label={t.dashboard.schoolYears}
-                value={yearCount}
-                detail={
-                  context.currentSchool?.name ?? t.context.noSchoolSelected
-                }
-                icon={<CalendarRangeIcon className="size-4" />}
-                locale={locale}
-                href={
-                  context.can(PERMISSIONS.SCHOOL_YEAR_VIEW)
-                    ? "/school-years"
-                    : null
-                }
-              />
-              <StatTile
-                compact
-                label={t.dashboard.roles}
-                value={roleCount}
-                detail={t.dashboard.rolesDetail}
-                icon={<ShieldCheckIcon className="size-4" />}
-                locale={locale}
-                href={context.canOrg(PERMISSIONS.ROLE_VIEW) ? "/roles" : null}
-              />
+              {/* Omitted rather than zeroed for a reader without the code —
+                see the note on `loadDashboardStats`. */}
+              {users ? (
+                <StatTile
+                  compact
+                  label={t.dashboard.users}
+                  value={users.total}
+                  detail={`${formatNumber(users.active, locale)} ${t.dashboard.activeUsers}`}
+                  icon={<UsersIcon className="size-4" />}
+                  locale={locale}
+                  href={context.can(PERMISSIONS.USER_VIEW) ? "/users" : null}
+                />
+              ) : null}
+              {yearCount !== null ? (
+                <StatTile
+                  compact
+                  label={t.dashboard.schoolYears}
+                  value={yearCount}
+                  detail={
+                    context.currentSchool?.name ?? t.context.noSchoolSelected
+                  }
+                  icon={<CalendarRangeIcon className="size-4" />}
+                  locale={locale}
+                  href={
+                    context.can(PERMISSIONS.SCHOOL_YEAR_VIEW)
+                      ? "/school-years"
+                      : null
+                  }
+                />
+              ) : null}
+              {roleCount !== null ? (
+                <StatTile
+                  compact
+                  label={t.dashboard.roles}
+                  value={roleCount}
+                  detail={t.dashboard.rolesDetail}
+                  icon={<ShieldCheckIcon className="size-4" />}
+                  locale={locale}
+                  href={context.canOrg(PERMISSIONS.ROLE_VIEW) ? "/roles" : null}
+                />
+              ) : null}
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
@@ -271,8 +277,12 @@ export default async function DashboardPage() {
                     </p>
                     {context.currentSchoolYear ? (
                       <p className="text-muted-foreground text-xs">
-                        {formatDate(context.currentSchoolYear.startDate, locale)}{" "}
-                        — {formatDate(context.currentSchoolYear.endDate, locale)}
+                        {formatDate(
+                          context.currentSchoolYear.startDate,
+                          locale,
+                        )}{" "}
+                        —{" "}
+                        {formatDate(context.currentSchoolYear.endDate, locale)}
                       </p>
                     ) : null}
                   </div>

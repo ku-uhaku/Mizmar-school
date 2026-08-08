@@ -93,3 +93,33 @@ export const REVIEW_TRANSITIONS: Record<string, readonly SupplyStatus[]> = {
   APPROVED: ["SUBMITTED"],
   REJECTED: ["APPROVED"],
 };
+
+const NO_TRANSITIONS: readonly SupplyStatus[] = [];
+
+/**
+ * The moves the office may make from where a list stands.
+ *
+ * A function rather than a bare lookup, for the reason the table exists at all:
+ * the service and the review dialog each spelled `REVIEW_TRANSITIONS[status] ??
+ * []` for themselves, which is two implementations of the sentence "so the
+ * action and the UI cannot disagree about what buttons should exist".
+ *
+ * `Object.hasOwn` because the table is a plain object: `REVIEW_TRANSITIONS
+ * ["constructor"]` answers a function, so the `?? []` never fired and calling
+ * `.includes` on it threw. Nothing reaches it with such a value — a status is
+ * one of four strings the app itself wrote — and a transition table should
+ * still answer "no moves" rather than explode when asked about a state it has
+ * never heard of.
+ */
+export function allowedReviewTransitions(
+  status: string,
+): readonly SupplyStatus[] {
+  return Object.hasOwn(REVIEW_TRANSITIONS, status)
+    ? (REVIEW_TRANSITIONS[status] ?? NO_TRANSITIONS)
+    : NO_TRANSITIONS;
+}
+
+/** Whether the office may move a list from `from` to `next`. */
+export function canReviewTo(from: string, next: string): boolean {
+  return allowedReviewTransitions(from).includes(next as SupplyStatus);
+}

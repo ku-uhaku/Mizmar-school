@@ -36,7 +36,12 @@ export default async function RoutePage({
   if (!route) notFound();
 
   const [neighbourhoods, schedules, subscribable] = await Promise.all([
-    listNeighbourhoodChoices(context),
+    // The quartiers this line already serves are kept on the list even if one
+    // has since been deactivated — the same reason the pupil's file passes its
+    // own ids. `setRouteNeighbourhoods` replaces the set wholesale from what
+    // the form submits, so a quartier the picker dropped is a quartier the bus
+    // silently stops calling at.
+    listNeighbourhoodChoices(context, route.neighbourhoodIds),
     listScheduleOptions(context),
     listSubscribableStudents(context),
   ]);

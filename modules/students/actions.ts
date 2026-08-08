@@ -276,18 +276,23 @@ export async function enrolNewStudentAction(
     const familyMode =
       field(formData, "familyMode") === "existing" ? "existing" : "new";
 
-    if (!context.canInSchool(schoolId, PERMISSIONS.STUDENT_CREATE)) {
-      return failure(t.errors.forbidden);
+    /*
+      Three codes, because this one screen does three modules' work — and each
+      asserted through `authorizeSchool` rather than read off the context.
+
+      The answer to the caller is the same either way. What differs is the
+      trail: `withActionErrors` records a DENIED event when a `ForbiddenError`
+      is thrown, and its own note says every action gets that for free. This one
+      did not, because it refused by returning. So the single action that
+      creates a pupil, a family and an inscription in one go — the one a probe
+      would be most interested in — was also the only one whose refusals left no
+      trace.
+    */
+    await authorizeSchool(schoolId, PERMISSIONS.STUDENT_CREATE);
+    if (familyMode === "new") {
+      await authorizeSchool(schoolId, PERMISSIONS.FAMILY_CREATE);
     }
-    if (
-      familyMode === "new" &&
-      !context.canInSchool(schoolId, PERMISSIONS.FAMILY_CREATE)
-    ) {
-      return failure(t.errors.forbidden);
-    }
-    if (!context.canInSchool(schoolId, PERMISSIONS.ENROLMENT_CREATE)) {
-      return failure(t.errors.forbidden);
-    }
+    await authorizeSchool(schoolId, PERMISSIONS.ENROLMENT_CREATE);
 
     // ── Famille ──────────────────────────────────────────────────────────────
     let familyId: string;

@@ -47,10 +47,19 @@ import { enrolmentSchema, feeLineSchema } from "@/modules/enrolment/validation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Call = { model: string; op: string; args: unknown };
+/**
+ * `tx` records whether the statement ran inside a transaction.
+ *
+ * Money rules that read a figure and then write against it are only rules if
+ * both halves are one atomic act — otherwise a receipt commits in the gap and
+ * the guard decided on a past that no longer holds. That is invisible to an
+ * assertion on the arguments, so the harness tracks the boundary itself.
+ */
+type Call = { model: string; op: string; args: unknown; tx: boolean };
 
 const calls: Call[] = [];
 let answers: Record<string, unknown> = {};
+let txDepth = 0;
 
 const EMPTY: Record<string, unknown> = {
   findMany: [],
@@ -69,7 +78,7 @@ function delegate(model: string) {
     {},
     {
       get: (_d, op: string) => async (args: unknown) => {
-        calls.push({ model, op, args });
+        calls.push({ model, op, args, tx: txDepth > 0 });
         const key = `${model}.${op}`;
         if (key in answers) return answers[key];
         return op in EMPTY ? EMPTY[op] : null;
@@ -83,10 +92,16 @@ const db = new Proxy(
   {
     get: (_target, model: string) => {
       if (model === "$transaction") {
-        return async (work: unknown) =>
-          typeof work === "function"
-            ? (work as (tx: unknown) => unknown)(db)
-            : Promise.all(work as unknown[]);
+        return async (work: unknown) => {
+          txDepth += 1;
+          try {
+            return typeof work === "function"
+              ? await (work as (tx: unknown) => unknown)(db)
+              : await Promise.all(work as unknown[]);
+          } finally {
+            txDepth -= 1;
+          }
+        };
       }
       return delegate(model);
     },
@@ -110,6 +125,7 @@ const {
   repriceFeeLine,
   repriceFollowingLines,
   resolveOptionStart,
+  resyncOptionalCharges,
   setEnrolmentStatus,
 } = await import("@/modules/enrolment/service");
 
@@ -125,6 +141,7 @@ const only = (model: string, op: string): Call => {
 beforeEach(() => {
   calls.length = 0;
   answers = {};
+  txDepth = 0;
 });
 
 // ── What one line costs ──────────────────────────────────────────────────────
@@ -1008,6 +1025,19 @@ describe("repriceFeeLine", () => {
     ).toEqual({ ok: true });
   });
 
+  it("reads what has been paid inside the transaction that reprices", async () => {
+    // The guard and the write used to be two statements on their own
+    // connections. A receipt committing in the gap walked straight through a
+    // check that had already read zero, and the line was waived under money the
+    // caisse was still counting — the disagreement the refusal above exists to
+    // prevent, reached by timing instead of by permission.
+    paid(0);
+    await repriceFeeLine("line-1", edit({ status: "WAIVED" }));
+
+    expect(only("paymentAllocation", "aggregate").tx).toBe(true);
+    expect(only("enrollmentFee", "update").tx).toBe(true);
+  });
+
   it("counts only posted receipts", async () => {
     // A cancelled receipt put its money back, so it must not pin a line it no
     // longer pays for.
@@ -1164,6 +1194,26 @@ describe("repriceFollowingLines", () => {
     ).toBe(1);
   });
 
+  it("reads the later months inside the transaction that reprices them", async () => {
+    // Worse here than in `repriceFeeLine`, because this path skips a line it
+    // would underprice rather than refusing: a receipt landing between the read
+    // and the write raises nothing at all, it just quietly reprices a month
+    // below what the family handed over — across a whole year of lines at one
+    // tick of the box.
+    carrying([line("l5", 100_000), line("l6", 100_000)]);
+    await repriceFollowingLines("line-4", {
+      discountBps: 1000,
+      discountCentimes: 0,
+      discountId: null,
+    });
+
+    expect(only("enrollmentFee", "findUnique").tx).toBe(true);
+    expect(only("enrollmentFee", "findMany").tx).toBe(true);
+    for (const call of of("enrollmentFee", "update")) {
+      expect(call.tx).toBe(true);
+    }
+  });
+
   it("carries only the reduction, never the base amount", async () => {
     carrying([line("l5", 123_456)]);
     await repriceFollowingLines("line-4", {
@@ -1199,6 +1249,82 @@ describe("repriceFollowingLines", () => {
         discountId: null,
       }),
     ).toBe(0);
+  });
+});
+
+// ── Taking a charge back off the schedule ────────────────────────────────────
+
+describe("resyncOptionalCharges", () => {
+  /** A pupil who has just been un-ticked from the bus, and prices nothing. */
+  const withdrawnFromTransport = (
+    existing: Record<string, unknown>[],
+  ): void => {
+    answers = {
+      "enrollment.findUnique": {
+        usesTransport: false,
+        usesCanteen: false,
+        transportStartsOn: null,
+        canteenStartsOn: null,
+        levelOffering: { levelId: "level-1" },
+        schoolYear: {
+          id: "year-1",
+          startDate: new Date(2025, 8, 1),
+          endDate: new Date(2026, 5, 30),
+          schoolId: "school-1",
+          _count: { terms: 3 },
+        },
+      },
+      "enrollmentFee.findMany": existing,
+    };
+  };
+
+  const busLine = (postedAllocations: number) => ({
+    id: "bus-1",
+    feeTypeId: "fee-transport",
+    periodIndex: 1,
+    feeType: { kind: "TRANSPORT" },
+    _count: { allocations: postedAllocations },
+  });
+
+  it("counts only posted receipts as money holding a line down", async () => {
+    // A cancelled receipt has already put its money back, so it holds nothing.
+    // Counting every allocation regardless of its receipt meant a struck-out
+    // one pinned the charge for ever: the family withdrew from the bus, and the
+    // line could never come off the schedule again — so they went on being
+    // billed for a service nobody was providing. `canChangeLevel` has always
+    // read it this way; this is the sibling that did not.
+    withdrawnFromTransport([busLine(0)]);
+    await resyncOptionalCharges("enrol-1");
+
+    expect(only("enrollmentFee", "findMany").args).toMatchObject({
+      select: {
+        _count: {
+          select: { allocations: { where: { payment: { status: "POSTED" } } } },
+        },
+      },
+    });
+  });
+
+  it("takes a withdrawn charge off the schedule when nothing posted paid it", async () => {
+    withdrawnFromTransport([busLine(0)]);
+    expect(await resyncOptionalCharges("enrol-1")).toEqual({
+      added: 0,
+      removed: 1,
+    });
+    expect(only("enrollmentFee", "deleteMany").args).toMatchObject({
+      where: { id: { in: ["bus-1"] } },
+    });
+  });
+
+  it("leaves a withdrawn charge alone while a posted receipt still pays it", async () => {
+    // Deleting it would leave that receipt's allocation pointing at nothing.
+    // The bursar waives or refunds it deliberately instead.
+    withdrawnFromTransport([busLine(1)]);
+    expect(await resyncOptionalCharges("enrol-1")).toEqual({
+      added: 0,
+      removed: 0,
+    });
+    expect(of("enrollmentFee", "deleteMany")).toEqual([]);
   });
 });
 

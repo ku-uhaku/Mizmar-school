@@ -25,30 +25,49 @@ import { countUsers } from "@/modules/users/queries";
  * is what keeps the numbers consistent with that module's list screen.
  */
 export type DashboardStats = {
+  /** Always answered: it counts the schools this reader can already see. */
   activeSchools: number;
-  userCount: number;
-  activeUserCount: number;
-  roleCount: number;
-  yearCount: number;
+  /** Null without `user.view`. */
+  users: { total: number; active: number } | null;
+  /** Null without `role.view` org-wide — a role is an organisation-level thing. */
+  roleCount: number | null;
+  /** Null without `schoolYear.view`. */
+  yearCount: number | null;
 };
 
+/**
+ * The four administrative tiles.
+ *
+ * ── Gated the same way the section cards are ────────────────────────────────
+ * These used to be taken unconditionally, which put a figure on the screen for
+ * every reader: a teacher's dashboard showed the headcount of every account in
+ * their school and the number of roles in the *organisation* — `countRoles` is
+ * scoped to the tenant and to nothing else, so it was the one figure here not
+ * narrowed to what the reader can reach at all.
+ *
+ * A count is not contents, but it is still a claim about the school, and the
+ * two functions below already refuse to make one on a reader's behalf. The page
+ * knew the permissions too — it used them to decide whether each tile was a
+ * *link*, so somebody without `role.view` got the number and no way to open it.
+ *
+ * `activeSchools` stays ungated because it counts `context.schools`, which is
+ * the reader's own reach by construction.
+ */
 export async function loadDashboardStats(
   context: AuthContext,
 ): Promise<DashboardStats> {
+  const canSeeUsers = context.can(PERMISSIONS.USER_VIEW);
+  const canSeeRoles = context.canOrg(PERMISSIONS.ROLE_VIEW);
+  const canSeeYears = context.can(PERMISSIONS.SCHOOL_YEAR_VIEW);
+
   const [activeSchools, users, roleCount, yearCount] = await Promise.all([
     countActiveSchools(context),
-    countUsers(context),
-    countRoles(context),
-    countSchoolYears(context),
+    canSeeUsers ? countUsers(context) : null,
+    canSeeRoles ? countRoles(context) : null,
+    canSeeYears ? countSchoolYears(context) : null,
   ]);
 
-  return {
-    activeSchools,
-    userCount: users.total,
-    activeUserCount: users.active,
-    roleCount,
-    yearCount,
-  };
+  return { activeSchools, users, roleCount, yearCount };
 }
 
 /**

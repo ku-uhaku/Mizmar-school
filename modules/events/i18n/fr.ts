@@ -49,6 +49,8 @@ const fr = {
     cancelTitle: "Annuler cet événement ?",
     cancelBody:
       "« {title} » reste visible par les familles, signalé comme annulé — c'est bien le but. Le supprimer enverrait un parent devant un portail fermé.",
+    cannotPublishCancelled:
+      "Cet événement a été annulé. Les familles en ont été informées : créez une nouvelle annonce plutôt que de rétablir celle-ci.",
     cancelled: "Événement annulé.",
     saved: "Événement enregistré.",
     deleted: "Événement supprimé.",

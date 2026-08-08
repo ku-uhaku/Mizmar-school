@@ -189,8 +189,7 @@ export async function listActivity(
       ? { entity: { in: modelsInDomain(filters.domain) } }
       : {};
 
-  const where: Where = {
-    ...scope,
+  const chosen: Where = {
     ...entityClause,
     ...(filters.entityId ? { entityId: filters.entityId } : {}),
     ...(filters.actorId ? { actorId: filters.actorId } : {}),
@@ -208,6 +207,21 @@ export async function listActivity(
         }
       : {}),
   };
+
+  /*
+    ── The reader's reach AND their filter, never one spread over the other ────
+    Both halves name `action`: the scope carries `{ notIn: SECURITY_ACTIONS }`
+    for a reader without `audit.security`, and the filter carries whatever came
+    in the query string. Spread into one object the later key simply won, so
+    `?action=LOGIN_FAILED` handed a holder of `audit.view` alone the whole
+    security half of the trail — every refused password and the address it was
+    tried against. The picker narrows itself to what the reader may see, but the
+    picker is a client component and the URL is not.
+
+    ANDed, the filter can only ever narrow inside the reach, and no future
+    filter can collide with a scope column by sharing its name.
+  */
+  const where: Where = { AND: [scope, chosen] };
 
   const [total, rows] = await Promise.all([
     db.activityLog.count({ where }),

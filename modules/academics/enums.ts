@@ -48,15 +48,32 @@ export function cycleHasTracks(cycle: EducationCycle): boolean {
   return cycle === "SECONDARY_QUALIFYING";
 }
 
-/**
- * Marks are out of 20 throughout the Moroccan system, and 10 is the pass mark.
- * Kept here because the grading module will need the same constants and they are
- * a property of the curriculum, not of any one screen.
- */
-export const MARK_SCALE_MAX = 20;
-export const MARK_PASS_THRESHOLD = 10;
+/*
+  The mark scale used to be declared here as MARK_SCALE_MAX and
+  MARK_PASS_THRESHOLD, on the reasoning that 20 and 10 are a property of the
+  Moroccan curriculum rather than of any one screen, and that the grading module
+  would want the same constants.
 
-/** Coefficients are small integers in practice; this bounds data entry. */
+  The grading module arrived and wanted something else. A school sets its own
+  scale and its own pass ratio — `SchoolSettings.gradingMaxScore` and
+  `passMarkBps` — and every reader goes through `context.settings`, which
+  defaults to exactly 20 and 10. So the pair here was not merely unused: it
+  asserted as fixed the two numbers the app had made configurable, and the next
+  person to reach for it would have written a screen that disagreed with the
+  school's own settings.
+
+  Deleted rather than re-pointed: `lib/school-settings.ts` is where they live,
+  `passMarkOf` is how the threshold is worked out, and there is nothing left for
+  this file to say about it.
+*/
+
+/**
+ * Coefficients are small integers in practice; this bounds data entry.
+ *
+ * Read by the `programme` resource in modules/configuration/resources.ts, which
+ * is the only screen that writes one — the bounds were spelled as literals
+ * there and as constants here, which is two answers to one question.
+ */
 export const COEFFICIENT_MIN = 1;
 export const COEFFICIENT_MAX = 20;
 

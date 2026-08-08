@@ -18,7 +18,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { reviewSupplyListAction } from "@/modules/supplies/actions";
-import { REVIEW_TRANSITIONS } from "@/modules/supplies/enums";
+import { allowedReviewTransitions } from "@/modules/supplies/enums";
 import { SupplyStatusBadge } from "@/modules/supplies/components/supply-status-badge";
 import type { SupplyListRow } from "@/modules/supplies/queries";
 
@@ -46,7 +46,7 @@ export function SupplyReviewDialog({
   );
   useActionFeedback(state, { onSuccess: onClose });
 
-  const allowed = REVIEW_TRANSITIONS[list.status] ?? [];
+  const allowed = allowedReviewTransitions(list.status);
 
   const LABELS: Record<string, string> = {
     APPROVED: t.supply.approve,

@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { failure, success, type ActionState } from "@/lib/action-state";
 import { authorizeOrg, authorizeSchool } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
@@ -157,6 +158,26 @@ export async function deleteSchoolAction(
   return withActionErrors(async () => {
     const t = await getDictionary();
     const context = await authorizeOrg(PERMISSIONS.SCHOOL_DELETE);
+
+    /*
+      ── A school with pupils on its books is not deletable ─────────────────────
+      Every one of the thirty-one tables that names a school cascades from it.
+      Deleting one therefore took its families, its staff, its payslips, its
+      receipts, its cheques, its marks, its registers, its timetable and its
+      buses with it — from a single button, with nothing asked and nothing left
+      to reconstruct it from. The activity trail survives, deliberately (see the
+      note on ActivityLog), but it would then be a record of rows that no longer
+      exist.
+
+      So the same rule the school year already follows, for the same reason and
+      a great deal more of it: a school entered in error has no pupils and still
+      deletes; one that taught anybody is deactivated, not removed. `isActive`
+      is on the form for exactly that.
+    */
+    const pupils = await db.student.count({ where: { schoolId } });
+    if (pupils > 0) {
+      return failure(interpolate(t.school.hasStudents, { count: pupils }));
+    }
 
     const deleted = await db.school.deleteMany({
       where: { id: schoolId, organizationId: context.organization.id },

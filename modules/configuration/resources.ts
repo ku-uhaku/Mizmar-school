@@ -1,4 +1,8 @@
-import { EDUCATION_CYCLES } from "@/modules/academics/enums";
+import {
+  COEFFICIENT_MAX,
+  COEFFICIENT_MIN,
+  EDUCATION_CYCLES,
+} from "@/modules/academics/enums";
 import {
   BILLING_CYCLES,
   DISCOUNT_KINDS,
@@ -361,8 +365,10 @@ export const RESOURCES: ResourceDef[] = [
         labelKey: "coefficient",
         hintKey: "coefficient",
         required: true,
-        min: 1,
-        max: 20,
+        // From the module that owns the column rather than spelled again here,
+        // so the form and the rule cannot drift apart.
+        min: COEFFICIENT_MIN,
+        max: COEFFICIENT_MAX,
         defaultValue: 1,
         inTable: true,
       },

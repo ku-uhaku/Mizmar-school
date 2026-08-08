@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { REVIEW_TRANSITIONS } from "@/modules/supplies/enums";
+import { canReviewTo } from "@/modules/supplies/enums";
 
 /**
  * Writes and invariants for the supplies module.
@@ -109,8 +109,7 @@ export async function reviewList(
   });
   if (!list) return { ok: false, reason: "not-found" };
 
-  const allowed = REVIEW_TRANSITIONS[list.status] ?? [];
-  if (!allowed.includes(status as (typeof allowed)[number])) {
+  if (!canReviewTo(list.status, status)) {
     return { ok: false, reason: "bad-transition" };
   }
 

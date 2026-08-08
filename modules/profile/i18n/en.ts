@@ -24,7 +24,8 @@ const en = {
     currentPassword: "Current password",
     newPassword: "New password",
     confirmPassword: "Confirm new password",
-    passwordChanged: "Password changed.",
+    passwordChanged:
+      "Password changed. You will need to sign in again here, and every other device has been signed out.",
     passwordMismatch: "The two passwords do not match.",
     wrongCurrentPassword: "Your current password is incorrect.",
     access: "Your access",

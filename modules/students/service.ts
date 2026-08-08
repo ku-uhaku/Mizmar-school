@@ -51,9 +51,24 @@ export async function allocateStudentCode(
  * open and nothing more.
  */
 export async function refreshStudentStatus(studentId: string): Promise<void> {
+  /*
+    Newest *year* first, not newest signature.
+
+    "The most recent enrolment says how the pupil left" is a statement about
+    which year they left in, and `enrolledOn` is only a proxy for it — the day
+    the family signed. The two come apart in an ordinary case: a place granted
+    in June is signed months before the year it is for, so a child pre-enrolled
+    for 2025-26 in June 2025 and enrolled for 2024-25 the previous September
+    ordered the *older* year first and took its status. Signing dates also tie,
+    and a tie here decided the answer at random.
+
+    The year's own start date settles both; `enrolledOn` stays as the
+    tiebreaker for two enrolments of the same year, which the unique index makes
+    impossible anyway.
+  */
   const enrollments = await db.enrollment.findMany({
     where: { studentId },
-    orderBy: [{ enrolledOn: "desc" }],
+    orderBy: [{ schoolYear: { startDate: "desc" } }, { enrolledOn: "desc" }],
     select: { status: true },
   });
 

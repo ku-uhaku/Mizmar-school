@@ -43,6 +43,8 @@ const en = {
     deleted: "School year deleted.",
     deleteTitle: "Delete this school year?",
     deleteBody: "“{name}” will be permanently removed.",
+    hasEnrolments:
+      "{count} pupils are enrolled for this year. Close it instead — deleting it would remove their inscriptions and their fee schedules.",
     nameTaken: "That label already exists for this school.",
     endBeforeStart: "The end date must come after the start date.",
     noYears: "No school years yet for this school.",

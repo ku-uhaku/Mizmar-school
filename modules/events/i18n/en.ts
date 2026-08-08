@@ -50,6 +50,8 @@ const en = {
     cancelTitle: "Call this event off?",
     cancelBody:
       "“{title}” stays visible to families, marked as called off — which is the point. Deleting it instead would send a parent to a locked gate.",
+    cannotPublishCancelled:
+      "This event was called off. Families were told — create a new announcement rather than reinstating this one.",
     cancelled: "Event called off.",
     saved: "Event saved.",
     deleted: "Event removed.",
