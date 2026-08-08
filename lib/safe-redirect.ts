@@ -42,5 +42,16 @@ export function safeCallbackPath(
   // backslash. Both leave here as the fallback.
   if (url.origin !== RESOLUTION_ORIGIN) return fallback;
 
-  return `${url.pathname}${url.search}${url.hash}`;
+  const path = `${url.pathname}${url.search}${url.hash}`;
+
+  // Checking the *input* is not enough, because the answer is a fresh string
+  // that gets parsed again by the browser — against the school's origin, not
+  // this one. `/..//evil.com` resolves here to a same-origin URL whose pathname
+  // is `//evil.com`, so it passes the check above and then leaves as a
+  // protocol-relative URL: exactly the redirect this function exists to stop.
+  // A leading `//` is the only shape that does this, since `pathname` is
+  // already normalised by the parser and always begins with a slash.
+  if (path.startsWith("//")) return fallback;
+
+  return path;
 }
