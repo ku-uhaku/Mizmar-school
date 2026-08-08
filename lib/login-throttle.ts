@@ -98,18 +98,29 @@ export async function recordFailedLogin(email: string): Promise<void> {
   });
 
   // A stale run starts over, so an honest user is never a couple of typos away
-  // from a lockout months later. A run that is still locked keeps counting, so
+  // from a lockout months later. A run that has been locked keeps counting, so
   // waiting out a lock and carrying on escalates rather than resets.
-  const stillLocked =
-    existing?.lockedUntil !== null &&
-    existing?.lockedUntil !== undefined &&
-    existing.lockedUntil.getTime() > now.getTime();
-  const withinWindow =
-    existing?.lastFailedAt != null &&
-    now.getTime() - existing.lastFailedAt.getTime() < ATTEMPT_WINDOW_MS;
+  //
+  // The window is measured from whichever came later: the last failure, or the
+  // moment the lock lifted. Measuring from the failure alone silently capped
+  // the ladder — no failure is recorded *during* a lock, so `lastFailedAt`
+  // froze when the lock started, and a lock at least as long as the window
+  // (the 15-minute rung) guaranteed the next failure looked stale and reset the
+  // count to one. The hour-long rung was therefore unreachable, and a patient
+  // grind cycled 1 → 5 → 15 → 1 minutes for ever instead of degrading.
+  const lastFailedAt = existing?.lastFailedAt ?? null;
+  const previousLock = existing?.lockedUntil ?? null;
+  const runContinuesFrom =
+    lastFailedAt && previousLock
+      ? new Date(Math.max(lastFailedAt.getTime(), previousLock.getTime()))
+      : (previousLock ?? lastFailedAt);
 
-  const failedCount =
-    existing && (withinWindow || stillLocked) ? existing.failedCount + 1 : 1;
+  // Negative while a lock is still running, which is the "still locked" case.
+  const withinWindow =
+    runContinuesFrom !== null &&
+    now.getTime() - runContinuesFrom.getTime() < ATTEMPT_WINDOW_MS;
+
+  const failedCount = existing && withinWindow ? existing.failedCount + 1 : 1;
 
   const lockedUntil =
     failedCount >= MAX_FAILED_ATTEMPTS && failedCount % MAX_FAILED_ATTEMPTS === 0

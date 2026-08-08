@@ -6,7 +6,11 @@ import { cache } from "react";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { bearerToken, verifyMobileToken } from "@/lib/mobile-token";
+import {
+  bearerToken,
+  credentialsStillValid,
+  verifyMobileToken,
+} from "@/lib/mobile-token";
 import { ALL_PERMISSION_CODES, type PermissionCode } from "@/lib/permissions";
 import {
   DEFAULT_SETTINGS,
@@ -33,9 +37,17 @@ import {
  * point every permission decision below is made the same way for both, so a
  * mobile client can never reach anything the web session could not.
  */
-async function currentUserId(): Promise<string | null> {
+async function currentCaller(): Promise<{
+  userId: string;
+  credentialsStamp: number;
+} | null> {
   const session = await auth();
-  if (session?.user?.id) return session.user.id;
+  if (session?.user?.id) {
+    return {
+      userId: session.user.id,
+      credentialsStamp: session.user.credentialsStamp ?? 0,
+    };
+  }
 
   const token = bearerToken((await headers()).get("authorization"));
   if (!token) return null;
@@ -47,11 +59,11 @@ async function currentUserId(): Promise<string | null> {
 
 /** Loads the signed-in user with everything needed to resolve permissions. */
 const loadUser = cache(async () => {
-  const userId = await currentUserId();
-  if (!userId) return null;
+  const caller = await currentCaller();
+  if (!caller) return null;
 
   const user = await db.user.findUnique({
-    where: { id: userId },
+    where: { id: caller.userId },
     include: {
       profile: true,
       organization: true,
@@ -67,6 +79,14 @@ const loadUser = cache(async () => {
 
   // A user deactivated mid-session loses access on their very next request.
   if (!user || !user.isActive) return null;
+
+  // And so does a credential that predates the account's last password change.
+  // Deactivating was previously the *only* way to evict somebody: a reset moved
+  // the hash and nothing else, so a stolen session cookie kept working until it
+  // expired and a stolen refresh token kept renewing itself for sixty days.
+  if (!credentialsStillValid(caller.credentialsStamp, user.credentialsChangedAt)) {
+    return null;
+  }
 
   return user;
 });

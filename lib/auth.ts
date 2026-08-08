@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 
 import { recordEvent } from "@/lib/audit";
 import { db } from "@/lib/db";
+import { CREDENTIALS_CLAIM, credentialsStamp } from "@/lib/mobile-token";
 import {
   checkLoginThrottle,
   clearLoginAttempts,
@@ -47,7 +48,7 @@ export async function checkCredentials(
   email: string,
   plainPassword: string,
 ): Promise<
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; credentialsChangedAt: Date | null }
   | { ok: false; reason: "invalid" | "disabled" }
   | { ok: false; reason: "throttled"; retryAfterSeconds: number }
 > {
@@ -68,7 +69,12 @@ export async function checkCredentials(
 
   const user = await db.user.findUnique({
     where: { email: normalizedEmail },
-    select: { id: true, passwordHash: true, isActive: true },
+    select: {
+      id: true,
+      passwordHash: true,
+      isActive: true,
+      credentialsChangedAt: true,
+    },
   });
 
   if (!user) {
@@ -99,7 +105,11 @@ export async function checkCredentials(
     return { ok: false, reason: "disabled" };
   }
 
-  return { ok: true, userId: user.id };
+  return {
+    ok: true,
+    userId: user.id,
+    credentialsChangedAt: user.credentialsChangedAt,
+  };
 }
 
 /**
@@ -163,6 +173,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           include: { profile: true },
         });
 
+        // Carried into the JWT below, so this session can be told apart from
+        // one issued before a password change.
+        const stamp = credentialsStamp(account.credentialsChangedAt);
+
         // Once per sign-in, whichever path it came in by. The name is copied in
         // as it reads now, like every other entry — see the ActivityLog schema.
         await recordEvent({
@@ -183,17 +197,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         });
 
-        return { id: result.userId };
+        return { id: result.userId, credentialsStamp: stamp };
       },
     }),
   ],
   callbacks: {
+    /*
+      Set once, at sign-in, and carried forward untouched.
+
+      Auth.js re-signs the session cookie on every read to push its expiry out,
+      which stamps a fresh `iat` each time — so `iat` says nothing about when
+      the holder actually authenticated and cannot be used to expire a
+      credential. The payload survives that re-signing, so the credentials stamp
+      is put in here and compared against the row in lib/dal.ts.
+    */
     jwt({ token, user }) {
-      if (user?.id) token.sub = user.id;
+      if (user?.id) {
+        token.sub = user.id;
+        token[CREDENTIALS_CLAIM] = (user as { credentialsStamp?: number })
+          .credentialsStamp ?? 0;
+      }
       return token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      const stamp = token[CREDENTIALS_CLAIM];
+      session.user.credentialsStamp = typeof stamp === "number" ? stamp : 0;
       return session;
     },
   },

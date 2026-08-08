@@ -56,7 +56,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return apiError("invalid_credentials", "Incorrect email or password.", 401);
   }
 
-  return json(await issueTokens(result.userId));
+  return json(await issueTokens(result.userId, result.credentialsChangedAt));
 }
 
 export { preflight as OPTIONS };

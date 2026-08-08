@@ -277,9 +277,13 @@ export async function updateUserAction(
       context,
       parsed.data.memberships,
     );
+    // A reset is only a reset if it evicts whoever already had the old one —
+    // see the note on `credentialsChangedAt`. Left untouched when the form
+    // sends a blank password, which means "keep the existing one".
     const passwordHash = parsed.data.password
       ? await hashPassword(parsed.data.password)
       : undefined;
+    const credentialsChangedAt = passwordHash ? new Date() : undefined;
 
     await db.$transaction(async (tx) => {
       await tx.user.update({
@@ -289,7 +293,7 @@ export async function updateUserAction(
           isActive: parsed.data.isActive,
           isSuperAdmin,
           orgRoleId,
-          ...(passwordHash ? { passwordHash } : {}),
+          ...(passwordHash ? { passwordHash, credentialsChangedAt } : {}),
           profile: {
             upsert: {
               create: {

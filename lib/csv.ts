@@ -116,17 +116,73 @@ export function parseCsv(input: string): string[][] {
   row.push(cell);
   if (row.some((value) => value.trim() !== "")) rows.push(row);
 
-  return rows.map((cells) => cells.map((value) => value.trim()));
+  return rows.map((cells) =>
+    cells.map((value) => stripFormulaGuard(value.trim())),
+  );
+}
+
+/**
+ * The characters that make a spreadsheet treat a cell as a formula rather than
+ * as text, per OWASP's CSV-injection guidance.
+ */
+const FORMULA_LEAD = /^[=+\-@\t\r]/;
+
+/**
+ * A cell that is simply a negative number. Exempt below so an amount stays a
+ * number Excel can total, which is the whole point of exporting it.
+ */
+const PLAIN_NEGATIVE_NUMBER = /^-\d+(?:[.,]\d+)?$/;
+
+/**
+ * Stops a cell being executed as a formula when the file is opened.
+ *
+ * ── Why this is not paranoia ─────────────────────────────────────────────────
+ * Everything in an export is text somebody typed into the app — a pupil's name,
+ * a guardian's profession, a note on a dossier — or text that arrived in an
+ * imported spreadsheet. A cell beginning `=`, `+`, `-` or `@` is evaluated by
+ * Excel and LibreOffice the moment a secretary double-clicks the download, and
+ * `=HYPERLINK("http://…"&A1,"Cliquez")` quietly turns the school's own pupil
+ * list into an exfiltration link. Quoting does not help: CSV quotes are stripped
+ * before the cell is parsed, so `"=1+1"` is still a formula.
+ *
+ * A leading apostrophe is the standard remedy — the spreadsheet shows the value
+ * and treats it as text — and `parseCsv` removes it again, so a file exported
+ * from the app still imports back into it unchanged.
+ *
+ * ── It also fixes the phone numbers ─────────────────────────────────────────
+ * `+212612345678` is a formula too, so every Moroccan mobile in an export was
+ * already arriving as the number 212612345678 with the plus eaten. Marking it
+ * as text is what makes it survive the trip.
+ */
+function neutraliseFormula(value: string): string {
+  if (!FORMULA_LEAD.test(value)) return value;
+  if (PLAIN_NEGATIVE_NUMBER.test(value)) return value;
+  return `'${value}`;
 }
 
 /** Quotes a cell only when it would otherwise break the row. */
 function escapeCell(value: string, delimiter: CsvDelimiter): string {
+  const safe = neutraliseFormula(value);
   const needsQuotes =
-    value.includes(delimiter) ||
-    value.includes('"') ||
-    value.includes("\n") ||
-    value.includes("\r");
-  return needsQuotes ? `"${value.replace(/"/g, '""')}"` : value;
+    safe.includes(delimiter) ||
+    safe.includes('"') ||
+    safe.includes("\n") ||
+    safe.includes("\r");
+  return needsQuotes ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/**
+ * Undoes `neutraliseFormula`, so a round trip through a file is exact.
+ *
+ * Only ever strips an apostrophe that is standing in front of a formula
+ * character — `'Ali` is somebody's name and keeps its apostrophe. Excel drops
+ * the marker itself when it saves, so this matters for a file the app wrote and
+ * nobody opened.
+ */
+function stripFormulaGuard(value: string): string {
+  return value.startsWith("'") && FORMULA_LEAD.test(value.slice(1))
+    ? value.slice(1)
+    : value;
 }
 
 /**

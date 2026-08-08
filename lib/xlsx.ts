@@ -45,11 +45,27 @@ function findEndOfCentralDirectory(buffer: Buffer): number {
   throw new Error("Not a zip file: no end-of-central-directory record.");
 }
 
+/**
+ * How much an upload may inflate to, in total across every entry.
+ *
+ * Deflate compresses about 1030:1 at best, so the 5 MB the actions accept is
+ * five gigabytes of allocation if nothing bounds it — a school's server killed
+ * by a 200 KB file, which is the classic zip bomb. A MASSAR mark sheet is tens
+ * of kilobytes and the whole workbook a couple of megabytes, so 64 MB is far
+ * past anything genuine while being an allocation the host survives.
+ *
+ * Budgeted across the archive rather than per entry: the central directory can
+ * name 65 535 of them, and sixty-five thousand entries each just under a
+ * per-entry cap is the same attack with more steps.
+ */
+const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
+
 export function readZip(buffer: Buffer): ZipEntry[] {
   const eocd = findEndOfCentralDirectory(buffer);
   const count = buffer.readUInt16LE(eocd + 10);
   let offset = buffer.readUInt32LE(eocd + 16);
 
+  let remaining = MAX_INFLATED_BYTES;
   const entries: ZipEntry[] = [];
   for (let index = 0; index < count; index += 1) {
     if (buffer.readUInt32LE(offset) !== CENTRAL_HEADER) {
@@ -81,10 +97,21 @@ export function readZip(buffer: Buffer): ZipEntry[] {
     if (method !== 0 && method !== 8) {
       throw new Error(`Unsupported zip compression method ${method}.`);
     }
-    entries.push({
-      name,
-      data: method === 0 ? Buffer.from(raw) : inflateRawSync(raw),
-    });
+
+    // `maxOutputLength` makes zlib stop and throw rather than allocate what the
+    // header asks for. Without it the size of the answer is the attacker's
+    // choice, not ours — see MAX_INFLATED_BYTES.
+    const data =
+      method === 0
+        ? Buffer.from(raw)
+        : inflateRawSync(raw, { maxOutputLength: remaining });
+
+    if (data.length > remaining) {
+      throw new Error("Archive expands to more than this reader will accept.");
+    }
+    remaining -= data.length;
+
+    entries.push({ name, data });
 
     offset += 46 + nameLength + extraLength + commentLength;
   }

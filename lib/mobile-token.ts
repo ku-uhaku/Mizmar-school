@@ -52,8 +52,28 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(value);
 }
 
-async function sign(userId: string, kind: TokenKind, ttl: string) {
-  return new SignJWT({ typ: kind })
+/**
+ * The value of `User.credentialsChangedAt` when the token was minted, as epoch
+ * milliseconds — 0 for an account whose password has never been changed.
+ *
+ * `iat` cannot serve this purpose. It says when *this* token was signed, and a
+ * refresh mints a token with a fresh one, so a stolen refresh token would keep
+ * renewing itself past the reset it was supposed to be killed by. The stamp is
+ * copied forward across a refresh instead, and re-checked against the row.
+ */
+export const CREDENTIALS_CLAIM = "cv";
+
+export function credentialsStamp(changedAt: Date | null | undefined): number {
+  return changedAt ? changedAt.getTime() : 0;
+}
+
+async function sign(
+  userId: string,
+  kind: TokenKind,
+  ttl: string,
+  stamp: number,
+) {
+  return new SignJWT({ typ: kind, [CREDENTIALS_CLAIM]: stamp })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -63,33 +83,70 @@ async function sign(userId: string, kind: TokenKind, ttl: string) {
     .sign(secret());
 }
 
-export async function issueTokens(userId: string): Promise<TokenPair> {
+export async function issueTokens(
+  userId: string,
+  credentialsChangedAt: Date | null = null,
+): Promise<TokenPair> {
+  const stamp = credentialsStamp(credentialsChangedAt);
   const [accessToken, refreshToken] = await Promise.all([
-    sign(userId, "access", ACCESS_TTL),
-    sign(userId, "refresh", REFRESH_TTL),
+    sign(userId, "access", ACCESS_TTL, stamp),
+    sign(userId, "refresh", REFRESH_TTL, stamp),
   ]);
 
   return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS };
 }
 
-/** Returns the user id the token was issued for, or null if it is not valid. */
+export type VerifiedToken = {
+  userId: string;
+  /** What the account's credentials looked like when this was issued. */
+  credentialsStamp: number;
+};
+
+/** Returns who the token was issued for, or null if it is not valid. */
 export async function verifyMobileToken(
   token: string,
   kind: TokenKind,
-): Promise<string | null> {
+): Promise<VerifiedToken | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
       audience: AUDIENCE,
+      // Pinned rather than inferred: the key is symmetric, so jose would only
+      // accept HMAC anyway, but saying so keeps that true if the key type ever
+      // changes.
+      algorithms: ["HS256"],
     });
 
     if (payload["typ"] !== kind) return null;
-    return typeof payload.sub === "string" ? payload.sub : null;
+    if (typeof payload.sub !== "string") return null;
+
+    const claim = payload[CREDENTIALS_CLAIM];
+    return {
+      userId: payload.sub,
+      // A token minted before this claim existed reads as 0, which is older
+      // than any real reset and so cannot outlive one.
+      credentialsStamp: typeof claim === "number" ? claim : 0,
+    };
   } catch {
     // Expired, tampered with, or signed by something else — all the same
     // answer to the caller, and none of them worth distinguishing to a client.
     return null;
   }
+}
+
+/**
+ * Whether a credential minted with `stamp` still speaks for this account.
+ *
+ * Shared by the cookie and the Bearer path so the two cannot drift: a password
+ * change moves the column forward, and every credential issued before it stops
+ * being accepted on its very next request.
+ */
+export function credentialsStillValid(
+  stamp: number,
+  changedAt: Date | null | undefined,
+): boolean {
+  if (!changedAt) return true;
+  return stamp >= changedAt.getTime();
 }
 
 /** Pulls the credential out of an `Authorization: Bearer …` header. */

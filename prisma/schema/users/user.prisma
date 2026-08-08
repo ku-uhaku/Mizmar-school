@@ -22,6 +22,15 @@ model User {
   currentSchoolYearId String?
   currentSchoolYear   SchoolYear? @relation("UserCurrentSchoolYear", fields: [currentSchoolYearId], references: [id], onDelete: SetNull)
 
+  /// When this account's password last changed. Every credential — the session
+  /// cookie and both mobile tokens — carries the value that was current when it
+  /// was issued, and lib/dal.ts refuses any credential older than this column.
+  /// That is what makes resetting a compromised account's password actually
+  /// evict the intruder: without it a stolen refresh token stayed good for its
+  /// full 60 days and a reset changed nothing for whoever already had one.
+  /// Null means the password has never been changed since the account was made.
+  credentialsChangedAt DateTime?
+
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

@@ -84,7 +84,13 @@ export async function updateRoleAction(
 
     const existing = await db.role.findFirst({
       where: { id: roleId, organizationId: context.organization.id },
-      select: { id: true, isSystem: true, name: true, scope: true },
+      select: {
+        id: true,
+        isSystem: true,
+        name: true,
+        scope: true,
+        _count: { select: { memberships: true, orgUsers: true } },
+      },
     });
     if (!existing) return failure(t.errors.notFound);
 
@@ -100,6 +106,21 @@ export async function updateRoleAction(
     // System roles keep their identity; only their permission set is editable.
     const name = existing.isSystem ? existing.name : parsed.data.name;
     const scope = existing.isSystem ? existing.scope : parsed.data.scope;
+
+    // Re-scoping an assigned role revokes it, silently. `scope` is not
+    // decorative: a membership may only carry a SCHOOL role and `User.orgRoleId`
+    // may only carry an ORG one, both enforced in modules/users/actions.ts. So
+    // flipping a role that people already hold leaves those rows pointing at a
+    // role that no longer qualifies — and because the user form replaces
+    // memberships wholesale, the next unrelated save of any of those users drops
+    // their membership without saying so. Refused for the same reason, and with
+    // the same message, as deleting a role somebody still holds.
+    const assigned = existing._count.memberships + existing._count.orgUsers;
+    if (!existing.isSystem && scope !== existing.scope && assigned > 0) {
+      return failure(interpolate(t.role.inUse, { count: assigned }), {
+        scope: interpolate(t.role.inUse, { count: assigned }),
+      });
+    }
 
     if (!existing.isSystem) {
       const duplicate = await db.role.findFirst({

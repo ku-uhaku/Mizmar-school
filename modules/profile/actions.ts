@@ -92,9 +92,16 @@ export async function changeOwnPasswordAction(
       });
     }
 
+    // Stamped alongside the hash, never separately: lib/dal.ts refuses every
+    // credential older than this, which is what signs the user's other devices
+    // out. Changing your password is the one action whose whole point is that
+    // whoever else had it stops being you.
     await db.user.update({
       where: { id: context.user.id },
-      data: { passwordHash: await hashPassword(parsed.data.newPassword) },
+      data: {
+        passwordHash: await hashPassword(parsed.data.newPassword),
+        credentialsChangedAt: new Date(),
+      },
     });
 
     return success(t.profile.passwordChanged);

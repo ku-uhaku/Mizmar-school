@@ -1,7 +1,13 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
 import { safeCallbackPath } from "@/lib/safe-redirect";
-import { bearerToken, issueTokens, verifyMobileToken } from "@/lib/mobile-token";
+import {
+  bearerToken,
+  credentialsStamp,
+  credentialsStillValid,
+  issueTokens,
+  verifyMobileToken,
+} from "@/lib/mobile-token";
 import { PERMISSIONS, ALL_PERMISSION_CODES, isPermissionCode } from "@/lib/permissions";
 import { boolField, field, listField } from "@/lib/server-action";
 import { failure, success, IDLE } from "@/lib/action-state";
@@ -151,9 +157,32 @@ describe("mobile tokens", () => {
     const { accessToken, refreshToken, expiresIn } =
       await issueTokens("user-1");
 
-    expect(await verifyMobileToken(accessToken, "access")).toBe("user-1");
-    expect(await verifyMobileToken(refreshToken, "refresh")).toBe("user-1");
+    expect(await verifyMobileToken(accessToken, "access")).toMatchObject({
+      userId: "user-1",
+    });
+    expect(await verifyMobileToken(refreshToken, "refresh")).toMatchObject({
+      userId: "user-1",
+    });
     expect(expiresIn).toBe(2 * 60 * 60);
+  });
+
+  it("carries the credentials stamp it was minted with", async () => {
+    const changedAt = new Date("2026-03-01T10:00:00Z");
+    const { accessToken, refreshToken } = await issueTokens("user-1", changedAt);
+
+    for (const [token, kind] of [
+      [accessToken, "access"],
+      [refreshToken, "refresh"],
+    ] as const) {
+      const verified = await verifyMobileToken(token, kind);
+      expect(verified?.credentialsStamp).toBe(changedAt.getTime());
+    }
+  });
+
+  it("stamps zero for an account whose password has never changed", async () => {
+    const { accessToken } = await issueTokens("user-1");
+    const verified = await verifyMobileToken(accessToken, "access");
+    expect(verified?.credentialsStamp).toBe(0);
   });
 
   it("refuses a refresh token presented as an access token", async () => {
@@ -223,6 +252,61 @@ describe("mobile tokens", () => {
   it("fails loudly rather than signing with a fallback key", async () => {
     delete process.env["AUTH_SECRET"];
     await expect(issueTokens("user-1")).rejects.toThrow("AUTH_SECRET is not set");
+  });
+});
+
+// ── Evicting a credential ────────────────────────────────────────────────────
+
+describe("credentialsStillValid", () => {
+  const CHANGED = new Date("2026-03-01T10:00:00Z");
+
+  it("accepts any credential for an account whose password never changed", () => {
+    expect(credentialsStillValid(0, null)).toBe(true);
+    expect(credentialsStillValid(0, undefined)).toBe(true);
+    expect(credentialsStillValid(Date.now(), null)).toBe(true);
+  });
+
+  it("rejects a credential minted before the change", () => {
+    // The whole point: a stolen session cookie or a sixty-day refresh token
+    // stops working the moment the password behind it is reset.
+    expect(credentialsStillValid(CHANGED.getTime() - 1, CHANGED)).toBe(false);
+    expect(credentialsStillValid(0, CHANGED)).toBe(false);
+  });
+
+  it("accepts the credential issued by the change itself", () => {
+    expect(credentialsStillValid(CHANGED.getTime(), CHANGED)).toBe(true);
+  });
+
+  it("accepts a credential minted after the change", () => {
+    expect(credentialsStillValid(CHANGED.getTime() + 1000, CHANGED)).toBe(true);
+  });
+
+  it("treats a token predating the claim as older than any reset", () => {
+    // Tokens minted before this mechanism existed carry no claim and read as 0,
+    // so the first password change after deployment invalidates them too.
+    expect(credentialsStillValid(0, new Date(1))).toBe(false);
+  });
+
+  it("survives a second change, so resetting twice does not re-admit anyone", () => {
+    const first = new Date("2026-03-01T10:00:00Z");
+    const second = new Date("2026-03-02T10:00:00Z");
+    const issuedAfterFirst = credentialsStamp(first);
+
+    expect(credentialsStillValid(issuedAfterFirst, first)).toBe(true);
+    expect(credentialsStillValid(issuedAfterFirst, second)).toBe(false);
+  });
+});
+
+describe("credentialsStamp", () => {
+  it("reads a missing change date as zero", () => {
+    expect(credentialsStamp(null)).toBe(0);
+    expect(credentialsStamp(undefined)).toBe(0);
+  });
+
+  it("round-trips a date through the stamp", () => {
+    const date = new Date("2026-03-01T10:00:00Z");
+    expect(credentialsStamp(date)).toBe(date.getTime());
+    expect(credentialsStillValid(credentialsStamp(date), date)).toBe(true);
   });
 });
 
