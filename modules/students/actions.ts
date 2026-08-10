@@ -10,7 +10,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
-import { fieldErrors } from "@/lib/validation";
+import { fieldErrors, prefixErrors } from "@/lib/validation";
 import { allocateFamilyCode } from "@/modules/families/service";
 import { familySchema, guardianSchema } from "@/modules/families/validation";
 import { enrolmentSchema } from "@/modules/enrolment/validation";
@@ -223,25 +223,6 @@ export async function createStudentAction(
     // known here. `redirect` throws, and `withActionErrors` lets it through.
     redirect(`/students/${student.id}`);
   });
-}
-
-/**
- * Namespaces one schema's field errors onto the wizard's own field names —
- * `name` becomes `familyName`, `lastName` becomes `guardianLastName` — so
- * `family`, `guardian` and `student` can share a single
- * `ActionState.fieldErrors` without colliding, using the exact key each
- * `<FormField name>` in the wizard is rendered with.
- */
-function prefixErrors(
-  errors: Record<string, string>,
-  prefix: string,
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(errors).map(([key, message]) => [
-      `${prefix}${key[0].toUpperCase()}${key.slice(1)}`,
-      message,
-    ]),
-  );
 }
 
 /**

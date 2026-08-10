@@ -1,4 +1,5 @@
-import { addMinutesToTime, bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
+import { bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
+import { HOLIDAYS, ramadanSlots, standardSlots } from "@/modules/timetable/presets";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
@@ -6,98 +7,17 @@ import { log, type SeedDb } from "@/prisma/seed/client";
  * that have one.
  *
  * Two grids are seeded for every year: the standard one, and the compressed
- * continuous day Moroccan schools switch to during Ramadan.
+ * continuous day Moroccan schools switch to during Ramadan. Both come from
+ * `modules/timetable/presets.ts`, which is also what the setup wizard lays and
+ * what `generateTimeSlots` upserts — one copy of the arithmetic, three callers.
  *
  * ── Why this does not call `generateTimeSlots` ──────────────────────────────
- * `modules/timetable/service.ts` builds the same shape of block for the "lay
- * out a block of periods" button, and reusing it here was the first draft —
- * but a seed script runs under plain `tsx`, outside the Next.js bundler that
- * makes a `server-only` import a no-op, and `service.ts` starts with one. That
- * throws unconditionally under tsx (see `node_modules/server-only/index.js`),
- * so no seed file may import a module's `service.ts`. `block` below is the
- * same arithmetic, kept free-standing for that reason.
- *
- * Periods are **one hour**: 08h00, 09h00, 10h00 … the length a lesson actually
- * runs, which is what a school picking its own bell schedule reaches for
- * first. A subject that wants half an hour or ninety minutes is still exactly
- * expressible — `TimeSlot.startTime`/`endTime` carry whatever is generated,
- * one hour is only this seed's own choice of default.
+ * A seed script runs under plain `tsx`, outside the Next.js bundler that makes
+ * a `server-only` import a no-op, and `service.ts` starts with one. That throws
+ * unconditionally under tsx (see `node_modules/server-only/index.js`), so no
+ * seed file may import a module's `service.ts`. The shared part lives in
+ * `presets.ts` instead, which is pure and therefore importable from anywhere.
  */
-
-type SlotSeed = {
-  dayOfWeek: number;
-  session: string;
-  startTime: string;
-  endTime: string;
-  scheduleKind: string;
-  position: number;
-  isBreak?: boolean;
-};
-
-/** How long one period rings for, in minutes. */
-const PERIOD_MINUTES = 60;
-
-/**
- * One run of consecutive one-hour periods, with a single break after
- * `breakAfterPeriod` of them, laid onto every day in `days` alike.
- */
-function block(
-  days: readonly number[],
-  session: string,
-  kind: string,
-  startTime: string,
-  periodCount: number,
-  breakAfterPeriod: number,
-  breakMinutes: number,
-): SlotSeed[] {
-  const slots: SlotSeed[] = [];
-
-  for (const day of days) {
-    let time = startTime;
-    let position = 1;
-
-    for (let period = 1; period <= periodCount; period += 1) {
-      const endTime = addMinutesToTime(time, PERIOD_MINUTES);
-      slots.push({ dayOfWeek: day, session, startTime: time, endTime, scheduleKind: kind, position });
-      position += 1;
-      time = endTime;
-
-      if (period === breakAfterPeriod) {
-        const breakEnd = addMinutesToTime(time, breakMinutes);
-        slots.push({
-          dayOfWeek: day,
-          session,
-          startTime: time,
-          endTime: breakEnd,
-          scheduleKind: kind,
-          position,
-          isBreak: true,
-        });
-        position += 1;
-        time = breakEnd;
-      }
-    }
-  }
-
-  return slots;
-}
-
-/**
- * Monday–Saturday, 08h00–12h15 with a quarter-hour récréation; Monday–Friday
- * again, 14h00–18h15 the same shape. Saturday is morning only — the Moroccan
- * week.
- */
-function standardSlots(): SlotSeed[] {
-  return [
-    ...block([1, 2, 3, 4, 5, 6], "MORNING", "STANDARD", "08:00", 4, 2, 15),
-    ...block([1, 2, 3, 4, 5], "AFTERNOON", "STANDARD", "14:00", 4, 2, 15),
-  ];
-}
-
-/** Ramadan: one continuous morning, no afternoon session — 09h00–13h15. */
-function ramadanSlots(): SlotSeed[] {
-  return block([1, 2, 3, 4, 5, 6], "MORNING", "RAMADAN", "09:00", 4, 2, 15);
-}
 
 export type SeededSlot = {
   id: string;
@@ -360,26 +280,6 @@ export async function seedTimetable(
  * school's to enter under /configuration, which is exactly why that screen
  * exists.
  */
-type HolidaySeed = {
-  name: string;
-  nameAr: string;
-  kind: string;
-  /** Month (1-12) and day, resolved against the academic year it falls in. */
-  month: number;
-  day: number;
-  /** Days it runs for, inclusive. 1 is a single-day férié. */
-  days: number;
-};
-
-const HOLIDAYS: HolidaySeed[] = [
-  { name: "Fête de l'Indépendance", nameAr: "عيد الاستقلال", kind: "PUBLIC_HOLIDAY", month: 11, day: 18, days: 1 },
-  { name: "Vacances de mi-année", nameAr: "عطلة منتصف السنة", kind: "SCHOOL_HOLIDAY", month: 1, day: 27, days: 9 },
-  { name: "Manifeste de l'Indépendance", nameAr: "ذكرى تقديم وثيقة الاستقلال", kind: "PUBLIC_HOLIDAY", month: 1, day: 11, days: 1 },
-  { name: "Fête du Travail", nameAr: "عيد الشغل", kind: "PUBLIC_HOLIDAY", month: 5, day: 1, days: 1 },
-  { name: "Vacances de printemps", nameAr: "عطلة الربيع", kind: "SCHOOL_HOLIDAY", month: 4, day: 5, days: 12 },
-  { name: "Fête du Trône", nameAr: "عيد العرش", kind: "PUBLIC_HOLIDAY", month: 7, day: 30, days: 1 },
-];
-
 export async function seedHolidays(
   db: SeedDb,
   schoolYearId: string,

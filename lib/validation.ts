@@ -163,6 +163,28 @@ export function password(v: V) {
  * Flattens a ZodError into the `{ field: message }` shape the form components
  * render. Only the first message per field is kept — that is all the UI shows.
  */
+/**
+ * Namespaces one schema's field errors onto a wizard's own field names —
+ * `name` becomes `familyName`, `startDate` becomes `yearStartDate` — so several
+ * modules' schemas can share a single `ActionState.fieldErrors` without
+ * colliding, using the exact key each `<FormField name>` is rendered with.
+ *
+ * Lives beside `fieldErrors` because it is the same job one step on, and
+ * because both wizards that span modules need it: the enrolment one and the
+ * school setup one.
+ */
+export function prefixErrors(
+  errors: Record<string, string>,
+  prefix: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(errors).map(([key, message]) => [
+      `${prefix}${key[0].toUpperCase()}${key.slice(1)}`,
+      message,
+    ]),
+  );
+}
+
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const result: Record<string, string> = {};
   for (const issue of error.issues) {

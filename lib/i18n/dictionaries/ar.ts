@@ -30,6 +30,7 @@ import schoolYears, {
   nav as schoolYearsNav,
   permissions as schoolYearsPermissions,
 } from "@/modules/school-years/i18n/ar";
+import setup from "@/modules/setup/i18n/ar";
 import schools, {
   nav as schoolsNav,
   permissions as schoolsPermissions,
@@ -123,6 +124,7 @@ const ar: Dictionary = {
   ...users,
   ...access,
   ...configuration,
+  ...setup,
   ...hr,
   ...profile,
   ...appearance,

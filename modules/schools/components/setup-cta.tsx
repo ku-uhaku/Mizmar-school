@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarRangeIcon, SettingsIcon } from "lucide-react";
+import { CalendarRangeIcon, SettingsIcon, WandSparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { switchSchoolAction } from "@/modules/context/actions";
@@ -18,11 +19,14 @@ import {
 
 /**
  * The jumping-off point for a school somebody has just created or is still
- * setting up. `/configuration` and `/school-years` both read the working
- * context rather than a URL param, so getting there from another school's
- * page means switching first — which is what these two buttons do before
- * navigating, rather than sending someone to a screen that still shows the
- * previous school's data.
+ * setting up.
+ *
+ * The wizard is the primary action: it fills a school in one pass, in the order
+ * the tables actually depend on each other. The two links beside it are for
+ * going straight to one thing — `/configuration` and `/school-years` both read
+ * the working context rather than a URL param, so getting there from another
+ * school's page means switching first, which is what they do before navigating
+ * rather than showing the previous school's data.
  */
 export function SchoolSetupCta({
   schoolId,
@@ -55,8 +59,15 @@ export function SchoolSetupCta({
         <CardDescription>{t.school.setupBody}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
+        <Button asChild type="button">
+          <Link href={`/schools/${schoolId}/setup`}>
+            <WandSparklesIcon />
+            {t.setup.titleExisting}
+          </Link>
+        </Button>
         <Button
           type="button"
+          variant="outline"
           disabled={pending}
           onClick={() => go("/configuration")}
         >

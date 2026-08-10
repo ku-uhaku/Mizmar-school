@@ -1,14 +1,12 @@
-import { MOROCCAN_CURSUS, seedAcademics } from "@/modules/academics/seed";
+import { seedAcademics } from "@/modules/academics/seed";
+import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
 import { seedAssessmentTypes } from "@/modules/assessments/seed";
-import {
-  FEE_RATES,
-  FEE_TYPES,
-  seedFeeRatesAndDiscounts,
-  seedFeeTypes,
-} from "@/modules/billing/seed";
+import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
+import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedDocumentTypes } from "@/modules/documents/seed";
-import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
+import { seedRooms } from "@/modules/facilities/seed";
+import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import {
   cityCodeByName,
   seedCities,

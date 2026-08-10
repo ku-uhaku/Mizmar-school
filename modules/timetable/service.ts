@@ -5,10 +5,10 @@ import type { TxClient } from "@/modules/treasury/service";
 import { teachingDaysOf } from "@/lib/school-settings";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import { LAB_ROOM_KINDS } from "@/modules/facilities/enums";
+import { layPeriodBlock } from "@/modules/timetable/presets";
 import { assignmentScopeKey } from "@/modules/classes/enums";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
-  addMinutesToTime,
   bookingKeyOf,
   minutesSinceMidnight,
   parityOverlaps,
@@ -1501,39 +1501,9 @@ export type GenerateTimeSlotsInput = {
 export async function generateTimeSlots(
   input: GenerateTimeSlotsInput,
 ): Promise<number> {
-  let written = 0;
-
-  const upsertOne = async (
-    day: number,
-    startTime: string,
-    endTime: string,
-    position: number,
-    isBreak: boolean,
-  ) => {
-    await db.timeSlot.upsert({
-      where: {
-        schoolYearId_scheduleKind_dayOfWeek_startTime: {
-          schoolYearId: input.schoolYearId,
-          scheduleKind: input.scheduleKind,
-          dayOfWeek: day,
-          startTime,
-        },
-      },
-      update: { endTime, session: input.session, position, isBreak },
-      create: {
-        schoolYearId: input.schoolYearId,
-        dayOfWeek: day,
-        session: input.session,
-        startTime,
-        endTime,
-        scheduleKind: input.scheduleKind,
-        position,
-        isBreak,
-      },
-    });
-    written += 1;
-  };
-
+  // Read fresh per day, before anything is laid, so the block that follows a
+  // morning continues its numbering instead of restarting at 1.
+  const startPositions = new Map<number, number>();
   for (const day of input.days) {
     const last = await db.timeSlot.aggregate({
       where: {
@@ -1543,25 +1513,51 @@ export async function generateTimeSlots(
       },
       _max: { position: true },
     });
-    let position = (last._max.position ?? 0) + 1;
-    let time = input.startTime;
-
-    for (let period = 1; period <= input.periodCount; period += 1) {
-      const endTime = addMinutesToTime(time, input.periodMinutes);
-      await upsertOne(day, time, endTime, position, false);
-      position += 1;
-      time = endTime;
-
-      if (period === input.breakAfterPeriod && input.breakMinutes > 0) {
-        const breakEnd = addMinutesToTime(time, input.breakMinutes);
-        await upsertOne(day, time, breakEnd, position, true);
-        position += 1;
-        time = breakEnd;
-      }
-    }
+    startPositions.set(day, (last._max.position ?? 0) + 1);
   }
 
-  return written;
+  const slots = layPeriodBlock({
+    days: input.days,
+    session: input.session,
+    scheduleKind: input.scheduleKind,
+    startTime: input.startTime,
+    periodMinutes: input.periodMinutes,
+    periodCount: input.periodCount,
+    breakAfterPeriod: input.breakAfterPeriod,
+    breakMinutes: input.breakMinutes,
+    startPosition: (day) => startPositions.get(day) ?? 1,
+  });
+
+  for (const slot of slots) {
+    await db.timeSlot.upsert({
+      where: {
+        schoolYearId_scheduleKind_dayOfWeek_startTime: {
+          schoolYearId: input.schoolYearId,
+          scheduleKind: slot.scheduleKind,
+          dayOfWeek: slot.dayOfWeek,
+          startTime: slot.startTime,
+        },
+      },
+      update: {
+        endTime: slot.endTime,
+        session: slot.session,
+        position: slot.position,
+        isBreak: slot.isBreak ?? false,
+      },
+      create: {
+        schoolYearId: input.schoolYearId,
+        dayOfWeek: slot.dayOfWeek,
+        session: slot.session,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        scheduleKind: slot.scheduleKind,
+        position: slot.position,
+        isBreak: slot.isBreak ?? false,
+      },
+    });
+  }
+
+  return slots.length;
 }
 
 /**

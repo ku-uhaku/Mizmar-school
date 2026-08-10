@@ -28,6 +28,7 @@ import schoolYears, {
   nav as schoolYearsNav,
   permissions as schoolYearsPermissions,
 } from "@/modules/school-years/i18n/en";
+import setup from "@/modules/setup/i18n/en";
 import schools, {
   nav as schoolsNav,
   permissions as schoolsPermissions,
@@ -132,6 +133,7 @@ const en = {
   ...users,
   ...access,
   ...configuration,
+  ...setup,
   ...hr,
   ...profile,
   ...appearance,

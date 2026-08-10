@@ -65,6 +65,71 @@ export type SeededTeacher = {
   subjectCodes: string[];
 };
 
+/**
+ * The super administrator, and nothing else.
+ *
+ * Split out of `seedUsers` because it is the one account every seed needs — the
+ * demonstration, the configured-but-empty school, and the empty database a real
+ * deployment starts from. Only the last of those has no school to point the
+ * account at, which is why `schoolId` is optional: a working context that
+ * resolves to nothing is exactly right when there is nothing to resolve to yet,
+ * and `getAuthContext` already falls back to null rather than guessing.
+ *
+ * Deliberately keeps `isSuperAdmin` so the organisation can never be locked out
+ * by an unlucky role edit.
+ */
+export async function seedAdmin(
+  db: SeedDb,
+  {
+    organizationId,
+    roles,
+    adminEmail,
+    adminPassword,
+    schoolId,
+  }: {
+    organizationId: string;
+    roles: Record<string, string>;
+    adminEmail: string;
+    adminPassword: string;
+    /** Omitted when the database has no school yet. */
+    schoolId?: string;
+  },
+): Promise<void> {
+  const passwordHash = await bcrypt.hash(adminPassword, 12);
+
+  const defaultYear = schoolId
+    ? await db.schoolYear.findFirst({ where: { schoolId, isDefault: true } })
+    : null;
+
+  await db.user.upsert({
+    where: { email: adminEmail },
+    update: {
+      profile: { update: { ...DEFAULT_PREFS, birthDate: new Date("1978-04-12") } },
+    },
+    create: {
+      organizationId,
+      email: adminEmail,
+      passwordHash,
+      isSuperAdmin: true,
+      orgRoleId: roles["Administrateur"],
+      currentSchoolId: schoolId ?? null,
+      currentSchoolYearId: defaultYear?.id ?? null,
+      profile: {
+        create: {
+          firstName: "Amine",
+          lastName: "Tazi",
+          jobTitle: "Directeur général",
+          phone: "+212 661 23 45 67",
+          birthDate: new Date("1978-04-12"),
+          locale: "fr",
+        },
+      },
+    },
+  });
+
+  log("administrator", adminEmail);
+}
+
 /** The nth distinct name in the pool. */
 function nameFor(index: number): { first: string; last: string } {
   const total = FIRST_NAMES.length * LAST_NAMES.length;
@@ -121,36 +186,12 @@ export async function seedUsers(
   const schoolByCode = Object.fromEntries(schools.map((s) => [s.code, s]));
   const oujda = schoolByCode["ALM-OUJDA"];
 
-  const defaultYear = await db.schoolYear.findFirst({
-    where: { schoolId: oujda.id, isDefault: true },
-  });
-
-  // The super administrator. Deliberately keeps `isSuperAdmin` so the org can
-  // never be locked out by an unlucky role edit.
-  await db.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      profile: { update: { ...DEFAULT_PREFS, birthDate: new Date("1978-04-12") } },
-    },
-    create: {
-      organizationId,
-      email: adminEmail,
-      passwordHash,
-      isSuperAdmin: true,
-      orgRoleId: roles["Administrateur"],
-      currentSchoolId: oujda.id,
-      currentSchoolYearId: defaultYear?.id,
-      profile: {
-        create: {
-          firstName: "Amine",
-          lastName: "Tazi",
-          jobTitle: "Directeur général",
-          phone: "+212 661 23 45 67",
-          birthDate: new Date("1978-04-12"),
-          locale: "fr",
-        },
-      },
-    },
+  await seedAdmin(db, {
+    organizationId,
+    roles,
+    adminEmail,
+    adminPassword,
+    schoolId: oujda.id,
   });
 
   const office = [

@@ -43,6 +43,7 @@ import { SCHOOL_LIFE_PERMISSIONS } from "@/modules/school-life/permissions";
 import { schoolYearsModule } from "@/modules/school-years/module";
 import { SCHOOL_YEAR_PERMISSIONS } from "@/modules/school-years/permissions";
 import { schoolsModule } from "@/modules/schools/module";
+import { setupModule } from "@/modules/setup/module";
 import { SCHOOL_PERMISSIONS } from "@/modules/schools/permissions";
 import { studentsModule } from "@/modules/students/module";
 import { suppliesModule } from "@/modules/supplies/module";
@@ -95,6 +96,9 @@ export const MODULES: readonly AppModule[] = [
   usersModule,
   accessModule,
   configurationModule,
+  // Owns no tables and shows no nav entry — the wizard that fills a new school
+  // in, reached from /schools.
+  setupModule,
   hrModule,
   profileModule,
   appearanceModule,

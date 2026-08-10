@@ -1,11 +1,8 @@
-import { MOROCCAN_CURSUS, seedAcademics } from "@/modules/academics/seed";
+import { seedAcademics } from "@/modules/academics/seed";
+import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
-import {
-  FEE_RATES,
-  FEE_TYPES,
-  seedFeeRatesAndDiscounts,
-  seedFeeTypes,
-} from "@/modules/billing/seed";
+import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
+import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments, seedFeeAdjustments } from "@/modules/enrolment/seed";
 import {
@@ -30,7 +27,8 @@ import {
 import { seedSupplyArticles, seedSupplyLists } from "@/modules/supplies/seed";
 import { seedDocumentTypes } from "@/modules/documents/seed";
 import { seedFamilies } from "@/modules/families/seed";
-import { SCHOOL_ROOMS, seedRooms } from "@/modules/facilities/seed";
+import { seedRooms } from "@/modules/facilities/seed";
+import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import {
   MOROCCAN_NEIGHBOURHOODS,
   seedCities,

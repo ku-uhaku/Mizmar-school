@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:seed:config": "tsx prisma/seed-config.ts",
+    "db:seed:empty": "tsx prisma/seed-empty.ts",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
     "test": "vitest run",

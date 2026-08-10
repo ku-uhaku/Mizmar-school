@@ -1,3 +1,8 @@
+import {
+  TERM_NAMES_2,
+  termSpans,
+  termStatus,
+} from "@/modules/school-years/presets";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
@@ -23,64 +28,6 @@ export type YearSeed = {
 export const YEARS: YearSeed[] = [
   { name: "2026-2027", start: "2026-03-05", end: "2027-02-17", status: "ACTIVE", isDefault: true },
 ];
-
-/**
- * The semesters, named only — their dates are a split of whatever span the year
- * declares.
- *
- * They used to be written as calendar months, which quietly assumed a September
- * rentrée: a year running March to February came out as an eleven-month first
- * semester and a seventeen-day second. Halving the span instead is right for any
- * shape of year, and it is the same arithmetic a school does on paper.
- */
-const TERMS = [
-  { number: 1, name: "Semestre 1", nameAr: "الدورة الأولى" },
-  { number: 2, name: "Semestre 2", nameAr: "الدورة الثانية" },
-];
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * DAY_MS);
-}
-
-/**
- * The two halves of a year, back to back with no gap and no overlap.
- *
- * Semester 1 takes the first half and semester 2 the rest, so the pair always
- * covers the year exactly — a mark or an absence dated anywhere in the year
- * falls in precisely one of them, which is what every screen that groups by
- * semester relies on.
- */
-function termSpans(start: Date, end: Date): { start: Date; end: Date }[] {
-  const midpoint = addDays(start, Math.floor((end.getTime() - start.getTime()) / DAY_MS / 2));
-  return [
-    { start, end: midpoint },
-    { start: addDays(midpoint, 1), end },
-  ];
-}
-
-/**
- * Which semester is running, by today's date.
- *
- * Derived rather than hardcoded so the demonstration reads as a school in the
- * middle of its year whenever it is seeded — the first semester was pinned
- * ACTIVE, which was only true while the year happened to start in September.
- * A year seeded before it opens or after it closes falls back to its first
- * semester, since a year marked ACTIVE with no live term is a state no screen
- * expects.
- */
-function termStatus(
-  yearStatus: string,
-  span: { start: Date; end: Date },
-  isFirst: boolean,
-  now: Date,
-): string {
-  if (yearStatus !== "ACTIVE") return yearStatus;
-  if (now >= span.start && now <= span.end) return "ACTIVE";
-  if (now > span.end) return "CLOSED";
-  return isFirst ? "ACTIVE" : "PLANNED";
-}
 
 export type SeededYear = {
   id: string;
@@ -129,7 +76,7 @@ export async function seedSchoolYears(
     const now = new Date();
 
     const terms: Record<number, string> = {};
-    for (const [index, term] of TERMS.entries()) {
+    for (const [index, term] of TERM_NAMES_2.entries()) {
       const span = spans[index];
       const status = termStatus(year.status, span, index === 0, now);
 
@@ -165,6 +112,6 @@ export async function seedSchoolYears(
     });
   }
 
-  log("school years", `${seeded.length} × ${TERMS.length} terms`);
+  log("school years", `${seeded.length} × ${TERM_NAMES_2.length} terms`);
   return seeded;
 }
