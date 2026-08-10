@@ -25,6 +25,7 @@ import {
 } from "@/modules/assessments/validation";
 import {
   assessmentScopeKey,
+  NOTES_MAX,
   pointsToQuarters,
 } from "@/modules/assessments/enums";
 import { devoirSchema } from "@/modules/classroom/validation";
@@ -181,7 +182,26 @@ export async function generateAssessmentsAction(
       subject, so each paper carries its own date — a round of contrôles is sat
       across a week, not all on one morning. An empty date half means "not dated
       yet", which is an ordinary state for a paper planned in September.
+
+      What the paper covers rides alongside as `subjectId:note`, in its own list
+      rather than a third part of the same string: a note is free text and would
+      have to be escaped out of a delimited field, which is how a colon in
+      "chapitre 3: les fractions" ends up truncating it.
     */
+    const noteBySubject = new Map(
+      listField(formData, "targetNote")
+        .map((entry) => {
+          const separator = entry.indexOf(":");
+          if (separator === -1) return null;
+          const subjectId = entry.slice(0, separator);
+          const note = entry.slice(separator + 1).trim();
+          return subjectId === "" || note === ""
+            ? null
+            : ([subjectId, note.slice(0, NOTES_MAX)] as const);
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
+    );
+
     const targets = listField(formData, "target")
       .map((entry) => {
         const separator = entry.indexOf(":");
@@ -197,6 +217,7 @@ export async function generateAssessmentsAction(
             date && !Number.isNaN(date.getTime())
               ? date
               : parsed.data.scheduledOn,
+          notes: noteBySubject.get(subjectId) ?? null,
         };
       })
       .filter(
@@ -593,6 +614,7 @@ export async function createDevoirAction(
       termId: field(formData, "termId"),
       assessmentTypeId: field(formData, "assessmentTypeId"),
       title: field(formData, "title"),
+      notes: field(formData, "notes"),
       scheduledOn: field(formData, "scheduledOn"),
       maxScore: field(formData, "maxScore"),
       coefficient: field(formData, "coefficient"),
@@ -680,6 +702,7 @@ export async function createDevoirAction(
         assessmentTypeId: type.id,
         sequence: (last?.sequence ?? 0) + 1,
         title: parsed.data.title,
+        notes: parsed.data.notes,
         scheduledOn: parsed.data.scheduledOn,
         maxScore: parsed.data.maxScore,
         coefficient: parsed.data.coefficient,

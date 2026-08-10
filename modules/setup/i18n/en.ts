@@ -36,6 +36,8 @@ const en = {
     existingBanner:
       "This school already has {levels} levels, {rooms} rooms and {classes} classes. The wizard adds to what is there and never removes anything.",
     nothingChosen: "Nothing to write yet — tick at least one cycle.",
+    mixedNomenclature:
+      "The primary years arrived under both namings at once. Reload the page and choose one.",
     selectAll: "Select all",
     selectNone: "Select none",
     addRow: "Add",
@@ -98,6 +100,11 @@ const en = {
       levelCount: "{count} levels",
       trackCount: "{count} filières",
       alreadyRuns: "Already run by this school",
+      nomenclature: "Naming of the primary years",
+      nomenclatureHint:
+        "Same six years and the same programme either way — only what the school calls them changes. MASSAR codes are unaffected.",
+      nomenclatureMoroccan: "Moroccan — 1AP … 6AP",
+      nomenclatureFrench: "French — CP … 6\u00e8me",
       addLevel: "Add a level the catalogue does not have",
       customLevelHint:
         "For an unusual cursus. A level added here gets no MASSAR code — map it under Configuration.",

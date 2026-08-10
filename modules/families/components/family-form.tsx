@@ -134,13 +134,15 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
             <FormField
               name="name"
               label={t.family.name}
+              hint={t.family.nameHint}
               error={errors.name}
               required
               className="sm:col-span-2"
             >
               <Input
-                {...controlProps("name", errors.name)}
+                {...controlProps("name", errors.name, t.family.nameHint)}
                 defaultValue={valueOf(state, "name", family?.name)}
+                placeholder="Bennis"
                 required
               />
             </FormField>

@@ -47,6 +47,9 @@ const en = {
     teacher: "Teacher",
     noTeacher: "No teacher assigned",
     notes: "Notes",
+    covers: "What it covers",
+    coversHint: "The lesson or the pages, as the class is told — \"leçon 3, p.42\".",
+    coversPlaceholder: "Lesson, chapter, pages…",
     progress: "Marking",
     average: "Average",
 

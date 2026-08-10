@@ -42,27 +42,28 @@ export type ProgrammeSubject = {
  *    track" — that is how the common subjects (Arabic, Islamic education, EPS)
  *    are declared once instead of per stream. See LevelSubject.trackId.
  *
- * 2. Where a subject is split into components at that level, what may be marked
- *    depends on the kind of paper — which is what `wholeSubjects` selects:
+ * 2. Where a subject is split into components at that level, **both halves are
+ *    on the programme** — اللغة العربية itself and القراءة، الإملاء،
+ *    التعبير الكتابي، الصرف والتحويل under it.
  *
- *      false  the components only. اللغة العربية in 3AP is not sat as one
- *             devoir; الإملاء is, and the matière's mark is computed from its
- *             components. The historical behaviour, and still the default.
- *      true   the matière *and* its components, because a contrôle continu is
- *             ordinarily sat on اللغة العربية as one paper but a school may run
- *             one on الصرف والتحويل alone.
+ *    This used to depend on the kind of paper: a contrôle resolved the matières
+ *    and a devoir the components, so whichever half the kind was not sat on was
+ *    not merely unticked but absent. A school that ran one contrôle on
+ *    الإملاء alone, or a devoir on the matière as a whole, had no way to say
+ *    so — and the picker showing four component rows under a heading nobody
+ *    could tick reads as a bug rather than a rule.
  *
- *    Widening the second case is safe because it only widens what may be
- *    *asked for*. Asking for both halves at once is settled in
- *    `generateAssessments`, which drops a component whose matière is in the
- *    same run rather than marking the same work twice.
+ *    Offering both is safe because it only widens what may be *asked for*.
+ *    Asking for both halves at once is settled in `generateAssessments`, which
+ *    drops a component whose matière is in the same run rather than marking the
+ *    same work twice. What the *kind* decides is only which half is ticked when
+ *    the dialog opens — see AssessmentType.gradesWholeSubject.
  *
  * Ungraded rows — the support and activity slots that are timetabled but never
  * averaged — are excluded outright.
  */
 export async function resolveProgramme(
   schoolClassId: string,
-  options: { wholeSubjects?: boolean } = {},
 ): Promise<ProgrammeSubject[]> {
   const schoolClass = await db.schoolClass.findUnique({
     where: { id: schoolClassId },
@@ -101,26 +102,14 @@ export async function resolveProgramme(
     trackId,
   );
 
-  // Rule 2: a matière that has at least one of its components in this same
-  // programme is marked through them, not directly — unless the kind of paper
-  // is sat on the matière, in which case both halves are on offer.
-  const parentsCoveredByComponents = new Set(
-    options.wholeSubjects
-      ? []
-      : rows
-          .map((row) => row.subject.parentId)
-          .filter((parentId): parentId is string => parentId !== null),
-  );
-
-  return rows
-    .filter((row) => !parentsCoveredByComponents.has(row.subject.id))
-    .map((row) => ({
-      subjectId: row.subject.id,
-      subjectCode: row.subject.code,
-      subjectName: row.subject.name,
-      parentSubjectId: row.subject.parentId,
-      coefficient: row.coefficient,
-    }));
+  // Rule 2: both halves of a split matière, and the caller picks.
+  return rows.map((row) => ({
+    subjectId: row.subject.id,
+    subjectCode: row.subject.code,
+    subjectName: row.subject.name,
+    parentSubjectId: row.subject.parentId,
+    coefficient: row.coefficient,
+  }));
 }
 
 /** One line of the generator: a subject that was ticked, and its own date. */
@@ -128,6 +117,14 @@ export type GenerateTarget = {
   subjectId: string;
   /** Per subject, because a round of contrôles is sat over a week, not a day. */
   scheduledOn: Date | null;
+  /**
+   * What the paper covers — "leçon 3, p.42", "les fractions".
+   *
+   * Per subject for the same reason the date is: one round is one date on the
+   * calendar but six different chapters, and a note written once for the whole
+   * round would be true of none of them.
+   */
+  notes: string | null;
 };
 
 export type GenerateInput = {
@@ -200,14 +197,11 @@ export async function generateAssessments(
       name: true,
       defaultCoefficient: true,
       defaultMaxScore: true,
-      gradesWholeSubject: true,
     },
   });
   if (!type) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
-  const programme = await resolveProgramme(input.schoolClassId, {
-    wholeSubjects: type.gradesWholeSubject,
-  });
+  const programme = await resolveProgramme(input.schoolClassId);
   if (programme.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
   // Only subjects that are genuinely on this class's programme. A subject id
@@ -223,12 +217,12 @@ export async function generateAssessments(
   /*
     A matière and its own component cannot both be marked in one round.
 
-    Only reachable when the kind is sat on the matière, since that is the only
-    case where both halves are on the programme at all. The picker keeps the two
-    mutually exclusive, but a Server Function is reachable by direct POST and the
-    consequence of trusting the request here is a double-counted matière at
-    moyenne time — so the matière wins and the component is dropped, rather than
-    the whole run being refused over a tick the operator cannot see.
+    Load-bearing, not a nicety: both halves are always on the programme now, so
+    this is the only thing standing between a round and a double-counted matière
+    at moyenne time. The picker keeps the two mutually exclusive, but a Server
+    Function is reachable by direct POST — so the matière wins and the component
+    is dropped, rather than the whole run being refused over a tick the operator
+    cannot see.
   */
   const markedWhole = new Set(
     onProgrammeTargets
@@ -326,6 +320,7 @@ export async function generateAssessments(
           sequence: input.sequence,
           title: defaultAssessmentTitle(type.name, input.sequence),
           scheduledOn: target.scheduledOn,
+          notes: target.notes,
           maxScore: type.defaultMaxScore,
           coefficient: type.defaultCoefficient,
           status: "DRAFT",

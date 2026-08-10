@@ -91,6 +91,7 @@ vi.mock("@/lib/db", () => ({ db, auditClient: {} }));
 
 const { generateAssessments, resolveProgramme, saveMarks, setAssessmentStatus } =
   await import("@/modules/assessments/service");
+type GenerateTarget = import("@/modules/assessments/service").GenerateTarget;
 
 const of = (model: string, op: string) =>
   calls.filter((call) => call.model === model && call.op === op);
@@ -1076,7 +1077,7 @@ describe("generateAssessments", () => {
     };
   };
 
-  const run = (targets: { subjectId: string; scheduledOn: Date | null }[]) =>
+  const run = (targets: GenerateTarget[]) =>
     generateAssessments({
       schoolClassId: "class-1",
       termId: "term-1",
@@ -1086,7 +1087,11 @@ describe("generateAssessments", () => {
       createdById: "user-1",
     });
 
-  const target = (subjectId: string) => ({ subjectId, scheduledOn: null });
+  const target = (subjectId: string, notes: string | null = null) => ({
+    subjectId,
+    scheduledOn: null,
+    notes,
+  });
 
   it("writes one paper for a subject on the programme", async () => {
     setup();
@@ -1207,8 +1212,17 @@ describe("generateAssessments", () => {
 
   // ── A matière and its components ───────────────────────────────────────────
 
-  it("marks a matière through its components by default", async () => {
-    // اللغة العربية in 3AP is not sat as one devoir; الإملاء is.
+  it("offers the matière and its components, whatever the kind", async () => {
+    /*
+      Both halves, always.
+
+      It used to depend on the kind: a devoir resolved the components and a
+      contrôle the matières, so whichever half the kind was not sat on was not
+      merely unticked but absent — a school running one contrôle on الإملاء
+      alone had no way to say so, and the picker showed a heading nobody could
+      tick. Which half is ticked *by default* is still the kind's business, and
+      that lives in the dialog.
+    */
     setup({
       subjects: [
         subjectRow("arabe"),
@@ -1218,22 +1232,67 @@ describe("generateAssessments", () => {
     });
 
     const programme = await resolveProgramme("class-1");
-    expect(programme.map((entry) => entry.subjectId)).toEqual(["imla"]);
+    expect(programme.map((entry) => entry.subjectId).sort()).toEqual([
+      "arabe",
+      "imla",
+    ]);
   });
 
-  it("offers both halves when the kind is sat on the matière", async () => {
+  it("writes what each paper covers, per subject", async () => {
+    /*
+      Per subject, not per round.
+
+      One round is one week on the calendar but six different chapters, so a
+      note carried on the run rather than the target would be true of none of
+      the papers it landed on.
+    */
+    setup({
+      subjects: [subjectRow("maths"), subjectRow("svt")],
+      assignments: [
+        { subjectId: "maths", teacherId: "teacher-1" },
+        { subjectId: "svt", teacherId: "teacher-1" },
+      ],
+    });
+
+    await run([
+      target("maths", "Leçon 3, p.42"),
+      target("svt", "La respiration"),
+    ]);
+
+    const written = of("assessment", "createMany")[0].args.data as {
+      subjectId: string;
+      notes: string | null;
+    }[];
+    expect(
+      Object.fromEntries(written.map((row) => [row.subjectId, row.notes])),
+    ).toEqual({ maths: "Leçon 3, p.42", svt: "La respiration" });
+  });
+
+  it("leaves the note null when none was typed", async () => {
+    setup();
+    await run([target("maths")]);
+
+    const written = of("assessment", "createMany")[0].args.data as {
+      notes: string | null;
+    }[];
+    expect(written[0].notes).toBeNull();
+  });
+
+  it("writes a component's paper on its own when that is what was ticked", async () => {
+    // The case the widening exists for: one contrôle on الإملاء alone, with the
+    // matière left alone.
     setup({
       subjects: [
         subjectRow("arabe"),
         subjectRow("imla", { parentId: "arabe" }),
       ],
+      assignments: [{ subjectId: "arabe", teacherId: "teacher-1" }],
+      type: { ...TYPE, gradesWholeSubject: true },
     });
 
-    const programme = await resolveProgramme("class-1", { wholeSubjects: true });
-    expect(programme.map((entry) => entry.subjectId).sort()).toEqual([
-      "arabe",
-      "imla",
-    ]);
+    const result = await run([target("imla")]);
+    expect(result.subjects).toEqual(["imla"]);
+    expect(result.created).toBe(1);
   });
 
   it("never marks a matière and its own component in one run", async () => {

@@ -49,6 +49,9 @@ const fr = {
     teacher: "Enseignant",
     noTeacher: "Aucun enseignant affecté",
     notes: "Notes",
+    covers: "Ce qui est évalué",
+    coversHint: "La leçon ou les pages, comme annoncé à la classe — « leçon 3, p.42 ».",
+    coversPlaceholder: "Leçon, chapitre, pages…",
     progress: "Correction",
     average: "Moyenne",
 

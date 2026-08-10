@@ -15,6 +15,7 @@ const en = {
     code: "File number",
     codeHint: "Leave blank to allocate the next one, e.g. F-2025-0142.",
     name: "Family name",
+    nameHint: "The surname only — the file is opened as \u00ab Famille Bennis \u00bb.",
     nameAr: "Family name (Arabic)",
     situation: "Situation",
     address: "Address",

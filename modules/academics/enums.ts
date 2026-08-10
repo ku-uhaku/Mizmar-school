@@ -41,6 +41,26 @@ export const CYCLE_GRADE_COUNT: Record<EducationCycle, number> = {
 };
 
 /**
+ * What a school calls its primary years.
+ *
+ * The Ministry's six years are the same six years either way — this is a naming
+ * convention, not a different cursus. A school under Moroccan nomenclature runs
+ * 1AP…6AP; one that took its names from the French system runs CP, CE1, CE2,
+ * CM1, CM2 and a sixth year, and the two are the same rows with different
+ * labels: same `gradeYear`, same programme, same MASSAR codes.
+ *
+ * Only the primary cycle has the choice. Nobody renames the collège or the
+ * baccalauréat, so this deliberately does not generalise to the other cycles.
+ *
+ * Not a column anywhere. Once the wizard has written the `Level` rows the
+ * school simply *has* levels called CE2, and renaming one afterwards is the
+ * ordinary configuration screen's job — a stored preference would be a second
+ * answer to what the level is called.
+ */
+export const LEVEL_NOMENCLATURES = ["MOROCCAN", "FRENCH"] as const;
+export type LevelNomenclature = (typeof LEVEL_NOMENCLATURES)[number];
+
+/**
  * Cycles that stream into filières. Only the qualifying cycle does, which is why
  * every `trackId` in the schema is nullable.
  */

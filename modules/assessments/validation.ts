@@ -11,6 +11,7 @@ import {
   ASSESSMENT_STATUSES,
   GENERATE_SCOPES,
   MAX_SEQUENCE,
+  NOTES_MAX,
 } from "@/modules/assessments/enums";
 
 /** Built per-request from the dictionary so messages come back localised. */
@@ -61,7 +62,7 @@ export function assessmentSchema(t: Dictionary) {
       .int({ error: v.invalidNumber })
       .min(1, { error: v.invalidNumber })
       .max(20, { error: v.invalidNumber }),
-    notes: optionalText(500),
+    notes: optionalText(NOTES_MAX),
   });
 }
 

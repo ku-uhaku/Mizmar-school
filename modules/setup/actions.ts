@@ -21,6 +21,7 @@ import {
   classCodesFor,
   cycleEntry,
   levelByCode,
+  nomenclatureOf,
   subjectByCode,
   trackByCode,
   SETUP_CYCLES,
@@ -163,8 +164,26 @@ export async function runSetupAction(
       };
     });
 
+    /*
+      The primary years are named one way or the other, never both.
+
+      `levelByCode` accepts either naming, which is what lets the wizard post
+      plain codes — but a form carrying 3AP *and* CE2 would open the same six
+      years twice, under two sets of codes, and no screen afterwards could say
+      which a pupil is in. The wizard never renders both, so a plan that has
+      them is a stale or a crafted one, and it is refused rather than half
+      applied.
+    */
+    const postedLevelCodes = listField(formData, "levelCode");
+    if (nomenclatureOf(postedLevelCodes) === null && postedLevelCodes.length > 0) {
+      const primary = postedLevelCodes.filter(
+        (code) => levelByCode(code)?.cycle === "PRIMARY",
+      );
+      if (primary.length > 0) return invalid({ levels: t.setup.mixedNomenclature });
+    }
+
     const levels: LevelPlan[] = [];
-    for (const code of listField(formData, "levelCode")) {
+    for (const code of postedLevelCodes) {
       const preset = levelByCode(code);
       if (!preset || !cycleCodes.includes(preset.cycle)) continue;
       levels.push({

@@ -23,6 +23,8 @@ const ar = {
     existingBanner:
       "تضم هذه المؤسسة بالفعل {levels} مستوى و{rooms} قاعة و{classes} قسمًا. يُكمل المساعد الموجود ولا يحذف شيئًا.",
     nothingChosen: "لا شيء لتسجيله — اختر سلكًا واحدًا على الأقل.",
+    mixedNomenclature:
+      "وصلت سنوات الابتدائي بالتسميتين معًا. أعد تحميل الصفحة واختر واحدة.",
     selectAll: "تحديد الكل",
     selectNone: "إلغاء التحديد",
     addRow: "إضافة",
@@ -85,6 +87,11 @@ const ar = {
       levelCount: "{count} مستويات",
       trackCount: "{count} شعب",
       alreadyRuns: "تدرِّسه المؤسسة أصلًا",
+      nomenclature: "تسمية سنوات الابتدائي",
+      nomenclatureHint:
+        "نفس السنوات الست ونفس المقرر في الحالتين — يتغير الاسم فقط. رموز مسار لا تتأثر.",
+      nomenclatureMoroccan: "مغربية — 1AP … 6AP",
+      nomenclatureFrench: "فرنسية — CP … 6ème",
       addLevel: "إضافة مستوى غير موجود في الكتالوغ",
       customLevelHint:
         "لمسار خاص. المستوى المضاف هنا بلا رمز مسار — اربطه من الإعدادات.",

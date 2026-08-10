@@ -47,6 +47,9 @@ const ar = {
     teacher: "الأستاذ",
     noTeacher: "لم يُسند إلى أي أستاذ",
     notes: "ملاحظات",
+    covers: "ما يشمله",
+    coversHint: "الدرس أو الصفحات، كما تُعلَن للقسم — «الدرس 3، ص. 42».",
+    coversPlaceholder: "الدرس، الوحدة، الصفحات…",
     progress: "التصحيح",
     average: "المعدل",
 

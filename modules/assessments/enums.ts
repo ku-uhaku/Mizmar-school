@@ -146,6 +146,16 @@ export const DEFAULT_PASS_BPS = 5000;
 export const MAX_SEQUENCE = 20;
 
 /**
+ * How long `Assessment.notes` may be — what the paper covers, in the words a
+ * class is told it in: "leçon 3, p.42", "les fractions et les décimaux".
+ *
+ * A sentence or two, not a lesson plan. Here rather than inline in the schema
+ * so the three places that bound it — the zod field, the generator's parser and
+ * the `maxLength` on the boxes themselves — cannot drift apart.
+ */
+export const NOTES_MAX = 500;
+
+/**
  * Mirror for the nullable `classGroupId`, so the unique index on Assessment
  * actually fires.
  *

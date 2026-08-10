@@ -9,6 +9,7 @@ import {
 } from "@/lib/validation";
 import {
   MAX_QUESTIONS,
+  NOTES_MAX,
   QUESTION_MAX_LENGTH,
 } from "@/modules/assessments/enums";
 import {
@@ -71,6 +72,8 @@ export function devoirSchema(t: Dictionary) {
     termId: requiredText(v, { max: 40 }),
     assessmentTypeId: requiredText(v, { max: 40 }),
     title: requiredText(v, { max: 160 }),
+    /** What it covers — "leçon 3, p.42". Optional: a title often says it all. */
+    notes: optionalText(NOTES_MAX),
     scheduledOn: dateField(v),
     maxScore: z.coerce
       .number({ error: v.invalidNumber })

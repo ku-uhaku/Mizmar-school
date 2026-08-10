@@ -12,6 +12,7 @@ import {
 } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { currentSchoolId } from "@/lib/scope";
+import { withFamilyPrefix } from "@/modules/families/validation";
 // The owners of these invariants, called rather than reimplemented: the fee
 // schedule comes from the price list and the status is derived, and the import
 // is bound by both exactly as the enrolment form is.
@@ -445,6 +446,11 @@ export async function planImport(
         });
       }
     }
+
+    // Canonicalised before it is matched or written, so a sheet listing
+    // "Bennis" attaches to the "Famille Bennis" already on file rather than
+    // opening a second dossier for the same household.
+    if (values.familyName) values.familyName = withFamilyPrefix(values.familyName);
 
     const familyKey = familyKeyOf(values.familyName ?? "");
     const existingFamilyCode = familyByName.get(familyKey);

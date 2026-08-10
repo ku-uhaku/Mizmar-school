@@ -601,6 +601,48 @@ describe("familySchema", () => {
     expect(familySchema(t).safeParse(form({ name: "" })).success).toBe(false);
   });
 
+  /*
+    Every dossier is filed under "Famille <nom>", whichever screen opened it.
+
+    The rule earns tests because it rewrites what the user typed: the danger is
+    not that it fails to apply but that it applies twice, so a file re-saved
+    once a term ends up as "Famille Famille Benali".
+  */
+  it("files the dossier under Famille, whatever was typed", () => {
+    const cases: [string, string][] = [
+      ["Benali", "Famille Benali"],
+      ["  Benali  ", "Famille Benali"],
+      ["Famille Benali", "Famille Benali"],
+      ["famille benali", "Famille benali"],
+      ["FAMILLE Benali", "Famille Benali"],
+      ["Famille   Benali", "Famille Benali"],
+      // Not the word, only its letters — the surname survives intact.
+      ["Famillard", "Famille Famillard"],
+    ];
+
+    for (const [typed, expected] of cases) {
+      const parsed = familySchema(t).safeParse(form({ name: typed }));
+      expect(parsed.success, typed).toBe(true);
+      if (parsed.success) expect(parsed.data.name, typed).toBe(expected);
+    }
+  });
+
+  it("does the same in Arabic, and leaves a blank Arabic name blank", () => {
+    const cases: [string, string | null][] = [
+      ["بنعلي", "أسرة بنعلي"],
+      ["أسرة بنعلي", "أسرة بنعلي"],
+      // The other Arabic word for a household, so the two do not stack.
+      ["عائلة بنعلي", "أسرة بنعلي"],
+      ["", null],
+    ];
+
+    for (const [typed, expected] of cases) {
+      const parsed = familySchema(t).safeParse(form({ nameAr: typed }));
+      expect(parsed.success, typed).toBe(true);
+      if (parsed.success) expect(parsed.data.nameAr, typed).toBe(expected);
+    }
+  });
+
   it("strips anything the form did not declare", () => {
     const parsed = familySchema(t).safeParse({
       ...form(),

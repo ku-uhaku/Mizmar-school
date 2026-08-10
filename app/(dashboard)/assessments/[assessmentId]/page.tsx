@@ -4,6 +4,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { ForbiddenState } from "@/components/shell/states";
 import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { requireAuth } from "@/lib/dal";
 import { formatDate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
@@ -80,6 +86,22 @@ export default async function AssessmentPage({
           isMine={sheet.isMine}
           isDevoir={sheet.isDevoir}
         />
+
+        {/* What the paper covers — "leçon 3, p.42". Above the questions, since
+            it is the thing the class was told and the questions are what came
+            of it. Absent rather than empty when nothing was written. */}
+        {assessment.notes ? (
+          <Card className="gap-2 py-4">
+            <CardHeader className="gap-1">
+              <CardTitle className="text-base">
+                {t.assessment.covers}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm whitespace-pre-line">{assessment.notes}</p>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Above the roster: the paper is what the marks are marks *of*, and a
             teacher opening this to grade wants to reread it first. */}

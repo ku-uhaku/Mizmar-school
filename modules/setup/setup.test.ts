@@ -5,7 +5,15 @@ import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { CYCLE_CATALOGUE, MOROCCAN_CURSUS, SUBJECTS } from "@/modules/academics/presets";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { offeringScopeKey } from "@/modules/classes/enums";
-import { classCodesFor, programmeFor, suggestedRooms } from "@/modules/setup/catalogue";
+import {
+  classCodesFor,
+  levelByCode,
+  levelsFor,
+  nomenclatureOf,
+  programmeFor,
+  suggestedFeeAmount,
+  suggestedRooms,
+} from "@/modules/setup/catalogue";
 import { slotsForBell } from "@/modules/setup/bell";
 
 /**
@@ -202,10 +210,77 @@ describe("the cursus preset", () => {
     expect(preschool.filter((room) => room.kind === "CLASSROOM")).toHaveLength(2);
   });
 
+  /*
+    The two namings of the primaire.
+
+    A school "qui travaille en CE" runs the Ministry's six years under French
+    labels, so the danger is not the labels but everything keyed by the level
+    code underneath them: the programme, the price list and the MASSAR export
+    all have to follow the rename or the school comes out configured wrongly in
+    a way nothing on screen shows.
+  */
+  it("renames the six primary years without changing the cursus", () => {
+    const moroccan = levelsFor(["PRIMARY"], "MOROCCAN");
+    const french = levelsFor(["PRIMARY"], "FRENCH");
+
+    expect(moroccan.map((level) => level.code)).toEqual([
+      "1AP", "2AP", "3AP", "4AP", "5AP", "6AP",
+    ]);
+    expect(french.map((level) => level.code)).toEqual([
+      "CP", "CE1", "CE2", "CM1", "CM2", "6EME",
+    ]);
+
+    // Same years, same rank, and the Ministry's codes unchanged — a mark export
+    // filed under "CE2" would be rejected.
+    expect(french.map((level) => level.gradeYear)).toEqual(
+      moroccan.map((level) => level.gradeYear),
+    );
+    expect(french.map((level) => level.massarCode)).toEqual(
+      moroccan.map((level) => level.massarCode),
+    );
+  });
+
+  it("gives the renamed years the same programme", () => {
+    const moroccan = programmeFor(["3AP"], [], "MOROCCAN");
+    const french = programmeFor(["CE2"], [], "FRENCH");
+
+    expect(french).toHaveLength(moroccan.length);
+    expect(french.map((row) => row.subjectCode)).toEqual(
+      moroccan.map((row) => row.subjectCode),
+    );
+    expect(french.map((row) => row.coefficient)).toEqual(
+      moroccan.map((row) => row.coefficient),
+    );
+    expect(french.every((row) => row.levelCode === "CE2")).toBe(true);
+  });
+
+  it("charges a renamed year the price its Ministry year carries", () => {
+    expect(suggestedFeeAmount("SCOLARITE", "CE2")).toBe(
+      suggestedFeeAmount("SCOLARITE", "3AP"),
+    );
+    // Not the flat fallback, which is what a missed translation would give.
+    expect(suggestedFeeAmount("SCOLARITE", "CE2")).not.toBeNull();
+    expect(suggestedFeeAmount("ASSURANCE", "CM1")).toBe(150);
+  });
+
+  it("resolves a posted code under either naming, and tells them apart", () => {
+    expect(levelByCode("CE2")?.gradeYear).toBe(3);
+    expect(levelByCode("3AP")?.gradeYear).toBe(3);
+    expect(levelByCode("CE7")).toBeUndefined();
+
+    expect(nomenclatureOf(["CP", "CE1", "1AC"])).toBe("FRENCH");
+    expect(nomenclatureOf(["1AP", "2AP"])).toBe("MOROCCAN");
+    // A plan naming the same year twice is refused rather than half applied.
+    expect(nomenclatureOf(["3AP", "CE2"])).toBeNull();
+    expect(nomenclatureOf(["TC", "1BAC"])).toBeNull();
+  });
+
   it("names classes the way seedClasses does", () => {
     expect(classCodesFor("3AP", null, 2)).toEqual(["3AP-A", "3AP-B"]);
     expect(classCodesFor("2BAC", "2B-SVT", 1)).toEqual(["2BAC-2B-SVT-A"]);
     expect(classCodesFor("3AP", null, 0)).toEqual([]);
+    // And under the French naming, from the same function.
+    expect(classCodesFor("CE2", null, 2)).toEqual(["CE2-A", "CE2-B"]);
   });
 });
 

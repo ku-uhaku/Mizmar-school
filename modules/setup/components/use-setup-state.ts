@@ -4,11 +4,12 @@ import * as React from "react";
 
 import { localKey } from "@/lib/local-key";
 import type { SchoolSettingsValues } from "@/lib/school-settings";
-import type { EducationCycle } from "@/modules/academics/enums";
+import type { EducationCycle, LevelNomenclature } from "@/modules/academics/enums";
 import { termNamesFor, termSpans } from "@/modules/school-years/presets";
 import { DISCOUNTS, FEE_TYPES } from "@/modules/billing/presets";
 import {
   classCodesFor,
+  DEFAULT_NOMENCLATURE,
   levelsFor,
   programmeFor,
   subjectsFor,
@@ -227,6 +228,16 @@ export function useSetupState(input: {
     tick each newly reachable row, which is a cascading render and, worse, could
     not tell "not chosen yet" from "deliberately removed".
   */
+  /**
+   * What the school calls its primary years — 1AP…6AP, or CP…6ème.
+   *
+   * Part of the cursus rather than the identity step because it decides what
+   * every step below is looking at: the level codes it changes are the same
+   * ones the programme, the classes and the price list are keyed by.
+   */
+  const [nomenclature, setNomenclature] =
+    React.useState<LevelNomenclature>(DEFAULT_NOMENCLATURE);
+
   const [excludedLevels, setExcludedLevels] = React.useState<string[]>([]);
   const [excludedTracks, setExcludedTracks] = React.useState<string[]>([]);
   const [excludedSubjects, setExcludedSubjects] = React.useState<string[]>([]);
@@ -241,7 +252,33 @@ export function useSetupState(input: {
     );
   }, []);
 
-  const catalogueLevels = React.useMemo(() => levelsFor(cycles), [cycles]);
+  /**
+   * Switching the naming carries the ticks across rather than resetting them.
+   *
+   * The two lists are the same six years, so a school that unticked its sixth
+   * year and then changed its mind about the naming means the same thing
+   * afterwards. Remapping by position is what says so; dropping the exclusions
+   * would silently re-tick a level they had removed.
+   */
+  const chooseNomenclature = React.useCallback((next: LevelNomenclature) => {
+    setNomenclature((current) => {
+      if (current === next) return current;
+      const from = levelsFor(["PRIMARY"], current);
+      const to = levelsFor(["PRIMARY"], next);
+      setExcludedLevels((excluded) =>
+        excluded.map((code) => {
+          const index = from.findIndex((level) => level.code === code);
+          return index === -1 ? code : to[index].code;
+        }),
+      );
+      return next;
+    });
+  }, []);
+
+  const catalogueLevels = React.useMemo(
+    () => levelsFor(cycles, nomenclature),
+    [cycles, nomenclature],
+  );
   const levelCodes = React.useMemo(
     () =>
       catalogueLevels
@@ -290,8 +327,8 @@ export function useSetupState(input: {
   const reachableTrackCodes = trackCodes;
 
   const cataloguePolicy = React.useMemo(
-    () => programmeFor(chosenLevelCodes, reachableTrackCodes),
-    [chosenLevelCodes, reachableTrackCodes],
+    () => programmeFor(chosenLevelCodes, reachableTrackCodes, nomenclature),
+    [chosenLevelCodes, reachableTrackCodes, nomenclature],
   );
 
   const catalogueSubjects = React.useMemo(
@@ -589,6 +626,7 @@ export function useSetupState(input: {
 
     cursus: {
       cycles, toggleCycle,
+      nomenclature, chooseNomenclature,
       catalogueLevels, levelCodes, toggleLevel, toggleLevels,
       customLevels, setCustomLevels,
       chosenLevelCodes,

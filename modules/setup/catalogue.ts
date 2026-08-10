@@ -1,12 +1,20 @@
 import {
   CYCLE_CATALOGUE,
+  cycleCatalogueFor,
+  ministryLevelCode,
+  primaryLevels,
   SUBJECTS,
   type LevelPreset,
   type ProgrammePreset,
   type SubjectPreset,
   type TrackPreset,
 } from "@/modules/academics/presets";
-import { EDUCATION_CYCLES, type EducationCycle } from "@/modules/academics/enums";
+import {
+  EDUCATION_CYCLES,
+  LEVEL_NOMENCLATURES,
+  type EducationCycle,
+  type LevelNomenclature,
+} from "@/modules/academics/enums";
 import { FEE_TYPES, FEE_RATES, DISCOUNTS } from "@/modules/billing/presets";
 import { SPECIALIST_ROOMS, classroomBlock, type RoomPreset } from "@/modules/facilities/presets";
 
@@ -24,14 +32,27 @@ export const SETUP_CYCLES: EducationCycle[] = [...EDUCATION_CYCLES].sort(
   (a, b) => CYCLE_CATALOGUE[a].position - CYCLE_CATALOGUE[b].position,
 );
 
-export function cycleEntry(cycle: EducationCycle) {
-  return CYCLE_CATALOGUE[cycle];
+/**
+ * The default naming of the primary years, and what every function here falls
+ * back to. A school that never touches the setting gets 1AP…6AP exactly as
+ * before.
+ */
+export const DEFAULT_NOMENCLATURE: LevelNomenclature = "MOROCCAN";
+
+export function cycleEntry(
+  cycle: EducationCycle,
+  nomenclature: LevelNomenclature = DEFAULT_NOMENCLATURE,
+) {
+  return cycleCatalogueFor(cycle, nomenclature);
 }
 
 /** Every level of the ticked cycles, in teaching order. */
-export function levelsFor(cycles: readonly EducationCycle[]): LevelPreset[] {
+export function levelsFor(
+  cycles: readonly EducationCycle[],
+  nomenclature: LevelNomenclature = DEFAULT_NOMENCLATURE,
+): LevelPreset[] {
   return SETUP_CYCLES.filter((cycle) => cycles.includes(cycle)).flatMap(
-    (cycle) => CYCLE_CATALOGUE[cycle].levels,
+    (cycle) => cycleCatalogueFor(cycle, nomenclature).levels,
   );
 }
 
@@ -52,8 +73,11 @@ export function tracksFor(levelCodes: readonly string[]): TrackPreset[] {
 export function programmeFor(
   levelCodes: readonly string[],
   trackCodes: readonly string[],
+  nomenclature: LevelNomenclature = DEFAULT_NOMENCLATURE,
 ): ProgrammePreset[] {
-  return SETUP_CYCLES.flatMap((cycle) => CYCLE_CATALOGUE[cycle].programme).filter(
+  return SETUP_CYCLES.flatMap(
+    (cycle) => cycleCatalogueFor(cycle, nomenclature).programme,
+  ).filter(
     (row) =>
       levelCodes.includes(row.levelCode) &&
       (row.trackCode === null || trackCodes.includes(row.trackCode)),
@@ -75,10 +99,40 @@ export function subjectByCode(code: string): SubjectPreset | undefined {
   return SUBJECTS.find((subject) => subject.code === code);
 }
 
+/**
+ * A level from its code, under either naming of the primary years.
+ *
+ * Both are searched rather than the nomenclature being posted alongside: the
+ * codes cannot collide (1AP…6AP against CP…6EME), so the code alone says which
+ * list it came from, and the action has one less field to be lied to about.
+ * Which set the wizard *offered* is a client-side matter.
+ */
 export function levelByCode(code: string): LevelPreset | undefined {
-  return SETUP_CYCLES.flatMap((cycle) => CYCLE_CATALOGUE[cycle].levels).find(
-    (level) => level.code === code,
+  return LEVEL_NOMENCLATURES.flatMap((nomenclature) =>
+    SETUP_CYCLES.flatMap((cycle) => cycleCatalogueFor(cycle, nomenclature).levels),
+  ).find((level) => level.code === code);
+}
+
+/**
+ * The naming a set of posted level codes belongs to, or the default when none
+ * of them is a primary level. Used by the action to refuse a plan that mixes
+ * 3AP with CE2 — six primary levels, not twelve.
+ */
+export function nomenclatureOf(
+  codes: readonly string[],
+): LevelNomenclature | null {
+  const french = new Set(primaryLevels("FRENCH").map((level) => level.code));
+  const moroccan = new Set(primaryLevels("MOROCCAN").map((level) => level.code));
+
+  const seen = new Set(
+    codes
+      .map((code) =>
+        french.has(code) ? "FRENCH" : moroccan.has(code) ? "MOROCCAN" : null,
+      )
+      .filter((value): value is LevelNomenclature => value !== null),
   );
+
+  return seen.size === 1 ? [...seen][0] : null;
 }
 
 export function trackByCode(code: string): TrackPreset | undefined {
@@ -97,8 +151,12 @@ export function discountByCode(code: string) {
 
 /** What the catalogue charges for a level, in dirhams, or the flat price. */
 export function suggestedFeeAmount(feeCode: string, levelCode: string | null): number | null {
+  // The price list is written once, against the Ministry's years — a school
+  // running CE2 is charged the 3AP price rather than falling through to the
+  // flat rate and showing a blank scolarité.
+  const ministry = levelCode === null ? null : ministryLevelCode(levelCode);
   const exact = FEE_RATES.find(
-    (rate) => rate.feeCode === feeCode && rate.levelCode === levelCode,
+    (rate) => rate.feeCode === feeCode && rate.levelCode === ministry,
   );
   if (exact) return exact.dirhams;
   const flat = FEE_RATES.find((rate) => rate.feeCode === feeCode && rate.levelCode === null);

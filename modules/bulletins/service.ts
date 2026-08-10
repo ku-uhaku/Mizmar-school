@@ -113,12 +113,9 @@ export async function computeClassBulletins(
   });
   if (roster.length === 0) return { ok: false, reason: "no-roster" };
 
-  // `wholeSubjects` so the matières *and* their components come back: a
-  // bulletin prints both, unlike a generator, which has to pick one to set a
-  // paper on. See `resolveProgramme`.
-  const programme = await resolveProgramme(schoolClass.id, {
-    wholeSubjects: true,
-  });
+  // Both halves come back — a bulletin prints the matière and the components it
+  // is computed from. See `resolveProgramme`.
+  const programme = await resolveProgramme(schoolClass.id);
   // Distinct from an empty roster, and the distinction is the whole value of
   // the message: "no pupils in this class" sends somebody to the roster, and
   // the real problem is that the level has no marked subject declared.
@@ -280,8 +277,8 @@ export async function computeClassBulletins(
       blank line is the honest way to say "not marked this term".
 
       Components are different, and carried only when they were actually marked.
-      `wholeSubjects` asks for the matière *and* its parts, and the ordinary
-      Moroccan primary case uses just one of the two: 1AP sits one contrôle on
+      The programme holds the matière *and* its parts, and the ordinary Moroccan
+      primary case marks just one of the two: 1AP sits one contrôle on
       اللغة العربية, not four on its components. Printing those four as dashes
       fills over half the page with rows asserting an absence of marks in work
       nobody set separately — and unlike a matière, a component nobody marked is

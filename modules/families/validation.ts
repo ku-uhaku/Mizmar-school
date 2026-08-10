@@ -13,6 +13,54 @@ import {
   GUARDIAN_RELATIONSHIPS,
 } from "@/modules/families/enums";
 
+/**
+ * A dossier is always filed under "Famille <nom>", in Arabic "أسرة <nom>".
+ *
+ * The school addresses the household, not the surname — every list, receipt and
+ * envelope reads that way, and the seeded files already do. Left to the form it
+ * held only when whoever opened the file remembered, so half the dossiers sorted
+ * under B and half under F. Applied here rather than at the screen because the
+ * wizard and the import open files too, and they must all agree.
+ *
+ * Idempotent: re-saving a dossier does not give it a second "Famille", and a
+ * secretary who types the word herself gets it back exactly once. `عائلة` is
+ * recognised as well as `أسرة` so the two Arabic words do not stack.
+ */
+const FAMILY_PREFIX = "Famille";
+const FAMILY_PREFIX_AR = "أسرة";
+const FAMILY_PREFIXES_AR = [FAMILY_PREFIX_AR, "عائلة"];
+
+function prefixed(
+  value: string,
+  canonical: string,
+  aliases: readonly string[],
+): string {
+  const name = value.trim();
+
+  for (const alias of aliases) {
+    if (!name.toLocaleLowerCase().startsWith(alias.toLocaleLowerCase())) {
+      continue;
+    }
+    // A word boundary, so a surname that merely begins with those letters is
+    // not mistaken for the word itself.
+    const rest = name.slice(alias.length);
+    if (rest !== "" && !/^\s/.test(rest)) continue;
+    return rest.trim() === "" ? canonical : `${canonical} ${rest.trim()}`;
+  }
+
+  return name === "" ? canonical : `${canonical} ${name}`;
+}
+
+/** "Bennis" → "Famille Bennis"; "famille bennis" → "Famille Bennis". */
+export function withFamilyPrefix(name: string): string {
+  return prefixed(name, FAMILY_PREFIX, [FAMILY_PREFIX]);
+}
+
+/** The same for the Arabic name, which stays blank when it was blank. */
+export function withFamilyPrefixAr(name: string | null): string | null {
+  return name === null ? null : prefixed(name, FAMILY_PREFIX_AR, FAMILY_PREFIXES_AR);
+}
+
 /** Built per-request from the dictionary so messages are localised. */
 export function familySchema(t: Dictionary) {
   const v = t.validation;
@@ -23,8 +71,10 @@ export function familySchema(t: Dictionary) {
       (value) => value === null || /^[A-Za-z0-9-]+$/.test(value),
       { error: v.codeFormat },
     ),
-    name: requiredText(v, { max: 120 }),
-    nameAr: optionalText(120),
+    // The prefix is added after the length check, so a name that only just
+    // fits is not rejected for the eight characters the app itself supplies.
+    name: requiredText(v, { max: 120 }).transform(withFamilyPrefix),
+    nameAr: optionalText(120).transform(withFamilyPrefixAr),
     situation: enumField(FAMILY_SITUATIONS, v),
     addressLine: optionalText(200),
     city: optionalText(80),

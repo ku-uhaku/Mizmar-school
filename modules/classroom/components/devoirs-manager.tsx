@@ -42,6 +42,7 @@ import type {
 import type { TeachingSlot } from "@/modules/classroom/queries";
 import {
   MAX_QUESTIONS,
+  NOTES_MAX,
   QUESTION_MAX_LENGTH,
 } from "@/modules/assessments/enums";
 
@@ -280,6 +281,25 @@ export function DevoirsManager({
                 <Input
                   {...controlProps("title", state.fieldErrors?.title)}
                   maxLength={160}
+                />
+              </FormField>
+
+              {/* What the class is actually told to revise. Separate from the
+                title, which is what the mark sheet is filed under. */}
+              <FormField
+                name="notes"
+                label={t.assessment.covers}
+                hint={t.assessment.coversHint}
+                error={state.fieldErrors?.notes}
+              >
+                <Input
+                  {...controlProps(
+                    "notes",
+                    state.fieldErrors?.notes,
+                    t.assessment.coversHint,
+                  )}
+                  maxLength={NOTES_MAX}
+                  placeholder={t.assessment.coversPlaceholder}
                 />
               </FormField>
 

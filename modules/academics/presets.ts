@@ -1,4 +1,7 @@
-import type { EducationCycle } from "@/modules/academics/enums";
+import type {
+  EducationCycle,
+  LevelNomenclature,
+} from "@/modules/academics/enums";
 
 /**
  * The Moroccan cursus as data: the cycles, the levels inside them, the filières
@@ -177,14 +180,74 @@ function preschoolProgramme(levelCode: string): ProgrammePreset[] {
 
 // ── Primaire ─────────────────────────────────────────────────────────────────
 
-const PRIMARY_LEVELS: LevelPreset[] = [1, 2, 3, 4, 5, 6].map((year) => ({
-  cycle: "PRIMARY",
-  code: `${year}AP`,
-  name: `${year}${year === 1 ? "ère" : "ème"} année primaire`,
-  nameAr: `السنة ${["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة"][year - 1]} ابتدائي`,
-  gradeYear: year,
-  massarCode: `P${year}`,
-}));
+/** Ordinal feminines, for the level names both nomenclatures build in Arabic. */
+const ARABIC_ORDINALS = [
+  "الأولى",
+  "الثانية",
+  "الثالثة",
+  "الرابعة",
+  "الخامسة",
+  "السادسة",
+];
+
+/**
+ * The six primary years, named the two ways Moroccan schools name them.
+ *
+ * A school "qui travaille en CE" is running the same six years as its
+ * neighbour — same programme, same coefficients, same papers — under the labels
+ * its families learnt in the French system. So the two lists are indexed
+ * together and everything else is derived from the position: `gradeYear` is the
+ * index, and the MASSAR code stays `P1`…`P6` in both, because the Ministry
+ * knows only its own years and a mark export filed under "CE2" would be
+ * rejected.
+ *
+ * The sixth French year is the one with no counterpart across the border, where
+ * primaire is five years and CM2 is followed by the collège. Schools here call
+ * it 6ème and keep it in the primaire, which is what this list does.
+ */
+const PRIMARY_NAMES: Record<
+  LevelNomenclature,
+  { code: string; name: string; nameAr: string }[]
+> = {
+  MOROCCAN: [1, 2, 3, 4, 5, 6].map((year) => ({
+    code: `${year}AP`,
+    name: `${year}${year === 1 ? "ère" : "ème"} année primaire`,
+    nameAr: `السنة ${ARABIC_ORDINALS[year - 1]} ابتدائي`,
+  })),
+  FRENCH: [
+    { code: "CP", name: "Cours préparatoire", nameAr: "السنة الأولى ابتدائي" },
+    { code: "CE1", name: "Cours élémentaire 1ère année", nameAr: "السنة الثانية ابتدائي" },
+    { code: "CE2", name: "Cours élémentaire 2ème année", nameAr: "السنة الثالثة ابتدائي" },
+    { code: "CM1", name: "Cours moyen 1ère année", nameAr: "السنة الرابعة ابتدائي" },
+    { code: "CM2", name: "Cours moyen 2ème année", nameAr: "السنة الخامسة ابتدائي" },
+    { code: "6EME", name: "6ème année", nameAr: "السنة السادسة ابتدائي" },
+  ],
+};
+
+export function primaryLevels(nomenclature: LevelNomenclature): LevelPreset[] {
+  return PRIMARY_NAMES[nomenclature].map((entry, index) => ({
+    cycle: "PRIMARY",
+    ...entry,
+    gradeYear: index + 1,
+    // The Ministry's, not the school's — see the note above.
+    massarCode: `P${index + 1}`,
+  }));
+}
+
+/**
+ * The Ministry's code for a primary level, whatever the school calls it.
+ *
+ * The fee catalogue, and anything else the presets key by level, is written
+ * once against 1AP…6AP. A school running CE2 pays the 3AP price, so lookups
+ * translate rather than the price list being duplicated per nomenclature.
+ * Returns the code unchanged for every level that is not primary.
+ */
+export function ministryLevelCode(code: string): string {
+  const index = PRIMARY_NAMES.FRENCH.findIndex((entry) => entry.code === code);
+  return index === -1 ? code : PRIMARY_NAMES.MOROCCAN[index].code;
+}
+
+const PRIMARY_LEVELS: LevelPreset[] = primaryLevels("MOROCCAN");
 
 /** Arabic, French, maths, Islamic education, EPS and Tamazight at a primary level. */
 function primaryProgramme(levelCode: string): ProgrammePreset[] {
@@ -366,6 +429,33 @@ export const CYCLE_CATALOGUE: Record<EducationCycle, CycleCatalogue> = {
     programme: QUALIFYING_PROGRAMME,
   },
 };
+
+/**
+ * The primary cycle under the nomenclature the school uses.
+ *
+ * `CYCLE_CATALOGUE` holds the Moroccan naming, which is the default and what
+ * the seed lays down. Everything that offers a *choice* — the setup wizard, and
+ * the action that resolves what it posted — goes through here instead, so the
+ * levels, the programme rows and the class codes all come from one list rather
+ * than being renamed in three places afterwards.
+ */
+export function cycleCatalogueFor(
+  cycle: EducationCycle,
+  nomenclature: LevelNomenclature,
+): CycleCatalogue {
+  const entry = CYCLE_CATALOGUE[cycle];
+  if (cycle !== "PRIMARY" || nomenclature === "MOROCCAN") return entry;
+
+  const levels = primaryLevels(nomenclature);
+  return {
+    ...entry,
+    levels,
+    // Derived from the renamed levels, not translated from the Moroccan rows:
+    // `primaryProgramme` takes the level code, so the rows come out keyed to
+    // whatever the school calls the year.
+    programme: levels.flatMap((level) => primaryProgramme(level.code)),
+  };
+}
 
 /** The cycle's own columns, without the levels and programme hanging off it. */
 export function cyclePresetOf(entry: CycleCatalogue): CyclePreset {

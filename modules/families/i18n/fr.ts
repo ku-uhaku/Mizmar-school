@@ -12,6 +12,7 @@ const fr = {
     code: "N° de dossier",
     codeHint: "Laisser vide pour attribuer le suivant, ex. F-2025-0142.",
     name: "Nom de famille",
+    nameHint: "Le nom seul \u2014 le dossier est ouvert au nom de \u00ab Famille Bennis \u00bb.",
     nameAr: "Nom de famille (arabe)",
     situation: "Situation",
     address: "Adresse",

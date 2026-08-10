@@ -17,7 +17,12 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { interpolate } from "@/lib/i18n/format";
 import { localKey } from "@/lib/local-key";
-import { EDUCATION_CYCLES, type EducationCycle } from "@/modules/academics/enums";
+import {
+  EDUCATION_CYCLES,
+  LEVEL_NOMENCLATURES,
+  type EducationCycle,
+  type LevelNomenclature,
+} from "@/modules/academics/enums";
 import { cycleEntry, SETUP_CYCLES, trackByCode } from "@/modules/setup/catalogue";
 import { CheckRow } from "@/modules/setup/components/step-shell";
 import type { SetupState } from "@/modules/setup/components/use-setup-state";
@@ -30,7 +35,7 @@ export function CyclesStep({ setup }: { setup: SetupState }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {SETUP_CYCLES.map((cycle) => {
-        const entry = cycleEntry(cycle);
+        const entry = cycleEntry(cycle, setup.cursus.nomenclature);
         return (
           <CheckRow
             key={cycle}
@@ -79,8 +84,40 @@ export function LevelsStep({ setup }: { setup: SetupState }) {
         <p className="text-muted-foreground text-sm">{t.setup.nothingChosen}</p>
       ) : null}
 
+      {/*
+        Only worth asking a school that runs a primaire: the collège and the
+        baccalauréat are called the same thing everywhere.
+      */}
+      {byCycle.includes("PRIMARY") ? (
+        <section className="grid gap-2 rounded-lg border p-3">
+          <div className="grid gap-0.5">
+            <h3 className="text-sm font-semibold">{t.setup.cursus.nomenclature}</h3>
+            <p className="text-muted-foreground text-xs">
+              {t.setup.cursus.nomenclatureHint}
+            </p>
+          </div>
+
+          <Tabs
+            value={setup.cursus.nomenclature}
+            onValueChange={(value) =>
+              setup.cursus.chooseNomenclature(value as LevelNomenclature)
+            }
+          >
+            <TabsList>
+              {LEVEL_NOMENCLATURES.map((option) => (
+                <TabsTrigger key={option} value={option}>
+                  {option === "FRENCH"
+                    ? t.setup.cursus.nomenclatureFrench
+                    : t.setup.cursus.nomenclatureMoroccan}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </section>
+      ) : null}
+
       {byCycle.map((cycle) => {
-        const entry = cycleEntry(cycle);
+        const entry = cycleEntry(cycle, setup.cursus.nomenclature);
         const codes = entry.levels.map((level) => level.code);
         const allOn = codes.every((code) => setup.cursus.levelCodes.includes(code));
 
@@ -160,7 +197,7 @@ function CustomLevels({ setup }: { setup: SetupState }) {
             <SelectContent>
               {EDUCATION_CYCLES.map((cycle) => (
                 <SelectItem key={cycle} value={cycle}>
-                  {cycleEntry(cycle as EducationCycle).name}
+                  {cycleEntry(cycle as EducationCycle, setup.cursus.nomenclature).name}
                 </SelectItem>
               ))}
             </SelectContent>

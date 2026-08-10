@@ -25,6 +25,8 @@ const fr = {
     existingBanner:
       "Cet établissement a déjà {levels} niveaux, {rooms} salles et {classes} classes. L'assistant complète l'existant et ne supprime jamais rien.",
     nothingChosen: "Rien à enregistrer — cochez au moins un cycle.",
+    mixedNomenclature:
+      "Les années du primaire sont arrivées sous les deux nomenclatures à la fois. Rechargez la page et choisissez-en une.",
     selectAll: "Tout cocher",
     selectNone: "Tout décocher",
     addRow: "Ajouter",
@@ -87,6 +89,11 @@ const fr = {
       levelCount: "{count} niveaux",
       trackCount: "{count} filières",
       alreadyRuns: "Déjà assuré par cet établissement",
+      nomenclature: "Nomenclature du primaire",
+      nomenclatureHint:
+        "Les six mêmes années et le même programme dans les deux cas — seule change l'appellation. Les codes MASSAR ne bougent pas.",
+      nomenclatureMoroccan: "Marocaine — 1AP … 6AP",
+      nomenclatureFrench: "Française — CP … 6ème",
       addLevel: "Ajouter un niveau absent du catalogue",
       customLevelHint:
         "Pour un cursus particulier. Un niveau ajouté ici n'a pas de code MASSAR — associez-le sous Configuration.",

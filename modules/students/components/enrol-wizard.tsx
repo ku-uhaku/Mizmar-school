@@ -208,13 +208,19 @@ export function EnrolWizard({
                 <FormField
                   name="familyName"
                   label={t.family.name}
+                  hint={t.family.nameHint}
                   error={errors.familyName}
                   required
                   className="sm:col-span-2"
                 >
                   <Input
-                    {...controlProps("familyName", errors.familyName)}
+                    {...controlProps(
+                      "familyName",
+                      errors.familyName,
+                      t.family.nameHint,
+                    )}
                     value={familyName}
+                    placeholder="Bennis"
                     onChange={(event) => setFamilyName(event.target.value)}
                     required
                   />

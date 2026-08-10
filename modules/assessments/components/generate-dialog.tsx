@@ -31,13 +31,26 @@ import { IDLE } from "@/lib/action-state";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { generateAssessmentsAction } from "@/modules/assessments/actions";
-import { GENERATE_SCOPES, type GenerateScope } from "@/modules/assessments/enums";
+import {
+  GENERATE_SCOPES,
+  NOTES_MAX,
+  type GenerateScope,
+} from "@/modules/assessments/enums";
 import type {
   AssessmentTypeOption,
   ClassOption,
   ProgrammeEntry,
   TermOption,
 } from "@/modules/assessments/queries";
+
+/**
+ * One ticked subject: when its paper is sat, and what it covers.
+ *
+ * The note is per subject rather than per round for the same reason the date
+ * is — one round is one week on the calendar but six different chapters, and a
+ * note written once for the whole round would be true of none of them.
+ */
+type Ticked = { date: string; note: string };
 
 /**
  * "Contrôle n°1, semester 1, 3AP-A" → one paper per marked subject.
@@ -90,9 +103,10 @@ export function GenerateDialog({
   /**
    * The kind of paper, held rather than left to the form.
    *
-   * It decides which half of a split matière is on offer — one contrôle for
-   * اللغة العربية, or one devoir per component — so the picker has to re-derive
-   * when it changes. See AssessmentType.gradesWholeSubject.
+   * Both halves of a split matière are always tickable; what the kind decides
+   * is which of them starts ticked — one contrôle for اللغة العربية, or one
+   * devoir per component. So the picker still re-derives when it changes. See
+   * AssessmentType.gradesWholeSubject.
    */
   const [assessmentTypeId, setAssessmentTypeId] = React.useState(
     types[0]?.id ?? "",
@@ -155,7 +169,10 @@ export function GenerateDialog({
     for (const option of targetClasses) {
       for (const entry of programmes[option.id] ?? []) {
         const seen = bySubject.get(entry.subjectId);
-        if (!seen || (seen.teacherName === null && entry.teacherName !== null)) {
+        if (
+          !seen ||
+          (seen.teacherName === null && entry.teacherName !== null)
+        ) {
           bySubject.set(entry.subjectId, entry);
         }
       }
@@ -166,9 +183,9 @@ export function GenerateDialog({
   /**
    * What the ticks belong to — changing any of it means a different list.
    *
-   * The kind is part of it: switching from a contrôle to a devoir replaces
-   * "اللغة العربية" with its four components, and ticks made against the one
-   * mean nothing against the other.
+   * The kind is part of it: switching from a contrôle to a devoir moves the
+   * default tick from "اللغة العربية" to its four components, and ticks made
+   * for the one mean nothing for the other.
    */
   const selectionKey = `${
     scope === "CLASS" ? classId : scope === "LEVEL" ? levelOfferingId : "*"
@@ -187,7 +204,7 @@ export function GenerateDialog({
    */
   const [selection, setSelection] = React.useState<{
     key: string;
-    chosen: Record<string, string>;
+    chosen: Record<string, Ticked>;
   } | null>(null);
 
   /**
@@ -195,9 +212,10 @@ export function GenerateDialog({
    * dialog starts with.
    *
    * A contrôle is sat on the matière, so the matières and the subjects that
-   * have no components are the rows; a devoir is sat on a component, so the
-   * components and the undivided subjects are, and the matière is not offered
-   * at all. `componentCount` is what tells the two apart.
+   * have no components are ticked; a devoir is sat on a component, so the
+   * components and the undivided subjects are. Both halves are *offered* either
+   * way — a school running one contrôle on الإملاء alone, or one devoir on the
+   * matière, ticks it itself. `componentCount` is what tells the two apart.
    */
   const primary = React.useMemo(
     () =>
@@ -221,11 +239,15 @@ export function GenerateDialog({
     const byParent: {
       key: string;
       /**
-       * The matière, when the kind is sat on it — a row of its own, ticked by
-       * default, standing for the whole of اللغة العربية.
+       * The matière — a row of its own, standing for the whole of
+       * اللغة العربية, whether or not the kind is ordinarily sat on it.
        */
       matiere: ProgrammeEntry | null;
-      /** The heading a component list sits under, when the matière is not a row. */
+      /**
+       * The heading a component list sits under, for the case where the matière
+       * itself is not on this class's programme — the components were declared
+       * and it was not.
+       */
       title: string | null;
       entries: ProgrammeEntry[];
     }[] = [];
@@ -249,17 +271,18 @@ export function GenerateDialog({
 
       if (entry.componentCount === 0) {
         group.entries.push(entry);
-      } else if (wholeSubject) {
-        // The kind is sat on the matière, so it is a row of its own.
-        group.matiere = entry;
       } else {
-        // It is not sat directly — it only names the components below it.
-        group.title = entry.subjectName;
+        // A matière with components is always a row of its own — ticked by
+        // default or not, according to the kind, but never merely a heading.
+        group.matiere = entry;
+        group.title = null;
       }
     }
 
     return byParent;
-  }, [programme, wholeSubject]);
+    // Not keyed on the kind any more: the grouping is the same list either way,
+    // and only which rows start ticked follows from it.
+  }, [programme]);
 
   /** A subject nobody teaches cannot be generated — the action refuses it. */
   const staffed = primary.filter((entry) => entry.teacherName !== null);
@@ -269,7 +292,9 @@ export function GenerateDialog({
   const hasComponents = programme.some((entry) => entry.componentCount > 0);
 
   const everythingOn = (subjects: ProgrammeEntry[], date: string) =>
-    Object.fromEntries(subjects.map((entry) => [entry.subjectId, date]));
+    Object.fromEntries(
+      subjects.map((entry) => [entry.subjectId, { date, note: "" }]),
+    );
 
   // Untouched means "every subject that has a teacher" — the unstaffed ones
   // start off because ticking them could not produce anything.
@@ -278,8 +303,15 @@ export function GenerateDialog({
       ? selection.chosen
       : everythingOn(staffed, defaultDate);
 
-  const setChosen = (chosenNext: Record<string, string>) =>
+  const setChosen = (chosenNext: Record<string, Ticked>) =>
     setSelection({ key: selectionKey, chosen: chosenNext });
+
+  /** Patches one ticked row without disturbing the others. */
+  const patch = (subjectId: string, values: Partial<Ticked>) =>
+    setChosen({
+      ...chosen,
+      [subjectId]: { ...chosen[subjectId], ...values },
+    });
 
   /**
    * Ticks one row, and unticks whatever it is an alternative to.
@@ -300,10 +332,11 @@ export function GenerateDialog({
       return;
     }
 
-    next[entry.subjectId] = defaultDate;
+    next[entry.subjectId] = { date: defaultDate, note: "" };
     if (entry.componentCount > 0) {
       for (const other of programme) {
-        if (other.parentSubjectId === entry.subjectId) delete next[other.subjectId];
+        if (other.parentSubjectId === entry.subjectId)
+          delete next[other.subjectId];
       }
     } else if (entry.parentSubjectId) {
       delete next[entry.parentSubjectId];
@@ -318,9 +351,10 @@ export function GenerateDialog({
 
   /** Retyping the shared date moves every paper that still carries the old one. */
   function applyDefaultDate(value: string) {
-    const next: Record<string, string> = {};
-    for (const [subjectId, date] of Object.entries(chosen)) {
-      next[subjectId] = date === defaultDate ? value : date;
+    const next: Record<string, Ticked> = {};
+    for (const [subjectId, ticked] of Object.entries(chosen)) {
+      next[subjectId] =
+        ticked.date === defaultDate ? { ...ticked, date: value } : ticked;
     }
     setChosen(next);
     setDefaultDate(value);
@@ -339,7 +373,8 @@ export function GenerateDialog({
    * behaving the same.
    */
   function renderRow(entry: ProgrammeEntry, indented: boolean) {
-    const checked = entry.subjectId in chosen;
+    const ticked = chosen[entry.subjectId];
+    const checked = ticked !== undefined;
     // No teacher, no paper — the action refuses it, so the row cannot be ticked
     // and says why.
     const blocked = entry.teacherName === null;
@@ -348,47 +383,69 @@ export function GenerateDialog({
       <div
         key={entry.subjectId}
         className={cn(
-          "flex items-center gap-3 p-2",
+          "grid gap-2 p-2",
           indented && "ps-6",
           blocked && "opacity-60",
         )}
       >
-        <Checkbox
-          id={`subject-${entry.subjectId}`}
-          checked={checked}
-          disabled={blocked}
-          onCheckedChange={(value) => toggle(entry, value === true)}
-        />
-        <Label
-          htmlFor={`subject-${entry.subjectId}`}
-          className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
-        >
-          <span className="truncate">{entry.subjectName}</span>
-          <span className="text-muted-foreground ms-1.5 text-xs">
-            ×{entry.coefficient}
-          </span>
-          <span
-            className={cn(
-              "block truncate text-xs",
-              blocked ? "text-warning" : "text-muted-foreground",
-            )}
+        <div className="flex items-center gap-3">
+          <Checkbox
+            id={`subject-${entry.subjectId}`}
+            checked={checked}
+            disabled={blocked}
+            onCheckedChange={(value) => toggle(entry, value === true)}
+          />
+          <Label
+            htmlFor={`subject-${entry.subjectId}`}
+            className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
           >
-            {entry.teacherName ?? t.assessment.noTeacher}
-          </span>
-        </Label>
-        <Input
-          type="date"
-          value={chosen[entry.subjectId] ?? ""}
-          onChange={(event) =>
-            setChosen({ ...chosen, [entry.subjectId]: event.target.value })
-          }
-          // A date on an unticked subject would be a promise the generator will
-          // not keep.
-          disabled={!checked}
-          dir="ltr"
-          className="h-8 w-36 text-xs"
-          aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
-        />
+            <span className="truncate">{entry.subjectName}</span>
+            <span className="text-muted-foreground ms-1.5 text-xs">
+              ×{entry.coefficient}
+            </span>
+            <span
+              className={cn(
+                "block truncate text-xs",
+                blocked ? "text-warning" : "text-muted-foreground",
+              )}
+            >
+              {entry.teacherName ?? t.assessment.noTeacher}
+            </span>
+          </Label>
+          <Input
+            type="date"
+            value={ticked?.date ?? ""}
+            onChange={(event) =>
+              patch(entry.subjectId, { date: event.target.value })
+            }
+            // A date on an unticked subject would be a promise the generator will
+            // not keep.
+            disabled={!checked}
+            dir="ltr"
+            className="h-8 w-36 text-xs"
+            aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
+          />
+        </div>
+
+        {/*
+        What the paper covers, in the words the class is told it in.
+
+        Only on a ticked row: an untickable column of empty boxes down the
+        whole programme is noise, and a note against a subject nobody is
+        setting work in is a note nobody will ever read.
+      */}
+        {checked ? (
+          <Input
+            value={ticked.note}
+            onChange={(event) =>
+              patch(entry.subjectId, { note: event.target.value })
+            }
+            maxLength={NOTES_MAX}
+            placeholder={t.assessment.coversPlaceholder}
+            className="h-8 text-xs"
+            aria-label={`${entry.subjectName} — ${t.assessment.covers}`}
+          />
+        ) : null}
       </div>
     );
   }
@@ -463,7 +520,10 @@ export function GenerateDialog({
               ) : null}
 
               {scope === "LEVEL" ? (
-                <FormField name="levelOfferingId" label={t.assessment.pickLevel}>
+                <FormField
+                  name="levelOfferingId"
+                  label={t.assessment.pickLevel}
+                >
                   <Select
                     name="levelOfferingId"
                     value={levelOfferingId}
@@ -646,20 +706,34 @@ export function GenerateDialog({
                         ) : null}
 
                         {group.entries.map((entry) =>
-                          renderRow(entry, Boolean(group.title || group.matiere)),
+                          renderRow(
+                            entry,
+                            Boolean(group.title || group.matiere),
+                          ),
                         )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {Object.entries(chosen).map(([subjectId, date]) => (
-                  <input
-                    key={subjectId}
-                    type="hidden"
-                    name="target"
-                    value={`${subjectId}:${date}`}
-                  />
+                {Object.entries(chosen).map(([subjectId, ticked]) => (
+                  <React.Fragment key={subjectId}>
+                    <input
+                      type="hidden"
+                      name="target"
+                      value={`${subjectId}:${ticked.date}`}
+                    />
+                    {/* Its own list rather than a third part of the pair above:
+                      a note is free text, and a colon in "chapitre 3: les
+                      fractions" would truncate a delimited field. */}
+                    {ticked.note.trim() ? (
+                      <input
+                        type="hidden"
+                        name="targetNote"
+                        value={`${subjectId}:${ticked.note.trim()}`}
+                      />
+                    ) : null}
+                  </React.Fragment>
                 ))}
               </div>
             </div>
