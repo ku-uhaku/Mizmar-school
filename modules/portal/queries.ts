@@ -7,6 +7,12 @@ import { firstLookSince, isSeenTopic } from "@/modules/portal/enums";
 import { isSettled } from "@/modules/documents/enums";
 import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
 import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
+// Aliased: this file already reads the assessments module's list of the same
+// name, and the two answer different questions about different tables.
+import {
+  FAMILY_VISIBLE_STATUSES as BULLETIN_VISIBLE_STATUSES,
+  yearAverageOf,
+} from "@/modules/bulletins/enums";
 import { MISSING_STATUSES } from "@/modules/classroom/enums";
 import { SEAT_HOLDING_STATUSES } from "@/modules/transport/enums";
 
@@ -222,6 +228,136 @@ export async function loadChildMarks(
     : null;
 
   return { marks, averageOutOf20 };
+}
+
+export type PortalBulletinLine = {
+  subjectName: string;
+  /** Set on a component, so the phone can indent it under its matière. */
+  isComponent: boolean;
+  coefficient: number;
+  average: number | null;
+  rank: number | null;
+  classAverage: number | null;
+  appreciation: string | null;
+};
+
+export type PortalBulletin = {
+  id: string;
+  termName: string;
+  termNumber: number;
+  className: string | null;
+  generalAverage: number | null;
+  outOf: number;
+  rank: number | null;
+  classSize: number;
+  classAverage: number | null;
+  mention: string | null;
+  decision: string | null;
+  councilComment: string | null;
+  mainTeacherComment: string | null;
+  absenceCount: number;
+  unjustifiedAbsenceCount: number;
+  lateCount: number;
+  publishedAt: string | null;
+  lines: PortalBulletinLine[];
+};
+
+export type PortalBulletins = {
+  bulletins: PortalBulletin[];
+  /** The mean of the terms issued so far. See `yearAverageOf`. */
+  yearAverage: number | null;
+};
+
+/**
+ * The bulletins a family may read: the issued ones, and only those.
+ *
+ * ── Why this does not go through the bulletins module's own queries ─────────
+ * Those scope on `AuthContext` — the school in a member of staff's working
+ * context — and a guardian has none. This is the same split the whole file
+ * turns on: the household is the axis, `resolveChild` is the gate, and a
+ * student id from a phone reaches nothing unless the caller is that child's
+ * guardian.
+ *
+ * What is *not* re-derived here is the content. Every figure comes straight off
+ * the frozen row, so the bulletin a parent reads on their phone is the document
+ * the school issued — the same one that came out of the printer, down to the
+ * rank. That is the entire reason those figures are stored.
+ */
+export async function loadChildBulletins(
+  userId: string,
+  studentId: string,
+): Promise<PortalBulletins> {
+  const child = await resolveChild(userId, studentId);
+  if (!child) return { bulletins: [], yearAverage: null };
+
+  const rows = await db.bulletin.findMany({
+    where: {
+      enrollmentId: child.id,
+      status: { in: [...BULLETIN_VISIBLE_STATUSES] },
+    },
+    orderBy: [{ term: { number: "asc" } }],
+    select: {
+      id: true,
+      generalAverage: true,
+      outOf: true,
+      rank: true,
+      classSize: true,
+      classAverage: true,
+      mention: true,
+      decision: true,
+      councilComment: true,
+      mainTeacherComment: true,
+      absenceCount: true,
+      unjustifiedAbsenceCount: true,
+      lateCount: true,
+      publishedAt: true,
+      term: { select: { name: true, number: true } },
+      schoolClass: { select: { code: true, name: true } },
+      lines: {
+        orderBy: { position: "asc" },
+        select: {
+          subjectName: true,
+          parentSubjectId: true,
+          coefficient: true,
+          average: true,
+          rank: true,
+          classAverage: true,
+          appreciation: true,
+        },
+      },
+    },
+  });
+
+  const bulletins: PortalBulletin[] = rows.map((row) => ({
+    id: row.id,
+    termName: row.term.name,
+    termNumber: row.term.number,
+    className: row.schoolClass?.name ?? row.schoolClass?.code ?? null,
+    generalAverage: row.generalAverage,
+    outOf: row.outOf,
+    rank: row.rank,
+    classSize: row.classSize,
+    classAverage: row.classAverage,
+    mention: row.mention,
+    decision: row.decision,
+    councilComment: row.councilComment,
+    mainTeacherComment: row.mainTeacherComment,
+    absenceCount: row.absenceCount,
+    unjustifiedAbsenceCount: row.unjustifiedAbsenceCount,
+    lateCount: row.lateCount,
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+    lines: row.lines.map((line) => ({
+      subjectName: line.subjectName,
+      isComponent: line.parentSubjectId !== null,
+      coefficient: line.coefficient,
+      average: line.average,
+      rank: line.rank,
+      classAverage: line.classAverage,
+      appreciation: line.appreciation,
+    })),
+  }));
+
+  return { bulletins, yearAverage: yearAverageOf(bulletins) };
 }
 
 export type PortalAbsence = {

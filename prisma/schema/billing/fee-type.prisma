@@ -41,6 +41,8 @@ model FeeType {
   discounts      Discount[]
   /// Pupils' schedule lines raised against this charge.
   enrollmentFees EnrollmentFee[]
+  /// Who has subscribed to it, where it is optional. See EnrollmentOption.
+  subscriptions  EnrollmentOption[]
 
   @@unique([schoolId, code])
   @@index([schoolId])

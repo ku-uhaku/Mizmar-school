@@ -69,6 +69,10 @@ model Subject {
   assessments         Assessment[]
   attendance          StudentAttendance[]
   remarks             StudentRemark[]
+  /// Restrict on both, for the same reason as `assessments`: a subject named
+  /// on an issued bulletin cannot be deleted out from under it.
+  bulletinLines       BulletinLine[]       @relation("BulletinLineSubject")
+  bulletinParentLines BulletinLine[]       @relation("BulletinLineParent")
 
   @@unique([schoolId, code])
   /// No two subjects may map to the same MASSAR code. Many may be unmapped.

@@ -2,6 +2,8 @@ import type { AppModule } from "@/lib/module";
 
 import { academicsModule } from "@/modules/academics/module";
 import { assessmentsModule } from "@/modules/assessments/module";
+import { bulletinsModule } from "@/modules/bulletins/module";
+import { BULLETIN_PERMISSIONS } from "@/modules/bulletins/permissions";
 import { ASSESSMENT_PERMISSIONS } from "@/modules/assessments/permissions";
 import { accessModule } from "@/modules/access/module";
 import { ROLE_PERMISSIONS } from "@/modules/access/permissions";
@@ -121,6 +123,7 @@ export const MODULES: readonly AppModule[] = [
   classesModule,
   assessmentsModule,
   massarModule,
+  bulletinsModule,
   classroomModule,
   timetableModule,
   suppliesModule,
@@ -179,6 +182,7 @@ export const PERMISSIONS = {
   ...ENROLMENT_PERMISSIONS,
   ...CLASS_PERMISSIONS,
   ...ASSESSMENT_PERMISSIONS,
+  ...BULLETIN_PERMISSIONS,
   ...MASSAR_PERMISSIONS,
   ...CLASSROOM_PERMISSIONS,
   ...TIMETABLE_PERMISSIONS,

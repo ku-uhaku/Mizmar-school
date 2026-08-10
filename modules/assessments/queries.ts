@@ -1027,3 +1027,80 @@ function weightedAverage(
   );
   return Math.round((total / totalWeight) * 100) / 100;
 }
+
+// ── A whole class, one term ──────────────────────────────────────────────────
+
+export type ClassTermMark = {
+  enrollmentId: string;
+  subjectId: string;
+  /**
+   * The mark, normalised onto the school's scale. A paper set out of 10 has
+   * already been doubled here, so a caller may average these directly.
+   */
+  value: number;
+  /** The paper's own weight inside its subject. */
+  coefficient: number;
+};
+
+/**
+ * Every mark that counts, for every pupil of one class, in one term.
+ *
+ * ── Why this lives here and not in the bulletins module ─────────────────────
+ * Deciding *what counts* is this module's job and nobody else's. Three rules
+ * settle it, and they are the same three `loadPupilMarks` applies:
+ *
+ *   * only papers in a `COUNTED_STATUSES` state — a draft nobody has sat is not
+ *     a zero;
+ *   * only kinds whose `countsTowardAverage` is on;
+ *   * absences are excluded rather than averaged as zero.
+ *
+ * The bulletin then weights these by the *programme*, ranks them and freezes
+ * them, which is its job. Two modules, one rule each, and no second opinion
+ * about whether a cancelled contrôle drags an average down.
+ *
+ * One flat list rather than a nested shape on purpose: the caller groups it
+ * twice, by pupil and by subject, and a pre-grouped return would force one of
+ * those to be undone.
+ */
+export async function loadClassTermMarks(
+  context: AuthContext,
+  schoolClassId: string,
+  termId: string,
+): Promise<ClassTermMark[]> {
+  const outOf = context.settings.gradingMaxScore;
+
+  const grades = await db.assessmentGrade.findMany({
+    where: {
+      isAbsent: false,
+      score: { not: null },
+      // The class and term ids come from the request; the school does not.
+      assessment: {
+        ...schoolScope(context),
+        schoolClassId,
+        termId,
+        status: { in: [...COUNTED_STATUSES] },
+        assessmentType: { countsTowardAverage: true },
+      },
+      // A pupil moved out of the class keeps the marks they earned in it, which
+      // is right: they sat those papers. The roster is what decides whose
+      // bulletin gets computed, and that is read separately.
+      enrollment: { schoolYear: schoolScope(context) },
+    },
+    select: {
+      enrollmentId: true,
+      score: true,
+      assessment: {
+        select: { subjectId: true, maxScore: true, coefficient: true },
+      },
+    },
+  });
+
+  return grades
+    .filter((grade) => grade.assessment.maxScore > 0)
+    .map((grade) => ({
+      enrollmentId: grade.enrollmentId,
+      subjectId: grade.assessment.subjectId,
+      value: ((grade.score as number) / grade.assessment.maxScore) * outOf,
+      coefficient: grade.assessment.coefficient,
+    }));
+}

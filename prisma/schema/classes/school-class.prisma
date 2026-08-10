@@ -57,6 +57,9 @@ model SchoolClass {
   supplyLists         SupplyList[]
   timetableExceptions TimetableException[]
   assessments         Assessment[]
+  /// Bulletins computed while a pupil sat in this class. SetNull, so
+  /// dissolving a class leaves its pupils' documents standing.
+  bulletins           Bulletin[]
   /// The roster: enrolments seated in this class.
   enrollments         Enrollment[]
   /// Events aimed at this class rather than at the whole school.

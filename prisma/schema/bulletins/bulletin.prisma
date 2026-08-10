@@ -1,0 +1,146 @@
+/// Le bulletin: one pupil's results for one term, as the school handed them out.
+///
+/// ── Why this is a table and not a query ─────────────────────────────────────
+/// `loadPupilMarks` already computes a pupil's averages from their marks, and
+/// says in its own note that a published bulletin is a different thing. This is
+/// that different thing.
+///
+/// A bulletin is a *document*. It is signed, photocopied, filed, and shown to
+/// the family at a meeting three months later. Recomputing it on read means a
+/// mark corrected in April silently rewrites the December bulletin — so the
+/// paper in the parent's hand and the screen in the office disagree, and the
+/// school has no way to say which one it issued. Every figure a bulletin
+/// asserts is therefore frozen onto it at computation: the averages, the ranks,
+/// the class statistics, the absence tally, and the names things had at the
+/// time.
+///
+/// This is the same decision `EnrollmentFee` makes. A fee schedule is written
+/// out at enrolment rather than derived from the price list, because what a
+/// family owes is what they were told they owe.
+///
+/// ── The two moves ───────────────────────────────────────────────────────────
+/// Computing and publishing are separate, and both are separately permissioned.
+/// A DRAFT bulletin is the conseil de classe's working copy: the numbers are
+/// there, the teachers write their appreciations onto it, the council decides
+/// the mention. Recomputing a DRAFT refreshes every figure and touches none of
+/// the words. Publishing freezes the lot and is what a family may read; a
+/// PUBLISHED bulletin refuses recomputation outright, and has to be withdrawn
+/// first — which is a decision somebody makes, not a side effect of a mark
+/// being fixed.
+model Bulletin {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// The pupil's year, not the pupil: a child who repeats gets one bulletin per
+  /// term per enrolment, and last year's keeps resolving. Same reasoning as
+  /// AssessmentGrade.
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  termId String
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  /// The class as it was when the bulletin was computed.
+  ///
+  /// Denormalised on purpose rather than read through the enrolment: a pupil
+  /// moved from 3AP-A to 3AP-B in March must not have their December bulletin
+  /// move with them, and neither must the rank on it — which was a rank among
+  /// the pupils of 3AP-A. SetNull because dissolving a class must not delete
+  /// the bulletins its pupils were issued.
+  schoolClassId String?
+  schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: SetNull)
+
+  /// "DRAFT" | "PUBLISHED" — see modules/bulletins/enums.ts.
+  status String @default("DRAFT")
+
+  // ── The frozen figures ─────────────────────────────────────────────────────
+
+  /// Coefficient-weighted mean of the top-level subject lines, on `outOf`.
+  ///
+  /// Null when nothing counted has been marked — a bulletin computed for a
+  /// pupil who sat nothing is still issued, because "no marks" is itself
+  /// something the family is entitled to see stated.
+  generalAverage Float?
+
+  /// The scale everything on this bulletin is expressed on, copied from
+  /// SchoolSettings.gradingMaxScore at computation. Frozen because a school
+  /// that moves from /20 to /10 in September must not turn last year's 14 into
+  /// a fail.
+  outOf Int @default(20)
+
+  /// Rank in the class on `generalAverage`, ties sharing a rank. Null when the
+  /// pupil has no average to be ranked on.
+  rank Int?
+
+  /// How many pupils the rank is out of — "7ᵉ / 32". Stored rather than counted
+  /// later for the same reason as the rank itself: the class roster moves.
+  classSize Int @default(0)
+
+  /// What the class did, beside what the pupil did. The three figures a parent
+  /// reads a bulletin against.
+  classAverage Float?
+  classLowest  Float?
+  classHighest Float?
+
+  // ── Assiduité ──────────────────────────────────────────────────────────────
+
+  /// The term's register, tallied at computation. Counted in lessons, which is
+  /// what StudentAttendance records — a morning missed is several.
+  absenceCount             Int @default(0)
+  unjustifiedAbsenceCount  Int @default(0)
+  lateCount                Int @default(0)
+
+  // ── What people wrote ──────────────────────────────────────────────────────
+
+  /// "FELICITATIONS" | "ENCOURAGEMENTS" | "TABLEAU_HONNEUR" | "AVERTISSEMENT"
+  /// see modules/bulletins/enums.ts.
+  ///
+  /// Proposed from the average by `suggestMention` and then *decided* by the
+  /// council, which is why it is stored rather than derived. A council that
+  /// withholds félicitations from a pupil at 16.2 has made a judgement, and a
+  /// bulletin that recomputed the mention would overrule it every time.
+  mention String?
+
+  /// "ADMITTED" | "ADMITTED_CONDITIONAL" | "REPEATING" | "REORIENTED"
+  /// see modules/bulletins/enums.ts.
+  ///
+  /// The conseil de fin d'année's decision, so it is set on the last term's
+  /// bulletin and left null on the others. Null everywhere else means "not a
+  /// question this bulletin answers", not "undecided".
+  decision String?
+
+  /// The council's own words, printed under the results.
+  councilComment String?
+
+  /// The professeur principal's note. Separate from the council's because they
+  /// are two different people saying two different things, and a bulletin that
+  /// merged them could not show either as attributable.
+  mainTeacherComment String?
+
+  // ── Provenance ─────────────────────────────────────────────────────────────
+
+  /// When the figures above were last worked out. Distinct from `updatedAt`,
+  /// which also moves when somebody types an appreciation.
+  computedAt DateTime @default(now())
+
+  publishedAt   DateTime?
+  publishedById String?
+  publishedBy   User?     @relation("BulletinPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines BulletinLine[]
+
+  /// One bulletin per pupil per term. Recomputing updates this row rather than
+  /// issuing a second, so a class cannot end up with two December bulletins
+  /// disagreeing about a rank.
+  @@unique([enrollmentId, termId])
+  @@index([schoolId])
+  @@index([termId])
+  @@index([schoolClassId])
+  @@index([schoolClassId, termId])
+  @@index([enrollmentId])
+  @@map("bulletins")
+}

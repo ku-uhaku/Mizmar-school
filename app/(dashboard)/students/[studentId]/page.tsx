@@ -25,6 +25,7 @@ import {
 import { StudentProfile } from "@/modules/students/components/student-profile";
 import { StudentStatusBadge } from "@/modules/students/components/student-status-badge";
 import { loadPupilMarks } from "@/modules/assessments/queries";
+import { listPupilBulletins } from "@/modules/bulletins/queries";
 import {
   loadPupilAttendance,
   loadPupilRemarks,
@@ -119,6 +120,10 @@ export default async function StudentPage({
   const canSeeAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW);
   const canSeeRemarks = context.can(PERMISSIONS.CLASSROOM_REMARK_VIEW);
   const canSeeMarks = context.can(PERMISSIONS.ASSESSMENT_VIEW);
+  // A fourth grant, not folded into the marks one: a bulletin carries the
+  // council's decision and the rank in the class, which is more than "how did
+  // they do in the last contrôle" — see modules/bulletins/permissions.ts.
+  const canSeeBulletins = context.can(PERMISSIONS.BULLETIN_VIEW);
   const canCollect = context.can(PERMISSIONS.TREASURY_COLLECT);
   // Gated on its own: a teacher may read a pupil's file without learning which
   // bus they take or what the family pays for it.
@@ -134,6 +139,7 @@ export default async function StudentPage({
     payments,
     attendance,
     marks,
+    bulletins,
     remarks,
     payable,
     banks,
@@ -165,6 +171,9 @@ export default async function StudentPage({
       ? loadPupilAttendance(context, enrolment.id)
       : null,
     enrolment && canSeeMarks ? loadPupilMarks(context, enrolment.id) : null,
+    enrolment && canSeeBulletins
+      ? listPupilBulletins(context, enrolment.id)
+      : null,
     enrolment && canSeeRemarks ? loadPupilRemarks(context, enrolment.id) : null,
     // The till on the payment tab. Only for a reader who may actually collect,
     // and only when there is a household to bill.
@@ -265,6 +274,7 @@ export default async function StudentPage({
         standing={standing}
         attendance={attendance}
         marks={marks}
+        bulletins={bulletins}
         remarks={remarks}
         payable={payable}
         banks={banks}

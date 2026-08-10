@@ -59,6 +59,14 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_VIEW,
       PERMISSIONS.ASSESSMENT_MANAGE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
+      // Runs the class councils of the schools they oversee and awards the
+      // mentions. Not BULLETIN_PUBLISH, for the same reason as EVENT_PUBLISH:
+      // handing a document to every family is the director's call in their own
+      // school. Not BULLETIN_APPRECIATE either — the line about a pupil in
+      // Maths belongs to whoever teaches them Maths.
+      PERMISSIONS.BULLETIN_VIEW,
+      PERMISSIONS.BULLETIN_COMPUTE,
+      PERMISSIONS.BULLETIN_COUNCIL,
       // Checks a MASSAR sheet and fills one from our marks, across the schools
       // they oversee. Not MASSAR_IMPORT, which writes marks, and not MASSAR_MAP:
       // deciding that this class *is* that class in the ministry's records is
@@ -134,6 +142,13 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_GRADE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
       PERMISSIONS.ASSESSMENT_DELETE,
+      // The bulletins of their own school end to end, publication included —
+      // issuing them is precisely what a head is answerable for.
+      PERMISSIONS.BULLETIN_VIEW,
+      PERMISSIONS.BULLETIN_COMPUTE,
+      PERMISSIONS.BULLETIN_APPRECIATE,
+      PERMISSIONS.BULLETIN_COUNCIL,
+      PERMISSIONS.BULLETIN_PUBLISH,
       // The whole MASSAR round trip, mapping included. Adopting the ministry's
       // codes onto a class is the one step nobody else here gets, because
       // everything filed afterwards depends on it having been got right.
@@ -243,6 +258,9 @@ export const SYSTEM_ROLES: {
       // enters no mark: a mark is the teacher's, and the desk is not where it
       // gets decided.
       PERMISSIONS.ASSESSMENT_VIEW,
+      // Reads a bulletin to reprint one for a family at the desk, and decides
+      // nothing on it.
+      PERMISSIONS.BULLETIN_VIEW,
       // May check whether a MASSAR sheet is the right class — the question the
       // desk gets asked — and may act on none of it.
       PERMISSIONS.MASSAR_RECONCILE,
@@ -294,6 +312,12 @@ export const SYSTEM_ROLES: {
       // released.
       PERMISSIONS.ASSESSMENT_VIEW,
       PERMISSIONS.ASSESSMENT_GRADE,
+      // Writes the appreciation for their own subject on a bulletin. Not
+      // BULLETIN_COUNCIL: saying a pupil must work harder is not the same
+      // authority as deciding they repeat the year, and that split is the whole
+      // reason the two codes exist.
+      PERMISSIONS.BULLETIN_VIEW,
+      PERMISSIONS.BULLETIN_APPRECIATE,
       PERMISSIONS.TIMETABLE_VIEW,
       // The espace enseignant: their own classes, their own registers, their
       // own carnet. Not ATTENDANCE_JUSTIFY — a teacher records that a child was

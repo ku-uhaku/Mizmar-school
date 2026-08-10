@@ -23,7 +23,9 @@ import type {
   FeeGrid as FeeGridData,
 } from "@/modules/enrolment/queries";
 import { PupilMarksPanel } from "@/modules/assessments/components/pupil-marks-panel";
+import { PupilBulletins } from "@/modules/bulletins/components/pupil-bulletins";
 import type { PupilMarks } from "@/modules/assessments/queries";
+import type { BulletinRow } from "@/modules/bulletins/queries";
 import { PupilAttendancePanel } from "@/modules/classroom/components/pupil-attendance-panel";
 import { PupilRemarksPanel } from "@/modules/classroom/components/pupil-remarks-panel";
 import type {
@@ -97,6 +99,7 @@ export function StudentProfile({
   payments,
   attendance,
   marks,
+  bulletins,
   remarks,
   payable,
   banks,
@@ -149,6 +152,8 @@ export function StudentProfile({
    */
   attendance: PupilAttendance | null;
   marks: PupilMarks | null;
+  /** Null when the reader may not see bulletins — a separate grant from marks. */
+  bulletins: BulletinRow[] | null;
   remarks: PupilRemarkRow[] | null;
   /**
    * The bus. Null when the viewer may not see transport at all — the tab is
@@ -399,7 +404,12 @@ export function StudentProfile({
         ) : null}
 
         {marks ? (
-          <TabsContent value="marks">
+          <TabsContent value="marks" className="grid gap-4">
+            {/* What the school decided the term came to, above every paper
+              that went into it. Two questions, in the order they are asked. */}
+            {bulletins ? (
+              <PupilBulletins bulletins={bulletins} studentId={student.id} />
+            ) : null}
             <PupilMarksPanel marks={marks} />
           </TabsContent>
         ) : null}

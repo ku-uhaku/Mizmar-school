@@ -68,6 +68,9 @@ model User {
   assessmentsTeaching Assessment[]            @relation("TeacherAssessments")
   assessmentsAuthored Assessment[]            @relation("AssessmentAuthor")
   gradesEntered       AssessmentGrade[]       @relation("GradeAuthor")
+  /// Bulletins released to families. SetNull: the document outlives the
+  /// account that released it, and who released it stays worth recording.
+  bulletinsPublished  Bulletin[]              @relation("BulletinPublisher")
   /// Registers taken and observations written in the classroom. SetNull on
   /// both: a register outlives the account that took it.
   pupilAttendance     StudentAttendance[]     @relation("AttendanceRecordedByTeacher")

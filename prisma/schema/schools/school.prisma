@@ -70,6 +70,8 @@ model School {
   /// The kinds of evaluation this school runs, and every paper set under them.
   assessmentTypes AssessmentType[]
   assessments     Assessment[]
+  /// The report cards issued here. See prisma/schema/bulletins/.
+  bulletins       Bulletin[]
   /// What the school can charge. How much, per year, is FeeRate.
   feeTypes        FeeType[]
 

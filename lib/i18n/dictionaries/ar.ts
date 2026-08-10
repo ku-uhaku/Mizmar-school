@@ -47,6 +47,10 @@ import assessments, {
   nav as assessmentsNav,
   permissions as assessmentsPermissions,
 } from "@/modules/assessments/i18n/ar";
+import bulletins, {
+  nav as bulletinsNav,
+  permissions as bulletinsPermissions,
+} from "@/modules/bulletins/i18n/ar";
 import massar, {
   nav as massarNav,
   permissions as massarPermissions,
@@ -143,6 +147,7 @@ const ar: Dictionary = {
   ...enrolment,
   ...classes,
   ...assessments,
+  ...bulletins,
   ...massar,
   ...classroom,
   ...timetable,
@@ -175,6 +180,7 @@ const ar: Dictionary = {
     ...reportsNav,
     ...classesNav,
     ...assessmentsNav,
+    ...bulletinsNav,
     ...massarNav,
     ...classroomNav,
     ...timetableNav,
@@ -203,6 +209,7 @@ const ar: Dictionary = {
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
+      ...bulletinsPermissions.groups,
       ...massarPermissions.groups,
       ...classroomPermissions.groups,
       ...timetablePermissions.groups,
@@ -230,6 +237,7 @@ const ar: Dictionary = {
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,
+      ...bulletinsPermissions.codes,
       ...massarPermissions.codes,
       ...classroomPermissions.codes,
       ...timetablePermissions.codes,

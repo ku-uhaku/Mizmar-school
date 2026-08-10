@@ -267,6 +267,59 @@ export type Remark = {
 };
 
 /**
+ * One subject on an issued bulletin. Mirrors `PortalBulletinLine`.
+ *
+ * `average` is already on the bulletin's own scale — see `outOf` on the parent
+ * — so nothing on the phone divides or normalises. Every figure here was frozen
+ * when the school issued the document, which is what makes the screen and the
+ * paper copy the same thing.
+ */
+export type BulletinLine = {
+  subjectName: string;
+  /** Indent it under the matière above: القراءة under اللغة العربية. */
+  isComponent: boolean;
+  coefficient: number;
+  average: number | null;
+  rank: number | null;
+  classAverage: number | null;
+  appreciation: string | null;
+};
+
+/**
+ * One issued bulletin. Mirrors `PortalBulletin`.
+ *
+ * Only published ones ever reach the phone — the filter is in the query, and it
+ * is the only thing between a class council's working copy and a parent.
+ */
+export type Bulletin = {
+  id: string;
+  termName: string;
+  termNumber: number;
+  className: string | null;
+  generalAverage: number | null;
+  /** The scale the marks above are on — the school's, at issue time. */
+  outOf: number;
+  rank: number | null;
+  classSize: number;
+  classAverage: number | null;
+  mention: string | null;
+  decision: string | null;
+  councilComment: string | null;
+  mainTeacherComment: string | null;
+  absenceCount: number;
+  unjustifiedAbsenceCount: number;
+  lateCount: number;
+  publishedAt: string | null;
+  lines: BulletinLine[];
+};
+
+/** Mirrors `PortalBulletins`. */
+export type Bulletins = {
+  bulletins: Bulletin[];
+  yearAverage: number | null;
+};
+
+/**
  * One lesson of the child's week. Mirrors `PortalLesson`.
  *
  * Not the teacher space's `Lesson`, which carries what a teacher needs to take

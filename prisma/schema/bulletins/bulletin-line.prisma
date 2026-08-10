@@ -1,0 +1,86 @@
+/// One subject on one bulletin, with everything it asserts frozen onto it.
+///
+/// ── Why the names are copied ────────────────────────────────────────────────
+/// `subjectName`, `teacherName` and `coefficient` are duplicated out of the
+/// tables that own them, which is the one place this schema duplicates on
+/// purpose. A bulletin issued in December says "Mathématiques, coefficient 7,
+/// M. Bennis"; if the school renames the subject in March, reweights it for
+/// next year, or the teacher leaves, the December bulletin must keep saying
+/// what it said. Reading these through the relation would quietly rewrite
+/// documents that have already been handed out.
+///
+/// The ids stay alongside the copies so a reader can still get from the line to
+/// the subject as it is *now* — for a comparison across terms, say. What the
+/// document asserts and what is currently true are two different questions, and
+/// the row can answer both.
+///
+/// ── Components ──────────────────────────────────────────────────────────────
+/// A Moroccan primary bulletin marks القراءة, الإملاء and التعبير الكتابي
+/// separately and prints them indented under اللغة العربية, whose own mark is
+/// computed from them. So a bulletin carries a line for the matière *and* a
+/// line per component, and `parentSubjectId` is what tells them apart.
+///
+/// Only top-level lines (`parentSubjectId` null) enter the general average —
+/// exactly as LevelSubject says: a component's coefficient weighs inside its
+/// parent's mark and is never added to the level total. Adding both would count
+/// Arabic twice, once at coefficient 6 and again as its three parts.
+model BulletinLine {
+  id         String   @id @default(cuid())
+  bulletinId String
+  bulletin   Bulletin @relation(fields: [bulletinId], references: [id], onDelete: Cascade)
+
+  /// Restrict, as on Assessment: a subject that appears on an issued bulletin
+  /// is history, and deleting it would leave documents that cannot be reprinted.
+  subjectId String
+  subject   Subject @relation("BulletinLineSubject", fields: [subjectId], references: [id], onDelete: Restrict)
+
+  /// Set when this line is a component rather than a matière — see above.
+  parentSubjectId String?
+  parentSubject   Subject? @relation("BulletinLineParent", fields: [parentSubjectId], references: [id], onDelete: Restrict)
+
+  /// The subject's name and the teacher's, as of computation. See the note above.
+  subjectName String
+  teacherName String?
+
+  /// Weight in the general average for a matière, inside its parent's mark for
+  /// a component. Copied from the programme at computation.
+  coefficient Int @default(1)
+
+  /// The pupil's mark in this subject, on the bulletin's own `outOf` scale.
+  /// Null when nothing counted was marked — printed as a dash, not as a zero.
+  average Float?
+
+  /// How many marks the average is made of. A 15 out of one paper and a 15 out
+  /// of six are not the same claim, and a parent asking "on what?" deserves an
+  /// answer on the document.
+  markCount Int @default(0)
+
+  /// Rank in this subject within the class, ties sharing a rank.
+  rank Int?
+
+  classAverage Float?
+  classLowest  Float?
+  classHighest Float?
+
+  /// The teacher's line about this pupil in this subject. Written on the draft,
+  /// never touched by a recomputation — the numbers are the machine's and the
+  /// words are the teacher's.
+  appreciation String?
+
+  /// Print order, taken from the programme's own `position` so the bulletin
+  /// lists subjects in the order the school teaches them rather than
+  /// alphabetically. Components follow their matière.
+  position Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// A subject appears once on a bulletin. This is what makes recomputation an
+  /// upsert rather than a delete-and-rewrite, which is how the appreciations
+  /// survive it.
+  @@unique([bulletinId, subjectId])
+  @@index([bulletinId])
+  @@index([subjectId])
+  @@index([parentSubjectId])
+  @@map("bulletin_lines")
+}

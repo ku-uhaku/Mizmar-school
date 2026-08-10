@@ -925,3 +925,74 @@ export async function loadClassroomActivity(
     })),
   };
 }
+
+// ── A whole class, one term ──────────────────────────────────────────────────
+
+export type TermAttendanceTally = {
+  absenceCount: number;
+  unjustifiedAbsenceCount: number;
+  lateCount: number;
+};
+
+/**
+ * The term's register for a whole class, tallied per pupil.
+ *
+ * The one read in this file that is *not* confined to the signed-in teacher's
+ * own assignments — see the note at the top. It is scoped by school and by the
+ * class asked for, because its caller is the vie scolaire computing bulletins
+ * for a class rather than a teacher opening their own workspace, and the
+ * permission for that is checked in the action. The confinement that still
+ * holds is the one that matters: the enrolment must belong to a year of the
+ * school in context, so a crafted class id reaches nothing.
+ *
+ * Counted in lessons rather than days, which is what the table records: a
+ * morning missed by a secondary pupil is several rows. `EXCUSED` is not counted
+ * as an absence at all — the school accepted the reason in advance, and putting
+ * it on a bulletin beside the unexcused ones would misrepresent both.
+ *
+ * Keyed by enrolment id. Pupils with a clean term are simply absent from the
+ * map; the caller reads a missing entry as zero, which is what it means.
+ */
+export async function loadClassTermAttendance(
+  context: AuthContext,
+  schoolClassId: string,
+  from: Date,
+  to: Date,
+): Promise<Map<string, TermAttendanceTally>> {
+  const marks = await db.studentAttendance.findMany({
+    where: {
+      date: { gte: startOfDay(from), lte: startOfDay(to) },
+      status: { in: ["ABSENT", "LATE"] },
+      enrollment: {
+        schoolClassId,
+        // Re-derived from the working context rather than trusted.
+        schoolYear: schoolScope(context),
+      },
+    },
+    select: { enrollmentId: true, status: true, isJustified: true },
+  });
+
+  const tallies = new Map<string, TermAttendanceTally>();
+
+  for (const mark of marks) {
+    let tally = tallies.get(mark.enrollmentId);
+    if (!tally) {
+      tally = {
+        absenceCount: 0,
+        unjustifiedAbsenceCount: 0,
+        lateCount: 0,
+      };
+      tallies.set(mark.enrollmentId, tally);
+    }
+
+    if (mark.status === "LATE") {
+      tally.lateCount += 1;
+      continue;
+    }
+
+    tally.absenceCount += 1;
+    if (!mark.isJustified) tally.unjustifiedAbsenceCount += 1;
+  }
+
+  return tallies;
+}

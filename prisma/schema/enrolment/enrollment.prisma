@@ -52,33 +52,16 @@ model Enrollment {
   /// about how a class list is read.
   isRepeating Boolean @default(false)
 
-  /// Which optional charges this family signed up for. The fee schedule is
-  /// generated from the price list *filtered by these* — a mandatory fee is
-  /// billed to everyone, an optional one only to subscribers. Modelled as flags
-  /// rather than a join table because a school offers a handful of opt-ins and
-  /// a table of two rows per pupil is a join for nothing.
-  usesTransport Boolean @default(false)
-  usesCanteen   Boolean @default(false)
-
-  /// When each opt-in actually starts, for a family that signs up after the
-  /// rentrée. A child put on the bus in January owes the bus from January, not
-  /// from September, and billing them the whole year is the one mistake nobody
-  /// forgives.
+  /// Which optional charges this family signed up for, and from when.
   ///
-  /// Null means "from the start of the year", which is the ordinary case — that
-  /// is why these are nullable rather than defaulted to the year's start date,
-  /// which would freeze a copy of it that stops tracking the year if it moves.
+  /// One row per opt-in — see EnrollmentOption. This was four columns
+  /// (`usesTransport`, `usesCanteen` and a start month each) until a school
+  /// asked to sell a third thing; the note on that table explains why they
+  /// could not.
   ///
-  /// Only the *month* is read: `buildScheduleLines` drops the instalments
-  /// falling before it and leaves the rest at their normal amount, so a mid-year
-  /// joiner pays the monthly rate for the months they use rather than the annual
-  /// figure squeezed into fewer payments. The day is kept only because SQLite
-  /// has no month type.
-  ///
-  /// INVARIANT (service layer): a month inside the school year, and null
-  /// whenever the matching flag above is false — see `resolveOptionStart`.
-  transportStartsOn DateTime?
-  canteenStartsOn   DateTime?
+  /// The fee schedule is generated from the price list *filtered by these*: a
+  /// mandatory fee is billed to everyone, an optional one only to subscribers.
+  options EnrollmentOption[]
 
   notes String?
 
@@ -90,6 +73,10 @@ model Enrollment {
   /// Marks earned this year. Keyed on the enrolment rather than the pupil so a
   /// repeated year keeps its own marks — see AssessmentGrade.
   assessmentGrades AssessmentGrade[]
+
+  /// The report cards issued for this year — one per term. Keyed on the
+  /// enrolment for the same reason the marks are.
+  bulletins        Bulletin[]
 
   /// Presence lesson by lesson, and what their teachers have noted about them.
   attendance StudentAttendance[]

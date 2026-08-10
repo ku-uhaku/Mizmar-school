@@ -45,6 +45,10 @@ import assessments, {
   nav as assessmentsNav,
   permissions as assessmentsPermissions,
 } from "@/modules/assessments/i18n/en";
+import bulletins, {
+  nav as bulletinsNav,
+  permissions as bulletinsPermissions,
+} from "@/modules/bulletins/i18n/en";
 import massar, {
   nav as massarNav,
   permissions as massarPermissions,
@@ -152,6 +156,7 @@ const en = {
   ...enrolment,
   ...classes,
   ...assessments,
+  ...bulletins,
   ...massar,
   ...classroom,
   ...timetable,
@@ -185,6 +190,7 @@ const en = {
     ...reportsNav,
     ...classesNav,
     ...assessmentsNav,
+    ...bulletinsNav,
     ...massarNav,
     ...classroomNav,
     ...timetableNav,
@@ -213,6 +219,7 @@ const en = {
       ...enrolmentPermissions.groups,
       ...classesPermissions.groups,
       ...assessmentsPermissions.groups,
+      ...bulletinsPermissions.groups,
       ...massarPermissions.groups,
       ...classroomPermissions.groups,
       ...timetablePermissions.groups,
@@ -240,6 +247,7 @@ const en = {
       ...enrolmentPermissions.codes,
       ...classesPermissions.codes,
       ...assessmentsPermissions.codes,
+      ...bulletinsPermissions.codes,
       ...massarPermissions.codes,
       ...classroomPermissions.codes,
       ...timetablePermissions.codes,

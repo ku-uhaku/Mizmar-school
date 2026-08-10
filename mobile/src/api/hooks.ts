@@ -9,6 +9,7 @@ import {
 import { api } from "./client";
 import type {
   Badges,
+  Bulletins,
   Channel,
   ChatMessage,
   Child,
@@ -156,6 +157,19 @@ export function useChildRemarks(studentId: string): UseQueryResult<Remark[]> {
     queryKey: ["child", studentId, "remarks"],
     queryFn: () => api<Remark[]>(`/family/children/${studentId}/remarks`),
     enabled: Boolean(studentId),
+  });
+}
+
+export function useChildBulletins(
+  studentId: string,
+): UseQueryResult<Bulletins> {
+  return useQuery({
+    queryKey: ["child", studentId, "bulletins"],
+    queryFn: () => api<Bulletins>(`/family/children/${studentId}/bulletins`),
+    enabled: Boolean(studentId),
+    // A bulletin is issued three times a year and never changes afterwards, so
+    // this is the one family read that is worth holding on to.
+    staleTime: 30 * 60_000,
   });
 }
 

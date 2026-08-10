@@ -36,6 +36,8 @@ model Term {
   timetableEntries TimetableEntry[]
   /// The papers sat during this term.
   assessments      Assessment[]
+  /// The report cards issued for it.
+  bulletins        Bulletin[]
 
   @@unique([schoolYearId, number])
   /// No two semesters of one year may map to the same code. Many may be unmapped.

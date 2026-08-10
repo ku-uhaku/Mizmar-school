@@ -1,0 +1,61 @@
+/// An opt-in: this pupil takes this optional charge, from this month.
+///
+/// ── Why this is a table and not two booleans ────────────────────────────────
+/// It used to be four columns on Enrollment — `usesTransport`, `usesCanteen`
+/// and a start month for each — and the schedule builder decided what they
+/// gated by switching on `FeeType.kind`. That made the *catalogue*
+/// configurable and the *opt-ins* hardcoded, which is a contradiction a school
+/// runs into on its first day: it declares "Club de football" as an optional
+/// charge under Configuration, and then finds no way whatever to sell it. The
+/// only route was for a bursar to type the lines onto each échéancier by hand,
+/// which is not billing so much as bookkeeping around the absence of it.
+///
+/// So the subscription now names the charge it is for. Anything the school has
+/// marked `isMandatory = false` can be subscribed to, and adding a club is a
+/// row in the fee catalogue rather than a column here, a case in the schedule
+/// builder, a switch in the resync and a checkbox in the form.
+///
+/// The old design's own note argued that "a table of two rows per pupil is a
+/// join for nothing". The join was never the cost; the two was.
+model EnrollmentOption {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// The charge subscribed to. Always one whose `isMandatory` is false — a
+  /// mandatory charge is billed to everyone and subscribing to it would mean
+  /// nothing. Enforced in the service, which re-derives the sellable list from
+  /// the school rather than trusting an id from the form.
+  ///
+  /// Cascade, unlike EnrollmentFee's Restrict on the same table: a *raised
+  /// charge* is history and pins its fee type, but a subscription to a charge
+  /// that no longer exists is not history, it is a dangling intention. The
+  /// lines already billed keep the record.
+  feeTypeId String
+  feeType   FeeType @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
+
+  /// When the charge starts being owed, for a family that signs up after the
+  /// rentrée. Null means "from the start of the year", which is the ordinary
+  /// case — and null rather than a copy of the year's opening month, so it does
+  /// not stop tracking the year if those dates are later corrected.
+  ///
+  /// Only the *month* is read: `buildScheduleLines` drops the instalments
+  /// falling before it and leaves the rest at their normal amount, so a
+  /// mid-year joiner pays the monthly rate for the months they use rather than
+  /// the annual figure squeezed into fewer payments. The day is kept only
+  /// because SQLite has no month type.
+  ///
+  /// INVARIANT (service layer): a month inside the enrolment's school year —
+  /// see `resolveOptionStart`.
+  startsOn DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Subscribed once, or not at all. This is what lets the form replace a
+  /// pupil's whole set of opt-ins idempotently.
+  @@unique([enrollmentId, feeTypeId])
+  @@index([enrollmentId])
+  @@index([feeTypeId])
+  @@map("enrollment_options")
+}
