@@ -597,6 +597,33 @@ export async function commitImport(
     neighbourhoods.map((n) => [familyKeyOf(n.name), n.id]),
   );
 
+  /*
+    The two charges the template's Transport and Cantine columns map onto, in
+    this school's own catalogue — see EnrollmentOption.
+
+    Keyed on `FeeType.kind`, as the export and the services report are: the
+    template asks about the bus and the cantine by name, so the import has to
+    resolve those two specifically. Null where the school does not sell one, in
+    which case the column raises nothing rather than inventing a charge.
+  */
+  const optionalFeeTypes = await db.feeType.findMany({
+    where: {
+      schoolId,
+      isActive: true,
+      isMandatory: false,
+      kind: { in: ["TRANSPORT", "CANTEEN"] },
+    },
+    orderBy: [{ position: "asc" }, { code: "asc" }],
+    select: { id: true, kind: true },
+  });
+  const optionalCharges = {
+    TRANSPORT:
+      optionalFeeTypes.find((feeType) => feeType.kind === "TRANSPORT")?.id ??
+      null,
+    CANTEEN:
+      optionalFeeTypes.find((feeType) => feeType.kind === "CANTEEN")?.id ?? null,
+  };
+
   let created = 0;
   let familiesOpened = 0;
 
@@ -702,11 +729,32 @@ export async function commitImport(
               ? new Date(row.values.enrolledOn)
               : new Date(),
             isRepeating: parseBoolean(row.values.isRepeating ?? ""),
-            usesTransport,
-            usesCanteen: parseBoolean(row.values.usesCanteen ?? ""),
-            // Left null: null means "from the start of the year", which is what
-            // a rentrée import always is. A mid-year joiner is put on the bus
-            // through the enrolment screen, where the start month is asked for.
+            /*
+              The opt-ins, as rows against the school's own charges — see
+              EnrollmentOption.
+
+              `startsOn` is left null throughout: null means "from the start of
+              the year", which is what a rentrée import always is. A mid-year
+              joiner is put on the bus through the enrolment screen, where the
+              start month is asked for.
+
+              A school whose catalogue has no bus or no cantine gets no
+              subscription, however the column was filled in — there is nothing
+              to subscribe to. The file said what the family wants; the
+              catalogue says what the school sells, and only the second can
+              raise a charge.
+            */
+            options: {
+              create: [
+                ...(usesTransport && optionalCharges.TRANSPORT
+                  ? [{ feeTypeId: optionalCharges.TRANSPORT }]
+                  : []),
+                ...(parseBoolean(row.values.usesCanteen ?? "") &&
+                optionalCharges.CANTEEN
+                  ? [{ feeTypeId: optionalCharges.CANTEEN }]
+                  : []),
+              ],
+            },
           },
           select: { id: true },
         });

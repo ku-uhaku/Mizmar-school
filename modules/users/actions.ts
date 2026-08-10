@@ -24,6 +24,7 @@ function readUserForm(formData: FormData) {
     firstName: field(formData, "firstName"),
     lastName: field(formData, "lastName"),
     email: field(formData, "email"),
+    username: field(formData, "username"),
     password: formData.get("password") ?? "",
     phone: field(formData, "phone"),
     jobTitle: field(formData, "jobTitle"),
@@ -168,6 +169,20 @@ export async function createUserAction(
       return failure(t.user.emailTaken, { email: t.user.emailTaken });
     }
 
+    // Checked before the write so the form can name the field, rather than
+    // letting the unique index refuse it as an unexplained failure.
+    if (parsed.data.username) {
+      const held = await db.user.findUnique({
+        where: { username: parsed.data.username },
+        select: { id: true },
+      });
+      if (held) {
+        return failure(t.user.usernameTaken, {
+          username: t.user.usernameTaken,
+        });
+      }
+    }
+
     // Only an existing super admin may mint another one.
     const isSuperAdmin = context.isSuperAdmin
       ? parsed.data.isSuperAdmin
@@ -197,6 +212,7 @@ export async function createUserAction(
       data: {
         organizationId: context.organization.id,
         email: parsed.data.email,
+        username: parsed.data.username,
         passwordHash: await hashPassword(parsed.data.password as string),
         isActive: parsed.data.isActive,
         isSuperAdmin,
@@ -255,6 +271,20 @@ export async function updateUserAction(
       return failure(t.user.emailTaken, { email: t.user.emailTaken });
     }
 
+    // Same reason as on create: the form should name the field rather than
+    // report an unexplained constraint failure.
+    if (parsed.data.username) {
+      const heldByAnother = await db.user.findFirst({
+        where: { username: parsed.data.username, NOT: { id: userId } },
+        select: { id: true },
+      });
+      if (heldByAnother) {
+        return failure(t.user.usernameTaken, {
+          username: t.user.usernameTaken,
+        });
+      }
+    }
+
     // Guard against locking yourself out of the organisation.
     const editingSelf = userId === context.user.id;
     if (editingSelf && target.isSuperAdmin && !parsed.data.isSuperAdmin) {
@@ -290,6 +320,7 @@ export async function updateUserAction(
         where: { id: userId },
         data: {
           email: parsed.data.email,
+          username: parsed.data.username,
           isActive: parsed.data.isActive,
           isSuperAdmin,
           orgRoleId,

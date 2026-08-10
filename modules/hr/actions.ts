@@ -9,6 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
+import { createStaffAccount } from "@/modules/users/service";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
   availableIfShortOf,
@@ -132,6 +133,10 @@ export async function saveStaffAction(
       hiredOn: field(formData, "hiredOn"),
       leftOn: field(formData, "leftOn"),
       userId: optionalId(formData, "userId"),
+      createAccount: boolField(formData, "createAccount"),
+      accountUsername: field(formData, "accountUsername"),
+      accountPassword: formData.get("accountPassword") ?? "",
+      accountRoleId: optionalId(formData, "accountRoleId"),
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
@@ -164,6 +169,78 @@ export async function saveStaffAction(
         return failure(t.hr.accountTaken);
       }
       userId = user.id;
+    }
+
+    /*
+      ── Hiring somebody and giving them a login ──────────────────────────────
+      Behind USER_CREATE as well as HR_MANAGE, and deliberately: minting an
+      account that can sign in is not the same authority as recording an
+      employment, and a school that lets a secretary keep the payroll has not
+      thereby said she may create logins. Checked here rather than only in
+      whether the switch is drawn — a Server Function is reachable by direct
+      POST.
+
+      Skipped outright when the record already has an account: the switch is for
+      hiring, and re-ticking it on an existing employee must not mint a second
+      login for the same person.
+    */
+    if (parsed.data.createAccount && userId === null) {
+      await authorizeSchool(schoolId, PERMISSIONS.USER_CREATE);
+
+      if (!parsed.data.email) {
+        return failure(t.hr.accountNeedsEmail, {
+          email: t.hr.accountNeedsEmail,
+        });
+      }
+      if (!parsed.data.accountPassword) {
+        return failure(t.hr.accountNeedsPassword, {
+          accountPassword: t.hr.accountNeedsPassword,
+        });
+      }
+
+      // The role must be one of this organisation's, and school-scoped. An id
+      // from the request is never trusted to say what it grants.
+      const role = parsed.data.accountRoleId
+        ? await db.role.findFirst({
+            where: {
+              id: parsed.data.accountRoleId,
+              organizationId: context.user.organizationId,
+              scope: "SCHOOL",
+            },
+            select: { id: true },
+          })
+        : null;
+
+      const account = await createStaffAccount({
+        organizationId: context.user.organizationId,
+        schoolId,
+        roleId: role?.id ?? null,
+        firstName: parsed.data.firstName,
+        lastName: parsed.data.lastName,
+        email: parsed.data.email,
+        username: parsed.data.accountUsername,
+        password: parsed.data.accountPassword,
+        phone: parsed.data.phone,
+        jobTitle: parsed.data.jobTitle,
+      });
+
+      if (!account.ok) {
+        return failure(
+          account.reason === "email-taken"
+            ? t.user.emailTaken
+            : account.reason === "username-taken"
+              ? t.user.usernameTaken
+              : t.hr.accountNeedsUsername,
+          account.reason === "email-taken"
+            ? { email: t.user.emailTaken }
+            : account.reason === "username-taken"
+              ? { accountUsername: t.user.usernameTaken }
+              : { accountUsername: t.hr.accountNeedsUsername },
+          formValues(formData),
+        );
+      }
+
+      userId = account.userId;
     }
 
     const code = parsed.data.code || (await allocateStaffCode(schoolId));

@@ -77,12 +77,18 @@ import { SectionHeading } from "@/components/shell/section-heading";
 export function StaffPanel({
   person,
   linkableUsers,
+  schoolRoles,
+  canCreateAccount,
   canPayroll,
   canManage,
 }: {
   person: StaffDetail;
   /** Accounts this employee may be linked to. Empty without `canManage`. */
   linkableUsers: { id: string; label: string }[];
+  /** School-scoped roles a newly created login may be granted. */
+  schoolRoles: { id: string; name: string }[];
+  /** USER_CREATE — whether this reader may mint a login at all. */
+  canCreateAccount: boolean;
   canPayroll: boolean;
   canManage: boolean;
 }) {
@@ -466,6 +472,8 @@ export function StaffPanel({
         <StaffDialog
           person={person}
           linkableUsers={linkableUsers}
+          schoolRoles={schoolRoles}
+          canCreateAccount={canCreateAccount}
           canPayroll={canPayroll}
           onClose={() => setEditingPerson(false)}
         />

@@ -737,6 +737,22 @@ describe("resolveMemberships", () => {
 // ── Identity ─────────────────────────────────────────────────────────────────
 
 describe("email and password", () => {
+  /** The minimum a user form has to send for the schema to have an opinion. */
+  const base = {
+    firstName: "A",
+    lastName: "B",
+    email: "a@b.ma",
+    username: "",
+    phone: "",
+    jobTitle: "",
+    birthDate: "",
+    avatarUrl: "",
+    orgRoleId: "",
+    isActive: true,
+    isSuperAdmin: false,
+    memberships: [],
+  };
+
   it("lower-cases the address before storing it", async () => {
     await createUserAction(IDLE, userForm({ email: "Amine@School.MA" }));
     expect(writes.created[0]).toMatchObject({
@@ -792,20 +808,6 @@ describe("email and password", () => {
   });
 
   it("requires a password on create but not on edit", () => {
-    const base = {
-      firstName: "A",
-      lastName: "B",
-      email: "a@b.ma",
-      phone: "",
-      jobTitle: "",
-      birthDate: "",
-      avatarUrl: "",
-      orgRoleId: "",
-      isActive: true,
-      isSuperAdmin: false,
-      memberships: [],
-    };
-
     expect(
       userSchema(t, { requirePassword: true }).safeParse({
         ...base,
@@ -818,6 +820,41 @@ describe("email and password", () => {
       password: "",
     });
     expect(edit.success && edit.data.password).toBeNull();
+  });
+
+  it("treats a blank username as an account that does not sign in", () => {
+    // A guardian has none — they sign in on the phone with their email. Blank
+    // has to reach the column as null, not as an empty string, or the unique
+    // index would let exactly one account hold "".
+    const parsed = userSchema(t, { requirePassword: true }).safeParse({
+      ...base,
+      password: "correct horse",
+      username: "",
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.username).toBeNull();
+  });
+
+  it("stores one spelling of a username, whatever was typed", () => {
+    const parsed = userSchema(t, { requirePassword: true }).safeParse({
+      ...base,
+      password: "correct horse",
+      username: "  K.Bennis  ",
+    });
+
+    expect(parsed.success && parsed.data.username).toBe("k.bennis");
+  });
+
+  it("refuses a username the login box could not carry", () => {
+    for (const username of ["ab", "k bennis", "k@bennis", ".bennis"]) {
+      const parsed = userSchema(t, { requirePassword: true }).safeParse({
+        ...base,
+        password: "correct horse",
+        username,
+      });
+      expect(parsed.success, username).toBe(false);
+    }
   });
 
   it("rejects a password below the minimum length", () => {

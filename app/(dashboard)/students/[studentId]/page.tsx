@@ -266,6 +266,7 @@ export default async function StudentPage({
         enrolment={enrolment}
         offerings={choices.offerings}
         startMonths={choices.optionStartMonths}
+        subscribableCharges={choices.subscribableCharges}
         yearName={context.currentSchoolYear?.name ?? null}
         feeGrid={feeGrid}
         discounts={choices.discounts}

@@ -2,6 +2,7 @@ import * as z from "zod";
 
 import type { Dictionary } from "@/lib/i18n/types";
 import {
+  password,
   birthDateField,
   dateField,
   enumField,
@@ -68,6 +69,24 @@ export function staffSchema(t: Dictionary) {
     leftOn: optionalDate(v),
     /** Blank, or the account this employee signs in with. */
     userId: optionalText(40),
+    /*
+      ── Giving a new employee a login ────────────────────────────────────────
+      Ticked, the three fields below are read and an account is created and
+      linked. They are separate from `userId`, which attaches an account that
+      already exists: hiring somebody and finding their existing login are two
+      different acts, and one form field cannot mean both.
+
+      The username may be left blank, in which case it is built from the name —
+      see `allocateUsername`. The password is required, because an account
+      created without one could not be signed into and the school would have no
+      way to tell that from a working one.
+    */
+    createAccount: z.boolean(),
+    accountUsername: optionalText(30),
+    accountPassword: z
+      .union([z.literal(""), password(v)])
+      .transform((value) => value || null),
+    accountRoleId: optionalText(40),
     notes: optionalText(1000),
   });
 }

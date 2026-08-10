@@ -628,17 +628,27 @@ async function main() {
   */
   await seedMassarDemo(db, organization.id);
 
-  console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);
+  /*
+    The dashboard asks for a username, not an email — see User.username — so the
+    username is what this prints. It is the local part of the address, which is
+    also what the migration derived for accounts predating the column.
+  */
+  const adminUsername = ADMIN_EMAIL.split("@")[0];
   console.log(
-    "Every other account shares the same password. Teachers use\n" +
-      "firstname.lastname@almanar.ma — for example karim.bennis@almanar.ma.\n",
+    `\nDone. Sign in at /login with:\n  ${adminUsername}\n  ${ADMIN_PASSWORD}\n`,
+  );
+  console.log(
+    "Every other account shares the same password. Teachers sign in as\n" +
+      "firstname.lastname — for example karim.bennis.\n",
   );
 
   const driverLogin = portalLogins.find((entry) => entry.driverEmail);
   const parentLogin = portalLogins.flatMap((entry) => entry.parentEmails)[0];
   if (driverLogin || parentLogin) {
+    // The phone still takes an email: a guardian has no username, and the
+    // driver may give either. See the note on the mobile login route.
     console.log(
-      "Application mobile:\n" +
+      "Application mobile (courriel) :\n" +
         (driverLogin ? `  chauffeur — ${driverLogin.driverEmail}\n` : "") +
         (parentLogin ? `  famille   — ${parentLogin}\n` : ""),
     );

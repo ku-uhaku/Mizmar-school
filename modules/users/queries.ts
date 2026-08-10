@@ -22,6 +22,8 @@ import { toDateInputValue } from "@/lib/utils";
 export type UserRow = {
   id: string;
   email: string;
+  /** Null for accounts that do not sign in at the dashboard — see User.username. */
+  username: string | null;
   firstName: string;
   lastName: string;
   phone: string | null;
@@ -70,6 +72,7 @@ function toRow(user: UserWithRelations, currentUserId: string): UserRow {
   return {
     id: user.id,
     email: user.email,
+    username: user.username,
     firstName: user.profile?.firstName ?? "",
     lastName: user.profile?.lastName ?? "",
     phone: user.profile?.phone ?? null,

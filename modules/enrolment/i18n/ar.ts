@@ -24,9 +24,9 @@ const ar = {
     leftOn: "تاريخ المغادرة",
     isRepeating: "مكرّر",
     options: "الخيارات",
-    usesTransport: "النقل المدرسي",
-    usesCanteen: "المطعم المدرسي",
     optionsHint: "الرسوم الاختيارية تُفوتر فقط للمشتركين.",
+    noOptionalCharges:
+      "لا تتوفر هذه المدرسة على أي خدمة اختيارية. أضف واحدة في الإعدادات ← الأداءات، مع تحديدها كاختيارية.",
     optionStartsOn: "تُفوتر ابتداءً من",
     optionStartsWithYear: "بداية السنة",
     optionStartsOnHint:

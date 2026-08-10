@@ -445,10 +445,6 @@ export async function enrolNewStudentAction(
       status: "ACTIVE",
       enrolledOn: "",
       isRepeating: false,
-      usesTransport: false,
-      usesCanteen: false,
-      transportStartsOn: "",
-      canteenStartsOn: "",
       notes: "",
     });
     if (!enrolmentParsed.success) {
@@ -476,9 +472,10 @@ export async function enrolNewStudentAction(
         levelOfferingId: offering.id,
         status: enrolmentParsed.data.status,
         enrolledOn: new Date(),
+        // No opt-ins: the quick enrol grants a place, and which optional
+        // charges the family takes is settled on the enrolment panel. An
+        // enrolment with no subscriptions is billed the mandatory charges only.
         isRepeating: false,
-        usesTransport: false,
-        usesCanteen: false,
       },
       select: { id: true },
     });

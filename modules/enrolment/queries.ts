@@ -2,6 +2,10 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import {
+  listSubscribableCharges,
+  type SubscribableCharge,
+} from "@/modules/enrolment/service";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
 import {
@@ -42,14 +46,24 @@ export type EnrolmentDetail = {
   enrolledOn: string;
   leftOn: string;
   isRepeating: boolean;
-  usesTransport: boolean;
-  usesCanteen: boolean;
-  /** `YYYY-MM` for the start-month picker; "" means from the start of the year. */
-  transportStartsOn: string;
-  canteenStartsOn: string;
+  /**
+   * The optional charges this family has taken, keyed by fee type.
+   *
+   * `startsOn` is `YYYY-MM` for the start-month picker, or "" for "from the
+   * start of the year". A charge the family has not taken is simply absent —
+   * the form pairs this against the school's sellable list to draw the boxes.
+   */
+  options: { feeTypeId: string; startsOn: string }[];
   notes: string | null;
   feeLineCount: number;
 };
+
+/**
+ * Re-exported so the panel reads its props' types from one place, as every
+ * other screen does. The list itself is the service's, because the same query
+ * is what an action trusts — see `listSubscribableCharges`.
+ */
+export type { SubscribableCharge };
 
 /** One cell of the fee grid: a single instalment of one charge. */
 export type FeeCell = {
@@ -114,6 +128,12 @@ export async function findEnrolment(
       },
       schoolClass: { select: { id: true, code: true } },
       classGroup: { select: { id: true, code: true, name: true } },
+      // Ordered by the catalogue's own order, so the form's boxes and the
+      // configuration screen list the charges the same way round.
+      options: {
+        orderBy: [{ feeType: { position: "asc" } }, { feeType: { code: "asc" } }],
+        select: { feeTypeId: true, startsOn: true },
+      },
       _count: { select: { fees: true } },
     },
   });
@@ -139,10 +159,10 @@ export async function findEnrolment(
     enrolledOn: toDateInputValue(enrolment.enrolledOn),
     leftOn: toDateInputValue(enrolment.leftOn),
     isRepeating: enrolment.isRepeating,
-    usesTransport: enrolment.usesTransport,
-    usesCanteen: enrolment.usesCanteen,
-    transportStartsOn: toMonthInputValue(enrolment.transportStartsOn),
-    canteenStartsOn: toMonthInputValue(enrolment.canteenStartsOn),
+    options: enrolment.options.map((option) => ({
+      feeTypeId: option.feeTypeId,
+      startsOn: toMonthInputValue(option.startsOn),
+    })),
     notes: enrolment.notes,
     feeLineCount: enrolment._count.fees,
   };
@@ -262,7 +282,7 @@ export async function loadFeeGrid(
 export async function loadEnrolmentChoices(context: AuthContext) {
   const yearId = currentSchoolYearId(context);
 
-  const [offerings, discounts, year] = await Promise.all([
+  const [offerings, discounts, year, subscribableCharges] = await Promise.all([
     db.levelOffering.findMany({
       where: { schoolYearId: yearId, isActive: true },
       orderBy: [{ level: { gradeYear: "asc" } }, { level: { code: "asc" } }],
@@ -307,6 +327,10 @@ export async function loadEnrolmentChoices(context: AuthContext) {
       where: { id: yearId },
       select: { startDate: true, endDate: true },
     }),
+    // What this school actually sells. Read here rather than in the form so
+    // the boxes the panel draws and the ids the action will accept come from
+    // one query — see `listSubscribableCharges`.
+    listSubscribableCharges(currentSchoolId(context)),
   ]);
 
   return {
@@ -348,6 +372,7 @@ export async function loadEnrolmentChoices(context: AuthContext) {
             month: month.month,
           }))
       : [],
+    subscribableCharges,
   };
 }
 

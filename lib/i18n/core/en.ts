@@ -75,6 +75,8 @@ const core = {
     invalidNumber: "Enter a valid number.",
     invalidDate: "Enter a valid date.",
     invalidChoice: "Choose one of the available options.",
+    invalidUsername:
+      "3 to 30 characters: lowercase letters, digits, and . - _ inside.",
     codeFormat: "Use letters, numbers and dashes only.",
   },
   /** Wording shared by every printable document. */

@@ -28,9 +28,9 @@ const en = {
     leftOn: "Left on",
     isRepeating: "Repeating the year",
     options: "Options",
-    usesTransport: "School bus",
-    usesCanteen: "Canteen",
     optionsHint: "Optional charges are billed only to those who subscribe.",
+    noOptionalCharges:
+      "This school has no optional charge to offer. Add one under Configuration → Billing, marked as optional.",
     optionStartsOn: "Billed from",
     optionStartsWithYear: "The start of the year",
     optionStartsOnHint:

@@ -7,7 +7,12 @@ import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { boolField, field, withActionErrors } from "@/lib/server-action";
+import {
+  boolField,
+  field,
+  listField,
+  withActionErrors,
+} from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { interpolate } from "@/lib/i18n/format";
@@ -18,7 +23,7 @@ import {
   generateFeeSchedule,
   repriceFeeLine,
   repriceFollowingLines,
-  resolveOptionStart,
+  replaceOptions,
   resyncOptionalCharges,
   setEnrolmentStatus,
 } from "@/modules/enrolment/service";
@@ -50,39 +55,46 @@ function readEnrolmentForm(formData: FormData) {
     status: field(formData, "status"),
     enrolledOn: field(formData, "enrolledOn"),
     isRepeating: boolField(formData, "isRepeating"),
-    usesTransport: boolField(formData, "usesTransport"),
-    usesCanteen: boolField(formData, "usesCanteen"),
-    transportStartsOn: optionalId(formData, "transportStartsOn"),
-    canteenStartsOn: optionalId(formData, "canteenStartsOn"),
     notes: field(formData, "notes"),
   };
 }
 
 /**
- * The start month of each opt-in, as columns.
+ * The opt-ins, as parallel arrays indexed by row.
  *
- * Cleared whenever its flag is off, so a family that drops the canteen cannot
- * leave a start month behind for the next person to tick the box and be
- * surprised by. The month itself is validated against the year — see
- * `resolveOptionStart`.
+ * The form renders one row per charge the school sells and posts every one of
+ * them, ticked or not, so what arrives is the family's complete answer. Every
+ * row must contribute exactly one value to every field — otherwise an untyped
+ * start month would shift the next charge's month onto the wrong line, which is
+ * the same trap the mark sheet and the supply list avoid the same way.
+ *
+ * Returns null when the arrays disagree, which is a malformed submission rather
+ * than a validation failure a field could be blamed for.
+ *
+ * Nothing here decides whether a charge may be sold: `replaceOptions` re-derives
+ * that from the school, so an id from a crafted POST subscribes nobody.
  */
-async function optionStartColumns(
-  schoolYearId: string,
-  parsed: { usesTransport: boolean; usesCanteen: boolean } & Record<
-    "transportStartsOn" | "canteenStartsOn",
-    string | null
-  >,
-) {
-  const [transportStartsOn, canteenStartsOn] = await Promise.all([
-    parsed.usesTransport
-      ? resolveOptionStart(schoolYearId, parsed.transportStartsOn)
-      : null,
-    parsed.usesCanteen
-      ? resolveOptionStart(schoolYearId, parsed.canteenStartsOn)
-      : null,
-  ]);
+function readOptions(
+  formData: FormData,
+): { feeTypeId: string; startsOn: string | null }[] | null {
+  const ids = listField(formData, "optionFeeTypeId");
+  const subscribed = listField(formData, "optionSubscribed");
+  const starts = listField(formData, "optionStartsOn");
 
-  return { transportStartsOn, canteenStartsOn };
+  if (subscribed.length !== ids.length || starts.length !== ids.length) {
+    return null;
+  }
+
+  return ids
+    .map((feeTypeId, index) => ({
+      feeTypeId: feeTypeId.trim(),
+      // "1"/"0" per row rather than the checkbox's presence, so an unticked box
+      // still occupies its slot in the array.
+      taken: subscribed[index] === "1",
+      startsOn: starts[index]?.trim() || null,
+    }))
+    .filter((row) => row.taken && row.feeTypeId !== "")
+    .map((row) => ({ feeTypeId: row.feeTypeId, startsOn: row.startsOn }));
 }
 
 /**
@@ -146,6 +158,9 @@ export async function enrolStudentAction(
       );
     }
 
+    const options = readOptions(formData);
+    if (options === null) return failure(t.errors.invalid);
+
     // The pupil must be one of this school's.
     const student = await db.student.findFirst({
       where: { id: parsed.data.studentId, schoolId },
@@ -178,13 +193,14 @@ export async function enrolStudentAction(
           ? new Date(parsed.data.enrolledOn)
           : new Date(),
         isRepeating: parsed.data.isRepeating,
-        usesTransport: parsed.data.usesTransport,
-        usesCanteen: parsed.data.usesCanteen,
-        ...(await optionStartColumns(schoolYearId, parsed.data)),
         notes: parsed.data.notes,
       },
       select: { id: true },
     });
+
+    // After the row, because a subscription names the enrolment it belongs to.
+    // The schedule below is generated from these, so they must land first.
+    await replaceOptions(enrolment.id, options);
 
     // Seating is optional at this point — a place can be granted in June and
     // the class decided in September.
@@ -229,6 +245,9 @@ export async function updateEnrolmentAction(
       );
     }
 
+    const options = readOptions(formData);
+    if (options === null) return failure(t.errors.invalid);
+
     const offering = await db.levelOffering.findFirst({
       where: {
         id: parsed.data.levelOfferingId,
@@ -272,12 +291,12 @@ export async function updateEnrolmentAction(
           ? new Date(parsed.data.enrolledOn)
           : undefined,
         isRepeating: parsed.data.isRepeating,
-        usesTransport: parsed.data.usesTransport,
-        usesCanteen: parsed.data.usesCanteen,
-        ...(await optionStartColumns(existing.schoolYearId, parsed.data)),
         notes: parsed.data.notes,
       },
     });
+
+    // Before the resync below, which reads them to decide what to bill.
+    await replaceOptions(enrollmentId, options);
 
     await assignClass(
       enrollmentId,

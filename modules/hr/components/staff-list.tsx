@@ -34,10 +34,16 @@ import type { StaffRow } from "@/modules/hr/queries";
 export function StaffList({
   staff,
   linkableUsers,
+  schoolRoles,
+  canCreateAccount,
   permissions,
 }: {
   staff: StaffRow[];
   linkableUsers: { id: string; label: string }[];
+  /** School-scoped roles a newly created login may be granted. */
+  schoolRoles: { id: string; name: string }[];
+  /** USER_CREATE — whether this reader may mint a login at all. */
+  canCreateAccount: boolean;
   permissions: {
     canManage: boolean;
     canPayroll: boolean;
@@ -263,6 +269,8 @@ export function StaffList({
         <StaffDialog
           person={null}
           linkableUsers={linkableUsers}
+          schoolRoles={schoolRoles}
+          canCreateAccount={canCreateAccount}
           canPayroll={permissions.canPayroll}
           onClose={() => setCreating(false)}
         />

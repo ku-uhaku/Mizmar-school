@@ -9,6 +9,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { RecordHistoryPanel } from "@/modules/audit/components/record-history-panel";
 import { StaffPanel } from "@/modules/hr/components/staff-panel";
+import { listSchoolRoles } from "@/modules/access/queries";
 import { findStaff, listLinkableUsers } from "@/modules/hr/queries";
 
 export const metadata: Metadata = { title: "Employé" };
@@ -37,6 +38,12 @@ export default async function StaffPage({
   const linkableUsers = canManage
     ? await listLinkableUsers(context, person.userId)
     : [];
+  // Only for a reader who may mint a login, and only useful when this employee
+  // has none — the dialog hides the switch otherwise.
+  const schoolRoles =
+    context.can(PERMISSIONS.USER_CREATE) && !person.userId
+      ? await listSchoolRoles(context)
+      : [];
 
   return (
     <>
@@ -58,6 +65,8 @@ export default async function StaffPage({
       <StaffPanel
         person={person}
         linkableUsers={linkableUsers}
+        schoolRoles={schoolRoles}
+        canCreateAccount={context.can(PERMISSIONS.USER_CREATE)}
         canPayroll={context.can(PERMISSIONS.HR_PAYROLL)}
         canManage={canManage}
       />

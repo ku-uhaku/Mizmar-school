@@ -21,6 +21,7 @@ import { FeeGrid } from "@/modules/enrolment/components/fee-grid";
 import type {
   EnrolmentDetail,
   FeeGrid as FeeGridData,
+  SubscribableCharge,
 } from "@/modules/enrolment/queries";
 import { PupilMarksPanel } from "@/modules/assessments/components/pupil-marks-panel";
 import { PupilBulletins } from "@/modules/bulletins/components/pupil-bulletins";
@@ -89,6 +90,7 @@ export function StudentProfile({
   enrolment,
   offerings,
   startMonths,
+  subscribableCharges,
   yearName,
   feeGrid,
   discounts,
@@ -128,6 +130,8 @@ export function StudentProfile({
   enrolment: EnrolmentDetail | null;
   offerings: OfferingChoice[];
   startMonths: StartMonthChoice[];
+  /** The optional charges this school sells, for the enrolment panel. */
+  subscribableCharges: SubscribableCharge[];
   yearName: string | null;
   feeGrid: FeeGridData | null;
   discounts: {
@@ -197,13 +201,19 @@ export function StudentProfile({
    * where the money is.
    *
    * A pupil who already has an abonnement keeps the tab whatever the flag says.
-   * That combination should not arise — `syncTransportOption` sets the flag when
-   * a rider is seated — but if it ever does, hiding the tab would strand a child
-   * on a bus with no screen to take them off it.
+   * That combination should not arise — `syncTransportOption` writes the
+   * subscription when a rider is seated — but if it ever does, hiding the tab
+   * would strand a child on a bus with no screen to take them off it.
    */
+  const takesTransport =
+    enrolment?.options.some((option) =>
+      subscribableCharges.some(
+        (charge) => charge.id === option.feeTypeId && charge.kind === "TRANSPORT",
+      ),
+    ) ?? false;
   const showTransport =
     transportChoices !== null &&
-    ((enrolment?.usesTransport ?? false) || transportSubscriptions.length > 0);
+    (takesTransport || transportSubscriptions.length > 0);
 
   return (
     <>
@@ -352,6 +362,7 @@ export function StudentProfile({
             enrolment={enrolment}
             offerings={offerings}
             startMonths={startMonths}
+        subscribableCharges={subscribableCharges}
             yearName={yearName}
             permissions={{
               canCreate: permissions.canCreateEnrolment,

@@ -4,6 +4,26 @@ model User {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   email        String  @unique
+
+  /// What staff type to sign in. Null for accounts that do not — a guardian is
+  /// identified by their email and their phone in the dossier familial, and a
+  /// username would be one more thing for a parent to forget.
+  ///
+  /// ── Why nullable, given the login form asks for one ─────────────────────
+  /// Because the two audiences sign in at different doors. The web dashboard is
+  /// a staff surface — a guardian who reaches it holds no membership and every
+  /// page answers ForbiddenState — so its form asks for a username. The phone's
+  /// login serves both, and a parent still gives their email there.
+  ///
+  /// Unique where present, which is what nullable-unique means in SQLite and is
+  /// the behaviour wanted here: many accounts may have none, no two may share
+  /// one. (Contrast lib/db-keys.ts, where that same behaviour is the bug.)
+  ///
+  /// Always lowercase and always `USERNAME_PATTERN` — see modules/users/enums.ts.
+  /// Suggested from the name when staff are created, and editable, so a school
+  /// keeps a consistent shape without being unable to spell an awkward one.
+  username String? @unique
+
   passwordHash String
   isActive     Boolean @default(true)
   /// Bypasses every permission check. Kept out of the role system on purpose so

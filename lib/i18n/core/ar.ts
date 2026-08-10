@@ -69,6 +69,8 @@ const core = {
     invalidNumber: "أدخل رقمًا صالحًا.",
     invalidDate: "أدخل تاريخًا صالحًا.",
     invalidChoice: "اختر أحد الخيارات المتاحة.",
+    invalidUsername:
+      "من 3 إلى 30 حرفًا: حروف صغيرة وأرقام، مع . - _ في الداخل.",
     codeFormat: "استخدم الحروف والأرقام والشرطات فقط.",
   },
   print: {

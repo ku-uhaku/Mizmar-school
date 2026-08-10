@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -43,6 +44,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
+import { suggestUsername } from "@/modules/users/enums";
 import { formatDateTime } from "@/lib/i18n/format";
 
 export function UserForm({
@@ -75,6 +77,29 @@ export function UserForm({
   const defaultMemberships = Object.fromEntries(
     (user?.memberships ?? []).map((m) => [m.schoolId, m.roleId]),
   );
+
+  /*
+    The suggestion follows the name until somebody overrides it.
+
+    Controlled rather than a `defaultValue`, because the whole point is that it
+    changes as the name is typed — and `touched` is what stops it overwriting a
+    username an administrator has deliberately chosen. On an existing account it
+    starts out touched: their username is settled, and renaming somebody must
+    not silently change what they sign in with.
+  */
+  const [firstName, setFirstName] = React.useState(
+    valueOf(state, "firstName", user?.firstName),
+  );
+  const [lastName, setLastName] = React.useState(
+    valueOf(state, "lastName", user?.lastName),
+  );
+  const [username, setUsername] = React.useState(
+    valueOf(state, "username", user?.username),
+  );
+  const [touched, setTouched] = React.useState(Boolean(user?.username));
+
+  const suggestion = suggestUsername(firstName, lastName);
+  const shownUsername = touched ? username : suggestion;
 
   const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`
     .toUpperCase()
@@ -186,7 +211,8 @@ export function UserForm({
             >
               <Input
                 {...controlProps("firstName", errors.firstName)}
-                defaultValue={valueOf(state, "firstName", user?.firstName)}
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
                 autoComplete="given-name"
                 required
               />
@@ -200,7 +226,8 @@ export function UserForm({
             >
               <Input
                 {...controlProps("lastName", errors.lastName)}
-                defaultValue={valueOf(state, "lastName", user?.lastName)}
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
                 autoComplete="family-name"
                 required
               />
@@ -261,6 +288,25 @@ export function UserForm({
                 dir="ltr"
                 autoComplete="off"
                 required
+              />
+            </FormField>
+
+            <FormField
+              name="username"
+              label={t.user.username}
+              hint={t.user.usernameHint}
+              error={errors.username}
+            >
+              <Input
+                {...controlProps("username", errors.username)}
+                value={shownUsername}
+                onChange={(event) => {
+                  setTouched(true);
+                  setUsername(event.target.value);
+                }}
+                dir="ltr"
+                autoComplete="off"
+                spellCheck={false}
               />
             </FormField>
 

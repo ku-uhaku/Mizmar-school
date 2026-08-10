@@ -124,6 +124,7 @@ const {
   buildFeeSchedule,
   repriceFeeLine,
   repriceFollowingLines,
+  replaceOptions,
   resolveOptionStart,
   resyncOptionalCharges,
   setEnrolmentStatus,
@@ -396,6 +397,13 @@ const canteen = {
   billingCycle: "MONTHLY",
   isMandatory: false,
 };
+/** A charge the old design had no way to sell. See EnrollmentOption. */
+const club = {
+  id: "fee-club",
+  kind: "CLUB",
+  billingCycle: "ANNUAL",
+  isMandatory: false,
+};
 
 const rate = (extra: Record<string, unknown> = {}) => ({
   id: "rate-1",
@@ -409,10 +417,7 @@ const rate = (extra: Record<string, unknown> = {}) => ({
 
 const schedule = (extra: Partial<ScheduleInput> = {}): ScheduleInput => ({
   levelId: "level-1",
-  usesTransport: false,
-  usesCanteen: false,
-  transportStartsOn: null,
-  canteenStartsOn: null,
+  options: [],
   yearStart: new Date(2025, 8, 1),
   yearEnd: new Date(2026, 5, 30),
   termCount: 3,
@@ -453,7 +458,7 @@ describe("buildScheduleLines", () => {
   it("bills one the family did take", () => {
     const lines = buildScheduleLines(
       schedule({
-        usesTransport: true,
+        options: [{ feeTypeId: "fee-transport", startsOn: null }],
         feeTypes: [transport],
         rates: [
           rate({ id: "rate-2", feeTypeId: "fee-transport", amountCentimes: 450_000 }),
@@ -467,23 +472,96 @@ describe("buildScheduleLines", () => {
   });
 
   it("does not bill a club just because the family is on the bus", () => {
-    // Only the two flag-gated kinds are decided by a switch; anything else
-    // optional is added per pupil by hand.
-    const club = {
-      id: "fee-club",
-      kind: "CLUB",
-      billingCycle: "ANNUAL",
-      isMandatory: false,
-    };
+    // Subscriptions name the charge they are for, so taking the bus and the
+    // cantine says nothing whatever about a club.
     const lines = buildScheduleLines(
       schedule({
-        usesTransport: true,
-        usesCanteen: true,
+        options: [
+          { feeTypeId: "fee-transport", startsOn: null },
+          { feeTypeId: "fee-canteen", startsOn: null },
+        ],
         feeTypes: [club],
         rates: [rate({ id: "rate-3", feeTypeId: "fee-club" })],
       }),
     );
     expect(lines).toEqual([]);
+  });
+
+  it("bills a club to the family that subscribed to it", () => {
+    /*
+      The case the old design could not express at all.
+
+      `isSubscribed` switched on `FeeType.kind` and knew two names, so a
+      school's own optional charge could be declared in the catalogue and then
+      never sold — the only route was a bursar typing the lines onto each
+      échéancier by hand. Nothing here knows what a club is; it is billed
+      because the family asked for it. See EnrollmentOption.
+    */
+    const lines = buildScheduleLines(
+      schedule({
+        options: [{ feeTypeId: "fee-club", startsOn: null }],
+        feeTypes: [club],
+        rates: [
+          rate({
+            id: "rate-3",
+            feeTypeId: "fee-club",
+            amountCentimes: 120_000,
+            instalmentCount: 3,
+          }),
+        ],
+      }),
+    );
+
+    expect(lines).toHaveLength(3);
+    expect(lines.every((line) => line.feeTypeId === "fee-club")).toBe(true);
+    expect(lines.reduce((sum, line) => sum + line.amountCentimes, 0)).toBe(
+      120_000,
+    );
+  });
+
+  it("prorates a club from its own start month, like any other opt-in", () => {
+    // The mid-year rule is a property of the subscription, not of the two kinds
+    // that used to have a start-month column each.
+    const lines = buildScheduleLines(
+      schedule({
+        options: [{ feeTypeId: "fee-club", startsOn: new Date(2026, 0, 1) }],
+        feeTypes: [club],
+        rates: [
+          rate({ id: "rate-3", feeTypeId: "fee-club", instalmentCount: 9 }),
+        ],
+      }),
+    );
+
+    // Still numbered from the top of the year — see the note on `periodIndex`.
+    expect(lines.map((line) => line.periodIndex)).toEqual([5, 6, 7, 8, 9]);
+  });
+
+  it("bills a mandatory charge to a family that subscribed to nothing", () => {
+    // `isMandatory` is the whole test. Scolarité is not opted into and never
+    // was; only the optional charges consult the subscriptions.
+    const lines = buildScheduleLines(schedule({ options: [] }));
+    expect(lines).toHaveLength(9);
+    expect(lines.every((line) => line.feeTypeId === "fee-scolarite")).toBe(true);
+  });
+
+  it("ignores a subscription to a charge the school made mandatory", () => {
+    // A stale row — the school changed its mind and made the cantine
+    // compulsory. It is billed to everyone either way, and must not be billed
+    // twice.
+    const lines = buildScheduleLines(
+      schedule({
+        options: [{ feeTypeId: "fee-canteen", startsOn: null }],
+        feeTypes: [{ ...canteen, isMandatory: true }],
+        rates: [
+          rate({ id: "rate-4", feeTypeId: "fee-canteen", instalmentCount: 9 }),
+        ],
+      }),
+    );
+
+    expect(lines).toHaveLength(9);
+    expect(new Set(lines.map((line) => line.feeTypeId))).toEqual(
+      new Set(["fee-canteen"]),
+    );
   });
 
   // ── The price list ─────────────────────────────────────────────────────────
@@ -558,8 +636,7 @@ describe("buildScheduleLines", () => {
     // January for the whole year.
     const lines = buildScheduleLines(
       schedule({
-        usesCanteen: true,
-        canteenStartsOn: new Date(2026, 0, 1),
+        options: [{ feeTypeId: "fee-canteen", startsOn: new Date(2026, 0, 1) }],
         feeTypes: [canteen],
         rates: [
           rate({
@@ -581,8 +658,7 @@ describe("buildScheduleLines", () => {
     // differently-rounded division of the annual figure.
     const lines = buildScheduleLines(
       schedule({
-        usesCanteen: true,
-        canteenStartsOn: new Date(2026, 0, 1),
+        options: [{ feeTypeId: "fee-canteen", startsOn: new Date(2026, 0, 1) }],
         feeTypes: [canteen],
         rates: [
           rate({
@@ -603,8 +679,7 @@ describe("buildScheduleLines", () => {
     // line of a family that started on time.
     const lines = buildScheduleLines(
       schedule({
-        usesCanteen: true,
-        canteenStartsOn: new Date(2026, 0, 1),
+        options: [{ feeTypeId: "fee-canteen", startsOn: new Date(2026, 0, 1) }],
         feeTypes: [canteen],
         rates: [
           rate({
@@ -623,8 +698,7 @@ describe("buildScheduleLines", () => {
     // kinds carry a start.
     const lines = buildScheduleLines(
       schedule({
-        usesCanteen: true,
-        canteenStartsOn: new Date(2026, 0, 1),
+        options: [{ feeTypeId: "fee-canteen", startsOn: new Date(2026, 0, 1) }],
         feeTypes: [scolarite],
       }),
     );
@@ -635,8 +709,7 @@ describe("buildScheduleLines", () => {
   it("bills nothing when the opt-in starts after the year ends", () => {
     const lines = buildScheduleLines(
       schedule({
-        usesCanteen: true,
-        canteenStartsOn: new Date(2027, 0, 1),
+        options: [{ feeTypeId: "fee-canteen", startsOn: new Date(2027, 0, 1) }],
         feeTypes: [canteen],
         rates: [rate({ id: "r", feeTypeId: "fee-canteen" })],
       }),
@@ -664,7 +737,7 @@ describe("buildScheduleLines", () => {
   it("gives each charge a distinct line per instalment", () => {
     const lines = buildScheduleLines(
       schedule({
-        usesTransport: true,
+        options: [{ feeTypeId: "fee-transport", startsOn: null }],
         feeTypes: [scolarite, transport],
         rates: [
           rate(),
@@ -1252,6 +1325,90 @@ describe("repriceFollowingLines", () => {
   });
 });
 
+// ── Who may subscribe to what ────────────────────────────────────────────────
+
+describe("replaceOptions", () => {
+  /** A school selling the bus and one club, and nothing else. */
+  const sellingBusAndClub = () => {
+    answers = {
+      "enrollment.findUnique": {
+        schoolYearId: "year-1",
+        schoolYear: { schoolId: "school-1" },
+      },
+      "feeType.findMany": [
+        { id: "fee-transport", code: "TRANSPORT", name: "Bus", nameAr: null, kind: "TRANSPORT" },
+        { id: "fee-club", code: "CLUB-FOOT", name: "Club", nameAr: null, kind: "CLUB" },
+      ],
+      "schoolYear.findUnique": {
+        startDate: new Date(2025, 8, 1),
+        endDate: new Date(2026, 5, 30),
+      },
+    };
+  };
+
+  it("only ever offers the school's own optional charges", async () => {
+    sellingBusAndClub();
+    await replaceOptions("enrol-1", []);
+
+    // Scolarité is not on offer, and neither is another school's club.
+    const [lookup] = of("feeType", "findMany");
+    expect(lookup.args).toMatchObject({
+      where: { schoolId: "school-1", isActive: true, isMandatory: false },
+    });
+  });
+
+  it("refuses a charge this school does not sell", async () => {
+    // The id comes from a form. A crafted POST must not be able to subscribe a
+    // pupil to scolarité — or to a club belonging to another school.
+    sellingBusAndClub();
+
+    const kept = await replaceOptions("enrol-1", [
+      { feeTypeId: "fee-club", startsOn: null },
+      { feeTypeId: "fee-scolarite-from-elsewhere", startsOn: null },
+    ]);
+
+    expect(kept).toEqual(["fee-club"]);
+    expect(of("enrollmentOption", "upsert")).toHaveLength(1);
+  });
+
+  it("removes the charges the family did not tick", async () => {
+    sellingBusAndClub();
+    await replaceOptions("enrol-1", [
+      { feeTypeId: "fee-club", startsOn: null },
+    ]);
+
+    // Whatever is not kept goes, which is what makes an un-ticked box mean
+    // something without the caller diffing anything.
+    const [removal] = of("enrollmentOption", "deleteMany");
+    expect(removal.args).toMatchObject({
+      where: { enrollmentId: "enrol-1", feeTypeId: { notIn: ["fee-club"] } },
+    });
+  });
+
+  it("drops a start month outside the school year", async () => {
+    // August is before the rentrée: billing an opt-in from it would raise
+    // instalments for months the year does not have. `resolveOptionStart`
+    // answers null, which already means "from the start of the year".
+    sellingBusAndClub();
+    await replaceOptions("enrol-1", [
+      { feeTypeId: "fee-club", startsOn: "2025-08" },
+    ]);
+
+    const [written] = of("enrollmentOption", "upsert");
+    expect(written.args).toMatchObject({ create: { startsOn: null } });
+  });
+
+  it("subscribes nobody when the enrolment cannot be found", async () => {
+    answers = { "enrollment.findUnique": null };
+
+    expect(await replaceOptions("nonsense", [
+      { feeTypeId: "fee-club", startsOn: null },
+    ])).toEqual([]);
+    expect(of("enrollmentOption", "upsert")).toHaveLength(0);
+    expect(of("enrollmentOption", "deleteMany")).toHaveLength(0);
+  });
+});
+
 // ── Taking a charge back off the schedule ────────────────────────────────────
 
 describe("resyncOptionalCharges", () => {
@@ -1261,10 +1418,7 @@ describe("resyncOptionalCharges", () => {
   ): void => {
     answers = {
       "enrollment.findUnique": {
-        usesTransport: false,
-        usesCanteen: false,
-        transportStartsOn: null,
-        canteenStartsOn: null,
+        options: [],
         levelOffering: { levelId: "level-1" },
         schoolYear: {
           id: "year-1",
@@ -1334,10 +1488,7 @@ describe("buildFeeSchedule", () => {
   it("prices against the level the pupil is admitted to", async () => {
     answers = {
       "enrollment.findUnique": {
-        usesTransport: false,
-        usesCanteen: false,
-        transportStartsOn: null,
-        canteenStartsOn: null,
+        options: [],
         levelOffering: { levelId: "level-1" },
         schoolYear: {
           id: "year-1",
@@ -1360,10 +1511,7 @@ describe("buildFeeSchedule", () => {
   it("reads the price list of the year's own school", async () => {
     answers = {
       "enrollment.findUnique": {
-        usesTransport: false,
-        usesCanteen: false,
-        transportStartsOn: null,
-        canteenStartsOn: null,
+        options: [],
         levelOffering: { levelId: "level-1" },
         schoolYear: {
           id: "year-1",

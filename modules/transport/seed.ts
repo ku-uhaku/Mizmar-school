@@ -452,7 +452,7 @@ export async function seedTransportRidership(
   const riders = await db.enrollment.findMany({
     where: {
       schoolYearId,
-      usesTransport: true,
+      options: { some: { feeType: { kind: "TRANSPORT" } } },
       status: { in: ["ACTIVE", "PENDING"] },
       student: { schoolId },
     },

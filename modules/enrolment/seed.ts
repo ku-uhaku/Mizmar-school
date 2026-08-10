@@ -117,6 +117,19 @@ export async function seedEnrolments(
     }),
   ]);
 
+  /*
+    The two charges the demo subscribes people to, found in the school's own
+    catalogue rather than assumed. `kind` is the right key here for the same
+    reason it is in the services report: the seed is choosing *the bus* and *the
+    cantine* specifically, not "whatever is optional". A school seeded without
+    them simply has no subscribers.
+  */
+  const optionalOf = (kind: string) =>
+    feeTypes.find((feeType) => feeType.kind === kind && !feeType.isMandatory) ??
+    null;
+  const transportCharge = optionalOf("TRANSPORT");
+  const canteenCharge = optionalOf("CANTEEN");
+
   // Seats taken so far, so several pupils placed in one run still spread across
   // the parallel classes instead of all landing in the first.
   const seatsTaken = new Map<string, number>(
@@ -188,12 +201,40 @@ export async function seedEnrolments(
         schoolClassId: emptiest?.id ?? null,
         status: "ACTIVE",
         enrolledOn: year.startDate,
-        usesTransport,
-        usesCanteen,
-        canteenStartsOn,
       },
       select: { id: true, schoolClassId: true },
     });
+
+    /*
+      The opt-ins, as rows against the school's own charges — see
+      EnrollmentOption. A school whose catalogue has no bus or no cantine
+      subscribes nobody to them, which is the honest outcome and the same one
+      the app produces.
+
+      Upserted on the (enrolment, fee type) unique, like everything else here,
+      so a re-seed writes nothing.
+    */
+    const options: { feeTypeId: string; startsOn: Date | null }[] = [
+      ...(usesTransport && transportCharge
+        ? [{ feeTypeId: transportCharge.id, startsOn: null }]
+        : []),
+      ...(usesCanteen && canteenCharge
+        ? [{ feeTypeId: canteenCharge.id, startsOn: canteenStartsOn }]
+        : []),
+    ];
+
+    for (const option of options) {
+      await db.enrollmentOption.upsert({
+        where: {
+          enrollmentId_feeTypeId: {
+            enrollmentId: enrolment.id,
+            feeTypeId: option.feeTypeId,
+          },
+        },
+        update: {},
+        create: { enrollmentId: enrolment.id, ...option },
+      });
+    }
 
     if (enrolment.schoolClassId) {
       seatsTaken.set(
@@ -208,10 +249,7 @@ export async function seedEnrolments(
     // are missing get written, so re-running is a no-op.
     const lines = buildScheduleLines({
       levelId: offering.levelId,
-      usesTransport,
-      usesCanteen,
-      transportStartsOn: null,
-      canteenStartsOn,
+      options,
       yearStart: year.startDate,
       yearEnd: year.endDate,
       termCount: year._count.terms,

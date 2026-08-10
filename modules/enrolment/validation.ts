@@ -19,13 +19,6 @@ export function enrolmentSchema(t: Dictionary) {
     status: enumField(ENROLMENT_STATUSES, v),
     enrolledOn: optionalText(40),
     isRepeating: z.boolean(),
-    usesTransport: z.boolean(),
-    usesCanteen: z.boolean(),
-    // `YYYY-MM`, or blank for "from the start of the year". Only the shape is
-    // checked here; whether the month falls inside the school year is a fact
-    // about the year and is settled by `resolveOptionStart`.
-    transportStartsOn: optionalText(7),
-    canteenStartsOn: optionalText(7),
     notes: optionalText(1000),
   });
 }
@@ -82,4 +75,21 @@ export function feeLineSchema(t: Dictionary) {
       (data) => data.status === "DUE" || Boolean(data.cancelReason),
       { error: t.enrolment.cancelReasonRequired, path: ["cancelReason"] },
     );
+}
+
+/**
+ * One opt-in row off the enrolment form.
+ *
+ * The charge is named by id and checked against what the school actually sells
+ * — not here, but in `replaceOptions`, because that is a fact about the school
+ * rather than about the shape of the submission. `startsOn` is `YYYY-MM`, or
+ * blank for "from the start of the year"; whether the month falls inside the
+ * year is likewise settled against the year, by `resolveOptionStart`.
+ */
+export function enrolmentOptionSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    feeTypeId: requiredText(v, { max: 40 }),
+    startsOn: optionalText(7),
+  });
 }

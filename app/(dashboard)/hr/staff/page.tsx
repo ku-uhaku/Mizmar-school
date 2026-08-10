@@ -5,6 +5,7 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { listSchoolRoles } from "@/modules/access/queries";
 import { StaffList } from "@/modules/hr/components/staff-list";
 import { listLinkableUsers, listStaff } from "@/modules/hr/queries";
 
@@ -20,10 +21,15 @@ export default async function HrStaffPage() {
 
   const canManage = context.can(PERMISSIONS.HR_MANAGE);
 
-  const [staff, linkableUsers] = await Promise.all([
+  const [staff, linkableUsers, schoolRoles] = await Promise.all([
     listStaff(context),
     // Only loaded for a reader who may actually link an account to a record.
     canManage ? listLinkableUsers(context, null) : Promise.resolve([]),
+    // Likewise for the roles a newly minted login may be granted — a reader
+    // without USER_CREATE is never shown the switch that uses them.
+    context.can(PERMISSIONS.USER_CREATE)
+      ? listSchoolRoles(context)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -38,6 +44,8 @@ export default async function HrStaffPage() {
       <StaffList
         staff={staff}
         linkableUsers={linkableUsers}
+        schoolRoles={schoolRoles}
+        canCreateAccount={context.can(PERMISSIONS.USER_CREATE)}
         permissions={{
           canManage,
           canPayroll: context.can(PERMISSIONS.HR_PAYROLL),

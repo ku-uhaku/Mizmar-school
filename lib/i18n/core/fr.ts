@@ -69,6 +69,8 @@ const core = {
     invalidNumber: "Saisissez un nombre valide.",
     invalidDate: "Saisissez une date valide.",
     invalidChoice: "Choisissez l'une des options proposées.",
+    invalidUsername:
+      "3 à 30 caractères : minuscules, chiffres, et . - _ à l’intérieur.",
     codeFormat: "Utilisez uniquement des lettres, chiffres et tirets.",
   },
   print: {

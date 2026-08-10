@@ -33,16 +33,19 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
       ) : null}
 
       <FormField
-        name="email"
-        label={t.auth.email}
-        error={state.fieldErrors?.email}
+        name="identifier"
+        label={t.auth.identifier}
+        hint={t.auth.identifierHint}
+        error={state.fieldErrors?.identifier}
         required
       >
         <Input
-          {...controlProps("email", state.fieldErrors?.email)}
-          type="email"
+          {...controlProps("identifier", state.fieldErrors?.identifier)}
+          // `text`, not `email`: the browser would refuse a username for
+          // having no `@` before the form was ever submitted.
+          type="text"
           autoComplete="username"
-          placeholder="nom@ecole.ma"
+          placeholder="k.bennis"
           dir="ltr"
           autoFocus
           required

@@ -11,6 +11,7 @@ import {
   recordFailedLogin,
 } from "@/lib/login-throttle";
 import { SESSION_ENTITY } from "@/modules/audit/enums";
+import { looksLikeEmail } from "@/modules/users/enums";
 
 /**
  * Auth.js v5. Sessions are JWT-based: the token carries only the user id, and
@@ -35,26 +36,41 @@ export async function verifyPassword(
 }
 
 /**
- * Verifies an email/password pair.
+ * Verifies an identifier and a password.
+ *
+ * ── Why one function takes both a username and an email ─────────────────────
+ * The two audiences sign in at different doors. The web dashboard is a staff
+ * surface, so its form asks for a username; the phone serves guardians too, and
+ * a parent gives the email address the school already holds for them. Both
+ * arrive here, and which column to look in is decided by whether there is an
+ * `@` in what was typed — see `looksLikeEmail`.
+ *
+ * An account with no username is therefore not locked out: nothing about the
+ * email path changed, which is what makes the username rollout safe on a school
+ * whose accounts predate it.
+ *
  * Returns the user id on success, or a reason the caller can turn into a
  * localised message.
  *
- * Rate-limited per address (see lib/login-throttle.ts). The limit is enforced
- * here rather than in the login action because Auth.js's own credentials
- * callback comes through this same function — a guard on the action alone
- * would leave `/api/auth/callback/credentials` unthrottled.
+ * Rate-limited per identifier (see lib/login-throttle.ts). The limit is
+ * enforced here rather than in the login action because Auth.js's own
+ * credentials callback comes through this same function — a guard on the action
+ * alone would leave `/api/auth/callback/credentials` unthrottled.
  */
 export async function checkCredentials(
-  email: string,
+  identifier: string,
   plainPassword: string,
 ): Promise<
   | { ok: true; userId: string; credentialsChangedAt: Date | null }
   | { ok: false; reason: "invalid" | "disabled" }
   | { ok: false; reason: "throttled"; retryAfterSeconds: number }
 > {
-  const normalizedEmail = email.trim().toLowerCase();
+  // Lowercased for both columns: an email is case-insensitive by convention and
+  // a username is by rule, so one normalisation serves and the throttle counter
+  // cannot be reset by varying the capitals.
+  const normalizedEmail = identifier.trim().toLowerCase();
 
-  // Before the hash comparison, so a locked address costs no bcrypt work.
+  // Before the hash comparison, so a locked identifier costs no bcrypt work.
   const throttle = await checkLoginThrottle(normalizedEmail);
   if (throttle.locked) {
     await recordAttempt(normalizedEmail, "LOGIN_BLOCKED", {
@@ -67,8 +83,18 @@ export async function checkCredentials(
     };
   }
 
+  /*
+    An `@` decides which column, rather than trying one and then the other.
+
+    Two lookups would let an attacker tell a real username from a real email by
+    timing, and — worse — would let somebody register a username that happens to
+    equal another account's email local part and shadow them at the login box.
+    One identifier, one column, no ambiguity about whose account was found.
+  */
   const user = await db.user.findUnique({
-    where: { email: normalizedEmail },
+    where: looksLikeEmail(normalizedEmail)
+      ? { email: normalizedEmail }
+      : { username: normalizedEmail },
     select: {
       id: true,
       passwordHash: true,
@@ -154,17 +180,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        // `text`, not `email`: staff sign in with a username, and the browser
+        // must not refuse one for lacking an `@`.
+        identifier: { label: "Identifier", type: "text" },
         password: { label: "Password", type: "password" },
       },
       // Re-verifies even though the login action already checked. Server
       // Functions are reachable directly, so this must never be the only gate.
       authorize: async (credentials) => {
-        const email = credentials?.email;
+        const identifier = credentials?.identifier;
         const plain = credentials?.password;
-        if (typeof email !== "string" || typeof plain !== "string") return null;
+        if (typeof identifier !== "string" || typeof plain !== "string") {
+          return null;
+        }
 
-        const result = await checkCredentials(email, plain);
+        const result = await checkCredentials(identifier, plain);
         if (!result.ok) return null;
 
         const account = await db.user.update({

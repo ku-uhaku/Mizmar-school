@@ -10,6 +10,8 @@ const fr = {
     signInTitle: "Connexion",
     signInSubtitle: "Accédez au tableau de bord d'administration scolaire.",
     email: "Adresse e-mail",
+    identifier: "Nom d’utilisateur",
+    identifierHint: "Votre identifiant d’école. Les parents se connectent sur l’application avec leur courriel.",
     password: "Mot de passe",
     signIn: "Se connecter",
     signingIn: "Connexion…",

@@ -72,7 +72,7 @@ export async function seatCheck(routeId: string): Promise<SeatCheck | null> {
 // zone their stop sat in, which meant the price list and the zone list gave two
 // different answers and the stop silently won. The zones are gone; what a
 // family owes for the bus lives on EnrollmentFee and is decided by the
-// `usesTransport` flag the enrolment form already sets.
+// transport subscription the enrolment form already writes.
 
 // ── Subscriptions ────────────────────────────────────────────────────────────
 
@@ -261,32 +261,69 @@ export async function subscribeRiderToRuns(
 }
 
 /**
- * Keeps `Enrollment.usesTransport` in step with whether the pupil is on a bus,
+ * Keeps the transport subscription in step with whether the pupil is on a bus,
  * and raises the transport lines the first time they are.
  *
- * Billing is decided at enrolment: ticking "Transport" is what puts the flat
- * fee on the échéancier. Seating a child at a stop must therefore change
- * nothing in the ordinary case — the lines are already there and
- * `generateFeeSchedule` is idempotent on (enrolment, fee type, instalment), so
- * it adds nothing.
+ * Billing is decided at enrolment: ticking "Transport" on the enrolment form is
+ * what puts the flat fee on the échéancier. Seating a child at a stop must
+ * therefore change nothing in the ordinary case — the lines are already there
+ * and `generateFeeSchedule` is idempotent on (enrolment, fee type, instalment),
+ * so it adds nothing.
  *
  * It matters in the one case that is not ordinary: a secretary who assigns a
  * circuit without having ticked the box. Without this the child would ride all
  * year unbilled, which is the sort of thing discovered in June. Returns how many
  * lines were raised — zero whenever transport was already on the schedule.
+ *
+ * ── Which charge, now that there is no flag ─────────────────────────────────
+ * The school's own optional charge of kind TRANSPORT, found through the
+ * enrolment's year. A school that has not declared one is telling us it does
+ * not bill for the bus: there is nothing to subscribe to and nothing to raise,
+ * so the seat is given and no charge appears. That is the same answer the old
+ * boolean produced — it set a flag that priced nothing — except that now the
+ * absence is visible in the catalogue rather than hidden in a column.
  */
 async function syncTransportOption(
   enrollmentId: string,
   usesTransport: boolean,
 ): Promise<number> {
-  await db.enrollment.update({
+  const enrolment = await db.enrollment.findUnique({
     where: { id: enrollmentId },
-    data: { usesTransport },
+    select: { schoolYear: { select: { schoolId: true } } },
   });
-  if (!usesTransport) return 0;
+  if (!enrolment) return 0;
+
+  const charge = await db.feeType.findFirst({
+    where: {
+      schoolId: enrolment.schoolYear.schoolId,
+      kind: "TRANSPORT",
+      isActive: true,
+      isMandatory: false,
+    },
+    orderBy: [{ position: "asc" }, { code: "asc" }],
+    select: { id: true },
+  });
+  if (!charge) return 0;
+
+  if (!usesTransport) {
+    await db.enrollmentOption.deleteMany({
+      where: { enrollmentId, feeTypeId: charge.id },
+    });
+    return 0;
+  }
+
+  await db.enrollmentOption.upsert({
+    where: {
+      enrollmentId_feeTypeId: { enrollmentId, feeTypeId: charge.id },
+    },
+    // Left alone when it is already there: the family may have set a start
+    // month at the desk, and seating them at a stop is not a reason to move it.
+    create: { enrollmentId, feeTypeId: charge.id, startsOn: null },
+    update: {},
+  });
 
   const existing = await db.enrollmentFee.count({
-    where: { enrollmentId, feeType: { kind: "TRANSPORT" } },
+    where: { enrollmentId, feeTypeId: charge.id },
   });
   if (existing > 0) return 0;
 
@@ -297,8 +334,8 @@ async function syncTransportOption(
  * Moves a rider to another stop, changes their direction, or suspends them.
  *
  * None of the three changes what they pay: the bus is one flat fee. All that is
- * kept in step is `usesTransport`, so suspending the last abonnement takes the
- * charge off next year's schedule.
+ * kept in step is the transport subscription, so suspending the last abonnement
+ * takes the charge off next year's schedule.
  */
 export async function updateRider(
   subscriptionId: string,

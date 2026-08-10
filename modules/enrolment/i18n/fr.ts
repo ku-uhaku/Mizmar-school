@@ -25,10 +25,10 @@ const fr = {
     leftOn: "Parti le",
     isRepeating: "Redoublant",
     options: "Options",
-    usesTransport: "Transport scolaire",
-    usesCanteen: "Cantine",
     optionsHint:
       "Les frais optionnels ne sont facturés qu'aux familles abonnées.",
+    noOptionalCharges:
+      "Cette école n’a aucune prestation optionnelle à proposer. Ajoutez-en une dans Configuration → Facturation, cochée comme optionnelle.",
     optionStartsOn: "Facturé à partir de",
     optionStartsWithYear: "Le début de l'année",
     optionStartsOnHint:

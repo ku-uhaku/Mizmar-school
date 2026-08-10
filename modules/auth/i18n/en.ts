@@ -10,6 +10,8 @@ const en = {
     signInTitle: "Sign in",
     signInSubtitle: "Access your school administration dashboard.",
     email: "Email address",
+    identifier: "Username",
+    identifierHint: "Your school username. Parents sign in on the app with their email.",
     password: "Password",
     signIn: "Sign in",
     signingIn: "Signing in…",

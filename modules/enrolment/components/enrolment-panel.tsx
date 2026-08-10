@@ -41,7 +41,10 @@ import {
   updateEnrolmentAction,
 } from "@/modules/enrolment/actions";
 import { ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
-import type { EnrolmentDetail } from "@/modules/enrolment/queries";
+import type {
+  EnrolmentDetail,
+  SubscribableCharge,
+} from "@/modules/enrolment/queries";
 
 /** A month an opt-in may start in. `value` is `YYYY-MM`. */
 export type StartMonthChoice = {
@@ -78,6 +81,7 @@ export function EnrolmentPanel({
   enrolment,
   offerings,
   startMonths,
+  subscribableCharges,
   yearName,
   permissions,
 }: {
@@ -86,6 +90,8 @@ export function EnrolmentPanel({
   offerings: OfferingChoice[];
   /** Months an opt-in may start in — see `loadEnrolmentChoices`. */
   startMonths: StartMonthChoice[];
+  /** The optional charges this school sells — see `listSubscribableCharges`. */
+  subscribableCharges: SubscribableCharge[];
   yearName: string | null;
   permissions: { canCreate: boolean; canUpdate: boolean; canDelete: boolean };
 }) {
@@ -107,15 +113,38 @@ export function EnrolmentPanel({
   );
   const [deleting, setDeleting] = React.useState(false);
 
-  // The opt-ins are controlled rather than uncontrolled, unlike the switches
-  // above them: each one reveals a start month, and a month asked for a service
-  // the family has not taken is a question with no meaning.
-  const [usesTransport, setUsesTransport] = React.useState(
-    checkedOf(state, "usesTransport", enrolment?.usesTransport ?? false),
+  /*
+    The opt-ins are controlled rather than uncontrolled, unlike the switches
+    above them: each one reveals a start month, and a month asked for a service
+    the family has not taken is a question with no meaning.
+
+    A set keyed by fee type, because the charges are whatever the school sells —
+    this was two named booleans until a school wanted to sell a third thing.
+  */
+  const [taken, setTaken] = React.useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        subscribableCharges
+          .filter((charge) =>
+            checkedOf(
+              state,
+              `option:${charge.id}`,
+              enrolment?.options.some(
+                (option) => option.feeTypeId === charge.id,
+              ) ?? false,
+            ),
+          )
+          .map((charge) => charge.id),
+      ),
   );
-  const [usesCanteen, setUsesCanteen] = React.useState(
-    checkedOf(state, "usesCanteen", enrolment?.usesCanteen ?? false),
-  );
+
+  const setCharge = (feeTypeId: string, on: boolean) =>
+    setTaken((held) => {
+      const next = new Set(held);
+      if (on) next.add(feeTypeId);
+      else next.delete(feeTypeId);
+      return next;
+    });
 
   const errors = state.fieldErrors ?? {};
   const offering = offerings.find((entry) => entry.id === offeringId) ?? null;
@@ -364,33 +393,28 @@ export function EnrolmentPanel({
                 {t.enrolment.optionsHint}
               </p>
 
-              <OptionRow
-                name="usesTransport"
-                label={t.enrolment.usesTransport}
-                startName="transportStartsOn"
-                checked={usesTransport}
-                onCheckedChange={setUsesTransport}
-                defaultStart={valueOf(
-                  state,
-                  "transportStartsOn",
-                  enrolment?.transportStartsOn,
-                )}
-                months={startMonths}
-              />
-
-              <OptionRow
-                name="usesCanteen"
-                label={t.enrolment.usesCanteen}
-                startName="canteenStartsOn"
-                checked={usesCanteen}
-                onCheckedChange={setUsesCanteen}
-                defaultStart={valueOf(
-                  state,
-                  "canteenStartsOn",
-                  enrolment?.canteenStartsOn,
-                )}
-                months={startMonths}
-              />
+              {subscribableCharges.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  {t.enrolment.noOptionalCharges}
+                </p>
+              ) : (
+                subscribableCharges.map((charge) => (
+                  <OptionRow
+                    key={charge.id}
+                    charge={charge}
+                    checked={taken.has(charge.id)}
+                    onCheckedChange={(on) => setCharge(charge.id, on)}
+                    defaultStart={valueOf(
+                      state,
+                      `optionStart:${charge.id}`,
+                      enrolment?.options.find(
+                        (option) => option.feeTypeId === charge.id,
+                      )?.startsOn,
+                    )}
+                    months={startMonths}
+                  />
+                ))
+              )}
             </fieldset>
 
             <FormField
@@ -444,34 +468,51 @@ export function EnrolmentPanel({
  * that the full year is what is being billed, without knowing that blank means
  * September.
  */
+/**
+ * One optional charge: a switch, and the month it starts being billed from.
+ *
+ * ── Why the three parallel fields ───────────────────────────────────────────
+ * Every row posts `optionFeeTypeId`, `optionSubscribed` and `optionStartsOn`,
+ * ticked or not, so the arrays stay the same length and `readOptions` can pair
+ * them up by index. An unticked switch posting nothing would shift the next
+ * charge's month onto the wrong line — the same trap the mark sheet and the
+ * supply list avoid the same way.
+ *
+ * The month input is only *rendered* when the box is ticked, so its hidden
+ * twin below carries the slot in that case.
+ */
 function OptionRow({
-  name,
-  label,
-  startName,
+  charge,
   checked,
   onCheckedChange,
   defaultStart,
   months,
 }: {
-  name: string;
-  label: string;
-  startName: string;
+  charge: SubscribableCharge;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   defaultStart: string;
   months: StartMonthChoice[];
 }) {
   const { t, locale } = useI18n();
+  const switchId = `option-${charge.id}`;
+  const startId = `optionStart-${charge.id}`;
 
   return (
     <div className="rounded-md border px-3 py-2.5">
-      <div className="flex items-center justify-between gap-4">
-        <Label htmlFor={name} className="cursor-pointer">
-          {label}
+      <input type="hidden" name="optionFeeTypeId" value={charge.id} />
+      <input
+        type="hidden"
+        name="optionSubscribed"
+        value={checked ? "1" : "0"}
+      />
+
+      <div className="flex items-center justify-between gap-3">
+        <Label htmlFor={switchId} className="font-normal">
+          {charge.name}
         </Label>
         <Switch
-          id={name}
-          name={name}
+          id={switchId}
           checked={checked}
           onCheckedChange={onCheckedChange}
         />
@@ -479,11 +520,11 @@ function OptionRow({
 
       {checked && months.length > 0 ? (
         <div className="mt-3 grid gap-1.5 border-t pt-3">
-          <Label htmlFor={startName} className="text-muted-foreground text-xs">
+          <Label htmlFor={startId} className="text-muted-foreground text-xs">
             {t.enrolment.optionStartsOn}
           </Label>
-          <Select name={startName} defaultValue={defaultStart || "__none__"}>
-            <SelectTrigger id={startName} size="sm" className="w-full">
+          <Select name="optionStartsOn" defaultValue={defaultStart || "__none__"}>
+            <SelectTrigger id={startId} size="sm" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -501,7 +542,12 @@ function OptionRow({
             {t.enrolment.optionStartsOnHint}
           </p>
         </div>
-      ) : null}
+      ) : (
+        /* The row's slot in the `optionStartsOn` array, kept filled while the
+           picker is hidden. Without it the arrays fall out of step the moment
+           one charge is unticked. */
+        <input type="hidden" name="optionStartsOn" value="" />
+      )}
     </div>
   );
 }

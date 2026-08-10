@@ -59,6 +59,29 @@ export async function listRoles(context: AuthContext): Promise<RoleRow[]> {
   return roles.map(toRow);
 }
 
+export type SchoolRoleOption = { id: string; name: string };
+
+/**
+ * The school-scoped roles a new account may be granted, name only.
+ *
+ * Separate from `listRoles`, which loads every permission code and two counts
+ * for the roles screen — a picker on a form needs neither, and dragging the
+ * whole permission matrix into a dialog to fill a dropdown is the sort of thing
+ * that makes a form slow for no visible reason.
+ *
+ * Org-scoped roles are excluded: granting one hands its permissions in *every*
+ * school, which is not a thing a staff form should be able to do in passing.
+ */
+export async function listSchoolRoles(
+  context: AuthContext,
+): Promise<SchoolRoleOption[]> {
+  return db.role.findMany({
+    where: { organizationId: context.organization.id, scope: "SCHOOL" },
+    orderBy: [{ name: "asc" }],
+    select: { id: true, name: true },
+  });
+}
+
 /** Null when the role does not exist in this organisation. */
 export async function findRole(
   context: AuthContext,

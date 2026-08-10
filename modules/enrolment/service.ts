@@ -11,7 +11,7 @@ import {
 } from "@/modules/enrolment/enums";
 import {
   buildScheduleLines,
-  FLAG_GATED_FEE_KINDS,
+  isSubscribable,
   type ScheduleLine,
 } from "@/modules/enrolment/schedule";
 import { refreshStudentStatus } from "@/modules/students/service";
@@ -52,10 +52,7 @@ export async function buildFeeSchedule(
   const enrolment = await db.enrollment.findUnique({
     where: { id: enrollmentId },
     select: {
-      usesTransport: true,
-      usesCanteen: true,
-      transportStartsOn: true,
-      canteenStartsOn: true,
+      options: { select: { feeTypeId: true, startsOn: true } },
       levelOffering: { select: { levelId: true } },
       schoolYear: {
         select: {
@@ -97,10 +94,7 @@ export async function buildFeeSchedule(
 
   return buildScheduleLines({
     levelId: enrolment.levelOffering.levelId,
-    usesTransport: enrolment.usesTransport,
-    usesCanteen: enrolment.usesCanteen,
-    transportStartsOn: enrolment.transportStartsOn,
-    canteenStartsOn: enrolment.canteenStartsOn,
+    options: enrolment.options,
     yearStart: schoolYear.startDate,
     yearEnd: schoolYear.endDate,
     termCount: schoolYear._count.terms,
@@ -202,6 +196,101 @@ export async function resolveOptionStart(
 }
 
 /**
+ * What a school can actually sell: its active, optional charges.
+ *
+ * The one list the form renders and the one list an action trusts. An id that
+ * is not in it is refused, so a crafted POST cannot subscribe a pupil to
+ * scolarité — or to another school's club.
+ */
+export type SubscribableCharge = {
+  id: string;
+  code: string;
+  name: string;
+  nameAr: string | null;
+  /** See modules/billing/enums.ts. For grouping and icons, never for billing. */
+  kind: string;
+};
+
+export async function listSubscribableCharges(
+  schoolId: string,
+): Promise<SubscribableCharge[]> {
+  return db.feeType.findMany({
+    where: { schoolId, isActive: true, isMandatory: false },
+    orderBy: [{ position: "asc" }, { code: "asc" }],
+    select: { id: true, code: true, name: true, nameAr: true, kind: true },
+  });
+}
+
+/**
+ * Replaces an enrolment's whole set of opt-ins.
+ *
+ * ── Why the whole set, rather than a diff ───────────────────────────────────
+ * The form posts every sellable charge with a tick or without one, so what
+ * arrives *is* the complete answer — and writing it as a replacement means an
+ * un-ticked box removes its row without the caller having to work out which
+ * boxes changed. Half a dozen rows per pupil at most, so the write is cheap.
+ *
+ * Two things are re-derived rather than trusted, because both come from a form:
+ *
+ *   * the charge must be one this school actually sells — see
+ *     `listSubscribableCharges`. An id from elsewhere subscribes nobody.
+ *   * the start month must fall inside the enrolment's own year — see
+ *     `resolveOptionStart`, which returns null for anything outside it, and
+ *     null already means "from the start of the year".
+ *
+ * Returns the ids kept, so a caller can tell whether anything was refused.
+ */
+export async function replaceOptions(
+  enrollmentId: string,
+  inputs: readonly { feeTypeId: string; startsOn: string | null }[],
+): Promise<string[]> {
+  const enrolment = await db.enrollment.findUnique({
+    where: { id: enrollmentId },
+    select: {
+      schoolYearId: true,
+      schoolYear: { select: { schoolId: true } },
+    },
+  });
+  if (!enrolment) return [];
+
+  const sellable = new Set(
+    (await listSubscribableCharges(enrolment.schoolYear.schoolId)).map(
+      (charge) => charge.id,
+    ),
+  );
+
+  const wanted = inputs.filter((input) => sellable.has(input.feeTypeId));
+
+  const resolved = await Promise.all(
+    wanted.map(async (input) => ({
+      feeTypeId: input.feeTypeId,
+      startsOn: await resolveOptionStart(enrolment.schoolYearId, input.startsOn),
+    })),
+  );
+
+  const keep = resolved.map((option) => option.feeTypeId);
+
+  await db.$transaction(async (tx) => {
+    // Gone first, so a charge dropped this save cannot survive the upserts.
+    await tx.enrollmentOption.deleteMany({
+      where: { enrollmentId, feeTypeId: { notIn: keep } },
+    });
+
+    for (const option of resolved) {
+      await tx.enrollmentOption.upsert({
+        where: {
+          enrollmentId_feeTypeId: { enrollmentId, feeTypeId: option.feeTypeId },
+        },
+        create: { enrollmentId, ...option },
+        update: { startsOn: option.startsOn },
+      });
+    }
+  });
+
+  return keep;
+}
+
+/**
  * Brings the opt-in charges back in line with the enrolment's flags and start
  * months, after either has been edited.
  *
@@ -213,9 +302,11 @@ export async function resolveOptionStart(
  *
  * Three things keep that from being dangerous:
  *
- *   1. **Only the flag-gated kinds.** Scolarité is billed to everyone and a
- *      club was added by hand; neither is decided by these switches, so neither
- *      is touched. See `FLAG_GATED_FEE_KINDS`.
+ *   1. **Only the optional charges.** Scolarité is billed to everyone and is
+ *      not the family's to drop, so it is never touched. Every charge the school
+ *      marked optional *is* in scope — which it was not before, when this read
+ *      a hardcoded list of two kinds and a school's own club could be added by
+ *      hand and then never taken off again. See `isSubscribable`.
  *   2. **Only unpaid lines.** A line a receipt has settled is history. It stays,
  *      and the bursar waives or refunds it deliberately — silently deleting it
  *      would leave a posted allocation pointing at nothing. A *cancelled*
@@ -235,9 +326,13 @@ export async function resyncOptionalCharges(
 ): Promise<{ added: number; removed: number }> {
   const enrolment = await db.enrollment.findUnique({
     where: { id: enrollmentId },
-    select: { usesTransport: true, usesCanteen: true },
+    select: { options: { select: { feeTypeId: true } } },
   });
   if (!enrolment) return { added: 0, removed: 0 };
+
+  const subscribed = new Set(
+    enrolment.options.map((option) => option.feeTypeId),
+  );
 
   const lines = await buildFeeSchedule(enrollmentId);
   const wanted = new Set(
@@ -248,9 +343,7 @@ export async function resyncOptionalCharges(
   const spokenFor = new Set(lines.map((line) => line.feeTypeId));
 
   /** Whether the family has withdrawn from a charge outright. */
-  const dropped = (kind: string) =>
-    (kind === "TRANSPORT" && !enrolment.usesTransport) ||
-    (kind === "CANTEEN" && !enrolment.usesCanteen);
+  const dropped = (feeTypeId: string) => !subscribed.has(feeTypeId);
 
   return db.$transaction(async (tx) => {
     const existing = await tx.enrollmentFee.findMany({
@@ -259,7 +352,7 @@ export async function resyncOptionalCharges(
         id: true,
         feeTypeId: true,
         periodIndex: true,
-        feeType: { select: { kind: true } },
+        feeType: { select: { isMandatory: true } },
         // Only money that still counts, exactly as `canChangeLevel` reads it.
         // Counting every allocation regardless of its receipt meant a cancelled
         // one went on pinning the line for ever: the family withdrew from the
@@ -273,21 +366,13 @@ export async function resyncOptionalCharges(
     });
 
     const stale = existing.filter((line) => {
-      const kind = line.feeType.kind;
-
-      if (
-        !FLAG_GATED_FEE_KINDS.includes(
-          kind as (typeof FLAG_GATED_FEE_KINDS)[number],
-        )
-      ) {
-        return false;
-      }
+      if (!isSubscribable(line.feeType)) return false;
       if (line._count.allocations > 0) return false;
       if (wanted.has(`${line.feeTypeId}:${line.periodIndex}`)) return false;
 
       // Withdrawn outright, or moved out of range by a later start month. The
       // second only counts when the rebuild still prices this charge at all.
-      return dropped(kind) || spokenFor.has(line.feeTypeId);
+      return dropped(line.feeTypeId) || spokenFor.has(line.feeTypeId);
     });
 
     if (stale.length > 0) {

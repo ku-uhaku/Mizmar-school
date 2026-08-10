@@ -109,6 +109,7 @@ export async function seedAdmin(
     create: {
       organizationId,
       email: adminEmail,
+      username: usernameFromEmail(adminEmail),
       passwordHash,
       isSuperAdmin: true,
       orgRoleId: roles["Administrateur"],
@@ -143,6 +144,21 @@ function nameFor(index: number): { first: string; last: string } {
     first: FIRST_NAMES[index % FIRST_NAMES.length],
     last: LAST_NAMES[Math.floor(index / FIRST_NAMES.length) % LAST_NAMES.length],
   };
+}
+
+/**
+ * The username a seeded account signs in with: the local part of its email.
+ *
+ * `karim.bennis@almanar.ma` becomes `karim.bennis`, which is exactly what the
+ * migration that added the column derived for accounts that predate it — so a
+ * seeded school and a migrated one agree about what everybody types, and the
+ * demo credentials printed at the end of the seed stay true.
+ *
+ * Set on create only. A re-seed must not reset a username an administrator has
+ * since changed, which is why it is absent from every `update` below.
+ */
+function usernameFromEmail(email: string): string {
+  return email.split("@")[0]!.toLowerCase();
 }
 
 function emailFor(first: string, last: string): string {
@@ -259,6 +275,7 @@ export async function seedUsers(
       create: {
         organizationId,
         email: person.email,
+        username: usernameFromEmail(person.email),
         passwordHash,
         orgRoleId: person.orgRole ? roles[person.orgRole] : null,
         currentSchoolId: firstSchool,

@@ -11,7 +11,7 @@ import {
   feeRateScopeKey,
   splitIntoInstalments,
 } from "@/modules/billing/enums";
-import { FLAG_GATED_FEE_KINDS } from "@/modules/enrolment/schedule";
+import { isSubscribable } from "@/modules/enrolment/schedule";
 
 /**
  * La liste des prix: what a school charges, before anybody is charged it.
@@ -92,22 +92,34 @@ describe("what a charge can be", () => {
     expect(FEE_KINDS.at(-1)).toBe("OTHER");
   });
 
-  it("agrees with the échéancier about which kinds a switch decides", () => {
-    // `buildScheduleLines` gates TRANSPORT and CANTEEN on the enrolment's own
-    // flags, and `resyncOptionalCharges` will *withdraw* only those two. A kind
-    // named in one file and not the other would either bill a family for a
-    // service they cancelled or delete a line a bursar added by hand.
-    for (const kind of FLAG_GATED_FEE_KINDS) {
-      expect(FEE_KINDS, kind).toContain(kind);
-    }
-    expect([...FLAG_GATED_FEE_KINDS]).toEqual(["TRANSPORT", "CANTEEN"]);
+  it("lets the catalogue decide what is optional, not the kind", () => {
+    /*
+      This used to assert that `FLAG_GATED_FEE_KINDS` was exactly
+      ["TRANSPORT", "CANTEEN"] — the two kinds the échéancier would gate on a
+      switch, and the only two `resyncOptionalCharges` would ever withdraw.
+
+      That pairing was the bug, not the contract. It meant the *catalogue* was
+      configurable and the *opt-ins* were not: a school could declare "Club de
+      football" as an optional charge and then find no way at all to sell it,
+      because nothing outside those two names could be subscribed to. See
+      EnrollmentOption.
+
+      What replaces it is one flag on the charge itself, which is what
+      `isMandatory` already meant.
+    */
+    expect(isSubscribable({ isMandatory: false })).toBe(true);
+    expect(isSubscribable({ isMandatory: true })).toBe(false);
   });
 
-  it("leaves a club to be added by hand rather than given a flag", () => {
-    // There is no boolean for it on Enrollment, and inventing one per charge
-    // would put a column on the table for every club a school ever opens.
+  it("sells a club on the same terms as the bus", () => {
+    // The case the old design could not express. A club and the bus are both
+    // just optional charges now, and neither is named anywhere in the billing
+    // logic — the kind is for grouping a report, not for deciding a charge.
     expect(FEE_KINDS).toContain("CLUB");
-    expect(FLAG_GATED_FEE_KINDS).not.toContain("CLUB");
+    for (const kind of ["CLUB", "TRANSPORT", "CANTEEN", "UNIFORM"]) {
+      expect(FEE_KINDS, kind).toContain(kind);
+      expect(isSubscribable({ isMandatory: false }), kind).toBe(true);
+    }
   });
 
   it("separates what is quoted from how it is collected", () => {

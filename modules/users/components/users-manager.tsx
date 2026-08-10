@@ -44,6 +44,8 @@ import { ageFrom } from "@/lib/utils";
 export type UserRow = {
   id: string;
   email: string;
+  /** What they sign in with. Null for an account that does not — see User.username. */
+  username: string | null;
   firstName: string;
   lastName: string;
   phone: string | null;

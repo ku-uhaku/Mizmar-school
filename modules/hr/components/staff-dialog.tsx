@@ -17,6 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -26,12 +28,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { valueOf } from "@/lib/form-values";
+import { checkedOf, valueOf } from "@/lib/form-values";
 import { toDateInputValue } from "@/lib/i18n/format";
 import { saveStaffAction } from "@/modules/hr/actions";
 import { JOB_ROLES, STAFF_STATUSES } from "@/modules/hr/enums";
 import type { StaffDetail } from "@/modules/hr/queries";
 import { GENDERS } from "@/modules/students/enums";
+import { suggestUsername } from "@/modules/users/enums";
 
 /**
  * The employee form, for creating one and for editing one.
@@ -57,19 +60,51 @@ import { GENDERS } from "@/modules/students/enums";
 export function StaffDialog({
   person,
   linkableUsers,
+  schoolRoles,
   canPayroll,
+  canCreateAccount,
   onClose,
 }: {
   /** Null to create. */
   person: StaffDetail | null;
   linkableUsers: { id: string; label: string }[];
+  /** School-scoped roles a new login may be granted. */
+  schoolRoles: { id: string; name: string }[];
   canPayroll: boolean;
+  /** USER_CREATE. Minting a login is not the same authority as hiring. */
+  canCreateAccount: boolean;
   onClose: () => void;
 }) {
   const t = useT();
   const [state, formAction] = React.useActionState(saveStaffAction, IDLE);
   useActionFeedback(state, { onSuccess: onClose });
   const errors = state.fieldErrors ?? {};
+
+  /*
+    The username follows the name until somebody overrides it — the same rule
+    the user form uses, and the same reason: it is a suggestion, not a decision.
+  */
+  const [firstName, setFirstName] = React.useState(
+    valueOf(state, "firstName", person?.firstName),
+  );
+  const [lastName, setLastName] = React.useState(
+    valueOf(state, "lastName", person?.lastName),
+  );
+  const [createAccount, setCreateAccount] = React.useState(
+    checkedOf(state, "createAccount", false),
+  );
+  const [username, setUsername] = React.useState(
+    valueOf(state, "accountUsername", ""),
+  );
+  const [touchedUsername, setTouchedUsername] = React.useState(false);
+
+  const shownUsername = touchedUsername
+    ? username
+    : suggestUsername(firstName, lastName);
+
+  // Only when hiring. An employee who already signs in has an account, and the
+  // switch would offer to mint them a second one.
+  const offerAccount = canCreateAccount && !person?.userId;
 
   return (
     <Dialog open onOpenChange={(open) => (!open ? onClose() : undefined)}>
@@ -93,7 +128,8 @@ export function StaffDialog({
                 id="firstName"
                 name="firstName"
                 required
-                defaultValue={valueOf(state, "firstName", person?.firstName)}
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
               />
             </FormField>
             <FormField
@@ -106,7 +142,8 @@ export function StaffDialog({
                 id="lastName"
                 name="lastName"
                 required
-                defaultValue={valueOf(state, "lastName", person?.lastName)}
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
               />
             </FormField>
           </div>
@@ -338,6 +375,87 @@ export function StaffDialog({
                 }))}
               />
             </FormField>
+          ) : null}
+
+          {/*
+            Giving a new hire a login. Behind USER_CREATE and only when the
+            record has none — see `offerAccount`, and the note in the action.
+          */}
+          {offerAccount ? (
+            <fieldset className="grid gap-3 rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="createAccount" className="font-medium">
+                    {t.hr.createAccount}
+                  </Label>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {t.hr.createAccountHint}
+                  </p>
+                </div>
+                <Switch
+                  id="createAccount"
+                  name="createAccount"
+                  checked={createAccount}
+                  onCheckedChange={setCreateAccount}
+                />
+              </div>
+
+              {createAccount ? (
+                <div className="grid gap-3 border-t pt-3">
+                  <FormField
+                    label={t.user.username}
+                    name="accountUsername"
+                    hint={t.user.usernameHint}
+                    error={errors.accountUsername}
+                  >
+                    <Input
+                      id="accountUsername"
+                      name="accountUsername"
+                      dir="ltr"
+                      spellCheck={false}
+                      autoComplete="off"
+                      value={shownUsername}
+                      onChange={(event) => {
+                        setTouchedUsername(true);
+                        setUsername(event.target.value);
+                      }}
+                    />
+                  </FormField>
+
+                  <FormField
+                    label={t.hr.accountPassword}
+                    name="accountPassword"
+                    hint={t.hr.accountPasswordHint}
+                    error={errors.accountPassword}
+                  >
+                    <Input
+                      id="accountPassword"
+                      name="accountPassword"
+                      type="password"
+                      autoComplete="new-password"
+                    />
+                  </FormField>
+
+                  <FormField
+                    label={t.hr.accountRole}
+                    name="accountRoleId"
+                    hint={t.hr.accountRoleHint}
+                    error={errors.accountRoleId}
+                  >
+                    <Combobox
+                      id="accountRoleId"
+                      name="accountRoleId"
+                      defaultValue="__none__"
+                      emptyOption={{ value: "__none__", label: t.hr.noAccount }}
+                      options={schoolRoles.map((role) => ({
+                        value: role.id,
+                        label: role.name,
+                      }))}
+                    />
+                  </FormField>
+                </div>
+              ) : null}
+            </fieldset>
           ) : null}
 
           <FormField label={t.hr.notes} name="notes">

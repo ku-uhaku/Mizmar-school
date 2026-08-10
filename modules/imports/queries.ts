@@ -57,8 +57,9 @@ export async function exportStudentRows(
         select: {
           isRepeating: true,
           enrolledOn: true,
-          usesTransport: true,
-          usesCanteen: true,
+          // The two the export template carries, read off the subscriptions —
+          // see EnrollmentOption. Keyed on the kind, as the services report is.
+          options: { select: { feeType: { select: { kind: true } } } },
           schoolClass: { select: { code: true } },
           levelOffering: {
             select: {
@@ -145,14 +146,30 @@ export async function exportStudentRows(
       className: enrolment?.schoolClass?.code ?? "",
       enrolledOn: enrolment?.enrolledOn.toISOString().slice(0, 10) ?? "",
       isRepeating: enrolment ? yesNo(enrolment.isRepeating) : "",
-      usesTransport: enrolment ? yesNo(enrolment.usesTransport) : "",
+      usesTransport: enrolment ? yesNo(takes(enrolment, "TRANSPORT")) : "",
       routeName: subscription?.route.name ?? "",
       stopName: subscription?.stop.name ?? "",
-      usesCanteen: enrolment ? yesNo(enrolment.usesCanteen) : "",
+      usesCanteen: enrolment ? yesNo(takes(enrolment, "CANTEEN")) : "",
     };
 
     return IMPORT_COLUMNS.map((column) => cells[column.key] ?? "");
   });
 
   return [header, ...body];
+}
+
+/**
+ * Whether the family took the school's charge of this kind.
+ *
+ * The template has a Transport column and a Cantine column, so the export reads
+ * the subscriptions back through `FeeType.kind` — the same key the services
+ * report uses, and what the kind is for. A club the school sells has no column
+ * in the template and so does not appear; widening the template is a separate
+ * decision from where the data lives.
+ */
+function takes(
+  enrolment: { options: { feeType: { kind: string } }[] },
+  kind: string,
+): boolean {
+  return enrolment.options.some((option) => option.feeType.kind === kind);
 }

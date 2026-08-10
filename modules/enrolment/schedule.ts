@@ -20,10 +20,18 @@ import {
 
 export type FeeTypeInput = {
   id: string;
-  /** See modules/billing/enums.ts — decides which opt-in flag gates it. */
+  /** See modules/billing/enums.ts. Grouping and reporting only — what a charge
+   * is *for* no longer decides whether it is billed. */
   kind: string;
   billingCycle: string;
   isMandatory: boolean;
+};
+
+/** One charge a family has opted into. See EnrollmentOption. */
+export type OptionInput = {
+  feeTypeId: string;
+  /** Null = from the start of the year. See the note on the column. */
+  startsOn: Date | null;
 };
 
 export type FeeRateInput = {
@@ -41,14 +49,15 @@ export type FeeRateInput = {
 export type ScheduleInput = {
   /** The level the pupil is admitted to, for resolving the level-specific price. */
   levelId: string;
-  usesTransport: boolean;
-  usesCanteen: boolean;
   /**
-   * When each opt-in begins, for a family that signs up after the rentrée. Null
-   * means from the start of the year — see the note on `Enrollment`.
+   * The optional charges this family has signed up for, and from when.
+   *
+   * This used to be two booleans and two dates, and `isSubscribed` switched on
+   * `FeeType.kind` to decide which gated what — so the catalogue was
+   * configurable and the opt-ins were not. A charge absent from this list is
+   * simply not billed, whatever its kind. See EnrollmentOption.
    */
-  transportStartsOn: Date | null;
-  canteenStartsOn: Date | null;
+  options: OptionInput[];
   yearStart: Date;
   yearEnd: Date;
   termCount: number;
@@ -77,56 +86,36 @@ export type ScheduleLine = {
   status: string;
 };
 
-/** A charge only some families take. Everything else is billed to everyone. */
-function isSubscribed(
-  feeKind: string,
-  options: { usesTransport: boolean; usesCanteen: boolean },
-): boolean {
-  switch (feeKind) {
-    case "TRANSPORT":
-      return options.usesTransport;
-    case "CANTEEN":
-      return options.usesCanteen;
-    // Any other optional charge (a club, a uniform) is opted into per pupil by
-    // adding its line by hand; there is no flag for it, and inventing one per
-    // charge would put a boolean column on Enrollment for every club a school
-    // ever opens.
-    default:
-      return false;
-  }
+/**
+ * The opt-in for a charge, or null when the family has not taken it.
+ *
+ * One lookup where there used to be two `switch (feeKind)` statements — one
+ * deciding whether a charge was subscribed, one finding its start month. Both
+ * knew the names TRANSPORT and CANTEEN, and neither could be taught a third.
+ */
+function optionFor(
+  feeTypeId: string,
+  options: readonly OptionInput[],
+): OptionInput | null {
+  return options.find((option) => option.feeTypeId === feeTypeId) ?? null;
 }
 
 /**
- * The month a subscribed charge starts being owed from, when it is not the
- * start of the year.
+ * Whether a charge's lines are wholly decided by an opt-in, and may therefore
+ * be withdrawn again when the family changes their mind.
  *
- * Only the flag-gated charges can have one: a mandatory fee is owed by everyone
- * from the rentrée, and a club added by hand is added with the months it is
- * wanted for. Null for everything else, which means "from the top".
+ * `isMandatory` is the whole test now. It used to be a hardcoded
+ * `FLAG_GATED_FEE_KINDS = ["TRANSPORT", "CANTEEN"]`, which meant a school's own
+ * optional charge — a club, a uniform — could be subscribed to by nobody and
+ * un-subscribed from by nobody: the resync did not recognise it, so a line once
+ * added by hand could never be taken off again.
+ *
+ * Everything mandatory is billed to everyone and is not the subscriber's to
+ * drop, which is exactly what this excludes. See `resyncOptionalCharges`.
  */
-function subscriptionStartOf(
-  feeKind: string,
-  options: { transportStartsOn: Date | null; canteenStartsOn: Date | null },
-): Date | null {
-  switch (feeKind) {
-    case "TRANSPORT":
-      return options.transportStartsOn;
-    case "CANTEEN":
-      return options.canteenStartsOn;
-    default:
-      return null;
-  }
+export function isSubscribable(feeType: { isMandatory: boolean }): boolean {
+  return !feeType.isMandatory;
 }
-
-/**
- * The kinds whose lines are wholly decided by an opt-in flag and its start
- * month, and which may therefore be withdrawn again when either changes.
- *
- * Everything else on a schedule was either billed to everyone or put there by
- * hand, and a resync that removed those would quietly delete a bursar's work —
- * see `resyncOptionalCharges`.
- */
-export const FLAG_GATED_FEE_KINDS = ["TRANSPORT", "CANTEEN"] as const;
 
 export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
   const monthsInYear = monthsOfYear(input.yearStart, input.yearEnd).length;
@@ -136,7 +125,12 @@ export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
   const lines: ScheduleLine[] = [];
 
   for (const feeType of input.feeTypes) {
-    if (!feeType.isMandatory && !isSubscribed(feeType.kind, input)) continue;
+    // A charge is billed when the school makes it compulsory, or when this
+    // family has asked for it. Nothing here knows what kind of charge it is.
+    const option = isSubscribable(feeType)
+      ? optionFor(feeType.id, input.options)
+      : null;
+    if (isSubscribable(feeType) && option === null) continue;
 
     // The level's own price wins over the "every level" one — that is what
     // makes a null `levelId` on a rate mean a default rather than a competing
@@ -187,7 +181,7 @@ export function buildScheduleLines(input: ScheduleInput): ScheduleLine[] {
     // is half the (enrolment, feeType, periodIndex) unique the schedule is made
     // idempotent by, so a mid-year start must not renumber January to 1 and
     // collide with the September line of a family that started on time.
-    const startsFrom = subscriptionStartOf(feeType.kind, input);
+    const startsFrom = option?.startsOn ?? null;
     const firstBillableMonth =
       startsFrom === null ? null : monthOrdinal(startsFrom);
 

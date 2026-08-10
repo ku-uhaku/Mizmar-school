@@ -67,13 +67,25 @@ export async function loginAction(
 ): Promise<ActionState> {
   const t = await getDictionary();
 
+  /*
+    A plain required string, deliberately not `z.email()`.
+
+    Staff sign in with a username now, so validating the box as an email would
+    refuse `k.bennis` before it ever reached the database. What was typed is
+    only ever an *identifier* here; which column it is looked up in is decided
+    in `checkCredentials`, and whether it matches anything is decided by the
+    row. Nothing is gained by guessing at the shape first — a malformed address
+    and a username nobody holds deserve the same answer, and giving them the
+    same answer is also what stops the form telling a stranger which accounts
+    exist.
+  */
   const schema = z.object({
-    email: z.email({ error: t.validation.email }),
+    identifier: z.string().trim().min(1, { error: t.validation.required }),
     password: z.string().min(1, { error: t.validation.required }),
   });
 
   const parsed = schema.safeParse({
-    email: field(formData, "email"),
+    identifier: field(formData, "identifier"),
     password: formData.get("password"),
   });
 
@@ -83,7 +95,7 @@ export async function loginAction(
 
   const result = await withActionErrors(async () => {
     const check = await checkCredentials(
-      parsed.data.email,
+      parsed.data.identifier,
       parsed.data.password,
     );
 
@@ -107,7 +119,7 @@ export async function loginAction(
 
     // Auth.js re-verifies the credentials in its own `authorize` callback.
     await signIn("credentials", {
-      email: parsed.data.email,
+      identifier: parsed.data.identifier,
       password: parsed.data.password,
       redirect: false,
     });

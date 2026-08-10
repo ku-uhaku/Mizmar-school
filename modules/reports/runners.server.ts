@@ -621,25 +621,39 @@ const RUNNERS: Record<string, Runner> = {
         status: { in: ["ACTIVE", "PENDING"] },
         // Only the pupils who take something: a list of everybody with two
         // empty columns is not the list anybody asked for.
-        OR: [{ usesTransport: true }, { usesCanteen: true }],
+        options: { some: { feeType: { kind: { in: ["TRANSPORT", "CANTEEN"] } } } },
       },
       orderBy: [{ student: { lastName: "asc" } }],
       take: ROW_CAP + 1,
       select: {
-        usesTransport: true,
-        usesCanteen: true,
+        /*
+          Read through the subscriptions rather than off two columns, which is
+          where these used to live — see EnrollmentOption.
+
+          Keyed on `FeeType.kind` and not on a particular fee type, because this
+          report is *about* the bus and the cantine specifically: it is what the
+          driver and the caterer are handed. That is precisely the job the kind
+          exists for — "grouping on an invoice and on the accountant's report
+          far more than behaviour", as billing/enums.ts puts it. A school that
+          sells three clubs sees none of them here, and should not: this is not
+          the list of everything optional.
+        */
+        options: { select: { feeType: { select: { kind: true } } } },
         student: { select: { code: true, firstName: true, lastName: true } },
         schoolClass: { select: { code: true } },
       },
     });
 
-    return rows.map((row) => ({
-      code: row.student.code,
-      pupil: fullName(row.student),
-      class: row.schoolClass?.code ?? null,
-      transport: flag(row.usesTransport),
-      canteen: flag(row.usesCanteen),
-    }));
+    return rows.map((row) => {
+      const kinds = new Set(row.options.map((option) => option.feeType.kind));
+      return {
+        code: row.student.code,
+        pupil: fullName(row.student),
+        class: row.schoolClass?.code ?? null,
+        transport: flag(kinds.has("TRANSPORT")),
+        canteen: flag(kinds.has("CANTEEN")),
+      };
+    });
   },
 
   /*
