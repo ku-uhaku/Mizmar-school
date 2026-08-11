@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
+import { withCodeRetry } from "@/lib/allocation";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
@@ -189,14 +190,19 @@ export async function createStudentAction(
       );
     }
 
-    const code = parsed.data.code ?? (await allocateStudentCode(schoolId));
-
-    const duplicate = await db.student.findUnique({
-      where: { schoolId_code: { schoolId, code } },
-      select: { id: true },
-    });
-    if (duplicate) {
-      return failure(t.student.codeTaken, { code: t.student.codeTaken });
+    // Only a matricule the secretary typed is checked here. A generated one is
+    // retried instead, further down: losing the race to the other guichet is
+    // not the same thing as asking for a number somebody already holds, and
+    // reporting it as "code taken" sends her hunting for a pupil who does not
+    // exist.
+    if (parsed.data.code) {
+      const duplicate = await db.student.findUnique({
+        where: { schoolId_code: { schoolId, code: parsed.data.code } },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return failure(t.student.codeTaken, { code: t.student.codeTaken });
+      }
     }
 
     if (parsed.data.massarCode) {
@@ -212,10 +218,19 @@ export async function createStudentAction(
     }
 
     const columns = await toColumns(parsed.data, schoolId);
-    const student = await db.student.create({
-      data: { ...columns, code, schoolId },
-      select: { id: true },
-    });
+    const create = (code: string) =>
+      db.student.create({
+        data: { ...columns, code, schoolId },
+        select: { id: true },
+      });
+
+    // The allocation is inside the retry, not outside it: re-running the insert
+    // with the number it already lost would fail identically five times over.
+    const student = parsed.data.code
+      ? await create(parsed.data.code)
+      : await withCodeRetry(async () =>
+          create(await allocateStudentCode(schoolId)),
+        );
 
     refresh();
     // Straight to the new file rather than back to the list: the parcours
@@ -325,17 +340,20 @@ export async function enrolNewStudentAction(
         );
       }
 
-      const familyCode = await allocateFamilyCode(schoolId);
-      const familyDuplicate = await db.family.findUnique({
-        where: { schoolId_code: { schoolId, code: familyCode } },
-        select: { id: true },
-      });
-      if (familyDuplicate) return failure(t.family.codeTaken);
-
-      const family = await db.family.create({
-        data: { ...familyParsed.data, code: familyCode, schoolId },
-        select: { id: true },
-      });
+      // The dossier's code is always generated here — the wizard never asks for
+      // one — so a collision is only ever a lost race, and retrying is the whole
+      // answer. Checking for a duplicate first would report "code taken" about a
+      // number the secretary never chose.
+      const family = await withCodeRetry(async () =>
+        db.family.create({
+          data: {
+            ...familyParsed.data,
+            code: await allocateFamilyCode(schoolId),
+            schoolId,
+          },
+          select: { id: true },
+        }),
+      );
       familyId = family.id;
 
       // ── Tuteur ─────────────────────────────────────────────────────────────
@@ -423,18 +441,19 @@ export async function enrolNewStudentAction(
       );
     }
 
-    const studentCode = await allocateStudentCode(schoolId);
-    const studentDuplicate = await db.student.findUnique({
-      where: { schoolId_code: { schoolId, code: studentCode } },
-      select: { id: true },
-    });
-    if (studentDuplicate) return failure(t.student.codeTaken);
-
+    // Generated, never typed — same as the dossier above, so a collision is a
+    // lost race and not a matricule anybody chose.
     const columns = await toColumns(studentParsed.data, schoolId);
-    const student = await db.student.create({
-      data: { ...columns, code: studentCode, schoolId },
-      select: { id: true },
-    });
+    const student = await withCodeRetry(async () =>
+      db.student.create({
+        data: {
+          ...columns,
+          code: await allocateStudentCode(schoolId),
+          schoolId,
+        },
+        select: { id: true },
+      }),
+    );
 
     // ── Inscription ──────────────────────────────────────────────────────────
     const enrolmentParsed = enrolmentSchema(t).safeParse({
@@ -519,15 +538,20 @@ export async function updateStudentAction(
       );
     }
 
-    const code =
-      parsed.data.code ?? (await allocateStudentCode(existing.schoolId));
-
-    const duplicate = await db.student.findFirst({
-      where: { schoolId: existing.schoolId, code, NOT: { id: studentId } },
-      select: { id: true },
-    });
-    if (duplicate) {
-      return failure(t.student.codeTaken, { code: t.student.codeTaken });
+    // As on create: a typed matricule is checked and refused, a generated one
+    // is retried below.
+    if (parsed.data.code) {
+      const duplicate = await db.student.findFirst({
+        where: {
+          schoolId: existing.schoolId,
+          code: parsed.data.code,
+          NOT: { id: studentId },
+        },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return failure(t.student.codeTaken, { code: t.student.codeTaken });
+      }
     }
 
     if (parsed.data.massarCode) {
@@ -547,10 +571,14 @@ export async function updateStudentAction(
     }
 
     const columns = await toColumns(parsed.data, existing.schoolId);
-    await db.student.update({
-      where: { id: studentId },
-      data: { ...columns, code },
-    });
+    const update = (code: string) =>
+      db.student.update({ where: { id: studentId }, data: { ...columns, code } });
+
+    await (parsed.data.code
+      ? update(parsed.data.code)
+      : withCodeRetry(async () =>
+          update(await allocateStudentCode(existing.schoolId)),
+        ));
 
     refresh();
     return success(t.student.updated);

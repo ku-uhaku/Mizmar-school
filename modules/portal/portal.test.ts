@@ -360,6 +360,58 @@ describe("visibility gates", () => {
     const grades = callsTo("assessmentGrade")[0];
     expect(JSON.stringify(grades?.args["where"])).not.toContain("student-mine");
   });
+
+  /*
+    The average is on the school's scale, not on a literal twenty.
+
+    This normalised each paper by its own maxScore and then multiplied by 20, so
+    a school marking out of 100 — which SchoolSettings.gradingMaxScore exists to
+    allow — showed its parents 14.5 for a child every staff screen called 72.5.
+    Two numbers nobody can reconcile over a telephone.
+  */
+  it("normalises the average onto the school's own scale", async () => {
+    answers["enrollment.findFirst"] = {
+      id: "enrol-1",
+      studentId: "student-mine",
+      schoolYearId: "year-1",
+      student: {
+        firstName: "Sara",
+        lastName: "Alami",
+        schoolId: "school-cent",
+      },
+    };
+    answers["schoolSettings.findUnique"] = { gradingMaxScore: 100 };
+    answers["assessmentGrade.findMany"] = [
+      {
+        id: "grade-1",
+        score: 8,
+        isAbsent: false,
+        comment: null,
+        assessment: {
+          title: "Contrôle 1",
+          scheduledOn: null,
+          maxScore: 10,
+          subject: { name: "Maths" },
+          assessmentType: { name: "Contrôle" },
+          term: { name: "Trimestre 1" },
+        },
+      },
+    ];
+
+    const result = await portal.loadChildMarks(USER, "student-mine");
+
+    // 8/10 of a hundred, which is what the school itself would say.
+    expect(result).toMatchObject({ average: 80, outOf: 100 });
+  });
+
+  it("falls back to the default scale for a child that is not this household's", async () => {
+    // No enrolment resolves, so there is no school to ask — and asking one
+    // would answer a question the caller has not earned the right to put.
+    const result = await portal.loadChildMarks(USER, FOREIGN_CHILD);
+
+    expect(result).toEqual({ marks: [], average: null, outOf: 20 });
+    expect(callsTo("schoolSettings")).toHaveLength(0);
+  });
 });
 
 // ── The first look ───────────────────────────────────────────────────────────

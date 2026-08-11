@@ -23,7 +23,7 @@ import { seedFamilies } from "@/modules/families/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/seed";
 import { seedMassarDemo } from "@/modules/massar/seed";
-import { seedOrganization } from "@/modules/organization/seed";
+import { DEMO_ORGANIZATION, seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
 import { seedStudents } from "@/modules/students/seed";
@@ -343,7 +343,7 @@ async function main() {
   console.log("Seeding…\n");
 
   await seedPermissions(db);
-  const organization = await seedOrganization(db);
+  const organization = await seedOrganization(db, DEMO_ORGANIZATION);
   const roles = await seedRoles(db, organization.id);
 
   /** Mobile logins opened per school, reported at the end. */

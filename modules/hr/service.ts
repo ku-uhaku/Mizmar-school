@@ -76,11 +76,11 @@ export async function allocateStaffCode(
   const { staffCodeFormat } = await loadSchoolSettings(schoolId);
   const prefix = codePrefixOf(staffCodeFormat, year);
 
+  // Every code of the year, unsorted — a lexicographic top-N drops the true
+  // maximum under an unpadded format. See `allocateFamilyCode` for the full note.
   const candidates = await db.staff.findMany({
     where: { schoolId, code: { startsWith: prefix } },
-    orderBy: { code: "desc" },
     select: { code: true },
-    take: 200,
   });
 
   const highest = candidates.reduce((max, row) => {

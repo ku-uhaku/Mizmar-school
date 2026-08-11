@@ -39,13 +39,26 @@ export async function allocateFamilyCode(
   const { familyCodeFormat } = await loadSchoolSettings(schoolId);
   const prefix = codePrefixOf(familyCodeFormat, year);
 
+  /*
+    Every code of the year, not the top 200 of them.
+
+    This used to sort by `code` descending and take 200, on the reasoning that
+    nothing could sort above the true maximum from further down. That holds only
+    while the padding does: `code` sorts lexicographically and the sequence
+    inside it is numeric, so "25/9" sorts above "25/250". A school on an
+    unpadded format — `{yy}/{seq}` is offered by the setting and covered by
+    lib/school-settings.test.ts — had its real highest number fall out of the
+    window somewhere in the low hundreds, and quietly began re-issuing codes it
+    had already given out. The default `E-{year}-{seq:4}` padded the collision
+    away until the ten-thousandth dossier, which is why nobody met it.
+
+    The sort therefore no longer decides anything and is gone. The reduce below
+    was always a numeric maximum; it now takes it over the whole year. That is
+    one indexed scan of one narrow column, on the prefix, once per file opened.
+  */
   const candidates = await db.family.findMany({
     where: { schoolId, code: { startsWith: prefix } },
-    orderBy: { code: "desc" },
     select: { code: true },
-    // The scan is bounded: only codes sharing this year's prefix, and only as
-    // many as could plausibly sort above the true maximum.
-    take: 200,
   });
 
   const highest = candidates.reduce((max, row) => {

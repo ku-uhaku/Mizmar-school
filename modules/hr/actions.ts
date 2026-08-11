@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
+import { withCodeRetry } from "@/lib/allocation";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
@@ -243,13 +244,21 @@ export async function saveStaffAction(
       userId = account.userId;
     }
 
-    const code = parsed.data.code || (await allocateStaffCode(schoolId));
-
-    const clash = await db.staff.findFirst({
-      where: { schoolId, code, ...(id ? { NOT: { id } } : {}) },
-      select: { id: true },
-    });
-    if (clash) return failure(t.hr.codeTaken);
+    // Only a matricule the manager typed is checked here — blank means generate
+    // (see the note in validation.ts). A generated one is retried below instead,
+    // because losing the race to another manager is not the same thing as asking
+    // for a staff number somebody already holds. See lib/allocation.ts.
+    if (parsed.data.code) {
+      const clash = await db.staff.findFirst({
+        where: {
+          schoolId,
+          code: parsed.data.code,
+          ...(id ? { NOT: { id } } : {}),
+        },
+        select: { id: true },
+      });
+      if (clash) return failure(t.hr.codeTaken);
+    }
 
     /*
       The RIB is only written by somebody who may see it.
@@ -264,7 +273,6 @@ export async function saveStaffAction(
 
     const data = {
       schoolId,
-      code,
       userId,
       firstName: parsed.data.firstName,
       lastName: parsed.data.lastName,
@@ -287,11 +295,16 @@ export async function saveStaffAction(
       notes: parsed.data.notes,
     };
 
-    if (id) {
-      await db.staff.update({ where: { id }, data });
-    } else {
-      await db.staff.create({ data });
-    }
+    // The allocation is inside the retry, not outside it: re-running the write
+    // with the matricule it already lost would fail identically five times over.
+    const write = (code: string) =>
+      id
+        ? db.staff.update({ where: { id }, data: { ...data, code } })
+        : db.staff.create({ data: { ...data, code } });
+
+    await (parsed.data.code
+      ? write(parsed.data.code)
+      : withCodeRetry(async () => write(await allocateStaffCode(schoolId))));
 
     refresh();
     return success(id ? t.hr.staffUpdated : t.hr.staffCreated);

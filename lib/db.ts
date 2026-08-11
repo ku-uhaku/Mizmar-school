@@ -18,6 +18,16 @@ function createClient() {
     // Relative paths resolve against the process cwd (the project root), which
     // is where `prisma migrate` also puts the file.
     url: process.env.DATABASE_URL ?? "file:./dev.db",
+    /*
+      Five seconds before a blocked writer gives up, rather than better-sqlite3's
+      own default of the same — stated because it is load-bearing here and a
+      silent default is not. Two writers do still contend under WAL (see
+      `ensureWalMode`), and without a busy timeout the loser gets SQLITE_BUSY
+      instantly, which reaches the secretary as `t.errors.unexpected`. No
+      transaction in this app runs for anything like five seconds, so exhausting
+      it means something is genuinely wrong rather than merely busy.
+    */
+    timeout: 5000,
   });
 
   return new PrismaClient({
@@ -55,4 +65,42 @@ export const db: ExtendedClient = globalForPrisma.prisma ?? extend(auditClient);
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prismaBase = auditClient;
   globalForPrisma.prisma = db;
+}
+
+/**
+ * Puts the database file into WAL mode. Called once from `instrumentation.ts`.
+ *
+ * ── Why a school needs it ────────────────────────────────────────────────────
+ * SQLite's default journal is a rollback journal, under which a writer takes a
+ * lock every reader has to wait behind. With one person on the app that is
+ * invisible; with a school on it, it is the wrong shape entirely. The caisse
+ * posts a receipt and, for the length of that transaction, the secretary's pupil
+ * list, the director's dashboard and every phone on the parents' app stop. An
+ * import or a bulletin run holds the same lock for very much longer.
+ *
+ * Under WAL a reader carries on against the last committed snapshot while a
+ * write is in flight, which is exactly this app's access pattern: many readers,
+ * few writers, one process.
+ *
+ * ── Why it is a statement and not an option ──────────────────────────────────
+ * The adapter takes better-sqlite3's `Options`, which has no pragma passthrough,
+ * so the mode has to be set on a live connection. That is not a hardship:
+ * `journal_mode` is a *persistent* property of the database file, so this runs
+ * once at boot and the setting survives every later connection — including
+ * `prisma studio` and the seeds. Running it again on a file already in WAL is a
+ * no-op, which is what makes it safe on every start.
+ *
+ * Deliberately not fatal. A read-only volume or a filesystem that cannot do WAL
+ * (some network mounts) should leave the school with a working app on the slower
+ * journal, not a server that refuses to boot.
+ */
+export async function ensureWalMode(): Promise<void> {
+  try {
+    await auditClient.$executeRawUnsafe("PRAGMA journal_mode = WAL;");
+  } catch (error) {
+    console.warn(
+      "Could not enable SQLite WAL mode; continuing on the rollback journal.",
+      error,
+    );
+  }
 }

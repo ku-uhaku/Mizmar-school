@@ -9,6 +9,7 @@ import {
   type ActionState,
   type ActionStateWith,
 } from "@/lib/action-state";
+import { withCodeRetry } from "@/lib/allocation";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { generatePassword, hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -129,17 +130,28 @@ export async function createFamilyAction(
       );
     }
 
-    const code = parsed.data.code ?? (await allocateFamilyCode(schoolId));
-
-    const duplicate = await db.family.findUnique({
-      where: { schoolId_code: { schoolId, code } },
-      select: { id: true },
-    });
-    if (duplicate) {
-      return failure(t.family.codeTaken, { code: t.family.codeTaken });
+    // A code the secretary typed is checked and refused; a generated one is
+    // retried instead, because losing the race to another guichet is not the
+    // same thing as asking for a code somebody already holds. See
+    // lib/allocation.ts.
+    if (parsed.data.code) {
+      const duplicate = await db.family.findUnique({
+        where: { schoolId_code: { schoolId, code: parsed.data.code } },
+        select: { id: true },
+      });
+      if (duplicate) {
+        return failure(t.family.codeTaken, { code: t.family.codeTaken });
+      }
     }
 
-    await db.family.create({ data: { ...parsed.data, code, schoolId } });
+    const create = (code: string) =>
+      db.family.create({ data: { ...parsed.data, code, schoolId } });
+
+    // The allocation is inside the retry: re-running the insert with the code
+    // it already lost would fail identically five times over.
+    await (parsed.data.code
+      ? create(parsed.data.code)
+      : withCodeRetry(async () => create(await allocateFamilyCode(schoolId))));
 
     refresh();
     return success(t.family.created);

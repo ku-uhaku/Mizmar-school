@@ -1259,10 +1259,9 @@ describe("generateAssessments", () => {
       target("svt", "La respiration"),
     ]);
 
-    const written = of("assessment", "createMany")[0].args.data as {
-      subjectId: string;
-      notes: string | null;
-    }[];
+    const written = (only("assessment", "createMany").args as {
+      data: { subjectId: string; notes: string | null }[];
+    }).data;
     expect(
       Object.fromEntries(written.map((row) => [row.subjectId, row.notes])),
     ).toEqual({ maths: "Leçon 3, p.42", svt: "La respiration" });
@@ -1272,9 +1271,9 @@ describe("generateAssessments", () => {
     setup();
     await run([target("maths")]);
 
-    const written = of("assessment", "createMany")[0].args.data as {
-      notes: string | null;
-    }[];
+    const written = (only("assessment", "createMany").args as {
+      data: { notes: string | null }[];
+    }).data;
     expect(written[0].notes).toBeNull();
   });
 

@@ -76,7 +76,11 @@ export type FeeLine = {
 
 export type ChildDetail = {
   child: Child;
-  marks: { marks: Mark[]; averageOutOf20: number | null };
+  /**
+   * `average` is on the school's own scale — read it with `outOf` beside it and
+   * never as a figure out of twenty. See PortalMarks in modules/portal/queries.ts.
+   */
+  marks: { marks: Mark[]; average: number | null; outOf: number };
   attendance: {
     entries: Absence[];
     /** Retards, counted apart: a school acts on them by accumulation. */

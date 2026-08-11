@@ -25,6 +25,11 @@ import { db } from "@/prisma/seed/client";
  *   not seeded — every school, and therefore every year, cursus, room, fee,
  *            class and person. All of it is the wizard's to ask for.
  *
+ * The organisation is named but not invented: no ICE, no tax id, no address and
+ * no telephone, because those head every receipt and bulletin the school prints
+ * and a plausible wrong one is worse than a blank. Set `SEED_ORG_NAME` to put
+ * the real name in at seed time; everything else is filled in on /organization.
+ *
  * The administrator opens on no school and no year: `getAuthContext` resolves
  * both to null rather than guessing, and `/schools/new` is reachable on an
  * organisation-wide `school.create` that needs neither.
@@ -36,6 +41,7 @@ import { db } from "@/prisma/seed/client";
  *   npm run db:seed:empty
  */
 
+// SEED_ORG_NAME is read in modules/organization/seed.ts, beside the row it names.
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@groupescolaire.ma";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "Admin123!";
 

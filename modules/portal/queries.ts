@@ -2,7 +2,8 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { ensureChannel } from "@/modules/chat/service";
-import { settingsOf, teachingDaysOf } from "@/lib/school-settings";
+import { DEFAULT_SETTINGS, settingsOf, teachingDaysOf } from "@/lib/school-settings";
+import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { firstLookSince, isSeenTopic } from "@/modules/portal/enums";
 import { isSettled } from "@/modules/documents/enums";
 import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
@@ -130,7 +131,11 @@ async function resolveChild(userId: string, studentId: string) {
       id: true,
       studentId: true,
       schoolYearId: true,
-      student: { select: { firstName: true, lastName: true } },
+      // `schoolId` so a per-child read can reach that school's own policies.
+      // The portal has no `AuthContext` to carry them — see `loadChildMarks`.
+      student: {
+        select: { firstName: true, lastName: true, schoolId: true },
+      },
     },
   });
 }
@@ -150,8 +155,20 @@ export type PortalMark = {
 
 export type PortalMarks = {
   marks: PortalMark[];
-  /** Unweighted mean over marked papers, normalised to /20, or null. */
-  averageOutOf20: number | null;
+  /**
+   * Unweighted mean over marked papers, normalised onto `outOf`, or null.
+   *
+   * Paired with its scale rather than named for one, exactly as the bulletin is
+   * — see `outOf` on PortalBulletin. This was `averageOutOf20`, and the twenty
+   * was not a description but an assumption: it divided by each paper's own
+   * maxScore and multiplied by a literal 20, so a school marking out of 100 —
+   * which `SchoolSettings.gradingMaxScore` exists to allow — told its parents a
+   * child had 14.5 while every screen the school itself used said 72.5. Nobody
+   * can reconcile those two numbers over a telephone.
+   */
+  average: number | null;
+  /** The school's own scale, from `SchoolSettings.gradingMaxScore`. */
+  outOf: number;
 };
 
 /**
@@ -170,7 +187,16 @@ export async function loadChildMarks(
   studentId: string,
 ): Promise<PortalMarks> {
   const child = await resolveChild(userId, studentId);
-  if (!child) return { marks: [], averageOutOf20: null };
+  // Not this household's child: the default scale rather than a lookup, because
+  // reading a school's settings here would answer a question the caller has not
+  // earned the right to ask. There are no marks to put on a scale anyway.
+  if (!child) {
+    return {
+      marks: [],
+      average: null,
+      outOf: DEFAULT_SETTINGS.gradingMaxScore,
+    };
+  }
 
   const grades = await db.assessmentGrade.findMany({
     where: {
@@ -212,22 +238,27 @@ export async function loadChildMarks(
 
   // Normalised before averaging: a paper marked out of 10 and one out of 20 are
   // not comparable numbers, and a mean of the raw scores would be meaningless.
+  // The scale normalised *onto* is the school's own, not a literal twenty.
+  const { gradingMaxScore: outOf } = await loadSchoolSettings(
+    child.student.schoolId,
+  );
+
   const scored = marks.filter(
     (mark) => mark.score !== null && !mark.isAbsent && mark.maxScore > 0,
   );
 
-  const averageOutOf20 = scored.length
+  const average = scored.length
     ? Number(
         (
           scored.reduce(
-            (total, mark) => total + (mark.score! / mark.maxScore) * 20,
+            (total, mark) => total + (mark.score! / mark.maxScore) * outOf,
             0,
           ) / scored.length
         ).toFixed(2),
       )
     : null;
 
-  return { marks, averageOutOf20 };
+  return { marks, average, outOf };
 }
 
 export type PortalBulletinLine = {

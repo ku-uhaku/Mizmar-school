@@ -27,11 +27,11 @@ export async function allocateStudentCode(
   const { studentCodeFormat } = await loadSchoolSettings(schoolId);
   const prefix = codePrefixOf(studentCodeFormat, year);
 
+  // Every code of the year, unsorted — a lexicographic top-N drops the true
+  // maximum under an unpadded format. See `allocateFamilyCode` for the full note.
   const candidates = await db.student.findMany({
     where: { schoolId, code: { startsWith: prefix } },
-    orderBy: { code: "desc" },
     select: { code: true },
-    take: 200,
   });
 
   const highest = candidates.reduce((max, row) => {

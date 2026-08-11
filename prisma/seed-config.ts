@@ -1,5 +1,5 @@
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
-import { seedOrganization } from "@/modules/organization/seed";
+import { DEMO_ORGANIZATION, seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
 import { seedUsers } from "@/modules/users/seed";
@@ -53,7 +53,7 @@ async function main() {
   console.log("Seeding configuration…\n");
 
   await seedPermissions(db);
-  const organization = await seedOrganization(db);
+  const organization = await seedOrganization(db, DEMO_ORGANIZATION);
   const roles = await seedRoles(db, organization.id);
   const schools = await seedSchools(db, organization.id);
 

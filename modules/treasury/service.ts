@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isDuplicateKey, withCodeRetry } from "@/lib/allocation";
 import { db } from "@/lib/db";
 import {
   canMoveCheque,
@@ -76,57 +77,19 @@ async function nextPaymentCode(
 }
 
 /**
- * Whether a write failed on a unique index, optionally on a named column.
- *
- * Matched structurally rather than with `instanceof PrismaClientKnownRequestError`:
- * the extended client in lib/db.ts re-wraps errors, and a failed `instanceof`
- * here would turn a retryable collision into a five-hundred handed to a cashier
- * with a parent standing in front of them.
- *
- * `column` matters because only *some* collisions are worth retrying. Two
- * cashiers reaching for the same receipt number is a race that the next attempt
- * wins; anything else is a request that will fail identically five times over.
- */
-function isDuplicateKey(error: unknown, column?: string): boolean {
-  if (
-    typeof error !== "object" ||
-    error === null ||
-    !("code" in error) ||
-    (error as { code?: unknown }).code !== "P2002"
-  ) {
-    return false;
-  }
-  if (!column) return true;
-
-  const target = (error as { meta?: { target?: unknown } }).meta?.target;
-  return JSON.stringify(target ?? "").includes(column);
-}
-
-/**
  * Retries a write that allocates a receipt number, when it lost the number.
  *
  * Two cashiers writing at the same second read the same receipt count and ask
  * for the same code; the unique index refuses the second, and the next attempt
- * sees the first one's row. Retried rather than pre-locked because the collision
- * is rare and a lock on every receipt is not.
+ * sees the first one's row.
  *
- * Shared rather than inlined at the encaissement, because the cheque unwind
- * allocates a code too — it issues the replacement receipt — and without this it
- * turned a bounced cheque into a five-hundred whenever somebody happened to be
- * taking money at the same moment.
- *
- * Narrowed to the code column: any other unique failure will fail identically
- * five times over, so re-running it only delays the error.
+ * Named locally rather than used bare, because the cheque unwind allocates a
+ * code too — it issues the replacement receipt — and the name is what says at
+ * each call site *which* number is being raced for. The mechanism is shared with
+ * the matricule allocators; see lib/allocation.ts for why it is not an
+ * `instanceof` check.
  */
-async function withReceiptCodeRetry<T>(run: () => Promise<T>): Promise<T> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await run();
-    } catch (error) {
-      if (attempt >= 4 || !isDuplicateKey(error, "code")) throw error;
-    }
-  }
-}
+const withReceiptCodeRetry = withCodeRetry;
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
