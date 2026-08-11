@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useMyPupils, useSaveRemark } from "../../src/api/hooks";
+import { interpolate, isoDay, useT } from "../../src/i18n";
 import {
   Button,
   Caption,
@@ -22,11 +23,6 @@ import {
   Heading,
   Loading,
 } from "../../src/ui/components";
-import {
-  REMARK_KIND_LABELS,
-  REMARK_TONE_LABELS,
-  isoDay,
-} from "../../src/ui/format";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /** Mirrors `REMARK_MAX_LENGTH` in modules/classroom/enums.ts. */
@@ -58,6 +54,7 @@ const TONES = ["POSITIVE", "NEUTRAL", "CONCERN"] as const;
 export default function NewRemarkScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const params = useLocalSearchParams<{ enrollmentId?: string }>();
 
   const pupils = useMyPupils();
@@ -108,10 +105,7 @@ export default function NewRemarkScreen() {
       {
         onSuccess: () => router.back(),
         onError: () =>
-          Alert.alert(
-            "Remarque refusée",
-            "La remarque n'a pas pu être enregistrée.",
-          ),
+          Alert.alert(t.newRemark.refusedTitle, t.newRemark.saveFailed),
       },
     );
   }
@@ -119,7 +113,7 @@ export default function NewRemarkScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: "Nouvelle remarque" }}
+        options={{ headerShown: true, title: t.newRemark.title }}
       />
 
       <ScrollView
@@ -132,23 +126,23 @@ export default function NewRemarkScreen() {
       >
         {pupils.isPending ? <Loading /> : null}
         {pupils.isError ? (
-          <ErrorNote message="Impossible de charger vos élèves." />
+          <ErrorNote message={t.newRemark.loadError} />
         ) : null}
 
         {pupils.data?.length === 0 ? (
-          <Empty message="Vous n'avez aucun élève cette année." />
+          <Empty message={t.newRemark.noStudents} />
         ) : null}
 
         {pupils.data && pupils.data.length > 0 ? (
           <>
             <Card>
-              <Heading>Élève</Heading>
-              <Caption>De qui parlez-vous ?</Caption>
+              <Heading>{t.newRemark.studentHeading}</Heading>
+              <Caption>{t.newRemark.whoQuestion}</Caption>
 
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Chercher un nom…"
+                placeholder={t.newRemark.searchPlaceholder}
                 placeholderTextColor={theme.muted}
                 autoCorrect={false}
                 autoCapitalize="none"
@@ -168,7 +162,7 @@ export default function NewRemarkScreen() {
               <Divider />
 
               {shown.length === 0 ? (
-                <Caption>Aucun élève de ce nom.</Caption>
+                <Caption>{t.newRemark.noStudentNamed}</Caption>
               ) : (
                 <View style={{ gap: spacing.sm }}>
                   {shown.map((pupil) => (
@@ -186,13 +180,16 @@ export default function NewRemarkScreen() {
                   knows it is a filter and not the whole roll. */}
               {needle !== "" && shown.length < pupils.data.length ? (
                 <Caption>
-                  {shown.length} sur {pupils.data.length} élèves
+                  {interpolate(t.newRemark.shownOf, {
+                    shown: shown.length,
+                    total: pupils.data.length,
+                  })}
                 </Caption>
               ) : null}
             </Card>
 
             <Card>
-              <Heading>Nature</Heading>
+              <Heading>{t.newRemark.nature}</Heading>
               <Divider />
               <View
                 style={{
@@ -204,7 +201,7 @@ export default function NewRemarkScreen() {
                 {KINDS.map((value) => (
                   <Chip
                     key={value}
-                    label={REMARK_KIND_LABELS[value] ?? value}
+                    label={t.labels.remarkKind[value] ?? value}
                     selected={kind === value}
                     onPress={() => setKind(value)}
                   />
@@ -212,7 +209,7 @@ export default function NewRemarkScreen() {
               </View>
 
               <Divider />
-              <Heading>Ton</Heading>
+              <Heading>{t.newRemark.tone}</Heading>
               <View
                 style={{
                   flexDirection: "row",
@@ -223,7 +220,7 @@ export default function NewRemarkScreen() {
                 {TONES.map((value) => (
                   <Chip
                     key={value}
-                    label={REMARK_TONE_LABELS[value] ?? value}
+                    label={t.labels.remarkTone[value] ?? value}
                     selected={tone === value}
                     onPress={() => setTone(value)}
                   />
@@ -232,14 +229,12 @@ export default function NewRemarkScreen() {
             </Card>
 
             <Card>
-              <Heading>Remarque</Heading>
-              <Caption>
-                Note interne — elle n&apos;est pas transmise à la famille.
-              </Caption>
+              <Heading>{t.newRemark.remark}</Heading>
+              <Caption>{t.newRemark.internalCaption}</Caption>
               <TextInput
                 value={body}
                 onChangeText={setBody}
-                placeholder="Ce que vous avez observé…"
+                placeholder={t.newRemark.bodyPlaceholder}
                 placeholderTextColor={theme.muted}
                 multiline
                 maxLength={MAX_LENGTH}
@@ -258,12 +253,15 @@ export default function NewRemarkScreen() {
                 }}
               />
               <Caption>
-                {trimmed.length} / {MAX_LENGTH}
+                {interpolate(t.newRemark.charCount, {
+                  count: trimmed.length,
+                  max: MAX_LENGTH,
+                })}
               </Caption>
             </Card>
 
             <Button
-              label="Enregistrer la remarque"
+              label={t.newRemark.submit}
               onPress={submit}
               disabled={!canSave}
               busy={save.isPending}

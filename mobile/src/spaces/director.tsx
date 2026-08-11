@@ -1,6 +1,7 @@
 import { View } from "react-native";
 
 import { useDirectorDashboard } from "../api/hooks";
+import { useFormat, useT } from "../i18n";
 import {
   Body,
   Caption,
@@ -13,7 +14,6 @@ import {
   Row,
   Stat,
 } from "../ui/components";
-import { money } from "../ui/format";
 import { spacing, useTheme } from "../ui/theme";
 
 /**
@@ -29,12 +29,14 @@ import { spacing, useTheme } from "../ui/theme";
  */
 export function DirectorSpace() {
   const theme = useTheme();
+  const t = useT();
+  const fmt = useFormat();
   const dashboard = useDirectorDashboard();
 
   if (dashboard.isPending) return <Loading />;
 
   if (dashboard.isError) {
-    return <ErrorNote message="Impossible de charger le tableau de bord." />;
+    return <ErrorNote message={t.directorSpace.loadError} />;
   }
 
   const { stats } = dashboard.data;
@@ -44,7 +46,7 @@ export function DirectorSpace() {
   return (
     <View style={{ gap: spacing.md }}>
       <Card>
-        <Heading>Effectifs</Heading>
+        <Heading>{t.directorSpace.enrolment}</Heading>
         <Caption>
           {[dashboard.data.schoolName, dashboard.data.schoolYearName]
             .filter(Boolean)
@@ -63,21 +65,21 @@ export function DirectorSpace() {
               it — a "0" here would be a claim about the school. */}
           {standing ? (
             <>
-              <Stat value={standing.enrolled} label="Élèves inscrits" tone="success" />
+              <Stat value={standing.enrolled} label={t.directorSpace.enrolled} tone="success" />
               <Stat
                 value={standing.preRegistered}
-                label="Préinscrits"
+                label={t.directorSpace.preRegistered}
                 tone={standing.preRegistered > 0 ? "warning" : "default"}
               />
             </>
           ) : null}
           {stats.families === null ? null : (
-            <Stat value={stats.families} label="Familles" />
+            <Stat value={stats.families} label={t.directorSpace.families} />
           )}
           {enrolment ? (
             <Stat
               value={enrolment.unplaced}
-              label="Sans classe"
+              label={t.directorSpace.unplaced}
               tone={enrolment.unplaced > 0 ? "danger" : "success"}
             />
           ) : null}
@@ -86,26 +88,26 @@ export function DirectorSpace() {
 
       {billing ? (
         <Card>
-          <Heading>Scolarité facturée</Heading>
-          <Row label="Facturé" value={money(billing.billedCentimes)} />
+          <Heading>{t.directorSpace.billing}</Heading>
+          <Row label={t.directorSpace.billed} value={fmt.money(billing.billedCentimes)} />
           <Row
-            label="Remises accordées"
-            value={money(billing.discountedCentimes)}
+            label={t.directorSpace.discountsGranted}
+            value={fmt.money(billing.discountedCentimes)}
             tone="warning"
           />
           <Divider />
           <Row
-            label="Net attendu"
-            value={money(billing.billedCentimes - billing.discountedCentimes)}
+            label={t.directorSpace.netExpected}
+            value={fmt.money(billing.billedCentimes - billing.discountedCentimes)}
             tone="success"
           />
         </Card>
       ) : null}
 
       <Card>
-        <Heading>Par niveau</Heading>
+        <Heading>{t.directorSpace.byLevel}</Heading>
         {stats.byLevel.length === 0 ? (
-          <Empty message="Aucun niveau ouvert cette année." />
+          <Empty message={t.directorSpace.noLevelsOpen} />
         ) : (
           stats.byLevel
             .slice()

@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTeacherWeek } from "../../src/api/hooks";
+import { label, useT } from "../../src/i18n";
 import {
   Card,
   Empty,
@@ -11,7 +12,6 @@ import {
   Loading,
   Stat,
 } from "../../src/ui/components";
-import { WEEKDAY_LABELS, label } from "../../src/ui/format";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /**
@@ -31,6 +31,7 @@ import { radius, spacing, useTheme } from "../../src/ui/theme";
 export default function TeacherTimetableScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const [scheduleKind, setScheduleKind] = useState<"STANDARD" | "RAMADAN">(
     "STANDARD",
   );
@@ -57,7 +58,7 @@ export default function TeacherTimetableScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: "Mon emploi du temps" }}
+        options={{ headerShown: true, title: t.teacherTimetable.title }}
       />
 
       <ScrollView
@@ -70,7 +71,7 @@ export default function TeacherTimetableScreen() {
       >
         {week.isPending ? <Loading /> : null}
         {week.isError ? (
-          <ErrorNote message="Impossible de charger l'emploi du temps." />
+          <ErrorNote message={t.teacherTimetable.loadError} />
         ) : null}
 
         {data ? (
@@ -83,8 +84,8 @@ export default function TeacherTimetableScreen() {
                   gap: spacing.md,
                 }}
               >
-                <Stat value={data.lessonCount} label="Séances / semaine" />
-                <Stat value={data.classCount} label="Classes" />
+                <Stat value={data.lessonCount} label={t.teacherTimetable.sessionsPerWeek} />
+                <Stat value={data.classCount} label={t.teacherTimetable.classes} />
               </View>
             </Card>
 
@@ -95,7 +96,7 @@ export default function TeacherTimetableScreen() {
               {(["STANDARD", "RAMADAN"] as const).map((kind) => (
                 <Segment
                   key={kind}
-                  label={kind === "STANDARD" ? "Horaire normal" : "Ramadan"}
+                  label={kind === "STANDARD" ? t.teacherTimetable.standard : t.teacherTimetable.ramadan}
                   selected={scheduleKind === kind}
                   onPress={() => setScheduleKind(kind)}
                 />
@@ -103,7 +104,7 @@ export default function TeacherTimetableScreen() {
             </View>
 
             {columns.length === 0 || data.rows.length === 0 ? (
-              <Empty message="Aucun cours placé pour cet horaire." />
+              <Empty message={t.teacherTimetable.none} />
             ) : (
               <View
                 style={{
@@ -141,7 +142,7 @@ export default function TeacherTimetableScreen() {
                           fontWeight: "700",
                         }}
                       >
-                        {label(WEEKDAY_LABELS, String(row.dayOfWeek)).slice(
+                        {label(t.labels.weekday, String(row.dayOfWeek)).slice(
                           0,
                           3,
                         )}

@@ -3,6 +3,7 @@ import { ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useChannels } from "../../src/api/hooks";
+import { interpolate, useT } from "../../src/i18n";
 import {
   Empty,
   ErrorNote,
@@ -23,11 +24,12 @@ export default function ChannelsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const t = useT();
   const channels = useChannels();
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Espace parents" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.chatList.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -39,12 +41,12 @@ export default function ChannelsScreen() {
       >
         {channels.isPending ? <Loading /> : null}
         {channels.isError ? (
-          <ErrorNote message="Impossible de charger les discussions." />
+          <ErrorNote message={t.chatList.loadError} />
         ) : null}
 
         {channels.data ? (
           channels.data.length === 0 ? (
-            <Empty message="L'école n'a pas ouvert d'espace parents." />
+            <Empty message={t.chatList.noParentSpace} />
           ) : (
             <TileGrid>
               {channels.data.map((channel) => (
@@ -58,10 +60,12 @@ export default function ChannelsScreen() {
                   }
                   hint={
                     channel.isArchived
-                      ? "Fermé — lecture seule"
-                      : `${channel.messageCount} messages`
+                      ? t.chatList.closedReadOnly
+                      : interpolate(t.chatList.messagesCount, {
+                          count: channel.messageCount,
+                        })
                   }
-                  badge={channel.isArchived ? "Fermé" : undefined}
+                  badge={channel.isArchived ? t.chatList.closed : undefined}
                   tone={channel.isArchived ? "warning" : "default"}
                   onPress={() =>
                     router.push({

@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import { Pressable, View } from "react-native";
 
 import { useTeacherDay } from "../api/hooks";
+import { interpolate, isoDay, useFormat, useT } from "../i18n";
 import {
   Badge,
   Body,
@@ -16,7 +17,6 @@ import {
   Tile,
   TileGrid,
 } from "../ui/components";
-import { isoDay, longDate } from "../ui/format";
 import { spacing } from "../ui/theme";
 
 /**
@@ -30,13 +30,15 @@ import { spacing } from "../ui/theme";
  * properly already is.
  */
 export function TeacherSpace() {
+  const t = useT();
+  const fmt = useFormat();
   const today = isoDay(new Date());
   const day = useTeacherDay(today);
 
   if (day.isPending) return <Loading />;
 
   if (day.isError) {
-    return <ErrorNote message="Impossible de charger la journée." />;
+    return <ErrorNote message={t.teacherSpace.loadError} />;
   }
 
   const { summary, lessons } = day.data;
@@ -44,8 +46,8 @@ export function TeacherSpace() {
   return (
     <View style={{ gap: spacing.md }}>
       <Card>
-        <Heading>Aujourd&apos;hui</Heading>
-        <Caption>{longDate(new Date())}</Caption>
+        <Heading>{t.teacherSpace.today}</Heading>
+        <Caption>{fmt.longDate(new Date())}</Caption>
 
         <View
           style={{
@@ -55,21 +57,23 @@ export function TeacherSpace() {
             marginTop: spacing.sm,
           }}
         >
-          <Stat value={summary.lessonsToday} label="Séances" />
+          <Stat value={summary.lessonsToday} label={t.teacherSpace.sessions} />
           <Stat
             value={summary.registersLeftToday}
-            label="Appels à faire"
+            label={t.teacherSpace.registersToDo}
             tone={summary.registersLeftToday > 0 ? "warning" : "success"}
           />
-          <Stat value={summary.classCount} label="Classes" />
-          <Stat value={summary.pupilCount} label="Élèves" />
+          <Stat value={summary.classCount} label={t.teacherSpace.classes} />
+          <Stat value={summary.pupilCount} label={t.teacherSpace.pupils} />
         </View>
 
         {summary.papersToMark > 0 ? (
           <>
             <Divider />
             <Body>
-              {summary.papersToMark} copie(s) en attente de correction.
+              {interpolate(t.teacherSpace.papersToMark, {
+                count: summary.papersToMark,
+              })}
             </Body>
           </>
         ) : null}
@@ -77,8 +81,8 @@ export function TeacherSpace() {
 
       <TileGrid>
         <Tile
-          label="Corrections"
-          hint="Devoirs et contrôles à noter"
+          label={t.teacherSpace.tiles.corrections}
+          hint={t.teacherSpace.tiles.correctionsHint}
           icon="clipboard-check-outline"
           badge={
             summary.papersToMark > 0 ? String(summary.papersToMark) : undefined
@@ -87,20 +91,20 @@ export function TeacherSpace() {
           onPress={() => router.push("/assessments")}
         />
         <Tile
-          label="Emploi du temps"
-          hint="Ma semaine"
+          label={t.teacherSpace.tiles.timetable}
+          hint={t.teacherSpace.tiles.timetableHint}
           icon="calendar-month-outline"
           onPress={() => router.push("/teacher/timetable")}
         />
         <Tile
-          label="Nouveau devoir"
-          hint="Donner un travail à noter"
+          label={t.teacherSpace.tiles.newAssessment}
+          hint={t.teacherSpace.tiles.newAssessmentHint}
           icon="file-plus-outline"
           onPress={() => router.push("/assessments/new")}
         />
         <Tile
-          label="Remarques"
-          hint="Observations et validation"
+          label={t.teacherSpace.tiles.remarks}
+          hint={t.teacherSpace.tiles.remarksHint}
           icon="comment-text-outline"
           badge={
             summary.remarksThisMonth > 0
@@ -110,17 +114,17 @@ export function TeacherSpace() {
           onPress={() => router.push("/remark")}
         />
         <Tile
-          label="Fournitures"
-          hint="Demander du matériel"
+          label={t.teacherSpace.tiles.supplies}
+          hint={t.teacherSpace.tiles.suppliesHint}
           icon="package-variant-closed"
           onPress={() => router.push("/supplies")}
         />
       </TileGrid>
 
-      <Heading>Aujourd&apos;hui</Heading>
+      <Heading>{t.teacherSpace.today}</Heading>
 
       {lessons.length === 0 ? (
-        <Empty message="Aucune séance aujourd'hui." />
+        <Empty message={t.teacherSpace.noLessonsToday} />
       ) : (
         lessons.map((lesson) => (
           <Pressable
@@ -159,12 +163,16 @@ export function TeacherSpace() {
                     {lesson.groupLabel ? ` (${lesson.groupLabel})` : ""}
                   </Body>
                   {lesson.roomCode ? (
-                    <Caption>Salle {lesson.roomCode}</Caption>
+                    <Caption>
+                      {interpolate(t.teacherSpace.room, { code: lesson.roomCode })}
+                    </Caption>
                   ) : null}
                 </View>
 
                 <Badge tone={lesson.isMarked ? "success" : "warning"}>
-                  {lesson.isMarked ? "Appel fait" : "Appel à faire"}
+                  {lesson.isMarked
+                    ? t.teacherSpace.registerDone
+                    : t.teacherSpace.registerToDo}
                 </Badge>
               </View>
             </Card>

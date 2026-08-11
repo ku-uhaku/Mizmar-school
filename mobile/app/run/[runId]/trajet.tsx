@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRunItinerary } from "../../../src/api/hooks";
+import { interpolate, label, useT } from "../../../src/i18n";
 import {
   Body,
   Caption,
@@ -14,7 +15,6 @@ import {
   Stat,
   Title,
 } from "../../../src/ui/components";
-import { DIRECTION_LABELS, label } from "../../../src/ui/format";
 import { spacing, useTheme } from "../../../src/ui/theme";
 
 /**
@@ -31,6 +31,7 @@ import { spacing, useTheme } from "../../../src/ui/theme";
 export default function TrajetScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { runId } = useLocalSearchParams<{ runId: string }>();
 
   const itinerary = useRunItinerary(runId);
@@ -38,7 +39,7 @@ export default function TrajetScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Trajet" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.trajet.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -50,7 +51,7 @@ export default function TrajetScreen() {
       >
         {itinerary.isPending ? <Loading /> : null}
         {itinerary.isError ? (
-          <ErrorNote message="Impossible de charger le trajet." />
+          <ErrorNote message={t.trajet.loadError} />
         ) : null}
 
         {data ? (
@@ -58,7 +59,7 @@ export default function TrajetScreen() {
             <View style={{ gap: 2 }}>
               <Title>{data.routeName}</Title>
               <Caption>
-                {data.routeCode} · {label(DIRECTION_LABELS, data.direction)}
+                {data.routeCode} · {label(t.labels.direction, data.direction)}
               </Caption>
             </View>
 
@@ -70,13 +71,13 @@ export default function TrajetScreen() {
                   gap: spacing.md,
                 }}
               >
-                <Stat value={data.stops.length} label="Arrêts" />
-                <Stat value={data.totalRiders} label="Élèves attendus" />
+                <Stat value={data.stops.length} label={t.trajet.stops} />
+                <Stat value={data.totalRiders} label={t.trajet.expectedStudents} />
               </View>
             </Card>
 
             {data.stops.length === 0 ? (
-              <Empty message="Aucun arrêt n'a encore été placé sur cette ligne." />
+              <Empty message={t.trajet.noStops} />
             ) : (
               <Card>
                 {data.stops.map((stop, index) => {
@@ -151,8 +152,10 @@ export default function TrajetScreen() {
                             ? `${stop.neighbourhoodName} · `
                             : ""}
                           {stop.riderCount === 0
-                            ? "aucun élève"
-                            : `${stop.riderCount} élève${stop.riderCount > 1 ? "s" : ""}`}
+                            ? t.trajet.noStudentsAtStop
+                            : interpolate(t.trajet.studentsAtStop, {
+                                count: stop.riderCount,
+                              })}
                         </Caption>
                       </View>
                     </View>

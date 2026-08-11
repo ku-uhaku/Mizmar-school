@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, View } from "react-native";
 
 import { useChannels, useChildren } from "../api/hooks";
+import { interpolate, label, useT } from "../i18n";
 import {
   Badge,
   Body,
@@ -12,7 +13,6 @@ import {
   Heading,
   Loading,
 } from "../ui/components";
-import { STUDENT_STATUS_LABELS, label } from "../ui/format";
 import { spacing } from "../ui/theme";
 
 /**
@@ -23,18 +23,17 @@ import { spacing } from "../ui/theme";
  * everything else hangs off the card you tap.
  */
 export function FamilySpace() {
+  const t = useT();
   const children = useChildren();
 
   if (children.isPending) return <Loading />;
 
   if (children.isError) {
-    return <ErrorNote message="Impossible de charger le dossier familial." />;
+    return <ErrorNote message={t.family.loadError} />;
   }
 
   if (children.data.length === 0) {
-    return (
-      <Empty message="Aucun enfant rattaché à ce compte. Contactez le secrétariat de l'école." />
-    );
+    return <Empty message={t.family.noChildren} />;
   }
 
   return (
@@ -44,7 +43,7 @@ export function FamilySpace() {
         nothing at all when the school has not opened it — see `useChannels`. */}
       <ParentSpaceLink />
 
-      <Heading>Mes enfants</Heading>
+      <Heading>{t.family.myChildren}</Heading>
 
       {children.data.map((child) => (
         <Link
@@ -68,7 +67,7 @@ export function FamilySpace() {
                 <View style={{ flexShrink: 1, gap: 2 }}>
                   <Heading>{child.fullName}</Heading>
                   <Caption>
-                    {[child.levelName, child.className ?? "classe à affecter"]
+                    {[child.levelName, child.className ?? t.family.classToAssign]
                       .filter(Boolean)
                       .join(" · ")}
                   </Caption>
@@ -77,7 +76,7 @@ export function FamilySpace() {
                 <Badge
                   tone={child.status === "ENROLLED" ? "success" : "default"}
                 >
-                  {label(STUDENT_STATUS_LABELS, child.status)}
+                  {label(t.labels.studentStatus, child.status)}
                 </Badge>
               </View>
 
@@ -102,6 +101,7 @@ export function FamilySpace() {
  * something, which is not the school's message to send.
  */
 function ParentSpaceLink() {
+  const t = useT();
   const channels = useChannels();
   const unread = channels.data?.reduce(
     (total, channel) => total + channel.messageCount,
@@ -123,11 +123,13 @@ function ParentSpaceLink() {
             }}
           >
             <View style={{ flexShrink: 1, gap: 2 }}>
-              <Heading>Espace parents</Heading>
+              <Heading>{t.family.parentSpace}</Heading>
               <Caption>
                 {channels.data.length === 1
                   ? channels.data[0].label
-                  : `${channels.data.length} discussions`}
+                  : interpolate(t.family.discussionsCount, {
+                      count: channels.data.length,
+                    })}
               </Caption>
             </View>
             <Badge>{String(unread ?? 0)}</Badge>

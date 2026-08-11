@@ -49,6 +49,32 @@ const ar = {
     isEmergencyContact: "جهة اتصال الطوارئ",
     canPickUp: "مرخّص له باصطحاب الأبناء",
     makePrimary: "تعيين كجهة اتصال أولى",
+    portalAccount: "حساب التطبيق",
+    portalAccountHint:
+      "حساب واحد لكل أسرة. يفتح تطبيق أولياء الأمور على جميع أبناء الملف.",
+    portalBadge: "دخول التطبيق",
+    portalRevoked: "تم سحب الدخول",
+    openPortalAccount: "فتح حساب",
+    resetPortalPassword: "إعادة تعيين كلمة المرور",
+    revokePortalAccount: "سحب الدخول",
+    portalUsername: "اسم المستخدم",
+    portalPassword: "كلمة المرور",
+    portalOpened: "تم فتح الحساب.",
+    portalPasswordReset: "تم إصدار كلمة مرور جديدة.",
+    portalAccountRevoked: "تم سحب الدخول.",
+    portalAlreadyOpen:
+      "لهذه الأسرة حساب بالفعل، باسم {name}. اسحبه قبل فتح حساب آخر.",
+    portalNoAccount: "لا يملك هذا الولي حساباً في التطبيق.",
+    portalNoUsername:
+      "تعذّر تكوين اسم مستخدم من هذا الاسم. أدخل الاسم بحروف لاتينية، أو استعمل رقم الملف.",
+    portalCredentialsTitle: "سلّمها إلى ولي الأمر",
+    portalCredentialsBody:
+      "تظهر كلمة المرور مرة واحدة ولا يمكن استرجاعها. دوّنها أو انسخها قبل إغلاق هذه النافذة.",
+    portalCopy: "نسخ",
+    portalCopied: "تم النسخ",
+    revokePortalTitle: "سحب الدخول إلى التطبيق؟",
+    revokePortalBody:
+      "سيتم تسجيل خروج «{name}» من تطبيق أولياء الأمور فوراً ولن يتمكن من الدخول مرة أخرى.",
     created: "تم إنشاء الأسرة.",
     updated: "تم تحديث الأسرة.",
     deleted: "تم حذف الأسرة.",
@@ -105,6 +131,7 @@ export const permissions = {
     "family.create": "إنشاء ملفات الأسر",
     "family.update": "تعديل الملفات والأولياء",
     "family.delete": "حذف ملفات الأسر",
+    "family.portal": "فتح وسحب حسابات أولياء الأمور",
   },
 };
 

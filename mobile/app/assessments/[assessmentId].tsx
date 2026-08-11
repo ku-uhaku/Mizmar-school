@@ -16,6 +16,7 @@ import {
   useSaveMark,
   useSetAssessmentStatus,
 } from "../../src/api/hooks";
+import { interpolate, useT } from "../../src/i18n";
 import {
   Badge,
   Body,
@@ -50,6 +51,7 @@ import { radius, spacing, useTheme } from "../../src/ui/theme";
 export default function MarkSheetScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { assessmentId } = useLocalSearchParams<{ assessmentId: string }>();
 
   const sheet = useMarkSheet(assessmentId);
@@ -70,15 +72,15 @@ export default function MarkSheetScreen() {
         onSuccess: (result) => {
           if (!result.ok) {
             Alert.alert(
-              "Note refusée",
+              t.markSheet.markRefusedTitle,
               result.reason === "out-of-range"
-                ? `La note doit être comprise entre 0 et ${paper?.maxScore ?? 20}.`
-                : "Cette copie n'accepte plus de notes.",
+                ? interpolate(t.markSheet.outOfRange, { max: paper?.maxScore ?? 20 })
+                : t.markSheet.noMoreMarks,
             );
           }
         },
         onError: () =>
-          Alert.alert("Note refusée", "La note n'a pas pu être enregistrée."),
+          Alert.alert(t.markSheet.markRefusedTitle, t.markSheet.markSaveFailed),
       },
     );
   }
@@ -92,15 +94,15 @@ export default function MarkSheetScreen() {
         onSuccess: (result) => {
           if (!result.ok) {
             Alert.alert(
-              "Remise refusée",
+              t.markSheet.handInRefusedTitle,
               result.reason === "incomplete"
-                ? "Toutes les copies ne sont pas encore notées."
-                : "La copie n'a pas pu être rendue.",
+                ? t.markSheet.incomplete
+                : t.markSheet.handInFailed,
             );
           }
         },
         onError: () =>
-          Alert.alert("Remise refusée", "La copie n'a pas pu être rendue."),
+          Alert.alert(t.markSheet.handInRefusedTitle, t.markSheet.handInFailed),
       });
 
     if (left === 0) {
@@ -109,11 +111,11 @@ export default function MarkSheetScreen() {
     }
 
     Alert.alert(
-      "Rendre la correction ?",
-      `${left} élève${left > 1 ? "s" : ""} sans note. Vous pourrez encore corriger après la remise.`,
+      t.markSheet.confirmHandInTitle,
+      interpolate(t.markSheet.confirmHandInBody, { count: left }),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Rendre", onPress: send },
+        { text: t.common.cancel, style: "cancel" },
+        { text: t.markSheet.handInConfirm, onPress: send },
       ],
     );
   }
@@ -121,7 +123,10 @@ export default function MarkSheetScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: paper?.title ?? "Correction" }}
+        options={{
+          headerShown: true,
+          title: paper?.title ?? t.markSheet.defaultTitle,
+        }}
       />
 
       <ScrollView
@@ -135,7 +140,7 @@ export default function MarkSheetScreen() {
       >
         {sheet.isPending ? <Loading /> : null}
         {sheet.isError ? (
-          <ErrorNote message="Impossible de charger la copie." />
+          <ErrorNote message={t.markSheet.loadError} />
         ) : null}
 
         {data && paper ? (
@@ -164,23 +169,23 @@ export default function MarkSheetScreen() {
                       ? "—"
                       : `${data.statistics.average}`
                   }
-                  label={`Moyenne / ${paper.maxScore}`}
+                  label={interpolate(t.markSheet.averageOf, { max: paper.maxScore })}
                 />
                 <Stat
                   value={data.statistics.pendingCount}
-                  label="À noter"
+                  label={t.markSheet.toMark}
                   tone={
                     data.statistics.pendingCount > 0 ? "warning" : "success"
                   }
                 />
-                <Stat value={data.statistics.absentCount} label="Absents" />
+                <Stat value={data.statistics.absentCount} label={t.markSheet.absent} />
                 <Stat
                   value={
                     data.statistics.passRate === null
                       ? "—"
                       : `${data.statistics.passRate}%`
                   }
-                  label="Réussite"
+                  label={t.markSheet.passRate}
                 />
               </View>
 
@@ -190,9 +195,7 @@ export default function MarkSheetScreen() {
                   {/* Absences are excluded from the mean rather than averaged
                       as zero — a pupil who was not there has not demonstrated
                       a zero. Said out loud so the figure is not mistrusted. */}
-                  <Caption>
-                    Les absents ne comptent pas dans la moyenne.
-                  </Caption>
+                  <Caption>{t.markSheet.absentExcludedNote}</Caption>
                 </>
               ) : null}
             </Card>
@@ -202,7 +205,7 @@ export default function MarkSheetScreen() {
                 otherwise be a button whose other half nobody can press. */}
             {!data.isDevoir && paper.status === "PUBLISHED" ? (
               <Button
-                label="Rendre la correction"
+                label={t.markSheet.handIn}
                 onPress={handIn}
                 busy={move.isPending}
               />
@@ -210,14 +213,11 @@ export default function MarkSheetScreen() {
 
             {!data.isDevoir && paper.status === "SUBMITTED" ? (
               <Card>
-                <Heading>Correction rendue</Heading>
-                <Caption>
-                  En attente de validation par l&apos;administration. Vous
-                  pouvez encore corriger une note.
-                </Caption>
+                <Heading>{t.markSheet.handedInTitle}</Heading>
+                <Caption>{t.markSheet.handedInNote}</Caption>
                 <Divider />
                 <Button
-                  label="Reprendre la correction"
+                  label={t.markSheet.resumeCorrection}
                   variant="ghost"
                   onPress={() => move.mutate("PUBLISHED")}
                   busy={move.isPending}
@@ -225,10 +225,10 @@ export default function MarkSheetScreen() {
               </Card>
             ) : null}
 
-            <Heading>Copies</Heading>
+            <Heading>{t.markSheet.papers}</Heading>
 
             {data.rows.length === 0 ? (
-              <Empty message="Aucun élève sur cette copie." />
+              <Empty message={t.markSheet.noStudents} />
             ) : (
               data.rows.map((row) => (
                 <PupilMark
@@ -275,6 +275,7 @@ function PupilMark({
   ) => void;
 }) {
   const theme = useTheme();
+  const t = useT();
 
   const stored = row.score === null ? "" : String(row.score);
   const [draft, setDraft] = useState(stored);
@@ -329,7 +330,7 @@ function PupilMark({
         </View>
 
         {row.isAbsent ? (
-          <Badge tone="danger">Absent</Badge>
+          <Badge tone="danger">{t.labels.attendance.ABSENT}</Badge>
         ) : (
           <View
             style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
@@ -385,7 +386,7 @@ function PupilMark({
             fontWeight: "600",
           }}
         >
-          {row.isAbsent ? "Marquer présent" : "Absent à l'épreuve"}
+          {row.isAbsent ? t.markSheet.markPresent : t.markSheet.absentAtExam}
         </Text>
       </Pressable>
     </Card>

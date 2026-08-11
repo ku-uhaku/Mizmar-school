@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useMySupplyLists, useSubmitSupplyList } from "../src/api/hooks";
+import { interpolate, useT } from "../src/i18n";
 import {
   Badge,
   Body,
@@ -16,14 +17,6 @@ import {
   Loading,
 } from "../src/ui/components";
 import { spacing, useTheme } from "../src/ui/theme";
-
-/** How a demande reads to its author. Mirrors `SUPPLY_STATUSES`. */
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Brouillon",
-  SUBMITTED: "Envoyée — en attente",
-  APPROVED: "Validée",
-  REJECTED: "Refusée",
-};
 
 const STATUS_TONES: Record<string, "default" | "success" | "warning" | "danger"> =
   {
@@ -45,6 +38,7 @@ const STATUS_TONES: Record<string, "default" | "success" | "warning" | "danger">
 export default function SuppliesScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
 
   const lists = useMySupplyLists();
   const submit = useSubmitSupplyList();
@@ -53,24 +47,24 @@ export default function SuppliesScreen() {
 
   function send(listId: string, title: string) {
     Alert.alert(
-      "Envoyer à la direction ?",
-      `« ${title} » partira pour validation. Vous ne pourrez plus la modifier tant qu'elle n'a pas été traitée.`,
+      t.suppliesList.sendConfirmTitle,
+      interpolate(t.suppliesList.sendConfirmBody, { title }),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "Envoyer",
+          text: t.suppliesList.sendConfirmAction,
           onPress: () =>
             submit.mutate(listId, {
               onSuccess: (result) => {
                 if (!result.ok) {
                   Alert.alert(
-                    "Envoi refusé",
-                    "Cette demande ne peut plus être envoyée.",
+                    t.suppliesList.sendRefusedTitle,
+                    t.suppliesList.notAllowedAnymore,
                   );
                 }
               },
               onError: () =>
-                Alert.alert("Envoi refusé", "La demande n'a pas pu être envoyée."),
+                Alert.alert(t.suppliesList.sendRefusedTitle, t.suppliesList.sendFailed),
             }),
         },
       ],
@@ -79,7 +73,7 @@ export default function SuppliesScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Fournitures" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.suppliesList.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -90,17 +84,17 @@ export default function SuppliesScreen() {
         }}
       >
         <Button
-          label="Nouvelle demande"
+          label={t.suppliesList.newRequest}
           onPress={() => router.push("/supplies/new")}
         />
 
         {lists.isPending ? <Loading /> : null}
         {lists.isError ? (
-          <ErrorNote message="Impossible de charger vos demandes." />
+          <ErrorNote message={t.suppliesList.loadError} />
         ) : null}
 
         {lists.data && rows.length === 0 ? (
-          <Empty message="Vous n'avez encore rien demandé." />
+          <Empty message={t.suppliesList.none} />
         ) : null}
 
         {rows.map((list) => (
@@ -120,12 +114,13 @@ export default function SuppliesScreen() {
                   {list.subjectName ? ` · ${list.subjectName}` : ""}
                 </Body>
                 <Caption>
-                  {list.itemCount} article{list.itemCount > 1 ? "s" : ""}
+                  {interpolate(t.suppliesList.itemCount, { count: list.itemCount })}
                 </Caption>
               </View>
 
               <Badge tone={STATUS_TONES[list.status] ?? "default"}>
-                {STATUS_LABELS[list.status] ?? list.status}
+                {t.labels.supplyStatus[list.status as keyof typeof t.labels.supplyStatus] ??
+                  list.status}
               </Badge>
             </View>
 
@@ -134,7 +129,9 @@ export default function SuppliesScreen() {
             {list.status === "REJECTED" && list.reviewNote ? (
               <>
                 <Divider />
-                <Caption>Motif : {list.reviewNote}</Caption>
+                <Caption>
+                  {interpolate(t.suppliesList.reason, { note: list.reviewNote })}
+                </Caption>
               </>
             ) : null}
 
@@ -142,8 +139,13 @@ export default function SuppliesScreen() {
               <>
                 <Divider />
                 <Caption>
-                  Validée{list.reviewedByName ? ` par ${list.reviewedByName}` : ""} —
-                  visible par les familles.
+                  {interpolate(t.suppliesList.approvedBy, {
+                    by: list.reviewedByName
+                      ? interpolate(t.suppliesList.approvedByName, {
+                          name: list.reviewedByName,
+                        })
+                      : "",
+                  })}
                 </Caption>
               </>
             ) : null}
@@ -155,7 +157,7 @@ export default function SuppliesScreen() {
                 <View style={{ flexDirection: "row", gap: spacing.sm }}>
                   <View style={{ flex: 1 }}>
                     <Button
-                      label="Modifier"
+                      label={t.suppliesList.editButton}
                       variant="ghost"
                       onPress={() =>
                         router.push({
@@ -167,7 +169,7 @@ export default function SuppliesScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Button
-                      label="Envoyer"
+                      label={t.suppliesList.sendButton}
                       onPress={() => send(list.id, list.title)}
                       busy={submit.isPending}
                       disabled={list.itemCount === 0}
@@ -175,7 +177,7 @@ export default function SuppliesScreen() {
                   </View>
                 </View>
                 {list.itemCount === 0 ? (
-                  <Caption>Ajoutez au moins un article avant d&apos;envoyer.</Caption>
+                  <Caption>{t.suppliesList.addAtLeastOne}</Caption>
                 ) : null}
               </>
             ) : null}

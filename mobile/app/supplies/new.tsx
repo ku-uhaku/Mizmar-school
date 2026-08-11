@@ -16,6 +16,7 @@ import {
   useSaveSupplyList,
   useSupplyOptions,
 } from "../../src/api/hooks";
+import { interpolate, useT } from "../../src/i18n";
 import {
   Body,
   Button,
@@ -28,20 +29,6 @@ import {
   Loading,
 } from "../../src/ui/components";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
-
-/** The shelves of a papeterie. Mirrors `SUPPLY_CATEGORIES`. */
-const CATEGORY_LABELS: Record<string, string> = {
-  ECRITURE: "Écriture",
-  CAHIERS: "Cahiers",
-  COUVERTURES: "Couvertures",
-  CLASSEMENT: "Classement",
-  GEOMETRIE: "Géométrie",
-  ARTS: "Arts",
-  CARTABLE: "Cartable",
-  SPORT: "Sport",
-  HYGIENE: "Hygiène",
-  AUTRE: "Autre",
-};
 
 /** Lowercased and stripped of accents, so "geometrie" finds "Géométrie". */
 function fold(value: string): string {
@@ -67,6 +54,7 @@ function fold(value: string): string {
 export default function NewSupplyListScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { listId } = useLocalSearchParams<{ listId?: string }>();
 
   const options = useSupplyOptions();
@@ -116,7 +104,7 @@ export default function NewSupplyListScreen() {
     if (needle === "") return true;
     if (picked[article.id]) return true;
     return fold(
-      `${article.label} ${CATEGORY_LABELS[article.category] ?? article.category}`,
+      `${article.label} ${t.labels.supplyCategory[article.category as keyof typeof t.labels.supplyCategory] ?? article.category}`,
     ).includes(needle);
   });
 
@@ -187,19 +175,16 @@ export default function NewSupplyListScreen() {
             return;
           }
           Alert.alert(
-            "Enregistrement refusé",
+            t.newSupplyList.refusedTitle,
             result.reason === "not-yours"
-              ? "Cette demande n'est pas la vôtre."
+              ? t.newSupplyList.notYours
               : result.reason === "not-editable"
-                ? "Une demande déjà validée ne peut plus être modifiée."
-                : "La demande n'a pas pu être enregistrée.",
+                ? t.newSupplyList.notEditable
+                : t.newSupplyList.saveFailed,
           );
         },
         onError: () =>
-          Alert.alert(
-            "Enregistrement refusé",
-            "La demande n'a pas pu être enregistrée.",
-          ),
+          Alert.alert(t.newSupplyList.refusedTitle, t.newSupplyList.saveFailed),
       },
     );
   }
@@ -221,7 +206,7 @@ export default function NewSupplyListScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: listId ? "Modifier la demande" : "Nouvelle demande",
+          title: listId ? t.newSupplyList.titleEdit : t.newSupplyList.titleNew,
         }}
       />
 
@@ -236,17 +221,17 @@ export default function NewSupplyListScreen() {
       >
         {options.isPending ? <Loading /> : null}
         {options.isError ? (
-          <ErrorNote message="Impossible de charger le catalogue." />
+          <ErrorNote message={t.newSupplyList.loadError} />
         ) : null}
 
         {data && classes.length === 0 ? (
-          <Empty message="Vous n'avez aucune classe cette année." />
+          <Empty message={t.newSupplyList.noClasses} />
         ) : null}
 
         {data && classes.length > 0 ? (
           <>
             <Card>
-              <Heading>Classe</Heading>
+              <Heading>{t.newSupplyList.classHeading}</Heading>
               <Divider />
               <View
                 style={{
@@ -266,8 +251,8 @@ export default function NewSupplyListScreen() {
               </View>
 
               <Divider />
-              <Heading>Matière</Heading>
-              <Caption>Facultatif — pour une liste propre à une matière.</Caption>
+              <Heading>{t.newSupplyList.subjectHeading}</Heading>
+              <Caption>{t.newSupplyList.subjectOptional}</Caption>
               <View
                 style={{
                   flexDirection: "row",
@@ -277,7 +262,7 @@ export default function NewSupplyListScreen() {
                 }}
               >
                 <Chip
-                  label="Toutes"
+                  label={t.newSupplyList.allSubjects}
                   selected={subjectId === null}
                   onPress={() => setSubjectId(null)}
                 />
@@ -293,21 +278,21 @@ export default function NewSupplyListScreen() {
             </Card>
 
             <Card>
-              <Heading>Intitulé</Heading>
+              <Heading>{t.newSupplyList.titleLabel}</Heading>
               <TextInput
                 value={title}
                 onChangeText={setTitle}
-                placeholder="Fournitures rentrée 2026"
+                placeholder={t.newSupplyList.titlePlaceholder}
                 placeholderTextColor={theme.muted}
                 maxLength={160}
                 style={boxStyle}
               />
 
-              <Caption>Note pour la direction — facultatif</Caption>
+              <Caption>{t.newSupplyList.notesLabel}</Caption>
               <TextInput
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="Pourquoi cette demande…"
+                placeholder={t.newSupplyList.notesPlaceholder}
                 placeholderTextColor={theme.muted}
                 multiline
                 maxLength={1000}
@@ -323,14 +308,16 @@ export default function NewSupplyListScreen() {
                   alignItems: "center",
                 }}
               >
-                <Heading>Articles</Heading>
-                <Caption>{chosenCount} choisi{chosenCount > 1 ? "s" : ""}</Caption>
+                <Heading>{t.newSupplyList.articlesHeading}</Heading>
+                <Caption>
+                  {interpolate(t.newSupplyList.chosenCount, { count: chosenCount })}
+                </Caption>
               </View>
 
               <TextInput
                 value={search}
                 onChangeText={setSearch}
-                placeholder="Chercher un article…"
+                placeholder={t.newSupplyList.searchPlaceholder}
                 placeholderTextColor={theme.muted}
                 autoCorrect={false}
                 autoCapitalize="none"
@@ -340,7 +327,7 @@ export default function NewSupplyListScreen() {
               <Divider />
 
               {articles.length === 0 ? (
-                <Caption>Aucun article de ce nom.</Caption>
+                <Caption>{t.newSupplyList.noArticleNamed}</Caption>
               ) : (
                 <View style={{ gap: spacing.sm }}>
                   {articles.map((article) => {
@@ -375,8 +362,9 @@ export default function NewSupplyListScreen() {
                             {article.label}
                           </Text>
                           <Text style={{ color: theme.muted, fontSize: 11 }}>
-                            {CATEGORY_LABELS[article.category] ??
-                              article.category}
+                            {t.labels.supplyCategory[
+                              article.category as keyof typeof t.labels.supplyCategory
+                            ] ?? article.category}
                             {article.notes ? ` · ${article.notes}` : ""}
                           </Text>
                         </Pressable>
@@ -390,7 +378,7 @@ export default function NewSupplyListScreen() {
                               paddingHorizontal: spacing.md,
                             }}
                           >
-                            <Caption>Quantité</Caption>
+                            <Caption>{t.newSupplyList.quantity}</Caption>
                             <TextInput
                               value={
                                 entry.quantity === null
@@ -435,7 +423,7 @@ export default function NewSupplyListScreen() {
                                   fontWeight: "600",
                                 }}
                               >
-                                {entry.isRequired ? "Obligatoire" : "Facultatif"}
+                                {entry.isRequired ? t.newSupplyList.required : t.newSupplyList.optional}
                               </Text>
                             </Pressable>
                           </View>
@@ -448,18 +436,18 @@ export default function NewSupplyListScreen() {
 
               {needle !== "" && articles.length < (data.articles.length ?? 0) ? (
                 <Caption>
-                  {articles.length} sur {data.articles.length} articles
+                  {interpolate(t.newSupplyList.shownOfArticles, {
+                    shown: articles.length,
+                    total: data.articles.length,
+                  })}
                 </Caption>
               ) : null}
             </Card>
 
-            <Body muted>
-              Enregistrer ne l&apos;envoie pas. Vous l&apos;enverrez à la
-              direction depuis la liste de vos demandes.
-            </Body>
+            <Body muted>{t.newSupplyList.saveNotSendNote}</Body>
 
             <Button
-              label="Enregistrer le brouillon"
+              label={t.newSupplyList.saveDraft}
               onPress={submit}
               disabled={!canSave}
               busy={save.isPending}

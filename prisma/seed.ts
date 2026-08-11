@@ -1,8 +1,5 @@
-import { seedAcademics } from "@/modules/academics/seed";
 import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
-import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
-import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedClasses, type OfferingPlan } from "@/modules/classes/seed";
 import { seedEnrolments, seedFeeAdjustments } from "@/modules/enrolment/seed";
 import {
@@ -12,42 +9,31 @@ import {
   seedPartTimeContracts,
   seedTeacherSubjects,
 } from "@/modules/hr/seed";
-import { seedPayments, seedTreasury } from "@/modules/treasury/seed";
+import { seedPayments } from "@/modules/treasury/seed";
 import { seedEvents } from "@/modules/events/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
-import {
-  seedAssessmentTypes,
-  seedAssessments,
-} from "@/modules/assessments/seed";
+import { seedAssessments } from "@/modules/assessments/seed";
 import { seedClassroom } from "@/modules/classroom/seed";
 import {
   seedPortalAccounts,
   type SeededPortalAccounts,
 } from "@/modules/portal/seed";
-import { seedSupplyArticles, seedSupplyLists } from "@/modules/supplies/seed";
-import { seedDocumentTypes } from "@/modules/documents/seed";
+import { seedSupplyLists } from "@/modules/supplies/seed";
 import { seedFamilies } from "@/modules/families/seed";
-import { seedRooms } from "@/modules/facilities/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
-import {
-  MOROCCAN_NEIGHBOURHOODS,
-  seedCities,
-  seedNeighbourhoods,
-} from "@/modules/geography/seed";
+import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/seed";
 import { seedMassarDemo } from "@/modules/massar/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
 import { seedStudents } from "@/modules/students/seed";
 import {
-  seedHolidays,
-  seedSchoolWeeks,
   seedTeacherAvailability,
-  seedTimeSlots,
   seedTimetable,
 } from "@/modules/timetable/seed";
 import { seedUsers, type TeacherRequirement } from "@/modules/users/seed";
 import { db } from "@/prisma/seed/client";
+import { configureSchool } from "@/prisma/seed/configure";
 import { buildRoster, type Cohort } from "@/prisma/seed/roster";
 
 /**
@@ -57,7 +43,23 @@ import { buildRoster, type Cohort } from "@/prisma/seed/roster";
  * ids along, so a new module means a new `modules/<x>/seed.ts` and one call
  * here rather than another few hundred lines in a single script.
  *
- * What it builds, to an exact shape:
+ * ── Two schools, and the difference between them is the point ───────────────
+ * Every school in `SCHOOLS` is configured — `configureSchool`, the same step
+ * `prisma/seed-config.ts` is made of. A school that also has a `SchoolPlan`
+ * below is then populated; one that does not is left configured and empty. So
+ * the demo database holds both halves of the product at once:
+ *
+ *   Al Manar Oujda       a school in its second term — staff, pupils, classes,
+ *                        a timetable, a year of receipts, marks and absences
+ *   Al Manar Casablanca  the same school the day before it opens — the cursus,
+ *                        the rooms, the calendar, the bell schedule, the fee
+ *                        catalogue and price list, the caisse, the roles, and
+ *                        nobody in it
+ *
+ * Adding a plan for Casablanca is all it takes to populate it too; deleting
+ * Oujda's would empty it. Nothing else in this file knows which is which.
+ *
+ * The populated school, to an exact shape:
  *
  *   1 school  ×  1 school year  ×  3 cycles  ×  12 levels  ×  2 classes a level
  *
@@ -179,6 +181,12 @@ function oujdaHouseholdSize(familyIndex: number): number {
   return OUJDA_HOUSEHOLD_SIZES[familyIndex % OUJDA_HOUSEHOLD_SIZES.length];
 }
 
+/**
+ * A school to *populate*, and how.
+ *
+ * Absence is meaningful: a school in `SCHOOLS` with no plan here is configured
+ * and left empty, which is the second half of what this seed demonstrates.
+ */
 type SchoolPlan = {
   code: string;
   /** Town the pupils are born in and the dossiers are addressed in. */
@@ -201,6 +209,10 @@ const PLANS: SchoolPlan[] = [
     // The network default: 2 classes × 18 pupils × 12 levels = 432.
     householdSize: oujdaHouseholdSize,
   },
+  // ALM-CASA has no plan on purpose — see the note at the top of this file. It
+  // is the configured-and-empty school, and it is configured by the same
+  // `configureSchool` this school gets, so the two cannot differ in their
+  // settings.
 ];
 
 /**
@@ -375,49 +387,36 @@ async function main() {
     .filter((subject) => subject.requiresLab)
     .map((subject) => subject.code);
 
-  for (const plan of PLANS) {
-    const school = schools.find((entry) => entry.code === plan.code);
-    if (!school) continue;
-
+  for (const school of schools) {
     console.log(`\n${school.name}`);
 
-    const { levelIdByCode, trackIdByCode, subjectIdByCode } =
-      await seedAcademics(db, school.id, MOROCCAN_CURSUS);
-    const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
-    // Towns before pupils: a birthplace is now a reference, not a string.
-    const cityIdByCode = await seedCities(db, school.id);
-    // The school's own town only: a quartier is a residential address, and this
-    // school's pupils all live in Oujda — see the note on `seedNeighbourhoods`.
-    const neighbourhoodIdByCode = await seedNeighbourhoods(
-      db,
-      school.id,
+    /*
+      The settings first, and every school gets them — the cursus, the rooms,
+      the towns and quartiers, the fee catalogue and each year's price list, the
+      caisse, the calendar and the bell schedule. Exactly what
+      `npm run db:seed:config` lays, because it is the same function.
+    */
+    const years = yearsBySchool[school.id];
+    const {
+      levelIdByCode,
+      trackIdByCode,
+      subjectIdByCode,
+      roomIdByCode,
       cityIdByCode,
-      plan.cityCode,
-    );
-    const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
+      neighbourhoodIdByCode,
+      assessmentTypeIdByCode,
+      slotsByYear,
+    } = await configureSchool(db, { school, years });
 
-    // The tills and expense rubriques. Year-independent, like the fee
-    // catalogue above it — how much is collected is a fact of each year, but
-    // where it is collected is a fact of the school.
-    await seedTreasury(db, school.id);
+    // No plan means the configured-and-empty school: it stops here, with
+    // everything it needs to enrol its first pupil and not one row of anybody.
+    const plan = PLANS.find((entry) => entry.code === school.code);
+    if (!plan) {
+      console.log("  configuration only — no staff, no pupils, no receipts");
+      continue;
+    }
 
-    // The kinds of contrôle the school runs. Year-independent, like the fee
-    // catalogue and the tills: what a devoir surveillé weighs is a policy of
-    // the school, not of any one year. Only the types — the papers themselves
-    // are generated through the screen. See modules/assessments/seed.ts.
-    const assessmentTypeIdByCode = await seedAssessmentTypes(db, school.id);
-
-    // The articles a liste de fournitures may name. Year-independent for the
-    // same reason as the fee catalogue: what the school is willing to ask a
-    // family to buy is a policy of the school, not of one rentrée.
-    await seedSupplyArticles(db, school.id);
-
-    // The pièces a dossier d'inscription calls for. Year-independent like the
-    // rest: what the school asks a family to bring is its own policy, and a
-    // pupil's dossier is identity rather than a year's business.
-    await seedDocumentTypes(db, school.id);
-
-    // The payroll, also year-independent. Before the fleet below, because a bus
+    // The payroll, year-independent. Before the fleet below, because a bus
     // names one of these people as its driver rather than repeating a string.
     const teachers = teachersBySchool[school.id] ?? [];
     const driverIdByName = await seedHr(db, { schoolId: school.id, teachers });
@@ -427,15 +426,11 @@ async function main() {
         .map((room) => roomIdByCode[room.code])
         .filter(Boolean);
 
-    for (const year of yearsBySchool[school.id]) {
+    for (const year of years) {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
-      const slots = await seedTimeSlots(db, year.id);
+      const slots = slotsByYear[year.id];
 
-      // The calendar the timetable reads to know which weeks are taught.
-      await seedHolidays(db, year.id, year.startDate, year.endDate);
-      // After the holidays: which weeks are taught depends on them.
-      await seedSchoolWeeks(db, year.id, year.startDate, year.endDate);
       // What the school announces to its families. Dated off the year's own
       // start, so the rentrée lands on the rentrée whatever shape the year is.
       await seedEvents(db, {
@@ -450,13 +445,6 @@ async function main() {
         cityCode: plan.cityCode,
         driverIdByName,
       });
-      await seedFeeRatesAndDiscounts(db, {
-        schoolYearId: year.id,
-        rates: FEE_RATES,
-        feeTypeIdByCode,
-        levelIdByCode,
-      });
-
       // The staff's horaires, once the periods they refer to exist.
       await seedTeacherAvailability(db, { slots, teachers });
 
@@ -596,8 +584,7 @@ async function main() {
     // The native app's logins, last: a chauffeur needs the bus they drive to
     // exist, and a parent needs a dossier with an enrolled child on it.
     const defaultYear =
-      yearsBySchool[school.id].find((year) => year.status === "ACTIVE") ??
-      yearsBySchool[school.id][0];
+      years.find((year) => year.status === "ACTIVE") ?? years[0];
 
     if (defaultYear) {
       const portal = await seedPortalAccounts(db, {
@@ -641,6 +628,20 @@ async function main() {
     "Every other account shares the same password. Teachers sign in as\n" +
       "firstname.lastname — for example karim.bennis.\n",
   );
+
+  // Which school is which, since the switcher shows both and they are meant to
+  // be looked at against each other.
+  const empty = schools.filter(
+    (school) => !PLANS.some((plan) => plan.code === school.code),
+  );
+  if (empty.length > 0) {
+    console.log(
+      "Switch schools in the header to see the other half:\n" +
+        empty
+          .map((school) => `  ${school.name} — configured, and empty\n`)
+          .join(""),
+    );
+  }
 
   const driverLogin = portalLogins.find((entry) => entry.driverEmail);
   const parentLogin = portalLogins.flatMap((entry) => entry.parentEmails)[0];

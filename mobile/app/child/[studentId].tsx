@@ -3,6 +3,7 @@ import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBadges, useChild, useChildDossier } from "../../src/api/hooks";
+import { interpolate, useFormat, useT } from "../../src/i18n";
 import {
   Caption,
   Card,
@@ -13,7 +14,6 @@ import {
   TileGrid,
   Title,
 } from "../../src/ui/components";
-import { money } from "../../src/ui/format";
 import { spacing, useTheme } from "../../src/ui/theme";
 
 /**
@@ -39,6 +39,8 @@ export default function ChildScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const t = useT();
+  const fmt = useFormat();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
 
   const detail = useChild(studentId);
@@ -65,7 +67,7 @@ export default function ChildScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: detail.data?.child.firstName ?? "Élève",
+          title: detail.data?.child.firstName ?? t.childMenu.defaultTitle,
         }}
       />
 
@@ -79,7 +81,7 @@ export default function ChildScreen() {
       >
         {detail.isPending ? <Loading /> : null}
         {detail.isError ? (
-          <ErrorNote message="Impossible de charger la fiche de l'élève." />
+          <ErrorNote message={t.childMenu.loadError} />
         ) : null}
 
         {detail.data ? (
@@ -108,7 +110,7 @@ export default function ChildScreen() {
               >
                 <Stat
                   value={detail.data.marks.averageOutOf20 ?? "—"}
-                  label="Moyenne /20"
+                  label={t.childMenu.averageOf20}
                   tone={
                     detail.data.marks.averageOutOf20 === null
                       ? "default"
@@ -118,13 +120,13 @@ export default function ChildScreen() {
                   }
                 />
                 <Stat
-                  value={money(detail.data.fees.outstandingCentimes)}
-                  label="Reste à payer"
+                  value={fmt.money(detail.data.fees.outstandingCentimes)}
+                  label={t.childMenu.outstanding}
                   tone={detail.data.fees.isUpToDate ? "success" : "warning"}
                 />
                 <Stat
                   value={detail.data.attendance.unjustifiedCount}
-                  label="Absences non justifiées"
+                  label={t.childMenu.unjustifiedAbsences}
                   tone={
                     detail.data.attendance.unjustifiedCount > 0
                       ? "danger"
@@ -136,9 +138,9 @@ export default function ChildScreen() {
 
             <TileGrid>
               <Tile
-                label="Notes"
+                label={t.childMenu.tiles.notes}
                 icon="notebook-outline"
-                hint="Les résultats publiés"
+                hint={t.childMenu.tiles.notesHint}
                 badge={
                   detail.data.marks.marks.length > 0
                     ? String(detail.data.marks.marks.length)
@@ -147,12 +149,14 @@ export default function ChildScreen() {
                 onPress={() => go("notes")}
               />
               <Tile
-                label="Absences"
+                label={t.childMenu.tiles.absences}
                 icon="calendar-remove-outline"
-                hint="Le registre d'assiduité"
+                hint={t.childMenu.tiles.absencesHint}
                 badge={
                   detail.data.attendance.unjustifiedCount > 0
-                    ? `${detail.data.attendance.unjustifiedCount} non just.`
+                    ? interpolate(t.childMenu.unjustifiedShort, {
+                        count: detail.data.attendance.unjustifiedCount,
+                      })
                     : undefined
                 }
                 tone={
@@ -163,25 +167,25 @@ export default function ChildScreen() {
                 onPress={() => go("absences")}
               />
               <Tile
-                label="Remarques"
+                label={t.childMenu.tiles.remarks}
                 icon="comment-text-outline"
-                hint="Le carnet de liaison"
+                hint={t.childMenu.tiles.remarksHint}
                 onPress={() => go("remarques")}
               />
               <Tile
-                label="Emploi du temps"
+                label={t.childMenu.tiles.timetable}
                 icon="timetable"
-                hint="La semaine de la classe"
+                hint={t.childMenu.tiles.timetableHint}
                 onPress={() => go("emploi-du-temps")}
               />
               <Tile
-                label="Paiements"
+                label={t.childMenu.tiles.payments}
                 icon="cash-multiple"
-                hint="L'échéancier et ce qui reste"
+                hint={t.childMenu.tiles.paymentsHint}
                 badge={
                   detail.data.fees.isUpToDate
                     ? undefined
-                    : money(detail.data.fees.outstandingCentimes)
+                    : fmt.money(detail.data.fees.outstandingCentimes)
                 }
                 tone={
                   detail.data.fees.overdueCentimes > 0 ? "danger" : "warning"
@@ -189,35 +193,37 @@ export default function ChildScreen() {
                 onPress={() => go("paiements")}
               />
               <Tile
-                label="Dossier"
+                label={t.childMenu.tiles.dossier}
                 icon="folder-account-outline"
-                hint="Les pièces demandées"
+                hint={t.childMenu.tiles.dossierHint}
                 badge={
-                  missingPieces > 0 ? `${missingPieces} manquantes` : undefined
+                  missingPieces > 0
+                    ? interpolate(t.childMenu.missingPieces, { count: missingPieces })
+                    : undefined
                 }
                 tone={missingPieces > 0 ? "warning" : "default"}
                 onPress={() => go("dossier")}
               />
               <Tile
-                label="Fournitures"
+                label={t.childMenu.tiles.supplies}
                 icon="bag-personal-outline"
-                hint="Ce qu'il faut apporter"
+                hint={t.childMenu.tiles.suppliesHint}
                 onPress={() => go("fournitures")}
               />
               <Tile
-                label="Transport"
+                label={t.childMenu.tiles.transport}
                 icon="bus"
-                hint="Le circuit et l'arrêt"
-                badge={detail.data.transport ? undefined : "Aucun"}
+                hint={t.childMenu.tiles.transportHint}
+                badge={detail.data.transport ? undefined : t.childMenu.none}
                 onPress={() => go("transport")}
               />
               <Tile
-                label="Événements"
+                label={t.childMenu.tiles.events}
                 icon="calendar-star"
-                hint="Ce que l'école annonce"
+                hint={t.childMenu.tiles.eventsHint}
                 badge={
                   badges.data && badges.data.events > 0
-                    ? `${badges.data.events} nouveau`
+                    ? interpolate(t.childMenu.newEvents, { count: badges.data.events })
                     : undefined
                 }
                 tone={

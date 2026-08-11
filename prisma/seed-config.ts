@@ -1,46 +1,28 @@
-import { seedAcademics } from "@/modules/academics/seed";
-import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
 import { seedPermissions, seedRoles } from "@/modules/access/seed";
-import { seedAssessmentTypes } from "@/modules/assessments/seed";
-import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
-import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
-import { seedDocumentTypes } from "@/modules/documents/seed";
-import { seedRooms } from "@/modules/facilities/seed";
-import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
-import {
-  cityCodeByName,
-  seedCities,
-  seedNeighbourhoods,
-} from "@/modules/geography/seed";
 import { seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
-import { seedSupplyArticles } from "@/modules/supplies/seed";
-import {
-  seedHolidays,
-  seedSchoolWeeks,
-  seedTimeSlots,
-} from "@/modules/timetable/seed";
-import { seedTreasury } from "@/modules/treasury/seed";
 import { seedUsers } from "@/modules/users/seed";
 import { db } from "@/prisma/seed/client";
+import { configureSchool } from "@/prisma/seed/configure";
 
 /**
- * The configuration seed: a school ready to be used, and nothing in it yet.
+ * The configuration seed: schools ready to be used, and nothing in them yet.
  *
  * ── What this is for ─────────────────────────────────────────────────────────
- * `prisma/seed.ts` builds a *demonstration* — 120 pupils, a staff, a timetable,
- * a year of receipts — which is what you want to look at the app with and the
- * last thing you want to start a real school from. This builds the other half:
- * everything a school has to declare before it can enrol anybody, and not one
- * row of anybody.
+ * `prisma/seed.ts` builds a *demonstration* — four hundred pupils, a staff, a
+ * timetable, a year of receipts — which is what you want to look at the app with
+ * and the last thing you want to start a real school from. This builds the other
+ * half: everything a school has to declare before it can enrol anybody, and not
+ * one row of anybody. Both schools of the group, since a real deployment opens
+ * them together.
  *
  * ── The line it draws ────────────────────────────────────────────────────────
  * Configuration is what the school decides *about itself*. People, and anything
  * that hangs off a person, are the school's work rather than its settings — so
  * they are entered through the screens, by whoever actually knows them.
  *
- *   seeded — the organisation and the school, its years and their calendar
+ *   seeded — the organisation and its schools, their years and their calendar
  *            (semesters, holidays, taught weeks, the bell schedule), the
  *            cursus (cycles, levels, filières, matières and the programme that
  *            weights them), rooms, towns and quartiers, the fee catalogue and
@@ -52,6 +34,10 @@ import { db } from "@/prisma/seed/client";
  *   not seeded — teachers and staff, families, pupils, enrolments, classes and
  *            their teaching assignments, the timetable, buses and routes, the
  *            payroll, and every receipt.
+ *
+ * Every one of those seeded lines is `configureSchool`, which is also what the
+ * demo seed runs before it populates anything — see the note there. This file is
+ * the orchestration and nothing else.
  *
  * Same rules as the demo seed: it upserts on each table's own unique key and
  * never deletes, so running it twice changes nothing and running it over a
@@ -101,66 +87,21 @@ async function main() {
 
   for (const school of schools) {
     console.log(`\n${school.name}`);
+    const years = yearsBySchool[school.id];
 
-    // The cursus, and the rooms it is taught in.
-    const { levelIdByCode } = await seedAcademics(
-      db,
-      school.id,
-      MOROCCAN_CURSUS,
-    );
-    await seedRooms(db, school.id, SCHOOL_ROOMS);
-
-    // Towns and quartiers: a birthplace and an address are references here, so
-    // they have to exist before the first dossier is opened by hand.
-    const cityIdByCode = await seedCities(db, school.id);
-    // Quartiers of the school's own town only — a real school starting from
-    // this seed adds the douars its pupils come from, and a list two-thirds
-    // full of another city's quartiers buries them.
-    await seedNeighbourhoods(
-      db,
-      school.id,
-      cityIdByCode,
-      cityCodeByName(school.city),
-    );
-
-    // What the school may charge. How much is a fact of each year — see below.
-    const feeTypeIdByCode = await seedFeeTypes(db, school.id, FEE_TYPES);
-
-    // The tills, the banks and the expense rubriques.
-    await seedTreasury(db, school.id);
-
-    // The school's own policies: what a contrôle weighs, what a family may be
-    // asked to buy, what a dossier d'inscription must contain.
-    await seedAssessmentTypes(db, school.id);
-    await seedSupplyArticles(db, school.id);
-    await seedDocumentTypes(db, school.id);
-
-    for (const year of yearsBySchool[school.id]) {
+    for (const year of years) {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
-
-      // The bell schedule, and the calendar the timetable reads to know which
-      // weeks are taught. Holidays before weeks: which weeks are taught depends
-      // on them.
-      await seedTimeSlots(db, year.id);
-      await seedHolidays(db, year.id, year.startDate, year.endDate);
-      await seedSchoolWeeks(db, year.id, year.startDate, year.endDate);
-
-      // The price list and the reductions offered — the year's half of billing,
-      // against the catalogue declared above it.
-      await seedFeeRatesAndDiscounts(db, {
-        schoolYearId: year.id,
-        rates: FEE_RATES,
-        feeTypeIdByCode,
-        levelIdByCode,
-      });
     }
+
+    await configureSchool(db, { school, years });
   }
 
   console.log(`\nDone. Sign in with:\n  ${ADMIN_EMAIL}\n  ${ADMIN_PASSWORD}\n`);
   console.log(
-    "The school is configured and empty: no staff, no families, no pupils,\n" +
-      "no classes, no timetable and no receipts. Add your own through the\n" +
-      "screens, or run `npm run db:seed` instead for the full demonstration.\n",
+    `${schools.length} schools, configured and empty: no staff, no families,\n` +
+      "no pupils, no classes, no timetable and no receipts. Add your own\n" +
+      "through the screens, or run `npm run db:seed` instead for the full\n" +
+      "demonstration.\n",
   );
 }
 

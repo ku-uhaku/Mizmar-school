@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useMarkSeen, useMessages, usePostMessage } from "../../src/api/hooks";
+import { useT } from "../../src/i18n";
 import { Empty, ErrorNote, Loading } from "../../src/ui/components";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 import { useKeyboardOverlap } from "../../src/ui/use-keyboard";
@@ -40,6 +41,7 @@ const MAX_LENGTH = 2000;
 export default function ChannelScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { channelId, title } = useLocalSearchParams<{
     channelId: string;
     title?: string;
@@ -81,7 +83,7 @@ export default function ChannelScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: title ?? "Discussion" }}
+        options={{ headerShown: true, title: title ?? t.chatChannel.defaultTitle }}
       />
 
       {/*
@@ -106,11 +108,11 @@ export default function ChannelScreen() {
         >
           {messages.isPending ? <Loading /> : null}
           {messages.isError ? (
-            <ErrorNote message="Impossible de charger la discussion." />
+            <ErrorNote message={t.chatChannel.loadError} />
           ) : null}
 
           {messages.data?.length === 0 ? (
-            <Empty message="Rien n'a encore été écrit." />
+            <Empty message={t.chatChannel.empty} />
           ) : null}
 
           {ordered.map((message) => (
@@ -164,7 +166,7 @@ export default function ChannelScreen() {
           <TextInput
             value={draft}
             onChangeText={setDraft}
-            placeholder="Votre message…"
+            placeholder={t.chatChannel.composerPlaceholder}
             placeholderTextColor={theme.muted}
             multiline
             maxLength={MAX_LENGTH}
@@ -186,7 +188,7 @@ export default function ChannelScreen() {
             onPress={send}
             disabled={!canSend || post.isPending}
             accessibilityRole="button"
-            accessibilityLabel="Envoyer"
+            accessibilityLabel={t.chatChannel.sendA11y}
             style={{
               width: 42,
               height: 42,

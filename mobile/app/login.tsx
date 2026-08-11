@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ApiError, login } from "../src/api/client";
+import { interpolate, useT } from "../src/i18n";
 import { Body, Button, ErrorNote, Title } from "../src/ui/components";
 import { radius, spacing, useTheme } from "../src/ui/theme";
 
@@ -19,6 +20,7 @@ export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const t = useT();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,11 +41,11 @@ export default function LoginScreen() {
       // attached the parent needs.
       if (caught instanceof ApiError && caught.retryAfterSeconds) {
         const minutes = Math.ceil(caught.retryAfterSeconds / 60);
-        setError(`Trop de tentatives. Réessayez dans ${minutes} minutes.`);
+        setError(interpolate(t.login.tooManyAttempts, { minutes }));
       } else if (caught instanceof ApiError) {
         setError(caught.message);
       } else {
-        setError("Serveur injoignable. Vérifiez la connexion.");
+        setError(t.common.serverUnreachable);
       }
     } finally {
       setBusy(false);
@@ -77,19 +79,21 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: spacing.xs, marginBottom: spacing.lg }}>
-          <Title>Al Manar</Title>
-          <Body muted>Espace familles, enseignants et transport.</Body>
+          <Title>{t.login.title}</Title>
+          <Body muted>{t.login.tagline}</Body>
         </View>
 
         {error ? <ErrorNote message={error} /> : null}
 
         <View style={{ gap: spacing.xs }}>
-          <Text style={{ color: theme.muted, fontSize: 13 }}>Adresse e-mail</Text>
+          <Text style={{ color: theme.muted, fontSize: 13 }}>
+            {t.login.emailLabel}
+          </Text>
           <TextInput
             value={email}
             onChangeText={setEmail}
             style={inputStyle}
-            placeholder="nom@ecole.ma"
+            placeholder={t.login.emailPlaceholder}
             placeholderTextColor={theme.muted}
             autoCapitalize="none"
             autoCorrect={false}
@@ -100,7 +104,9 @@ export default function LoginScreen() {
         </View>
 
         <View style={{ gap: spacing.xs }}>
-          <Text style={{ color: theme.muted, fontSize: 13 }}>Mot de passe</Text>
+          <Text style={{ color: theme.muted, fontSize: 13 }}>
+            {t.login.passwordLabel}
+          </Text>
           <TextInput
             value={password}
             onChangeText={setPassword}
@@ -113,7 +119,7 @@ export default function LoginScreen() {
         </View>
 
         <Button
-          label="Se connecter"
+          label={t.login.submit}
           onPress={submit}
           busy={busy}
           disabled={!email.trim() || !password}

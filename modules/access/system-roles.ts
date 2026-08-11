@@ -123,6 +123,8 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.FAMILY_CREATE,
       PERMISSIONS.FAMILY_UPDATE,
       PERMISSIONS.FAMILY_DELETE,
+      // Opens the parents' app to a household, and withdraws it again.
+      PERMISSIONS.FAMILY_PORTAL,
       PERMISSIONS.STUDENT_VIEW,
       PERMISSIONS.STUDENT_CREATE,
       PERMISSIONS.STUDENT_UPDATE,
@@ -235,6 +237,10 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.FAMILY_VIEW,
       PERMISSIONS.FAMILY_CREATE,
       PERMISSIONS.FAMILY_UPDATE,
+      // Hands a family its login at the guichet, which is where a parent asks
+      // for it. The account carries no role and reaches one dossier — see the
+      // note in modules/families/permissions.ts.
+      PERMISSIONS.FAMILY_PORTAL,
       PERMISSIONS.STUDENT_VIEW,
       PERMISSIONS.STUDENT_CREATE,
       PERMISSIONS.STUDENT_UPDATE,

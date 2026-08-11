@@ -84,29 +84,80 @@ export function layPeriodBlock(input: {
 }
 
 /**
- * Monday–Saturday, 08h00–12h15 with a quarter-hour récréation; Monday–Friday
- * again, 14h00–18h15 the same shape. Saturday is morning only — the Moroccan
- * week.
+ * The days this preset lays a day on: Monday to Friday, no Saturday.
+ *
+ * Not `TEACHING_DAYS` from `enums.ts`, which is a different thing under a
+ * similar name and worth keeping apart: that one is the set of days a school may
+ * *declare* — what the picker offers and what `teachingDaysOf` falls back to —
+ * and it still runs to Saturday, because a school that opens on one has to be
+ * able to say so. This is the week the starting bell schedule actually lays,
+ * which is a choice within that set rather than a widening of it.
+ *
+ * A school that wants its Saturday back adds it in the configuration and lays
+ * the periods with `generateTimeSlots`; nothing here has to change.
+ */
+export const PRESET_TEACHING_DAYS = [1, 2, 3, 4, 5] as const;
+
+/** `SchoolSettings.teachingDays` for the week above — see `parseTeachingDays`. */
+export const PRESET_TEACHING_DAYS_SETTING = PRESET_TEACHING_DAYS.join(",");
+
+/**
+ * The one half-day the school does not teach — Wednesday afternoon.
+ *
+ * A week wants exactly one, and it wants it to be an *afternoon*: a morning off
+ * would split the day either side of a hole, whereas an afternoon off simply
+ * ends the day at noon. Wednesday rather than Friday because it puts the break
+ * in the middle of the week, which is what both the Moroccan and the French
+ * habit do with it, and it leaves Friday whole.
+ *
+ * Set to `null` to teach all ten half-days.
+ */
+export const FREE_AFTERNOON_DAY: number | null = 3;
+
+/** The days that have an afternoon session — every teaching day but the one. */
+export function afternoonDays(): number[] {
+  return PRESET_TEACHING_DAYS.filter((day) => day !== FREE_AFTERNOON_DAY);
+}
+
+/**
+ * Monday–Friday, 08h00–12h15 with a quarter-hour récréation, and 14h00–18h15
+ * the same shape every afternoon but Wednesday's — nine taught half-days out of
+ * ten.
  *
  * Periods are one hour: the length a lesson actually runs, which is what a
  * school picking its own bell schedule reaches for first. A subject that wants
  * half an hour or ninety minutes is still exactly expressible — `startTime` and
  * `endTime` carry whatever is laid — one hour is only this preset's default.
+ *
+ * Nine half-days is 36 periods a week against the 28 hours the heaviest level of
+ * the cursus asks for (3AC), so the week has room for its own programme with
+ * enough left over for a timetable to be arrangeable rather than merely
+ * arithmetically possible.
  */
 export function standardSlots(): SlotPreset[] {
+  const morning = layPeriodBlock({
+    days: PRESET_TEACHING_DAYS,
+    session: "MORNING",
+    scheduleKind: "STANDARD",
+    startTime: "08:00",
+    periodMinutes: PERIOD_MINUTES,
+    periodCount: 4,
+    breakAfterPeriod: 2,
+    breakMinutes: 15,
+  });
+
+  // The afternoon continues the morning's numbering, which is what `position`
+  // means to every screen that reads the grid — and what `slotsForBell` already
+  // does for a school that lays its schedule through the wizard.
+  const morningCount = new Map<number, number>();
+  for (const slot of morning) {
+    morningCount.set(slot.dayOfWeek, (morningCount.get(slot.dayOfWeek) ?? 0) + 1);
+  }
+
   return [
+    ...morning,
     ...layPeriodBlock({
-      days: [1, 2, 3, 4, 5, 6],
-      session: "MORNING",
-      scheduleKind: "STANDARD",
-      startTime: "08:00",
-      periodMinutes: PERIOD_MINUTES,
-      periodCount: 4,
-      breakAfterPeriod: 2,
-      breakMinutes: 15,
-    }),
-    ...layPeriodBlock({
-      days: [1, 2, 3, 4, 5],
+      days: afternoonDays(),
       session: "AFTERNOON",
       scheduleKind: "STANDARD",
       startTime: "14:00",
@@ -114,14 +165,21 @@ export function standardSlots(): SlotPreset[] {
       periodCount: 4,
       breakAfterPeriod: 2,
       breakMinutes: 15,
+      startPosition: (day) => (morningCount.get(day) ?? 0) + 1,
     }),
   ];
 }
 
-/** Ramadan: one continuous morning, no afternoon session — 09h00–13h15. */
+/**
+ * Ramadan: one continuous morning, no afternoon session — 09h00–13h15.
+ *
+ * Every teaching day alike, the free Wednesday afternoon included: the month
+ * has no afternoons to give off, so the half-day the standard week drops is not
+ * a distinction this grid can make.
+ */
 export function ramadanSlots(): SlotPreset[] {
   return layPeriodBlock({
-    days: [1, 2, 3, 4, 5, 6],
+    days: PRESET_TEACHING_DAYS,
     session: "MORNING",
     scheduleKind: "RAMADAN",
     startTime: "09:00",

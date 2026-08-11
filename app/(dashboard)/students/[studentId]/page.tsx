@@ -296,6 +296,7 @@ export default async function StudentPage({
         permissions={{
           canUpdateStudent: context.can(PERMISSIONS.STUDENT_UPDATE),
           canManageFamily: context.can(PERMISSIONS.FAMILY_UPDATE),
+          canManageFamilyPortal: context.can(PERMISSIONS.FAMILY_PORTAL),
           canCreateEnrolment: context.can(PERMISSIONS.ENROLMENT_CREATE),
           canUpdateEnrolment: context.can(PERMISSIONS.ENROLMENT_UPDATE),
           canDeleteEnrolment: context.can(PERMISSIONS.ENROLMENT_DELETE),

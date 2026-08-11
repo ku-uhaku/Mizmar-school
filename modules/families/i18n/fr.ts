@@ -49,6 +49,32 @@ const fr = {
     isEmergencyContact: "Contact d'urgence",
     canPickUp: "Autorisé à récupérer les enfants",
     makePrimary: "Définir comme contact principal",
+    portalAccount: "Accès à l'application",
+    portalAccountHint:
+      "Un seul accès par famille. Il ouvre l'application des parents sur tous les enfants du dossier.",
+    portalBadge: "Accès application",
+    portalRevoked: "Accès retiré",
+    openPortalAccount: "Ouvrir un accès",
+    resetPortalPassword: "Réinitialiser le mot de passe",
+    revokePortalAccount: "Retirer l'accès",
+    portalUsername: "Identifiant",
+    portalPassword: "Mot de passe",
+    portalOpened: "Accès ouvert.",
+    portalPasswordReset: "Nouveau mot de passe généré.",
+    portalAccountRevoked: "Accès retiré.",
+    portalAlreadyOpen:
+      "Cette famille a déjà un accès, au nom de {name}. Retirez-le avant d'en ouvrir un autre.",
+    portalNoAccount: "Ce tuteur n'a pas d'accès à l'application.",
+    portalNoUsername:
+      "Impossible de composer un identifiant à partir de ce nom. Saisissez le nom en caractères latins, ou utilisez le numéro de dossier.",
+    portalCredentialsTitle: "À remettre au parent",
+    portalCredentialsBody:
+      "Le mot de passe n'est affiché qu'une fois et ne peut pas être retrouvé. Notez-le ou copiez-le avant de fermer cette fenêtre.",
+    portalCopy: "Copier",
+    portalCopied: "Copié",
+    revokePortalTitle: "Retirer l'accès à l'application ?",
+    revokePortalBody:
+      "« {name} » sera déconnecté immédiatement de l'application des parents et ne pourra plus s'y connecter.",
     created: "Famille créée.",
     updated: "Famille mise à jour.",
     deleted: "Famille supprimée.",
@@ -105,6 +131,7 @@ export const permissions = {
     "family.create": "Créer des dossiers familiaux",
     "family.update": "Modifier les dossiers et les tuteurs",
     "family.delete": "Supprimer des dossiers familiaux",
+    "family.portal": "Ouvrir et retirer les accès des parents",
   },
 };
 

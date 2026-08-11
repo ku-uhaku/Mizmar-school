@@ -3,6 +3,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRunRider } from "../../../../src/api/hooks";
+import { interpolate, label, useT } from "../../../../src/i18n";
 import {
   Badge,
   Body,
@@ -15,7 +16,6 @@ import {
   Loading,
   Title,
 } from "../../../../src/ui/components";
-import { ATTENDANCE_LABELS, label } from "../../../../src/ui/format";
 import { radius, spacing, useTheme } from "../../../../src/ui/theme";
 
 /**
@@ -32,6 +32,7 @@ import { radius, spacing, useTheme } from "../../../../src/ui/theme";
 export default function RiderScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { runId, subscriptionId } = useLocalSearchParams<{
     runId: string;
     subscriptionId: string;
@@ -45,16 +46,16 @@ export default function RiderScreen() {
     Linking.canOpenURL(url)
       .then((can) => {
         if (can) return Linking.openURL(url);
-        Alert.alert("Appel impossible", `${who} : ${phone}`);
+        Alert.alert(t.rider.callImpossibleTitle, `${who} : ${phone}`);
         return undefined;
       })
-      .catch(() => Alert.alert("Appel impossible", `${who} : ${phone}`));
+      .catch(() => Alert.alert(t.rider.callImpossibleTitle, `${who} : ${phone}`));
   }
 
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: data?.studentName ?? "Élève" }}
+        options={{ headerShown: true, title: data?.studentName ?? t.rider.defaultTitle }}
       />
 
       <ScrollView
@@ -67,7 +68,7 @@ export default function RiderScreen() {
       >
         {rider.isPending ? <Loading /> : null}
         {rider.isError ? (
-          <ErrorNote message="Impossible de charger cet élève." />
+          <ErrorNote message={t.rider.loadError} />
         ) : null}
 
         {data ? (
@@ -82,7 +83,7 @@ export default function RiderScreen() {
             </View>
 
             <Card>
-              <Heading>Son arrêt</Heading>
+              <Heading>{t.rider.stopHeading}</Heading>
               <Divider />
               <View
                 style={{
@@ -118,7 +119,7 @@ export default function RiderScreen() {
                   gap: spacing.sm,
                 }}
               >
-                <Caption>Aujourd&apos;hui :</Caption>
+                <Caption>{t.rider.today}</Caption>
                 <Badge
                   tone={
                     data.status === null
@@ -131,10 +132,10 @@ export default function RiderScreen() {
                   }
                 >
                   {data.status === null
-                    ? "Non pointé"
+                    ? t.rider.notMarked
                     : data.status === "LATE" && data.minutesLate
-                      ? `Retard ${data.minutesLate} min`
-                      : label(ATTENDANCE_LABELS, data.status)}
+                      ? interpolate(t.rider.lateByMinutes, { count: data.minutesLate })
+                      : label(t.labels.attendance, data.status)}
                 </Badge>
               </View>
 
@@ -142,14 +143,12 @@ export default function RiderScreen() {
             </Card>
 
             <Card>
-              <Heading>Qui prévenir</Heading>
-              <Caption>
-                À appeler si l&apos;élève n&apos;est pas à son arrêt.
-              </Caption>
+              <Heading>{t.rider.whoToCall}</Heading>
+              <Caption>{t.rider.whoToCallCaption}</Caption>
               <Divider />
 
               {data.guardians.length === 0 ? (
-                <Empty message="Aucun contact enregistré pour cette famille." />
+                <Empty message={t.rider.noContacts} />
               ) : (
                 <View style={{ gap: spacing.sm }}>
                   {data.guardians.map((guardian, index) => (
@@ -167,7 +166,7 @@ export default function RiderScreen() {
                           <Caption>
                             {guardian.relationship}
                             {guardian.isPrimaryContact
-                              ? " · contact principal"
+                              ? t.rider.primaryContact
                               : ""}
                           </Caption>
                         </View>
@@ -175,7 +174,7 @@ export default function RiderScreen() {
                         {/* The one fact that decides whether an adult at the
                             kerb may take the child. */}
                         {!guardian.canPickUp ? (
-                          <Badge tone="danger">Ne récupère pas</Badge>
+                          <Badge tone="danger">{t.rider.cannotPickUp}</Badge>
                         ) : null}
                       </View>
 
@@ -183,7 +182,9 @@ export default function RiderScreen() {
                         <Pressable
                           onPress={() => call(guardian.phone!, guardian.name)}
                           accessibilityRole="button"
-                          accessibilityLabel={`Appeler ${guardian.name}`}
+                          accessibilityLabel={interpolate(t.rider.call, {
+                            phone: guardian.name,
+                          })}
                           style={({ pressed }) => ({
                             alignItems: "center",
                             paddingVertical: 12,
@@ -201,11 +202,11 @@ export default function RiderScreen() {
                               fontWeight: "700",
                             }}
                           >
-                            Appeler {guardian.phone}
+                            {interpolate(t.rider.call, { phone: guardian.phone })}
                           </Text>
                         </Pressable>
                       ) : (
-                        <Caption>Aucun numéro enregistré.</Caption>
+                        <Caption>{t.rider.noPhone}</Caption>
                       )}
 
                       {index < data.guardians.length - 1 ? <Divider /> : null}

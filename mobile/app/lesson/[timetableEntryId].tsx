@@ -15,6 +15,7 @@ import {
   useMarkPupil,
   useMarkRestPresent,
 } from "../../src/api/hooks";
+import { interpolate, label, useT } from "../../src/i18n";
 import {
   Badge,
   Body,
@@ -28,7 +29,6 @@ import {
   Loading,
   Title,
 } from "../../src/ui/components";
-import { ATTENDANCE_LABELS, label } from "../../src/ui/format";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /** How late, in one tap. Covers the ordinary retard; the web takes any number. */
@@ -52,6 +52,7 @@ const LATE_PRESETS = [5, 10, 15, 30];
 export default function LessonScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const params = useLocalSearchParams<{
     schoolClassId: string;
     subjectId?: string;
@@ -98,10 +99,7 @@ export default function LessonScreen() {
       { enrollmentId, status, minutesLate: minutesLate ?? null },
       {
         onError: () =>
-          Alert.alert(
-            "Pointage refusé",
-            "Le pointage n'a pas pu être enregistré.",
-          ),
+          Alert.alert(t.lesson.markRefusedTitle, t.lesson.markSaveFailed),
         onSettled: () => setMarking(null),
       },
     );
@@ -112,19 +110,16 @@ export default function LessonScreen() {
     if (left === 0) return;
 
     Alert.alert(
-      "Terminer l'appel ?",
-      `${left} élève${left > 1 ? "s" : ""} sera marqué présent. Les absences et retards déjà notés ne changent pas.`,
+      t.lesson.finishConfirmTitle,
+      interpolate(t.lesson.finishConfirmBody, { count: left }),
       [
-        { text: "Annuler", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "Les autres sont là",
+          text: t.lesson.finishConfirmAction,
           onPress: () =>
             restPresent.mutate(undefined, {
               onError: () =>
-                Alert.alert(
-                  "Refusé",
-                  "L'appel n'a pas pu être terminé.",
-                ),
+                Alert.alert(t.lesson.finishRefused, t.lesson.finishFailed),
             }),
         },
       ],
@@ -134,7 +129,7 @@ export default function LessonScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: data?.classCode ?? "Appel" }}
+        options={{ headerShown: true, title: data?.classCode ?? t.lesson.wholeDay }}
       />
 
       <ScrollView
@@ -147,7 +142,7 @@ export default function LessonScreen() {
       >
         {register.isPending ? <Loading /> : null}
         {register.isError ? (
-          <ErrorNote message="Impossible de charger l'appel." />
+          <ErrorNote message={t.lesson.loadError} />
         ) : null}
 
         {data && tally ? (
@@ -158,7 +153,7 @@ export default function LessonScreen() {
                 {data.groupLabel ? ` (${data.groupLabel})` : ""}
               </Title>
               <Caption>
-                {data.subjectName ?? "Journée entière"}
+                {data.subjectName ?? t.lesson.wholeDay}
                 {data.slotLabel ? ` · ${data.slotLabel}` : ""}
               </Caption>
             </View>
@@ -174,12 +169,12 @@ export default function LessonScreen() {
                 }}
               >
                 <Heading>
-                  {done} / {tally.total} pointés
+                  {interpolate(t.lesson.marked, { done, total: tally.total })}
                 </Heading>
                 <Caption>
                   {tally.unmarked === 0
-                    ? "Appel terminé"
-                    : `${tally.unmarked} restant${tally.unmarked > 1 ? "s" : ""}`}
+                    ? t.lesson.finished
+                    : interpolate(t.lesson.remaining, { count: tally.unmarked })}
                 </Caption>
               </View>
 
@@ -211,25 +206,25 @@ export default function LessonScreen() {
                   gap: spacing.md,
                 }}
               >
-                <Count label="Présents" value={tally.present} tone="success" />
+                <Count label={t.lesson.present} value={tally.present} tone="success" />
                 <Count
-                  label="Retards"
+                  label={t.lesson.lates}
                   value={tally.late}
                   tone={tally.late > 0 ? "warning" : undefined}
                 />
                 <Count
-                  label="Absents"
+                  label={t.lesson.absent}
                   value={tally.absent}
                   tone={tally.absent > 0 ? "danger" : undefined}
                 />
-                <Count label="Excusés" value={tally.excused} />
+                <Count label={t.lesson.excused} value={tally.excused} />
               </View>
 
               {canMark && tally.unmarked > 0 ? (
                 <>
                   <Divider />
                   <Button
-                    label={`Les autres sont là (${tally.unmarked})`}
+                    label={interpolate(t.lesson.othersPresent, { count: tally.unmarked })}
                     onPress={finishRest}
                     busy={restPresent.isPending}
                   />
@@ -239,9 +234,7 @@ export default function LessonScreen() {
               {!canMark ? (
                 <>
                   <Divider />
-                  <Caption>
-                    Vous pouvez consulter cet appel, mais pas le modifier.
-                  </Caption>
+                  <Caption>{t.lesson.viewOnlyNote}</Caption>
                 </>
               ) : null}
             </Card>
@@ -249,12 +242,12 @@ export default function LessonScreen() {
             {data.pupils.length > 0 ? (
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <Toggle
-                  label={`Tous (${data.pupils.length})`}
+                  label={interpolate(t.lesson.allTab, { count: data.pupils.length })}
                   selected={!pendingOnly}
                   onPress={() => setPendingOnly(false)}
                 />
                 <Toggle
-                  label={`À pointer (${tally.unmarked})`}
+                  label={interpolate(t.lesson.toMarkTab, { count: tally.unmarked })}
                   selected={pendingOnly}
                   onPress={() => setPendingOnly(true)}
                 />
@@ -262,9 +255,9 @@ export default function LessonScreen() {
             ) : null}
 
             {data.pupils.length === 0 ? (
-              <Empty message="Aucun élève sur cette liste." />
+              <Empty message={t.lesson.noStudents} />
             ) : pupils.length === 0 ? (
-              <Empty message="Tout le monde est pointé." />
+              <Empty message={t.lesson.everyoneMarked} />
             ) : (
               pupils.map((pupil) => (
                 <PupilRow
@@ -279,7 +272,7 @@ export default function LessonScreen() {
 
             {canMark && tally.unmarked === 0 ? (
               <Button
-                label="Terminer"
+                label={t.lesson.finish}
                 variant="ghost"
                 onPress={() => router.back()}
               />
@@ -318,12 +311,15 @@ function PupilRow({
   ) => void;
 }) {
   const theme = useTheme();
+  const t = useT();
 
   const history: string[] = [];
   if (pupil.absencesThisYear > 0) {
-    history.push(`${pupil.absencesThisYear} abs.`);
+    history.push(interpolate(t.lesson.absencesShort, { count: pupil.absencesThisYear }));
   }
-  if (pupil.latesThisYear > 0) history.push(`${pupil.latesThisYear} retards`);
+  if (pupil.latesThisYear > 0) {
+    history.push(interpolate(t.lesson.latesShort, { count: pupil.latesThisYear }));
+  }
 
   return (
     <Card>
@@ -359,10 +355,10 @@ function PupilRow({
           }
         >
           {pupil.status === null
-            ? "À pointer"
+            ? t.lesson.toMark
             : pupil.status === "LATE" && pupil.minutesLate
-              ? `Retard ${pupil.minutesLate} min`
-              : label(ATTENDANCE_LABELS, pupil.status)}
+              ? interpolate(t.lesson.lateByMinutes, { count: pupil.minutesLate })
+              : label(t.labels.attendance, pupil.status)}
         </Badge>
       </View>
 
@@ -376,7 +372,7 @@ function PupilRow({
             {(["PRESENT", "LATE", "ABSENT"] as const).map((status) => (
               <MarkButton
                 key={status}
-                label={label(ATTENDANCE_LABELS, status)}
+                label={label(t.labels.attendance, status)}
                 selected={pupil.status === status}
                 busy={busy}
                 tone={
@@ -403,7 +399,7 @@ function PupilRow({
                 marginTop: spacing.sm,
               }}
             >
-              <Caption>De combien ?</Caption>
+              <Caption>{t.lesson.howLate}</Caption>
               {LATE_PRESETS.map((minutes) => (
                 <Pressable
                   key={minutes}
@@ -438,7 +434,7 @@ function PupilRow({
                       fontWeight: "600",
                     }}
                   >
-                    {minutes} min
+                    {interpolate(t.lesson.minutes, { count: minutes })}
                   </Text>
                 </Pressable>
               ))}
@@ -465,8 +461,8 @@ function PupilRow({
                 }}
               >
                 {pupil.status === "EXCUSED"
-                  ? "Retirer l'excuse"
-                  : "Marquer excusé"}
+                  ? t.lesson.removeExcuse
+                  : t.lesson.markExcused}
               </Text>
             </Pressable>
           ) : null}
@@ -476,7 +472,7 @@ function PupilRow({
       {pupil.isJustified ? (
         <>
           <Divider />
-          <Caption>Justifié par l&apos;administration.</Caption>
+          <Caption>{t.lesson.justifiedByOffice}</Caption>
         </>
       ) : null}
     </Card>

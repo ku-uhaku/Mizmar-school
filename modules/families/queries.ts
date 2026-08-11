@@ -52,6 +52,12 @@ export type GuardianRow = {
   canPickUp: boolean;
   notes: string | null;
   isActive: boolean;
+  /**
+   * The portal login opened for this guardian, if any. Never the password —
+   * there is none to read, only the hash, and the plaintext is shown once at the
+   * moment it is issued and then gone.
+   */
+  portalAccount: { username: string | null; isActive: boolean } | null;
 };
 
 /** A family with everyone on it — what the detail screen renders. */
@@ -100,8 +106,10 @@ function toGuardianRow(guardian: {
   canPickUp: boolean;
   notes: string | null;
   isActive: boolean;
+  user: { username: string | null; isActive: boolean } | null;
 }): GuardianRow {
-  return guardian;
+  const { user, ...rest } = guardian;
+  return { ...rest, portalAccount: user };
 }
 
 export async function listFamilies(context: AuthContext): Promise<FamilyRow[]> {
@@ -160,7 +168,12 @@ export async function findFamily(
   const family = await db.family.findFirst({
     where: { id: familyId, ...schoolScope(context) },
     include: {
-      guardians: { orderBy: GUARDIAN_ORDER },
+      guardians: {
+        orderBy: GUARDIAN_ORDER,
+        include: {
+          user: { select: { username: true, isActive: true } },
+        },
+      },
       children: {
         orderBy: [{ birthDate: "asc" }],
         select: {

@@ -34,6 +34,7 @@ export function FamilyDetail({
   family,
   receipts,
   canManage,
+  canManagePortal,
 }: {
   family: FamilyDetailData;
   /**
@@ -42,6 +43,7 @@ export function FamilyDetail({
    */
   receipts: PaymentRow[] | null;
   canManage: boolean;
+  canManagePortal: boolean;
 }) {
   const { t, locale } = useI18n();
 
@@ -86,6 +88,7 @@ export function FamilyDetail({
           familyId={family.id}
           guardians={family.guardians}
           canManage={canManage}
+          canManagePortal={canManagePortal}
         />
       </TabsContent>
 

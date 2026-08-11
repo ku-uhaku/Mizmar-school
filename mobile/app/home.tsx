@@ -7,19 +7,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useBadges, useChannels, useIdentity } from "../src/api/hooks";
 import type { MobileSpace } from "../src/api/types";
+import { interpolate, useT } from "../src/i18n";
 import { DirectorSpace } from "../src/spaces/director";
 import { DriverSpace } from "../src/spaces/driver";
 import { FamilySpace } from "../src/spaces/family";
 import { TeacherSpace } from "../src/spaces/teacher";
 import { Body, Caption, Empty, ErrorNote, Loading } from "../src/ui/components";
 import { radius, spacing, useTheme } from "../src/ui/theme";
-
-const SPACE_LABELS: Record<MobileSpace, string> = {
-  family: "Famille",
-  teacher: "Classe",
-  driver: "Transport",
-  director: "Direction",
-};
 
 /**
  * The app, once signed in.
@@ -33,6 +27,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const t = useT();
+
+  const SPACE_LABELS: Record<MobileSpace, string> = {
+    family: t.spaces.family,
+    teacher: t.spaces.teacher,
+    driver: t.spaces.driver,
+    director: t.spaces.director,
+  };
 
   const identity = useIdentity();
   const [chosen, setChosen] = useState<MobileSpace | null>(null);
@@ -85,7 +87,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/profile")}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Profil"
+            accessibilityLabel={t.home.profileA11y}
             style={{
               width: 38,
               height: 38,
@@ -108,9 +110,7 @@ export default function HomeScreen() {
 
       {identity.isPending ? <Loading /> : null}
 
-      {identity.isError ? (
-        <ErrorNote message="Impossible de joindre l'école. Tirez pour réessayer." />
-      ) : null}
+      {identity.isError ? <ErrorNote message={t.home.loadError} /> : null}
 
       {identity.data && identity.data.spaces.length > 1 ? (
         <View style={{ flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" }}>
@@ -145,7 +145,7 @@ export default function HomeScreen() {
       ) : null}
 
       {identity.data && space === null ? (
-        <Empty message="Ce compte n'a accès à aucun espace de l'application. Contactez l'administration." />
+        <Empty message={t.home.noSpaceAccess} />
       ) : null}
 
       {space === "family" ? <FamilySpace /> : null}
@@ -182,6 +182,7 @@ export default function HomeScreen() {
 function NotificationBell() {
   const theme = useTheme();
   const router = useRouter();
+  const t = useT();
   const badges = useBadges();
   const channels = useChannels();
   const total = badges.data?.chat ?? 0;
@@ -207,7 +208,9 @@ function NotificationBell() {
       hitSlop={8}
       accessibilityRole="button"
       accessibilityLabel={
-        total > 0 ? `Messages, ${total} non lus` : "Messages"
+        total > 0
+          ? interpolate(t.home.messagesUnreadA11y, { count: total })
+          : t.home.messagesA11y
       }
       style={{
         width: 38,

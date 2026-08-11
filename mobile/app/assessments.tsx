@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAssessments } from "../src/api/hooks";
+import { interpolate, useFormat, useT } from "../src/i18n";
 import {
   Badge,
   Body,
@@ -16,7 +17,6 @@ import {
   Heading,
   Loading,
 } from "../src/ui/components";
-import { shortDate } from "../src/ui/format";
 import { radius, spacing, useTheme } from "../src/ui/theme";
 
 type Kind = "ALL" | "CONTROLE" | "DEVOIR";
@@ -33,6 +33,8 @@ type Kind = "ALL" | "CONTROLE" | "DEVOIR";
 export default function AssessmentsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
+  const fmt = useFormat();
   const [kind, setKind] = useState<Kind>("ALL");
 
   const assessments = useAssessments(kind === "ALL" ? undefined : kind);
@@ -41,7 +43,7 @@ export default function AssessmentsScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: "Devoirs et contrôles" }}
+        options={{ headerShown: true, title: t.assessmentsList.title }}
       />
 
       <ScrollView
@@ -58,10 +60,10 @@ export default function AssessmentsScreen() {
               key={value}
               label={
                 value === "ALL"
-                  ? "Tout"
+                  ? t.assessmentsList.tabAll
                   : value === "CONTROLE"
-                    ? "Contrôles"
-                    : "Devoirs"
+                    ? t.assessmentsList.tabControle
+                    : t.assessmentsList.tabDevoir
               }
               selected={kind === value}
               onPress={() => setKind(value)}
@@ -70,18 +72,18 @@ export default function AssessmentsScreen() {
         </View>
 
         <Button
-          label="Nouveau devoir"
+          label={t.assessmentsList.newAssessment}
           variant="ghost"
           onPress={() => router.push("/assessments/new")}
         />
 
         {assessments.isPending ? <Loading /> : null}
         {assessments.isError ? (
-          <ErrorNote message="Impossible de charger les copies." />
+          <ErrorNote message={t.assessmentsList.loadError} />
         ) : null}
 
         {assessments.data && rows.length === 0 ? (
-          <Empty message="Rien à corriger pour le moment." />
+          <Empty message={t.assessmentsList.nothingToMark} />
         ) : null}
 
         {rows.map((paper) => {
@@ -118,7 +120,7 @@ export default function AssessmentsScreen() {
                     <Caption>
                       {paper.typeName}
                       {paper.scheduledOn
-                        ? ` · ${shortDate(paper.scheduledOn)}`
+                        ? ` · ${fmt.shortDate(paper.scheduledOn)}`
                         : ""}
                       {` · /${paper.maxScore}`}
                     </Caption>
@@ -133,7 +135,9 @@ export default function AssessmentsScreen() {
                           : "warning"
                     }
                   >
-                    {left === 0 ? "Corrigé" : `${left} à corriger`}
+                    {left === 0
+                      ? t.assessmentsList.corrected
+                      : interpolate(t.assessmentsList.toCorrect, { count: left })}
                   </Badge>
                 </View>
 
@@ -146,17 +150,23 @@ export default function AssessmentsScreen() {
                   }}
                 >
                   <Caption>
-                    {done} / {paper.rosterCount} élèves
+                    {interpolate(t.assessmentsList.studentsMarked, {
+                      done,
+                      total: paper.rosterCount,
+                    })}
                   </Caption>
                   <Caption>
                     {paper.average === null
-                      ? "Pas de moyenne"
-                      : `Moyenne ${paper.average} / ${paper.maxScore}`}
+                      ? t.assessmentsList.noAverage
+                      : interpolate(t.assessmentsList.average, {
+                          average: paper.average,
+                          max: paper.maxScore,
+                        })}
                   </Caption>
                 </View>
 
                 {paper.status === "SUBMITTED" ? (
-                  <Caption>Rendu — en attente de validation.</Caption>
+                  <Caption>{t.assessmentsList.submittedNote}</Caption>
                 ) : null}
               </Card>
             </Pressable>

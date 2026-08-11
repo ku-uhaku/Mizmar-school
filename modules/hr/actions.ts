@@ -9,7 +9,7 @@ import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
-import { createStaffAccount } from "@/modules/users/service";
+import { createLoginAccount } from "@/modules/users/service";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
   availableIfShortOf,
@@ -211,7 +211,7 @@ export async function saveStaffAction(
           })
         : null;
 
-      const account = await createStaffAccount({
+      const account = await createLoginAccount({
         organizationId: context.user.organizationId,
         schoolId,
         roleId: role?.id ?? null,

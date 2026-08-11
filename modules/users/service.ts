@@ -12,14 +12,14 @@ import {
 /**
  * Writes and invariants for the users module.
  *
- * ── Why account creation lives here and not in the HR module ────────────────
+ * ── Why account creation lives here and not in the module that asks for it ──
  * A school hires somebody and wants them able to sign in, so the staff form
- * grows a "create a login" switch — but a `User`, a `Profile` and a
- * `Membership` are not the HR module's rows to write. Putting the statements
- * behind this function keeps the ownership straight and, more usefully, keeps
- * one answer to the questions every account has to settle: how the username is
- * chosen when two people share a name, and which school's defaults the new
- * account starts in.
+ * grows a "create a login" switch; a school opens a parent portal, so the
+ * dossier familial grows one too — but a `User`, a `Profile` and a `Membership`
+ * are neither module's rows to write. Putting the statements behind this
+ * function keeps the ownership straight and, more usefully, keeps one answer to
+ * the questions every account has to settle: how the username is chosen when two
+ * people share a name, and which school's defaults the new account starts in.
  */
 
 /** A free username built from the name, never colliding with an existing one. */
@@ -53,9 +53,40 @@ export async function allocateUsername(
   );
 }
 
-export type StaffAccountInput = {
+/**
+ * A free address in a series: `parent.f2025-0142@famille.ma`, then
+ * `parent.f2025-0142.2@famille.ma`.
+ *
+ * `User.email` is required and unique, so an account needs one even when the
+ * person signs in with a username and has no mailbox the school knows of — a
+ * parent, typically. The base is keyed on the dossier rather than the surname
+ * (see modules/portal/seed.ts, which builds the same shape), and the suffix
+ * covers the case where a revoked account still holds the plain address:
+ * revoking deactivates rather than deletes, so the old row keeps its email.
+ */
+export async function allocateAccountEmail(base: string): Promise<string> {
+  const [local, domain] = base.toLowerCase().split("@");
+
+  const held = await db.user.findMany({
+    where: { email: { startsWith: `${local}` } },
+    select: { email: true },
+  });
+  const taken = new Set(held.map((row) => row.email));
+
+  if (!taken.has(base.toLowerCase())) return base.toLowerCase();
+
+  for (let suffix = 2; suffix < 1000; suffix += 1) {
+    const candidate = `${local}.${suffix}@${domain}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+
+  throw new Error(`No free email address for ${base}`);
+}
+
+export type LoginAccountInput = {
   organizationId: string;
-  /** The school the new account is a member of, and whose defaults it starts in. */
+  /** The school whose defaults the account starts in, and — when a role is
+   *  given — the school it is a member of. */
   schoolId: string;
   /** The role granted in that school. Null grants a login and no permissions. */
   roleId: string | null;
@@ -69,12 +100,14 @@ export type StaffAccountInput = {
   jobTitle: string | null;
 };
 
-export type StaffAccountResult =
+export type LoginAccountResult =
   | { ok: true; userId: string; username: string }
   | { ok: false; reason: "email-taken" | "username-taken" | "no-username" };
 
 /**
- * Creates the login account for a member of staff, in one transaction.
+ * Creates a login account, in one transaction. Used for a member of staff and
+ * for a guardian's portal access alike — the difference between the two is only
+ * whether a role comes with it.
  *
  * Refuses rather than repairs. A taken email or username comes back as a reason
  * the form can put against the right field — the alternative is letting the
@@ -82,12 +115,12 @@ export type StaffAccountResult =
  * leaves them guessing which of the two fields to change.
  *
  * `no-username` is the case a name in Arabic script produces: `suggestUsername`
- * has nothing ASCII to build from, so the school is asked to supply one rather
- * than being handed an account nobody can sign into.
+ * has nothing ASCII to build from, so the caller is asked to supply one rather
+ * than handed an account nobody can sign into.
  */
-export async function createStaffAccount(
-  input: StaffAccountInput,
-): Promise<StaffAccountResult> {
+export async function createLoginAccount(
+  input: LoginAccountInput,
+): Promise<LoginAccountResult> {
   const email = input.email.trim().toLowerCase();
 
   const emailTaken = await db.user.findUnique({

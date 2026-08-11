@@ -4,6 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useMarkRider, useMoveRun, useRunRegister } from "../../src/api/hooks";
+import { interpolate, label, useFormat, useT } from "../../src/i18n";
 import {
   Badge,
   Body,
@@ -18,13 +19,6 @@ import {
   Stat,
   Title,
 } from "../../src/ui/components";
-import {
-  ATTENDANCE_LABELS,
-  DIRECTION_LABELS,
-  clock,
-  label,
-  longDate,
-} from "../../src/ui/format";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /**
@@ -53,6 +47,8 @@ import { radius, spacing, useTheme } from "../../src/ui/theme";
 export default function RunScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
+  const fmt = useFormat();
   const { runId } = useLocalSearchParams<{ runId: string }>();
 
   const register = useRunRegister(runId);
@@ -74,10 +70,7 @@ export default function RunScreen() {
   function start() {
     move.mutate("EN_ROUTE", {
       onError: () =>
-        Alert.alert(
-          "Départ refusé",
-          "Le voyage a peut-être déjà été démarré, ou ce n'est plus son heure.",
-        ),
+        Alert.alert(t.run.departRefusedTitle, t.run.departRefusedBody),
     });
   }
 
@@ -85,10 +78,7 @@ export default function RunScreen() {
     const close = () =>
       move.mutate("ARRIVED", {
         onError: () =>
-          Alert.alert(
-            "Clôture refusée",
-            "Le voyage a peut-être déjà été clôturé, ou ce n'est plus son heure.",
-          ),
+          Alert.alert(t.run.closeRefusedTitle, t.run.closeRefusedBody),
       });
 
     if (unmarked === 0) {
@@ -97,11 +87,11 @@ export default function RunScreen() {
     }
 
     Alert.alert(
-      "Terminer le voyage ?",
-      `${unmarked} élève${unmarked > 1 ? "s" : ""} non pointé${unmarked > 1 ? "s" : ""}. Vous pourrez encore corriger l'appel après l'arrivée.`,
+      t.run.finishConfirmTitle,
+      interpolate(t.run.finishConfirmBody, { count: unmarked }),
       [
-        { text: "Annuler", style: "cancel" },
-        { text: "Terminer", style: "destructive", onPress: close },
+        { text: t.common.cancel, style: "cancel" },
+        { text: t.run.finishConfirmAction, style: "destructive", onPress: close },
       ],
     );
   }
@@ -112,7 +102,7 @@ export default function RunScreen() {
       { subscriptionId, status },
       {
         onError: () =>
-          Alert.alert("Pointage refusé", "Le pointage n'a pas pu être enregistré."),
+          Alert.alert(t.run.markRefusedTitle, t.run.markSaveFailed),
         onSettled: () => setMarking(null),
       },
     );
@@ -134,7 +124,7 @@ export default function RunScreen() {
       >
         {register.isPending ? <Loading /> : null}
         {register.isError ? (
-          <ErrorNote message="Impossible de charger la feuille de route." />
+          <ErrorNote message={t.run.loadError} />
         ) : null}
 
         {run ? (
@@ -143,8 +133,8 @@ export default function RunScreen() {
               <Title>{run.routeName}</Title>
               <Caption>
                 {run.plannedDepartureTime} ·{" "}
-                {label(DIRECTION_LABELS, run.direction)} ·{" "}
-                {longDate(new Date())}
+                {label(t.labels.direction, run.direction)} ·{" "}
+                {fmt.longDate(new Date())}
               </Caption>
             </View>
 
@@ -152,7 +142,7 @@ export default function RunScreen() {
                 names no child, and it is what somebody covering an unfamiliar
                 line reads before setting off. */}
             <Button
-              label="Voir le trajet"
+              label={t.run.viewRoute}
               variant="ghost"
               onPress={() =>
                 router.push({
@@ -165,19 +155,21 @@ export default function RunScreen() {
             {/* ── Avant le départ ───────────────────────────────────────── */}
             {run.status === "PLANNED" ? (
               <Card>
-                <Heading>Le voyage n&apos;a pas commencé</Heading>
+                <Heading>{t.run.notStartedTitle}</Heading>
                 <Caption>
                   {isOpen
-                    ? "Démarrez le voyage pour ouvrir l'appel. La liste des élèves s'affiche une fois le bus parti."
+                    ? t.run.notStartedOpen
                     : run.window === "UPCOMING"
-                      ? `Ce voyage part à ${run.plannedDepartureTime}. Il s'ouvrira une heure avant.`
-                      : "L'heure de ce voyage est passée. Prévenez l'école si le bus est tout de même sorti."}
+                      ? interpolate(t.run.notStartedUpcoming, {
+                          time: run.plannedDepartureTime,
+                        })
+                      : t.run.notStartedPast}
                 </Caption>
                 {isOpen ? (
                   <>
                     <Divider />
                     <Button
-                      label="Démarrer le voyage"
+                      label={t.run.startRun}
                       onPress={start}
                       busy={move.isPending}
                     />
@@ -188,8 +180,8 @@ export default function RunScreen() {
 
             {run.status === "CANCELLED" ? (
               <Card>
-                <Heading>Voyage annulé</Heading>
-                <Caption>{run.cancelReason ?? "Aucun motif indiqué."}</Caption>
+                <Heading>{t.run.cancelledTitle}</Heading>
+                <Caption>{run.cancelReason ?? t.run.noReasonGiven}</Caption>
               </Card>
             ) : null}
 
@@ -204,39 +196,35 @@ export default function RunScreen() {
                       gap: spacing.md,
                     }}
                   >
-                    <Stat value={entries.length} label="Élèves attendus" />
+                    <Stat value={entries.length} label={t.run.expectedStudents} />
                     <Stat
                       value={unmarked}
-                      label="Non pointés"
+                      label={t.run.unmarked}
                       tone={unmarked > 0 ? "warning" : "success"}
                     />
                   </View>
 
                   {run.startedAt ? (
                     <Caption>
-                      Parti à {clock(run.startedAt)}
-                      {run.arrivedAt ? ` · arrivé à ${clock(run.arrivedAt)}` : ""}
+                      {interpolate(t.run.departedAt, { time: fmt.clock(run.startedAt) })}
+                      {run.arrivedAt
+                        ? interpolate(t.run.arrivedAt, { time: fmt.clock(run.arrivedAt) })
+                        : ""}
                     </Caption>
                   ) : null}
 
                   {run.status === "ARRIVED" && isOpen ? (
-                    <Caption>
-                      Voyage clôturé. L&apos;appel reste corrigeable encore
-                      quelques heures.
-                    </Caption>
+                    <Caption>{t.run.closedStillEditable}</Caption>
                   ) : null}
                   {!isOpen ? (
-                    <Caption>
-                      L&apos;heure de ce voyage est passée — l&apos;appel se
-                      corrige désormais depuis le poste de l&apos;école.
-                    </Caption>
+                    <Caption>{t.run.pastEditFromOffice}</Caption>
                   ) : null}
                 </Card>
 
-                <Heading>Feuille de route</Heading>
+                <Heading>{t.run.routeSheet}</Heading>
 
                 {entries.length === 0 ? (
-                  <Empty message="Aucun élève abonné sur ce circuit." />
+                  <Empty message={t.run.noSubscribers} />
                 ) : (
                   entries.map((entry, index) => (
                     <Card key={entry.subscriptionId}>
@@ -288,8 +276,8 @@ export default function RunScreen() {
                           }
                         >
                           {entry.status === null
-                            ? "Non pointé"
-                            : label(ATTENDANCE_LABELS, entry.status)}
+                            ? t.run.notMarked
+                            : label(t.labels.attendance, entry.status)}
                         </Badge>
                       </View>
 
@@ -303,7 +291,7 @@ export default function RunScreen() {
                               (status) => (
                                 <MarkButton
                                   key={status}
-                                  label={label(ATTENDANCE_LABELS, status)}
+                                  label={label(t.labels.attendance, status)}
                                   selected={entry.status === status}
                                   busy={marking === entry.subscriptionId}
                                   onPress={() =>
@@ -328,7 +316,7 @@ export default function RunScreen() {
 
                 {canFinish ? (
                   <Button
-                    label="Terminus — terminer le voyage"
+                    label={t.run.finishRun}
                     onPress={finish}
                     busy={move.isPending}
                   />

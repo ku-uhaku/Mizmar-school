@@ -52,6 +52,32 @@ const en = {
     isEmergencyContact: "Emergency contact",
     canPickUp: "May collect children",
     makePrimary: "Make first contact",
+    portalAccount: "Portal account",
+    portalAccountHint:
+      "One login per family. It opens the parents' app onto every child on this file.",
+    portalBadge: "App access",
+    portalRevoked: "Access withdrawn",
+    openPortalAccount: "Open portal account",
+    resetPortalPassword: "Reset password",
+    revokePortalAccount: "Withdraw access",
+    portalUsername: "Username",
+    portalPassword: "Password",
+    portalOpened: "Portal account opened.",
+    portalPasswordReset: "New password issued.",
+    portalAccountRevoked: "Portal access withdrawn.",
+    portalAlreadyOpen:
+      "This family already has a portal account, on {name}. Withdraw it before opening another.",
+    portalNoAccount: "This guardian has no portal account.",
+    portalNoUsername:
+      "No username could be built from this name. Give the guardian a name in Latin script, or a file number.",
+    portalCredentialsTitle: "Hand these to the parent",
+    portalCredentialsBody:
+      "The password is shown once and cannot be recovered. Write it down or copy it before closing this window.",
+    portalCopy: "Copy",
+    portalCopied: "Copied",
+    revokePortalTitle: "Withdraw portal access?",
+    revokePortalBody:
+      "“{name}” will be signed out of the parents' app immediately and will not be able to sign in again.",
     created: "Family created.",
     updated: "Family updated.",
     deleted: "Family deleted.",
@@ -110,6 +136,7 @@ export const permissions = {
     "family.create": "Create family files",
     "family.update": "Update family files and guardians",
     "family.delete": "Delete family files",
+    "family.portal": "Open and withdraw parent portal accounts",
   },
 } as const;
 

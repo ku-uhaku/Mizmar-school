@@ -35,6 +35,7 @@ export function StudentFamilyPanel({
   guardians,
   families,
   canManage,
+  canManagePortal,
 }: {
   studentId: string;
   family: {
@@ -48,6 +49,7 @@ export function StudentFamilyPanel({
   /** Dossiers to attach to, when the pupil has none. */
   families: { id: string; label: string }[];
   canManage: boolean;
+  canManagePortal: boolean;
 }) {
   const t = useT();
   const [choice, setChoice] = React.useState("");
@@ -163,6 +165,7 @@ export function StudentFamilyPanel({
         familyId={family.id}
         guardians={guardians}
         canManage={canManage}
+        canManagePortal={canManagePortal}
       />
     </div>
   );

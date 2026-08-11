@@ -1,10 +1,11 @@
 import { Stack, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { clearTokens } from "../src/api/client";
 import { useIdentity } from "../src/api/hooks";
+import { LOCALES, LOCALE_META, useLocale, useT } from "../src/i18n";
 import {
   Badge,
   Button,
@@ -14,14 +15,7 @@ import {
   Loading,
   Row,
 } from "../src/ui/components";
-import { spacing, useTheme } from "../src/ui/theme";
-
-const SPACE_LABELS: Record<string, string> = {
-  family: "Famille",
-  teacher: "Classe",
-  driver: "Transport",
-  director: "Direction",
-};
+import { radius, spacing, useTheme } from "../src/ui/theme";
 
 /**
  * The account, and the way out of it.
@@ -37,6 +31,15 @@ export default function ProfileScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const identity = useIdentity();
+  const t = useT();
+  const { locale, setLocale } = useLocale();
+
+  const SPACE_LABELS: Record<string, string> = {
+    family: t.spaces.family,
+    teacher: t.spaces.teacher,
+    driver: t.spaces.driver,
+    director: t.spaces.director,
+  };
 
   const signOut = async () => {
     await clearTokens();
@@ -48,7 +51,7 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Profil" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.profile.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -64,10 +67,10 @@ export default function ProfileScreen() {
           <>
             <Card>
               <Heading>{identity.data.fullName}</Heading>
-              <Row label="Compte" value={identity.data.email} />
+              <Row label={t.profile.account} value={identity.data.email} />
               <Divider />
               <Row
-                label="Établissement"
+                label={t.profile.establishment}
                 value={
                   identity.data.schoolName ?? identity.data.organizationName
                 }
@@ -76,7 +79,7 @@ export default function ProfileScreen() {
                 <>
                   <Divider />
                   <Row
-                    label="Année scolaire"
+                    label={t.profile.schoolYear}
                     value={identity.data.schoolYearName}
                   />
                 </>
@@ -85,7 +88,7 @@ export default function ProfileScreen() {
 
             {identity.data.spaces.length > 0 ? (
               <Card>
-                <Heading>Accès</Heading>
+                <Heading>{t.profile.access}</Heading>
                 <View
                   style={{
                     flexDirection: "row",
@@ -102,7 +105,51 @@ export default function ProfileScreen() {
               </Card>
             ) : null}
 
-            <Button label="Déconnexion" onPress={signOut} variant="ghost" />
+            <Card>
+              <Heading>{t.profile.language}</Heading>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: spacing.sm,
+                  marginTop: spacing.sm,
+                }}
+              >
+                {LOCALES.map((code) => {
+                  const active = code === locale;
+                  return (
+                    <Pressable
+                      key={code}
+                      onPress={() => setLocale(code)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        paddingVertical: 10,
+                        borderRadius: radius.sm,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: active ? theme.primary : theme.border,
+                        backgroundColor: active
+                          ? `${theme.primary}1a`
+                          : theme.card,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: active ? theme.primary : theme.text,
+                          fontSize: 14,
+                          fontWeight: active ? "700" : "500",
+                        }}
+                      >
+                        {LOCALE_META[code].label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </Card>
+
+            <Button label={t.profile.signOut} onPress={signOut} variant="ghost" />
           </>
         ) : null}
       </ScrollView>

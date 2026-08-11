@@ -13,6 +13,7 @@ import {
   useChildTimetable,
   useEvents,
 } from "../../../src/api/hooks";
+import { interpolate, label, useFormat, useT } from "../../../src/i18n";
 import {
   Badge,
   Body,
@@ -28,17 +29,6 @@ import {
   Row,
   Stat,
 } from "../../../src/ui/components";
-import {
-  ABSENCE_STATUS_LABELS,
-  DIRECTION_LABELS,
-  DOCUMENT_STATUS_LABELS,
-  EVENT_KIND_LABELS,
-  WEEKDAY_LABELS,
-  label,
-  money,
-  monthLabel,
-  shortDate,
-} from "../../../src/ui/format";
 import { radius, spacing, useTheme } from "../../../src/ui/theme";
 import { useChecklist } from "../../../src/ui/use-checklist";
 
@@ -59,18 +49,6 @@ import { useChecklist } from "../../../src/ui/use-checklist";
 /** The chip that clears a filter. A value, not a separate reset button. */
 const ALL = "__all__";
 
-const TITLES: Record<string, string> = {
-  notes: "Notes",
-  absences: "Absences",
-  remarques: "Remarques",
-  "emploi-du-temps": "Emploi du temps",
-  paiements: "Paiements",
-  fournitures: "Fournitures",
-  dossier: "Dossier",
-  transport: "Transport",
-  evenements: "Événements",
-};
-
 /** The topics that carry a badge, and what each is called on the server. */
 const SEEN_FOR: Record<string, "EVENTS" | "MARKS" | "REMARKS"> = {
   evenements: "EVENTS",
@@ -81,6 +59,7 @@ const SEEN_FOR: Record<string, "EVENTS" | "MARKS" | "REMARKS"> = {
 export default function TopicScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
   const { studentId, topic } = useLocalSearchParams<{
     studentId: string;
     topic: string;
@@ -95,10 +74,12 @@ export default function TopicScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);
 
+  const titles: Record<string, string> = t.topic.titles;
+
   return (
     <>
       <Stack.Screen
-        options={{ headerShown: true, title: TITLES[topic] ?? "Détail" }}
+        options={{ headerShown: true, title: titles[topic] ?? t.topic.defaultTitle }}
       />
 
       <ScrollView
@@ -116,6 +97,8 @@ export default function TopicScreen() {
 }
 
 function TopicBody({ studentId, topic }: { studentId: string; topic: string }) {
+  const t = useT();
+
   switch (topic) {
     case "notes":
       return <Notes studentId={studentId} />;
@@ -136,24 +119,27 @@ function TopicBody({ studentId, topic }: { studentId: string; topic: string }) {
     case "evenements":
       return <Events />;
     default:
-      return <Empty message="Rien à afficher." />;
+      return <Empty message={t.topic.unknown} />;
   }
 }
 
 /** The four topics that come off the child's own detail read. */
 function useDetail(studentId: string) {
+  const t = useT();
   const detail = useChild(studentId);
   return {
     detail,
     guard: detail.isPending ? (
       <Loading />
     ) : detail.isError ? (
-      <ErrorNote message="Impossible de charger la fiche de l'élève." />
+      <ErrorNote message={t.topic.loadError} />
     ) : null,
   };
 }
 
 function Notes({ studentId }: { studentId: string }) {
+  const t = useT();
+  const fmt = useFormat();
   const { detail, guard } = useDetail(studentId);
   // Declared before the early returns: a hook may not be called conditionally,
   // and the guard above returns.
@@ -198,7 +184,7 @@ function Notes({ studentId }: { studentId: string }) {
           setSubject(ALL);
         }}
         options={[
-          { value: ALL, label: "Tous" },
+          { value: ALL, label: t.topic.notes.allChip },
           ...terms.map((name) => ({ value: name, label: name })),
         ]}
       />
@@ -207,7 +193,7 @@ function Notes({ studentId }: { studentId: string }) {
         value={subject}
         onChange={setSubject}
         options={[
-          { value: ALL, label: "Matières" },
+          { value: ALL, label: t.topic.notes.subjectsChip },
           ...subjects.map((name) => ({ value: name, label: name })),
         ]}
       />
@@ -215,7 +201,7 @@ function Notes({ studentId }: { studentId: string }) {
       <Card>
         <Stat
           value={averageOutOf20 ?? "—"}
-          label="Moyenne générale /20"
+          label={t.topic.notes.average}
           tone={
             averageOutOf20 === null
               ? "default"
@@ -227,7 +213,7 @@ function Notes({ studentId }: { studentId: string }) {
       </Card>
 
       {shown.length === 0 ? (
-        <Empty message="Aucune note publiée pour le moment." />
+        <Empty message={t.topic.notes.none} />
       ) : (
         <Card>
           {shown.map((mark, index) => (
@@ -237,8 +223,11 @@ function Notes({ studentId }: { studentId: string }) {
                 label={mark.subjectName}
                 value={
                   mark.isAbsent
-                    ? "Absent"
-                    : `${mark.score ?? "—"}/${mark.maxScore}`
+                    ? t.topic.notes.absent
+                    : interpolate(t.topic.notes.score, {
+                        score: mark.score ?? "—",
+                        max: mark.maxScore,
+                      })
                 }
               />
               <Caption>
@@ -246,7 +235,7 @@ function Notes({ studentId }: { studentId: string }) {
                   mark.title,
                   mark.typeName,
                   mark.termName,
-                  mark.scheduledOn ? shortDate(mark.scheduledOn) : null,
+                  mark.scheduledOn ? fmt.shortDate(mark.scheduledOn) : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -260,6 +249,8 @@ function Notes({ studentId }: { studentId: string }) {
 }
 
 function Absences({ studentId }: { studentId: string }) {
+  const t = useT();
+  const fmt = useFormat();
   const { detail, guard } = useDetail(studentId);
   const [filter, setFilter] = useState(ALL);
   const [kind, setKind] = useState(ALL);
@@ -295,17 +286,17 @@ function Absences({ studentId }: { studentId: string }) {
         >
           <Stat
             value={missedCount}
-            label="Séances manquées"
+            label={t.topic.absences.missedSessions}
             tone={missedCount > 0 ? "warning" : "success"}
           />
           <Stat
             value={unjustifiedCount}
-            label="Non justifiées"
+            label={t.topic.absences.unjustified}
             tone={unjustifiedCount > 0 ? "danger" : "success"}
           />
           <Stat
             value={lateCount}
-            label="Retards"
+            label={t.topic.absences.lates}
             tone={lateCount > 0 ? "warning" : "success"}
           />
         </View>
@@ -315,9 +306,9 @@ function Absences({ studentId }: { studentId: string }) {
         value={filter}
         onChange={setFilter}
         options={[
-          { value: ALL, label: "Toutes" },
-          { value: "unjustified", label: "Non justifiées" },
-          { value: "justified", label: "Justifiées" },
+          { value: ALL, label: t.topic.absences.allChip },
+          { value: "unjustified", label: t.topic.absences.unjustifiedChip },
+          { value: "justified", label: t.topic.absences.justifiedChip },
         ]}
       />
 
@@ -325,23 +316,23 @@ function Absences({ studentId }: { studentId: string }) {
         value={kind}
         onChange={setKind}
         options={[
-          { value: ALL, label: "Tous types" },
-          { value: "ABSENT", label: "Absences" },
-          { value: "LATE", label: "Retards" },
-          { value: "EXCUSED", label: "Excusés" },
+          { value: ALL, label: t.topic.absences.allTypesChip },
+          { value: "ABSENT", label: t.topic.absences.absencesChip },
+          { value: "LATE", label: t.topic.absences.latesChip },
+          { value: "EXCUSED", label: t.topic.absences.excusedChip },
         ]}
       />
 
       {shown.length === 0 ? (
-        <Empty message="Aucune absence enregistrée." />
+        <Empty message={t.topic.absences.none} />
       ) : (
         <Card>
           {shown.map((entry, index) => (
             <View key={entry.id}>
               {index > 0 ? <Divider /> : null}
               <Row
-                label={shortDate(entry.date)}
-                value={label(ABSENCE_STATUS_LABELS, entry.status)}
+                label={fmt.shortDate(entry.date)}
+                value={label(t.labels.absenceStatus, entry.status)}
               />
               <Caption>
                 {[
@@ -349,9 +340,13 @@ function Absences({ studentId }: { studentId: string }) {
                   // A retard says how late, which is the whole point of it
                   // being its own status rather than a flag on "present".
                   entry.status === "LATE" && entry.minutesLate
-                    ? `${entry.minutesLate} min`
+                    ? interpolate(t.topic.absences.minutesLate, {
+                        count: entry.minutesLate,
+                      })
                     : null,
-                  entry.isJustified ? "Justifiée" : "Non justifiée",
+                  entry.isJustified
+                    ? t.topic.absences.justified
+                    : t.topic.absences.notJustified,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -365,14 +360,16 @@ function Absences({ studentId }: { studentId: string }) {
 }
 
 function Remarques({ studentId }: { studentId: string }) {
+  const t = useT();
+  const fmt = useFormat();
   const remarks = useChildRemarks(studentId);
 
   if (remarks.isPending) return <Loading />;
   if (remarks.isError) {
-    return <ErrorNote message="Impossible de charger les remarques." />;
+    return <ErrorNote message={t.topic.remarks.loadError} />;
   }
   if (remarks.data.length === 0) {
-    return <Empty message="Aucune remarque partagée par les enseignants." />;
+    return <Empty message={t.topic.remarks.none} />;
   }
 
   return (
@@ -389,7 +386,7 @@ function Remarques({ studentId }: { studentId: string }) {
             }}
           >
             <Caption>
-              {[remark.subjectName, shortDate(remark.occurredOn)]
+              {[remark.subjectName, fmt.shortDate(remark.occurredOn)]
                 .filter(Boolean)
                 .join(" · ")}
             </Caption>
@@ -402,7 +399,7 @@ function Remarques({ studentId }: { studentId: string }) {
                     : "default"
               }
             >
-              {remark.kind}
+              {label(t.labels.remarkKind, remark.kind)}
             </Badge>
           </View>
           <Body>{remark.body}</Body>
@@ -415,19 +412,18 @@ function Remarques({ studentId }: { studentId: string }) {
 
 function Timetable({ studentId }: { studentId: string }) {
   const theme = useTheme();
+  const t = useT();
   const timetable = useChildTimetable(studentId);
 
   if (timetable.isPending) return <Loading />;
   if (timetable.isError) {
-    return <ErrorNote message="Impossible de charger l'emploi du temps." />;
+    return <ErrorNote message={t.topic.timetable.loadError} />;
   }
 
   const { teachingDays, lessons } = timetable.data;
 
   if (teachingDays.length === 0) {
-    return (
-      <Empty message="Aucun emploi du temps — l'élève n'a pas encore de classe." />
-    );
+    return <Empty message={t.topic.timetable.none} />;
   }
 
   /*
@@ -456,7 +452,7 @@ function Timetable({ studentId }: { studentId: string }) {
   ].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   if (columns.length === 0) {
-    return <Empty message="Aucun cours placé pour cette classe." />;
+    return <Empty message={t.topic.timetable.noLessonsPlaced} />;
   }
 
   const cellFor = (day: number, key: string) =>
@@ -511,7 +507,7 @@ function Timetable({ studentId }: { studentId: string }) {
             <Text
               style={{ color: theme.text, fontSize: 12, fontWeight: "700" }}
             >
-              {label(WEEKDAY_LABELS, String(day)).slice(0, 3)}
+              {label(t.labels.weekday, String(day)).slice(0, 3)}
             </Text>
           </View>
         ))}
@@ -601,6 +597,8 @@ function Timetable({ studentId }: { studentId: string }) {
 }
 
 function Payments({ studentId }: { studentId: string }) {
+  const t = useT();
+  const fmt = useFormat();
   const { detail, guard } = useDetail(studentId);
   if (guard) return guard;
   if (!detail.data) return null;
@@ -627,24 +625,24 @@ function Payments({ studentId }: { studentId: string }) {
           style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.md }}
         >
           <Stat
-            value={money(fees.outstandingCentimes)}
-            label="Reste à payer"
+            value={fmt.money(fees.outstandingCentimes)}
+            label={t.topic.payments.outstanding}
             tone={fees.isUpToDate ? "success" : "warning"}
           />
           <Stat
-            value={money(fees.overdueCentimes)}
-            label="En retard"
+            value={fmt.money(fees.overdueCentimes)}
+            label={t.topic.payments.overdue}
             tone={fees.overdueCentimes > 0 ? "danger" : "success"}
           />
-          <Stat value={money(fees.paidCentimes)} label="Déjà réglé" />
+          <Stat value={fmt.money(fees.paidCentimes)} label={t.topic.payments.alreadyPaid} />
         </View>
         <Badge tone={fees.isUpToDate ? "success" : "danger"}>
-          {fees.isUpToDate ? "À jour" : "Paiement en attente"}
+          {fees.isUpToDate ? t.topic.payments.upToDate : t.topic.payments.pending}
         </Badge>
       </Card>
 
       {fees.lines.length === 0 ? (
-        <Empty message="Aucune échéance." />
+        <Empty message={t.topic.payments.none} />
       ) : (
         months.map((month) => {
           const lines = fees.lines.filter((line) => line.month === month);
@@ -664,25 +662,29 @@ function Payments({ studentId }: { studentId: string }) {
                   gap: spacing.sm,
                 }}
               >
-                <Heading>{monthLabel(month)}</Heading>
+                <Heading>{fmt.monthLabel(month)}</Heading>
                 {/* The month's own balance, which is the figure a parent came
                   for — "what do I owe for March", not "what do I owe". */}
                 <Badge tone={settled ? "success" : "warning"}>
-                  {settled ? "Réglé" : money(due)}
+                  {settled ? t.topic.payments.settled : fmt.money(due)}
                 </Badge>
               </View>
 
               {lines.map((line, index) => (
                 <View key={line.id}>
                   {index > 0 ? <Divider /> : null}
-                  <Row label={line.label} value={money(line.amountCentimes)} />
+                  <Row label={line.label} value={fmt.money(line.amountCentimes)} />
                   <Caption>
                     {[
-                      `échéance ${shortDate(line.dueDate)}`,
+                      interpolate(t.topic.payments.due, {
+                        date: fmt.shortDate(line.dueDate),
+                      }),
                       line.outstandingCentimes === 0
-                        ? "réglée"
-                        : `${money(line.outstandingCentimes)} restant`,
-                      line.isOverdue ? "en retard" : null,
+                        ? t.topic.payments.settledTag
+                        : interpolate(t.topic.payments.remaining, {
+                            amount: fmt.money(line.outstandingCentimes),
+                          }),
+                      line.isOverdue ? t.topic.payments.overdueTag : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -698,26 +700,31 @@ function Payments({ studentId }: { studentId: string }) {
 }
 
 function DossierView({ studentId }: { studentId: string }) {
+  const t = useT();
+  const fmt = useFormat();
   const dossier = useChildDossier(studentId);
 
   if (dossier.isPending) return <Loading />;
   if (dossier.isError) {
-    return <ErrorNote message="Impossible de charger le dossier." />;
+    return <ErrorNote message={t.topic.dossier.loadError} />;
   }
   if (dossier.data.pieces.length === 0) {
-    return <Empty message="Aucune pièce demandée par l'école." />;
+    return <Empty message={t.topic.dossier.none} />;
   }
 
   return (
     <>
       <Card>
         <Stat
-          value={`${dossier.data.providedCount}/${dossier.data.requiredCount}`}
-          label="Pièces obligatoires fournies"
+          value={interpolate(t.topic.dossier.provided, {
+            provided: dossier.data.providedCount,
+            required: dossier.data.requiredCount,
+          })}
+          label={t.topic.dossier.requiredProvided}
           tone={dossier.data.isComplete ? "success" : "warning"}
         />
         <Badge tone={dossier.data.isComplete ? "success" : "warning"}>
-          {dossier.data.isComplete ? "Dossier complet" : "Dossier incomplet"}
+          {dossier.data.isComplete ? t.topic.dossier.complete : t.topic.dossier.incomplete}
         </Badge>
       </Card>
 
@@ -727,13 +734,15 @@ function DossierView({ studentId }: { studentId: string }) {
             {index > 0 ? <Divider /> : null}
             <Row
               label={piece.name}
-              value={label(DOCUMENT_STATUS_LABELS, piece.status)}
+              value={label(t.labels.documentStatus, piece.status)}
             />
             <Caption>
               {[
-                piece.isRequired ? "Obligatoire" : "Facultative",
+                piece.isRequired ? t.topic.dossier.required : t.topic.dossier.optional,
                 piece.receivedOn
-                  ? `Reçue le ${shortDate(piece.receivedOn)}`
+                  ? interpolate(t.topic.dossier.receivedOn, {
+                      date: fmt.shortDate(piece.receivedOn),
+                    })
                   : null,
               ]
                 .filter(Boolean)
@@ -748,6 +757,7 @@ function DossierView({ studentId }: { studentId: string }) {
 
 function Supplies({ studentId }: { studentId: string }) {
   const theme = useTheme();
+  const t = useT();
   const lists = useChildSupplies(studentId);
 
   /*
@@ -769,12 +779,10 @@ function Supplies({ studentId }: { studentId: string }) {
 
   if (lists.isPending || !isReady) return <Loading />;
   if (lists.isError) {
-    return <ErrorNote message="Impossible de charger les fournitures." />;
+    return <ErrorNote message={t.topic.supplies.loadError} />;
   }
   if (lists.data.length === 0) {
-    return (
-      <Empty message="Aucune liste de fournitures publiée pour cette classe." />
-    );
+    return <Empty message={t.topic.supplies.none} />;
   }
 
   /*
@@ -798,7 +806,7 @@ function Supplies({ studentId }: { studentId: string }) {
         only when there is something to clear. */}
       {totalTicked > 0 ? (
         <Button
-          label={`Tout décocher (${totalTicked})`}
+          label={interpolate(t.topic.supplies.clearAll, { count: totalTicked })}
           onPress={clear}
           variant="ghost"
         />
@@ -880,7 +888,7 @@ function Supplies({ studentId }: { studentId: string }) {
 
                   {item.notes || !item.isRequired ? (
                     <Caption>
-                      {[item.notes, item.isRequired ? null : "facultatif"]
+                      {[item.notes, item.isRequired ? null : t.topic.supplies.optional]
                         .filter(Boolean)
                         .join(" · ")}
                     </Caption>
@@ -896,34 +904,37 @@ function Supplies({ studentId }: { studentId: string }) {
 }
 
 function Transport({ studentId }: { studentId: string }) {
+  const t = useT();
   const { detail, guard } = useDetail(studentId);
   if (guard) return guard;
   if (!detail.data) return null;
 
   const transport = detail.data.transport;
   if (!transport) {
-    return <Empty message="Cet élève n'est pas inscrit au transport." />;
+    return <Empty message={t.topic.transport.notEnrolled} />;
   }
 
   return (
     <Card>
       <Heading>{transport.routeName}</Heading>
-      <Row label="Arrêt" value={transport.stopName} />
+      <Row label={t.topic.transport.stop} value={transport.stopName} />
       <Divider />
-      <Row label="Sens" value={label(DIRECTION_LABELS, transport.direction)} />
+      <Row label={t.topic.transport.direction} value={label(t.labels.direction, transport.direction)} />
     </Card>
   );
 }
 
 function Events() {
+  const t = useT();
+  const fmt = useFormat();
   const events = useEvents();
 
   if (events.isPending) return <Loading />;
   if (events.isError) {
-    return <ErrorNote message="Impossible de charger les événements." />;
+    return <ErrorNote message={t.topic.events.loadError} />;
   }
   if (events.data.length === 0) {
-    return <Empty message="Rien d'annoncé pour le moment." />;
+    return <Empty message={t.topic.events.none} />;
   }
 
   return (
@@ -941,9 +952,9 @@ function Events() {
           >
             <Heading>{event.title}</Heading>
             {event.status === "CANCELLED" ? (
-              <Badge tone="danger">Annulé</Badge>
+              <Badge tone="danger">{t.topic.events.cancelled}</Badge>
             ) : (
-              <Badge>{label(EVENT_KIND_LABELS, event.kind)}</Badge>
+              <Badge>{label(t.labels.eventKind, event.kind)}</Badge>
             )}
           </View>
 
@@ -952,8 +963,8 @@ function Events() {
               to midnight, and rendering that as 00:00 is exactly what the flag
               exists to prevent. */}
             {event.isAllDay
-              ? shortDate(event.startsAt)
-              : `${shortDate(event.startsAt)} · ${event.startsAt.slice(11, 16)}`}
+              ? fmt.shortDate(event.startsAt)
+              : `${fmt.shortDate(event.startsAt)} · ${event.startsAt.slice(11, 16)}`}
             {event.location ? ` · ${event.location}` : ""}
           </Caption>
 

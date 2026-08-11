@@ -31,10 +31,27 @@ export type ActionState = {
   key?: number;
 };
 
+/**
+ * A result that carries something back beyond a message.
+ *
+ * Kept generic and domain-free so `lib/` stays that way: the one case it exists
+ * for is a secret the server generates and the screen may show exactly once — a
+ * password nobody can look up again — which has nowhere else to live, since the
+ * whole point is that it is never stored.
+ */
+export type ActionStateWith<T> = ActionState & { data?: T };
+
 export const IDLE: ActionState = { status: "idle" };
 
 export function success(message?: string): ActionState {
   return { status: "success", message, key: Date.now() };
+}
+
+export function successWith<T>(
+  data: T,
+  message?: string,
+): ActionStateWith<T> {
+  return { status: "success", message, data, key: Date.now() };
 }
 
 export function failure(

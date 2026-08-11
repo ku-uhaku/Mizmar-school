@@ -54,6 +54,7 @@ export default async function FamilyPage({
         family={family}
         receipts={receipts}
         canManage={context.can(PERMISSIONS.FAMILY_UPDATE)}
+        canManagePortal={context.can(PERMISSIONS.FAMILY_PORTAL)}
       />
     </>
   );

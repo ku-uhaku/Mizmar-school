@@ -177,6 +177,7 @@ export function StudentProfile({
   permissions: {
     canUpdateStudent: boolean;
     canManageFamily: boolean;
+    canManageFamilyPortal: boolean;
     canCreateEnrolment: boolean;
     canUpdateEnrolment: boolean;
     canDeleteEnrolment: boolean;
@@ -343,6 +344,7 @@ export function StudentProfile({
             guardians={guardians}
             families={families}
             canManage={permissions.canManageFamily}
+            canManagePortal={permissions.canManageFamilyPortal}
           />
         </TabsContent>
 

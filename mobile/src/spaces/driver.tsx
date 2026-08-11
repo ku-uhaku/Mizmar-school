@@ -2,6 +2,7 @@ import { Link } from "expo-router";
 import { Pressable, View } from "react-native";
 
 import { useDriverDay } from "../api/hooks";
+import { interpolate, isoDay, label, useFormat, useT } from "../i18n";
 import {
   Badge,
   Body,
@@ -13,14 +14,6 @@ import {
   Loading,
   Row,
 } from "../ui/components";
-import {
-  DIRECTION_LABELS,
-  RUN_STATUS_LABELS,
-  RUN_WINDOW_LABELS,
-  isoDay,
-  label,
-  longDate,
-} from "../ui/format";
 import { spacing } from "../ui/theme";
 
 /**
@@ -34,24 +27,26 @@ import { spacing } from "../ui/theme";
  * Tapping the live one opens it: départ, then the names, then l'arrivée.
  */
 export function DriverSpace() {
+  const t = useT();
+  const fmt = useFormat();
   const today = isoDay(new Date());
   const day = useDriverDay(today);
 
   if (day.isPending) return <Loading />;
 
   if (day.isError) {
-    return <ErrorNote message="Impossible de charger les circuits du jour." />;
+    return <ErrorNote message={t.driverSpace.loadError} />;
   }
 
   return (
     <View style={{ gap: spacing.md }}>
       <View style={{ gap: 2 }}>
-        <Heading>Mes circuits</Heading>
-        <Caption>{longDate(new Date())}</Caption>
+        <Heading>{t.driverSpace.myRuns}</Heading>
+        <Caption>{fmt.longDate(new Date())}</Caption>
       </View>
 
       {day.data.runs.length === 0 ? (
-        <Empty message="Aucun circuit prévu aujourd'hui." />
+        <Empty message={t.driverSpace.noRunsToday} />
       ) : (
         day.data.runs.map((run) => (
           <Link
@@ -79,7 +74,7 @@ export function DriverSpace() {
                       {run.plannedDepartureTime} · {run.routeName}
                     </Heading>
                     <Body muted>
-                      {label(DIRECTION_LABELS, run.direction)} · {run.scheduleName}
+                      {label(t.labels.direction, run.direction)} · {run.scheduleName}
                     </Body>
                   </View>
 
@@ -94,7 +89,7 @@ export function DriverSpace() {
                             : "default"
                     }
                   >
-                    {label(RUN_STATUS_LABELS, run.status)}
+                    {label(t.labels.runStatus, run.status)}
                   </Badge>
                 </View>
 
@@ -102,27 +97,31 @@ export function DriverSpace() {
                     bus is out, or back, the status says it better. */}
                 {run.status === "PLANNED" && run.window !== "OPEN" ? (
                   <Row
-                    label={label(RUN_WINDOW_LABELS, run.window)}
+                    label={label(t.labels.runWindow, run.window)}
                     value={
                       run.window === "UPCOMING"
-                        ? `à ${run.plannedDepartureTime}`
-                        : "non effectué"
+                        ? interpolate(t.driverSpace.opensAt, {
+                            time: run.plannedDepartureTime,
+                          })
+                        : t.driverSpace.notDone
                     }
                     tone={run.window === "UPCOMING" ? "default" : "danger"}
                   />
                 ) : null}
 
-                <Row label="Élèves attendus" value={run.riderCount} />
+                <Row label={t.driverSpace.expectedStudents} value={run.riderCount} />
                 {run.vehicleRegistration ? (
-                  <Row label="Véhicule" value={run.vehicleRegistration} />
+                  <Row label={t.driverSpace.vehicle} value={run.vehicleRegistration} />
                 ) : null}
                 {run.delayMinutes !== null ? (
                   <Row
-                    label="Départ"
+                    label={t.driverSpace.departure}
                     value={
                       run.delayMinutes > 0
-                        ? `${run.delayMinutes} min de retard`
-                        : "à l'heure"
+                        ? interpolate(t.driverSpace.lateByMinutes, {
+                            count: run.delayMinutes,
+                          })
+                        : t.driverSpace.onTime
                     }
                     tone={run.delayMinutes > 5 ? "danger" : "success"}
                   />

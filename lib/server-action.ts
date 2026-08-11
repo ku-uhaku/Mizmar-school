@@ -10,10 +10,15 @@ import { ACCESS_ENTITY } from "@/modules/audit/enums";
  * Wraps a Server Action body so authorization failures become a localised
  * message instead of a stack trace, while letting genuine bugs and Next's own
  * control-flow throws (redirect, notFound) propagate untouched.
+ *
+ * Generic in the result so an action that carries something back — see
+ * `ActionStateWith` — keeps its payload type through the wrapper. Every failure
+ * this produces is a plain `ActionState`, which is assignable to it: the payload
+ * is optional precisely because a refusal has none.
  */
-export async function withActionErrors(
-  run: () => Promise<ActionState>,
-): Promise<ActionState> {
+export async function withActionErrors<S extends ActionState>(
+  run: () => Promise<S>,
+): Promise<S | ActionState> {
   try {
     return await run();
   } catch (error) {

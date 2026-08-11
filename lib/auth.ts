@@ -1,3 +1,5 @@
+import { randomInt } from "node:crypto";
+
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
@@ -26,6 +28,26 @@ const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.NgW7ZzGvXhZWjBmxJmLTk1TF.4LcJ2W
 
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 12);
+}
+
+/**
+ * A password for an account somebody else opens on a person's behalf — a
+ * parent's portal login, handed over at the counter.
+ *
+ * The alphabet has `0/O` and `1/l/I` removed: this gets dictated down a
+ * telephone or copied off a slip of paper, and a glyph nobody can read back is a
+ * support call. `crypto.randomInt` rather than `Math.random` — the value is a
+ * credential, and it is uniform without the modulo bias a hand-rolled version
+ * would carry.
+ */
+const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+export function generatePassword(length = 12): string {
+  let password = "";
+  for (let index = 0; index < length; index += 1) {
+    password += PASSWORD_ALPHABET[randomInt(PASSWORD_ALPHABET.length)];
+  }
+  return password;
 }
 
 export async function verifyPassword(

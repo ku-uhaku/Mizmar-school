@@ -3,6 +3,7 @@ import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useMyRemarks } from "../src/api/hooks";
+import { interpolate, label, useFormat, useT } from "../src/i18n";
 import {
   Badge,
   Body,
@@ -15,11 +16,6 @@ import {
   Heading,
   Loading,
 } from "../src/ui/components";
-import {
-  REMARK_KIND_LABELS,
-  REMARK_TONE_LABELS,
-  shortDate,
-} from "../src/ui/format";
 import { spacing, useTheme } from "../src/ui/theme";
 
 /**
@@ -36,6 +32,8 @@ import { spacing, useTheme } from "../src/ui/theme";
 export default function MyRemarksScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
+  const fmt = useFormat();
 
   const remarks = useMyRemarks();
   const rows = remarks.data ?? [];
@@ -43,7 +41,7 @@ export default function MyRemarksScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Mes remarques" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.myRemarks.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -54,25 +52,25 @@ export default function MyRemarksScreen() {
         }}
       >
         <Button
-          label="Écrire une remarque"
+          label={t.myRemarks.write}
           onPress={() => router.push("/remark/new")}
         />
 
         {remarks.isPending ? <Loading /> : null}
         {remarks.isError ? (
-          <ErrorNote message="Impossible de charger vos remarques." />
+          <ErrorNote message={t.myRemarks.loadError} />
         ) : null}
 
         {remarks.data && rows.length === 0 ? (
-          <Empty message="Vous n'avez encore écrit aucune remarque." />
+          <Empty message={t.myRemarks.none} />
         ) : null}
 
         {rows.length > 0 ? (
           <Card>
             <Caption>
               {waiting === 0
-                ? "Toutes vos remarques ont été traitées par la direction."
-                : `${waiting} remarque${waiting > 1 ? "s" : ""} en attente de validation par la direction.`}
+                ? t.myRemarks.allProcessed
+                : interpolate(t.myRemarks.pending, { count: waiting })}
             </Caption>
           </Card>
         ) : null}
@@ -90,7 +88,7 @@ export default function MyRemarksScreen() {
               <View style={{ flexShrink: 1, gap: 2 }}>
                 <Heading>{remark.studentName}</Heading>
                 <Caption>
-                  {remark.classCode} · {shortDate(remark.occurredOn)}
+                  {remark.classCode} · {fmt.shortDate(remark.occurredOn)}
                   {remark.subjectName ? ` · ${remark.subjectName}` : ""}
                 </Caption>
               </View>
@@ -98,7 +96,7 @@ export default function MyRemarksScreen() {
               <Badge
                 tone={remark.isVisibleToFamily ? "success" : "warning"}
               >
-                {remark.isVisibleToFamily ? "Transmise" : "En attente"}
+                {remark.isVisibleToFamily ? t.myRemarks.transmitted : t.myRemarks.waiting}
               </Badge>
             </View>
 
@@ -108,18 +106,15 @@ export default function MyRemarksScreen() {
               style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}
             >
               <Caption>
-                {REMARK_KIND_LABELS[remark.kind] ?? remark.kind} ·{" "}
-                {REMARK_TONE_LABELS[remark.tone] ?? remark.tone}
+                {label(t.labels.remarkKind, remark.kind)} ·{" "}
+                {label(t.labels.remarkTone, remark.tone)}
               </Caption>
             </View>
 
             <Body>{remark.body}</Body>
 
             {!remark.isVisibleToFamily ? (
-              <Caption>
-                Note interne — la famille ne la voit pas tant que la direction
-                ne l&apos;a pas validée.
-              </Caption>
+              <Caption>{t.myRemarks.internalNote}</Caption>
             ) : null}
           </Card>
         ))}

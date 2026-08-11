@@ -37,12 +37,19 @@ type GuardianRow = {
   relationship: string;
   isPrimaryContact: boolean;
   isActive: boolean;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  /** The portal account, when the school has opened one. */
+  userId: string | null;
 };
 
 const families = new Map<string, { id: string; schoolId: string; code: string }>();
 const guardians = new Map<string, GuardianRow>();
 const familyWrites: { id: string; data: Record<string, unknown> }[] = [];
 const guardianWrites: { where: unknown; data: Record<string, unknown> }[] = [];
+const userWrites: { id: string; data: Record<string, unknown> }[] = [];
+const accountsCreated: Record<string, unknown>[] = [];
 const demotions: unknown[] = [];
 
 const SCHOOL = "school-1";
@@ -52,6 +59,8 @@ function seed() {
   guardians.clear();
   familyWrites.length = 0;
   guardianWrites.length = 0;
+  userWrites.length = 0;
+  accountsCreated.length = 0;
   demotions.length = 0;
 
   families.set("family-1", { id: "family-1", schoolId: SCHOOL, code: "F-2026-0042" });
@@ -65,6 +74,10 @@ function seed() {
     relationship: "MOTHER",
     isPrimaryContact: true,
     isActive: true,
+    firstName: "Fatima",
+    lastName: "Benali",
+    phone: "0600000001",
+    userId: null,
   });
   guardians.set("father-1", {
     id: "father-1",
@@ -72,6 +85,10 @@ function seed() {
     relationship: "FATHER",
     isPrimaryContact: false,
     isActive: true,
+    firstName: "Karim",
+    lastName: "Benali",
+    phone: null,
+    userId: null,
   });
   // A guardian on a different dossier of the same school.
   guardians.set("mother-2", {
@@ -80,6 +97,23 @@ function seed() {
     relationship: "MOTHER",
     isPrimaryContact: true,
     isActive: true,
+    firstName: "Nadia",
+    lastName: "Cherkaoui",
+    phone: null,
+    userId: null,
+  });
+  // Another school's dossier needs an adult on it too, so a crafted guardian id
+  // has something to reach.
+  guardians.set("mother-foreign", {
+    id: "mother-foreign",
+    familyId: "foreign",
+    relationship: "MOTHER",
+    isPrimaryContact: true,
+    isActive: true,
+    firstName: "Salma",
+    lastName: "Idrissi",
+    phone: null,
+    userId: null,
   });
 }
 
@@ -106,13 +140,23 @@ const matchesGuardian = (
   if (where["isActive"] !== undefined && where["isActive"] !== row.isActive) {
     return false;
   }
+  // `userId: { not: null }` — how the one-account-per-family rule looks for a
+  // dossier that already has one.
+  const userId = where["userId"] as { not?: null } | string | undefined;
+  if (userId !== undefined) {
+    if (typeof userId === "object" && userId !== null && "not" in userId) {
+      if (row.userId === null) return false;
+    } else if (userId !== row.userId) {
+      return false;
+    }
+  }
   const not = where["NOT"] as { id?: string } | undefined;
   if (not?.id && not.id === row.id) return false;
   return true;
 };
 
-vi.mock("@/lib/db", () => ({
-  db: {
+vi.mock("@/lib/db", () => {
+  const db = {
     family: {
       findUnique: async ({ where }: { where: { id?: string } }) =>
         (where.id ? families.get(where.id) : null) ?? null,
@@ -141,7 +185,10 @@ vi.mock("@/lib/db", () => ({
         const row = where.id ? guardians.get(where.id) : undefined;
         if (!row) return null;
         const family = families.get(row.familyId)!;
-        return { ...row, family: { schoolId: family.schoolId } };
+        return {
+          ...row,
+          family: { schoolId: family.schoolId, code: family.code },
+        };
       },
       findFirst: async ({ where }: { where: Record<string, unknown> }) =>
         [...guardians.values()].find((row) => matchesGuardian(row, where)) ?? null,
@@ -187,11 +234,53 @@ vi.mock("@/lib/db", () => ({
       },
     },
     student: { count: async () => 0 },
-  },
-  auditClient: {},
-}));
+    user: {
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        userWrites.push({ id: where.id, data });
+        return { id: where.id, username: "k.benali" };
+      },
+    },
+    // The revoke path writes the account and the dossier together.
+    $transaction: async (
+      run: (tx: unknown) => Promise<unknown>,
+    ): Promise<unknown> => run(db),
+  };
+
+  return { db, auditClient: {} };
+});
 
 vi.mock("@/lib/audit", () => ({ recordEvent: async () => {} }));
+
+// Importing the real one drags Auth.js and bcrypt into the suite for two pure
+// helpers.
+vi.mock("@/lib/auth", () => ({
+  generatePassword: () => "Passw0rdXyz",
+  hashPassword: async (plain: string) => `hashed:${plain}`,
+}));
+
+/*
+  The users module owns `User`; what matters here is only that the families
+  action asks it for an account and links whatever it gets back. Its own
+  behaviour — username collisions, taken emails — is that module's to test.
+*/
+vi.mock("@/modules/users/service", () => ({
+  allocateUsername: async (
+    _first: string,
+    _last: string,
+    preferred?: string | null,
+  ) => (preferred ?? "").toLowerCase(),
+  allocateAccountEmail: async (base: string) => base,
+  createLoginAccount: async (input: Record<string, unknown>) => {
+    accountsCreated.push(input);
+    return { ok: true, userId: "user-parent", username: input.username };
+  },
+}));
 
 const granted = new Set<string>();
 const asked: string[] = [];
@@ -236,6 +325,9 @@ vi.mock("next/cache", () => ({ refresh: () => {} }));
 
 const {
   deleteGuardianAction,
+  openPortalAccountAction,
+  resetPortalPasswordAction,
+  revokePortalAccountAction,
   saveGuardianAction,
   setPrimaryContactAction,
   updateFamilyAction,
@@ -276,6 +368,7 @@ beforeEach(() => {
   granted.add(PERMISSIONS.FAMILY_CREATE);
   granted.add(PERMISSIONS.FAMILY_UPDATE);
   granted.add(PERMISSIONS.FAMILY_DELETE);
+  granted.add(PERMISSIONS.FAMILY_PORTAL);
 });
 
 // ── The dossier number ───────────────────────────────────────────────────────
@@ -447,6 +540,182 @@ describe("saveGuardianAction", () => {
     // `Guardian.userId` is what the parent portal resolves a household by —
     // attaching an account is not something a dossier form may do.
     expect(guardianWrites[0]!.data).not.toHaveProperty("userId");
+  });
+});
+
+// ── The parent portal ────────────────────────────────────────────────────────
+
+/*
+  Opening an account is the one thing in this module that mints a credential,
+  and the only way `Guardian.userId` is ever written — the dossier form is
+  forbidden it (see the guardianSchema test below). Three rules are worth
+  holding onto: it is its own authority, there is one account per family, and
+  withdrawing it actually evicts whoever is already signed in.
+*/
+describe("openPortalAccountAction", () => {
+  it("authorizes through the guardian's own family", async () => {
+    await openPortalAccountAction("father-1");
+    expect(asked[0]).toBe(`${PERMISSIONS.FAMILY_PORTAL}@${SCHOOL}`);
+  });
+
+  it("refuses a dossier of another school", async () => {
+    const state = await openPortalAccountAction("mother-foreign");
+    expect(state.status).toBe("error");
+    expect(accountsCreated).toEqual([]);
+  });
+
+  it("is a separate authority from editing the dossier", async () => {
+    // A secretary who may fix a phone number has not thereby been given the
+    // power to hand that household a login.
+    granted.delete(PERMISSIONS.FAMILY_PORTAL);
+    const state = await openPortalAccountAction("father-1");
+    expect(state.status).toBe("error");
+    expect(accountsCreated).toEqual([]);
+  });
+
+  it("opens the account with no role, so a parent is never staff", async () => {
+    const state = await openPortalAccountAction("father-1");
+
+    expect(state.status).toBe("success");
+    expect(accountsCreated).toHaveLength(1);
+    expect(accountsCreated[0]).toMatchObject({ roleId: null });
+  });
+
+  it("links the account to the guardian it was opened for", async () => {
+    await openPortalAccountAction("father-1");
+
+    expect(guardianWrites).toContainEqual({
+      where: { id: "father-1" },
+      data: { userId: "user-parent" },
+    });
+  });
+
+  it("hands back the password once, and never stores it", async () => {
+    const state = await openPortalAccountAction("father-1");
+
+    expect(state.data).toEqual({
+      username: "k.benali",
+      password: "Passw0rdXyz",
+    });
+    // Nothing writes the plaintext to the dossier — the account row is the
+    // users module's to make, and it stores only the hash.
+    expect(guardianWrites.every((write) => !("password" in write.data))).toBe(
+      true,
+    );
+  });
+
+  it("refuses a second account on a dossier that already has one", async () => {
+    guardians.get("mother-1")!.userId = "user-existing";
+
+    const state = await openPortalAccountAction("father-1");
+
+    expect(state.status).toBe("error");
+    // One access per family: the portal scopes by household, so the account
+    // already open on the mother's row reaches every child on the file.
+    expect(accountsCreated).toEqual([]);
+  });
+
+  it("names whoever holds the account when it refuses", async () => {
+    guardians.get("mother-1")!.userId = "user-existing";
+    const state = await openPortalAccountAction("father-1");
+
+    expect(state.message).toContain("Fatima Benali");
+    // The placeholder must not survive into what a secretary reads.
+    expect(state.message).not.toContain("{name}");
+  });
+
+  it("refuses to re-open the account a guardian already holds", async () => {
+    guardians.get("father-1")!.userId = "user-existing";
+
+    const state = await openPortalAccountAction("father-1");
+
+    expect(state.status).toBe("error");
+    expect(accountsCreated).toEqual([]);
+  });
+
+  it("falls back to the dossier number when the name yields no username", async () => {
+    // A name in Arabic script reduces to nothing ASCII — see suggestUsername.
+    const guardian = guardians.get("father-1")!;
+    guardian.firstName = "كريم";
+    guardian.lastName = "بنعلي";
+
+    await openPortalAccountAction("father-1");
+
+    expect(accountsCreated[0]).toMatchObject({ username: "f-2026-0042" });
+  });
+});
+
+describe("resetPortalPasswordAction", () => {
+  beforeEach(() => {
+    guardians.get("father-1")!.userId = "user-parent";
+  });
+
+  it("refuses a guardian with no account", async () => {
+    const state = await resetPortalPasswordAction("mother-1");
+    expect(state.status).toBe("error");
+    expect(userWrites).toEqual([]);
+  });
+
+  it("stamps credentialsChangedAt, which is what evicts the old tokens", async () => {
+    const state = await resetPortalPasswordAction("father-1");
+
+    expect(state.status).toBe("success");
+    // Without the stamp a refresh token already on a phone stays good for its
+    // full sixty days and the new password changes nothing — see lib/dal.ts.
+    expect(userWrites[0]!.data.credentialsChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("hands back the new password once", async () => {
+    const state = await resetPortalPasswordAction("father-1");
+    expect(state.data).toMatchObject({ password: "Passw0rdXyz" });
+  });
+
+  it("is refused without the portal code", async () => {
+    granted.delete(PERMISSIONS.FAMILY_PORTAL);
+    const state = await resetPortalPasswordAction("father-1");
+    expect(state.status).toBe("error");
+    expect(userWrites).toEqual([]);
+  });
+});
+
+describe("revokePortalAccountAction", () => {
+  beforeEach(() => {
+    guardians.get("father-1")!.userId = "user-parent";
+  });
+
+  it("deactivates the account rather than deleting it", async () => {
+    const state = await revokePortalAccountAction("father-1");
+
+    expect(state.status).toBe("success");
+    // ChatMessage.authorId is Restrict: a parent who has written in the
+    // parents' space cannot be deleted, and what they wrote outlives access.
+    expect(userWrites[0]).toMatchObject({
+      id: "user-parent",
+      data: { isActive: false },
+    });
+    expect(userWrites[0]!.data.credentialsChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("unlinks the dossier so the family can be given a fresh account", async () => {
+    await revokePortalAccountAction("father-1");
+
+    expect(guardianWrites).toContainEqual({
+      where: { id: "father-1" },
+      data: { userId: null },
+    });
+  });
+
+  it("refuses a guardian with no account", async () => {
+    const state = await revokePortalAccountAction("mother-1");
+    expect(state.status).toBe("error");
+    expect(userWrites).toEqual([]);
+  });
+
+  it("is refused without the portal code", async () => {
+    granted.delete(PERMISSIONS.FAMILY_PORTAL);
+    const state = await revokePortalAccountAction("father-1");
+    expect(state.status).toBe("error");
+    expect(userWrites).toEqual([]);
   });
 });
 

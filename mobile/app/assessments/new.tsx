@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAssessmentOptions, useCreateAssessment } from "../../src/api/hooks";
+import { interpolate, isoDay, useT } from "../../src/i18n";
 import {
   Button,
   Caption,
@@ -22,7 +23,6 @@ import {
   Heading,
   Loading,
 } from "../../src/ui/components";
-import { isoDay } from "../../src/ui/format";
 import { radius, spacing, useTheme } from "../../src/ui/theme";
 
 /**
@@ -44,6 +44,7 @@ import { radius, spacing, useTheme } from "../../src/ui/theme";
 export default function NewAssessmentScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const t = useT();
 
   const options = useAssessmentOptions();
   const create = useCreateAssessment();
@@ -112,18 +113,21 @@ export default function NewAssessmentScreen() {
           }
 
           Alert.alert(
-            "Création refusée",
+            t.newAssessment.creationRefusedTitle,
             result.reason === "not-teaching"
-              ? "Vous n'enseignez pas dans cette classe."
+              ? t.newAssessment.notTeaching
               : result.reason === "term-closed"
-                ? "Ce semestre est clôturé."
+                ? t.newAssessment.termClosedError
                 : result.reason === "kind-not-allowed"
-                  ? "Votre école ne vous autorise pas à créer ce type de copie."
-                  : "La copie n'a pas pu être créée.",
+                  ? t.newAssessment.kindNotAllowed
+                  : t.newAssessment.creationFailed,
           );
         },
         onError: () =>
-          Alert.alert("Création refusée", "La copie n'a pas pu être créée."),
+          Alert.alert(
+            t.newAssessment.creationRefusedTitle,
+            t.newAssessment.creationFailed,
+          ),
       },
     );
   }
@@ -142,7 +146,7 @@ export default function NewAssessmentScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: true, title: "Nouveau devoir" }} />
+      <Stack.Screen options={{ headerShown: true, title: t.newAssessment.title }} />
 
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
@@ -155,21 +159,21 @@ export default function NewAssessmentScreen() {
       >
         {options.isPending ? <Loading /> : null}
         {options.isError ? (
-          <ErrorNote message="Impossible de charger les options." />
+          <ErrorNote message={t.newAssessment.loadError} />
         ) : null}
 
         {data && data.teaching.length === 0 ? (
-          <Empty message="Vous n'avez aucune classe cette année." />
+          <Empty message={t.newAssessment.noClasses} />
         ) : null}
 
         {data && data.types.length === 0 ? (
-          <Empty message="Votre école ne vous autorise à créer aucun type de copie." />
+          <Empty message={t.newAssessment.noTypes} />
         ) : null}
 
         {data && data.teaching.length > 0 && data.types.length > 0 ? (
           <>
             <Card>
-              <Heading>Classe et matière</Heading>
+              <Heading>{t.newAssessment.classAndSubject}</Heading>
               <Divider />
               <View style={{ gap: spacing.sm }}>
                 {data.teaching.map((option, index) => (
@@ -184,7 +188,7 @@ export default function NewAssessmentScreen() {
             </Card>
 
             <Card>
-              <Heading>Type</Heading>
+              <Heading>{t.newAssessment.type}</Heading>
               <Divider />
               <View
                 style={{
@@ -204,7 +208,7 @@ export default function NewAssessmentScreen() {
               </View>
 
               <Divider />
-              <Heading>Semestre</Heading>
+              <Heading>{t.newAssessment.term}</Heading>
               <View
                 style={{
                   flexDirection: "row",
@@ -217,7 +221,7 @@ export default function NewAssessmentScreen() {
                     key={term.id}
                     label={
                       term.status === "CLOSED"
-                        ? `${term.name} (clôturé)`
+                        ? interpolate(t.newAssessment.termClosed, { name: term.name })
                         : term.name
                     }
                     selected={termId === term.id}
@@ -228,21 +232,21 @@ export default function NewAssessmentScreen() {
             </Card>
 
             <Card>
-              <Heading>Intitulé</Heading>
+              <Heading>{t.newAssessment.titleLabel}</Heading>
               <TextInput
                 value={title}
                 onChangeText={setTitle}
-                placeholder="Devoir surveillé n°1"
+                placeholder={t.newAssessment.titlePlaceholder}
                 placeholderTextColor={theme.muted}
                 maxLength={160}
                 style={boxStyle}
               />
 
-              <Caption>Ce que ça couvre — facultatif</Caption>
+              <Caption>{t.newAssessment.notesLabel}</Caption>
               <TextInput
                 value={notes}
                 onChangeText={setNotes}
-                placeholder="leçon 3, p.42"
+                placeholder={t.newAssessment.notesPlaceholder}
                 placeholderTextColor={theme.muted}
                 multiline
                 maxLength={500}
@@ -253,7 +257,7 @@ export default function NewAssessmentScreen() {
             <Card>
               <View style={{ flexDirection: "row", gap: spacing.md }}>
                 <View style={{ flex: 1 }}>
-                  <Heading>Noté sur</Heading>
+                  <Heading>{t.newAssessment.maxScore}</Heading>
                   <TextInput
                     value={maxScore}
                     onChangeText={setMaxScore}
@@ -263,7 +267,7 @@ export default function NewAssessmentScreen() {
                   />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Heading>Coefficient</Heading>
+                  <Heading>{t.newAssessment.coefficient}</Heading>
                   <TextInput
                     value={coefficient}
                     onChangeText={setCoefficient}
@@ -276,7 +280,7 @@ export default function NewAssessmentScreen() {
             </Card>
 
             <Button
-              label="Créer et corriger"
+              label={t.newAssessment.submit}
               onPress={submit}
               disabled={!canSave}
               busy={create.isPending}

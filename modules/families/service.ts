@@ -122,6 +122,32 @@ export async function makePrimaryContact(
 }
 
 /**
+ * The guardian on this dossier who already holds a portal account, if any.
+ *
+ * Enforces "one access per family". The rule is worth stating because the schema
+ * cannot: `Guardian.userId` hangs off the guardian, so nothing stops a second
+ * one being linked. It is not needed for *reach* — the portal scopes on the
+ * household (see `householdScope` in modules/portal/queries.ts), so one login
+ * already sees every child on the file — and a second account would only be a
+ * second password for the school to keep track of and withdraw.
+ *
+ * Lives here rather than in the action so an import would be bound by it too.
+ */
+export async function findPortalHolder(
+  familyId: string,
+  exceptGuardianId?: string,
+): Promise<{ id: string; firstName: string; lastName: string } | null> {
+  return db.guardian.findFirst({
+    where: {
+      familyId,
+      userId: { not: null },
+      ...(exceptGuardianId ? { NOT: { id: exceptGuardianId } } : {}),
+    },
+    select: { id: true, firstName: true, lastName: true },
+  });
+}
+
+/**
  * Makes sure a dossier still has somebody flagged as first contact after a
  * change. Does nothing when one is already set, or when nobody is left.
  */

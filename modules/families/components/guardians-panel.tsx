@@ -4,11 +4,13 @@ import * as React from "react";
 import {
   BriefcaseIcon,
   IdCardIcon,
+  KeyRoundIcon,
   MailIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PhoneIcon,
   PlusIcon,
+  SmartphoneIcon,
   StarIcon,
   Trash2Icon,
   UserPlusIcon,
@@ -37,12 +39,19 @@ import {
 import { interpolate } from "@/lib/i18n/format";
 import {
   deleteGuardianAction,
+  openPortalAccountAction,
+  resetPortalPasswordAction,
+  revokePortalAccountAction,
   setPrimaryContactAction,
 } from "@/modules/families/actions";
 import {
   GuardianDialog,
   useGuardianDialog,
 } from "@/modules/families/components/guardian-dialog";
+import {
+  PortalAccountDialog,
+  type PortalCredentials,
+} from "@/modules/families/components/portal-account-dialog";
 import type { GuardianRow } from "@/modules/families/queries";
 
 /**
@@ -54,21 +63,47 @@ export function GuardiansPanel({
   familyId,
   guardians,
   canManage,
+  canManagePortal = false,
 }: {
   familyId: string;
   guardians: GuardianRow[];
   canManage: boolean;
+  /** Opening a login is its own authority — see modules/families/permissions.ts. */
+  canManagePortal?: boolean;
 }) {
   const t = useT();
   const dialog = useGuardianDialog();
   const [deleting, setDeleting] = React.useState<GuardianRow | null>(null);
+  const [revoking, setRevoking] = React.useState<GuardianRow | null>(null);
+  const [credentials, setCredentials] =
+    React.useState<PortalCredentials | null>(null);
   const [, startTransition] = React.useTransition();
+
+  // One access per family: the action refuses a second, so the menu should not
+  // offer one either.
+  const portalHolder = guardians.find((guardian) => guardian.portalAccount);
 
   function promote(guardian: GuardianRow) {
     startTransition(async () => {
       const result = await setPrimaryContactAction(guardian.id);
       if (result.status === "success") {
         toast.success(result.message ?? t.family.guardianUpdated);
+      } else {
+        toast.error(result.message ?? t.errors.unexpected);
+      }
+    });
+  }
+
+  function issueCredentials(
+    guardian: GuardianRow,
+    action: typeof openPortalAccountAction,
+  ) {
+    startTransition(async () => {
+      const result = await action(guardian.id);
+      if (result.status === "success" && result.data) {
+        toast.success(result.message ?? t.family.portalOpened);
+        // Shown once — there is nothing to come back for.
+        setCredentials(result.data);
       } else {
         toast.error(result.message ?? t.errors.unexpected);
       }
@@ -134,6 +169,13 @@ export function GuardiansPanel({
                         {t.family.isEmergencyContact}
                       </Badge>
                     ) : null}
+                    {guardian.portalAccount ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <SmartphoneIcon className="size-3" />
+                        {guardian.portalAccount.username ??
+                          t.family.portalBadge}
+                      </Badge>
+                    ) : null}
                     {!guardian.isActive ? (
                       <Badge variant="outline">{t.common.inactive}</Badge>
                     ) : null}
@@ -170,7 +212,7 @@ export function GuardiansPanel({
                   </div>
                 </div>
 
-                {canManage ? (
+                {canManage || canManagePortal ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
@@ -182,26 +224,77 @@ export function GuardiansPanel({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onSelect={() => dialog.openEdit(guardian)}
-                      >
-                        <PencilIcon />
-                        {t.common.edit}
-                      </DropdownMenuItem>
-                      {!guardian.isPrimaryContact ? (
-                        <DropdownMenuItem onSelect={() => promote(guardian)}>
-                          <StarIcon />
-                          {t.family.makePrimary}
-                        </DropdownMenuItem>
+                      {canManage ? (
+                        <>
+                          <DropdownMenuItem
+                            onSelect={() => dialog.openEdit(guardian)}
+                          >
+                            <PencilIcon />
+                            {t.common.edit}
+                          </DropdownMenuItem>
+                          {!guardian.isPrimaryContact ? (
+                            <DropdownMenuItem
+                              onSelect={() => promote(guardian)}
+                            >
+                              <StarIcon />
+                              {t.family.makePrimary}
+                            </DropdownMenuItem>
+                          ) : null}
+                        </>
                       ) : null}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => setDeleting(guardian)}
-                      >
-                        <Trash2Icon />
-                        {t.common.delete}
-                      </DropdownMenuItem>
+
+                      {canManagePortal ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          {guardian.portalAccount ? (
+                            <>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  issueCredentials(
+                                    guardian,
+                                    resetPortalPasswordAction,
+                                  )
+                                }
+                              >
+                                <KeyRoundIcon />
+                                {t.family.resetPortalPassword}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() => setRevoking(guardian)}
+                              >
+                                <SmartphoneIcon />
+                                {t.family.revokePortalAccount}
+                              </DropdownMenuItem>
+                            </>
+                          ) : portalHolder ? null : (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                issueCredentials(
+                                  guardian,
+                                  openPortalAccountAction,
+                                )
+                              }
+                            >
+                              <SmartphoneIcon />
+                              {t.family.openPortalAccount}
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      ) : null}
+
+                      {canManage ? (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => setDeleting(guardian)}
+                          >
+                            <Trash2Icon />
+                            {t.common.delete}
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 ) : null}
@@ -232,6 +325,24 @@ export function GuardiansPanel({
           onDeleted={() => setDeleting(null)}
         />
       ) : null}
+
+      {revoking ? (
+        <ConfirmDelete
+          open={Boolean(revoking)}
+          onOpenChange={(open) => !open && setRevoking(null)}
+          title={t.family.revokePortalTitle}
+          description={interpolate(t.family.revokePortalBody, {
+            name: `${revoking.firstName} ${revoking.lastName}`,
+          })}
+          action={() => revokePortalAccountAction(revoking.id)}
+          onDeleted={() => setRevoking(null)}
+        />
+      ) : null}
+
+      <PortalAccountDialog
+        credentials={credentials}
+        onOpenChange={(open) => !open && setCredentials(null)}
+      />
     </Card>
   );
 }
