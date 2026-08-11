@@ -1412,6 +1412,8 @@ export async function loadRunItinerary(
       },
     },
     select: {
+      routeId: true,
+      scheduleId: true,
       route: {
         select: {
           id: true,
@@ -1429,13 +1431,6 @@ export async function loadRunItinerary(
               pickupTime: true,
               dropoffTime: true,
               neighbourhood: { select: { name: true } },
-              _count: {
-                select: {
-                  subscriptions: {
-                    where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
-                  },
-                },
-              },
             },
           },
         },
@@ -1451,6 +1446,46 @@ export async function loadRunItinerary(
   const direction = run.schedule?.direction ?? run.route.direction;
   const isReturn = direction === "AFTERNOON";
 
+  /*
+    Counted through `ridesThisRun` rather than with a `_count` on the stop.
+
+    A plain count answers "how many hold a seat at this arrêt on this line",
+    which is not the question: a child who only rides home is not standing there
+    in the morning. That is the disagreement between the picker's figure and the
+    sheet's list that `ridesThisRun` exists to prevent, so the trajet goes
+    through it too.
+  */
+  const subscriptions = await db.transportSubscription.findMany({
+    where: {
+      routeId: run.routeId,
+      status: { in: [...SEAT_HOLDING_STATUSES] },
+    },
+    select: {
+      stopId: true,
+      direction: true,
+      scheduleId: true,
+      schedule: { select: { direction: true } },
+    },
+  });
+
+  const ridersByStop = new Map<string, number>();
+  for (const subscription of subscriptions) {
+    const rides = ridesThisRun(
+      {
+        direction: subscription.direction,
+        scheduleId: subscription.scheduleId,
+        scheduleDirection: subscription.schedule?.direction ?? null,
+      },
+      run.scheduleId,
+      direction,
+    );
+    if (!rides) continue;
+    ridersByStop.set(
+      subscription.stopId,
+      (ridersByStop.get(subscription.stopId) ?? 0) + 1,
+    );
+  }
+
   const stops = run.route.stops.map((stop) => ({
     id: stop.id,
     name: stop.name,
@@ -1461,7 +1496,7 @@ export async function loadRunItinerary(
     // Each stop carries both times; which one is meaningful depends on which
     // way the bus is going.
     time: isReturn ? stop.dropoffTime : stop.pickupTime,
-    riderCount: stop._count.subscriptions,
+    riderCount: ridersByStop.get(stop.id) ?? 0,
   }));
 
   return {
@@ -1529,9 +1564,17 @@ export async function findRunRider(
         ...crewScope(context.user.id),
       },
     },
-    select: { routeId: true, scheduleId: true, date: true },
+    select: {
+      routeId: true,
+      scheduleId: true,
+      date: true,
+      route: { select: { direction: true } },
+      schedule: { select: { direction: true } },
+    },
   });
   if (!run) return null;
+
+  const runDirection = run.schedule?.direction ?? run.route.direction;
 
   const subscription = await db.transportSubscription.findFirst({
     // Bound to the run's own line: a subscription of another route is not on
@@ -1539,6 +1582,8 @@ export async function findRunRider(
     where: { id: subscriptionId, routeId: run.routeId },
     select: {
       id: true,
+      direction: true,
+      scheduleId: true,
       stop: {
         select: {
           name: true,
@@ -1549,8 +1594,16 @@ export async function findRunRider(
       },
       schedule: { select: { direction: true } },
       attendance: {
-        where: { date: run.date },
+        // Keyed the same way the register keys it. Filtering on the date alone
+        // would hand back the morning's mark while the afternoon run is on
+        // screen — the unique index is (subscription, date, scopeKey), so a
+        // rider genuinely has one row per departure.
+        where: {
+          date: run.date,
+          scopeKey: busRegisterScopeKey(run.scheduleId),
+        },
         select: { status: true, minutesLate: true, reason: true },
+        take: 1,
       },
       enrollment: {
         select: {
@@ -1588,9 +1641,26 @@ export async function findRunRider(
   });
   if (!subscription) return null;
 
+  // The same rule the sheet uses to decide who is called at all: a child who
+  // only rides home is not on the morning bus, and opening their file from a
+  // run they are not on would be the register and this screen disagreeing.
+  const onThisRun = ridesThisRun(
+    {
+      direction: subscription.direction,
+      scheduleId: subscription.scheduleId,
+      scheduleDirection: subscription.schedule?.direction ?? null,
+    },
+    run.scheduleId,
+    runDirection,
+  );
+  if (!onThisRun) return null;
+
   const student = subscription.enrollment.student;
   const mark = subscription.attendance[0] ?? null;
-  const isReturn = subscription.schedule?.direction === "AFTERNOON";
+  // The run's own direction, not the abonnement's: a BOTH rider has no single
+  // direction of their own, and it is the departure that decides whether the
+  // pick-up or the drop-off time is the meaningful one.
+  const isReturn = runDirection === "AFTERNOON";
 
   return {
     subscriptionId: subscription.id,
