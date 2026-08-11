@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -148,6 +148,20 @@ export default function RunScreen() {
               </Caption>
             </View>
 
+            {/* Readable at any hour, including before the départ — the trajet
+                names no child, and it is what somebody covering an unfamiliar
+                line reads before setting off. */}
+            <Button
+              label="Voir le trajet"
+              variant="ghost"
+              onPress={() =>
+                router.push({
+                  pathname: "/run/[runId]/trajet",
+                  params: { runId },
+                })
+              }
+            />
+
             {/* ── Avant le départ ───────────────────────────────────────── */}
             {run.status === "PLANNED" ? (
               <Card>
@@ -234,7 +248,24 @@ export default function RunScreen() {
                           gap: spacing.md,
                         }}
                       >
-                        <View style={{ flexShrink: 1, gap: 2 }}>
+                        {/* Opens the child: their stop, and who to ring when
+                            they are not standing at it. */}
+                        <Pressable
+                          onPress={() =>
+                            router.push({
+                              pathname: "/run/[runId]/rider/[subscriptionId]",
+                              params: {
+                                runId,
+                                subscriptionId: entry.subscriptionId,
+                              },
+                            })
+                          }
+                          style={({ pressed }) => ({
+                            flexShrink: 1,
+                            gap: 2,
+                            opacity: pressed ? 0.85 : 1,
+                          })}
+                        >
                           <Heading>
                             {index + 1}. {entry.studentName}
                           </Heading>
@@ -243,7 +274,7 @@ export default function RunScreen() {
                             {entry.pickupTime ? ` · ${entry.pickupTime}` : ""}
                             {entry.className ? ` · ${entry.className}` : ""}
                           </Body>
-                        </View>
+                        </Pressable>
 
                         <Badge
                           tone={

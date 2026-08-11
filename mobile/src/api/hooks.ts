@@ -8,6 +8,8 @@ import {
 
 import { api } from "./client";
 import type {
+  Assessment,
+  AssessmentOptions,
   Badges,
   Bulletins,
   Channel,
@@ -18,13 +20,22 @@ import type {
   Dossier,
   DriverDay,
   Identity,
+  MarkSheet,
+  MyRemark,
+  PupilOption,
   Timetable,
   Remark,
+  RunItinerary,
   RunRegister,
+  RunRider,
   SeenTopic,
   SupplyList,
+  SupplyOptions,
   SchoolEvent,
   TeacherDay,
+  TeacherRegister,
+  TeacherSupplyList,
+  TeacherWeek,
 } from "./types";
 
 /**
@@ -64,6 +75,341 @@ export function useTeacherDay(date: string): UseQueryResult<TeacherDay> {
   return useQuery({
     queryKey: ["teacher", date],
     queryFn: () => api<TeacherDay>(`/teacher/today?date=${date}`),
+  });
+}
+
+/** What a lesson is, for the register endpoints below — same four fields the
+ * web page keeps in its query string, since `findRegister` resolves them
+ * against the teacher's own assignments rather than trusting them. */
+export type LessonRef = {
+  schoolClassId: string;
+  subjectId: string | null;
+  timeSlotId: string | null;
+  date: string;
+};
+
+function registerQueryKey(ref: LessonRef) {
+  return [
+    "register",
+    ref.schoolClassId,
+    ref.subjectId,
+    ref.timeSlotId,
+    ref.date,
+  ] as const;
+}
+
+function registerPath(ref: LessonRef): string {
+  const params = new URLSearchParams({
+    schoolClassId: ref.schoolClassId,
+    date: ref.date,
+  });
+  if (ref.subjectId) params.set("subjectId", ref.subjectId);
+  if (ref.timeSlotId) params.set("timeSlotId", ref.timeSlotId);
+  return `/teacher/register?${params.toString()}`;
+}
+
+export function useLessonRegister(
+  ref: LessonRef,
+): UseQueryResult<TeacherRegister> {
+  return useQuery({
+    queryKey: registerQueryKey(ref),
+    queryFn: () => api<TeacherRegister>(registerPath(ref)),
+    enabled: Boolean(ref.schoolClassId),
+  });
+}
+
+/**
+ * L'appel, one pupil at a time — same rule as the driver's `useMarkRider`: a
+ * payload carrying the whole roster would let a save from a stale screen undo
+ * a mark made since it was opened.
+ */
+export function useMarkPupil(
+  ref: LessonRef,
+): UseMutationResult<
+  TeacherRegister,
+  Error,
+  {
+    enrollmentId: string;
+    status: string;
+    minutesLate?: number | null;
+    reason?: string | null;
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (mark) =>
+      api<TeacherRegister>("/teacher/register", {
+        method: "POST",
+        body: JSON.stringify({ ...ref, ...mark }),
+      }),
+    onSuccess: (data) => {
+      client.setQueryData<TeacherRegister>(registerQueryKey(ref), data);
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
+  });
+}
+
+/**
+ * "Les autres sont là" — fills in every pupil not yet marked as present.
+ *
+ * Answers with the whole sheet, like the per-pupil mark, so the screen renders
+ * the server's version of the register rather than assuming what it wrote.
+ */
+export function useMarkRestPresent(
+  ref: LessonRef,
+): UseMutationResult<TeacherRegister, Error, void> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      api<TeacherRegister>("/teacher/register/all-present", {
+        method: "POST",
+        body: JSON.stringify(ref),
+      }),
+    onSuccess: (data) => {
+      client.setQueryData<TeacherRegister>(registerQueryKey(ref), data);
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
+  });
+}
+
+export function useTeacherWeek(
+  scheduleKind: "STANDARD" | "RAMADAN" = "STANDARD",
+): UseQueryResult<TeacherWeek> {
+  return useQuery({
+    queryKey: ["teacher", "week", scheduleKind],
+    queryFn: () => api<TeacherWeek>(`/teacher/timetable?schedule=${scheduleKind}`),
+    // A grid is settled at the rentrée and changes a few times a year.
+    staleTime: 10 * 60_000,
+  });
+}
+
+// ── Devoirs et contrôles ─────────────────────────────────────────────────────
+
+export function useAssessments(
+  kind?: "DEVOIR" | "CONTROLE",
+): UseQueryResult<Assessment[]> {
+  return useQuery({
+    queryKey: ["assessments", kind ?? "ALL"],
+    queryFn: () =>
+      api<Assessment[]>(`/teacher/assessments${kind ? `?kind=${kind}` : ""}`),
+  });
+}
+
+export function useMarkSheet(assessmentId: string): UseQueryResult<MarkSheet> {
+  return useQuery({
+    queryKey: ["assessment", assessmentId],
+    queryFn: () => api<MarkSheet>(`/teacher/assessments/${assessmentId}`),
+    enabled: Boolean(assessmentId),
+  });
+}
+
+/** One pupil's mark. Posted on its own — see the note on the route. */
+export function useSaveMark(
+  assessmentId: string,
+): UseMutationResult<
+  { ok: boolean; reason?: string; sheet: MarkSheet },
+  Error,
+  {
+    enrollmentId: string;
+    score: number | null;
+    isAbsent: boolean;
+    comment?: string | null;
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (mark) =>
+      api<{ ok: boolean; reason?: string; sheet: MarkSheet }>(
+        `/teacher/assessments/${assessmentId}`,
+        { method: "POST", body: JSON.stringify(mark) },
+      ),
+    onSuccess: (data) => {
+      // The server answers with the sheet either way — on a refusal it is the
+      // sheet unchanged, which is exactly what the screen should snap back to.
+      client.setQueryData<MarkSheet>(["assessment", assessmentId], data.sheet);
+      void client.invalidateQueries({ queryKey: ["assessments"] });
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
+  });
+}
+
+/** Handing the marking in, and taking it back. */
+export function useSetAssessmentStatus(
+  assessmentId: string,
+): UseMutationResult<
+  { ok: boolean; reason?: string; status?: string },
+  Error,
+  "SUBMITTED" | "PUBLISHED"
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (status) =>
+      api<{ ok: boolean; reason?: string; status?: string }>(
+        `/teacher/assessments/${assessmentId}/status`,
+        { method: "POST", body: JSON.stringify({ status }) },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["assessment", assessmentId] });
+      void client.invalidateQueries({ queryKey: ["assessments"] });
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
+  });
+}
+
+export function useAssessmentOptions(): UseQueryResult<AssessmentOptions> {
+  return useQuery({
+    queryKey: ["assessment-options"],
+    queryFn: () => api<AssessmentOptions>("/teacher/assessment-options"),
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** Setting a piece of work from the phone. */
+export function useCreateAssessment(): UseMutationResult<
+  { ok: boolean; reason?: string; assessmentId?: string },
+  Error,
+  {
+    schoolClassId: string;
+    subjectId: string;
+    termId: string;
+    assessmentTypeId: string;
+    title: string;
+    notes: string | null;
+    scheduledOn: string;
+    maxScore: number;
+    coefficient: number;
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input) =>
+      api<{ ok: boolean; reason?: string; assessmentId?: string }>(
+        "/teacher/assessments",
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["assessments"] });
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
+  });
+}
+
+// ── Fournitures ──────────────────────────────────────────────────────────────
+
+export function useMySupplyLists(): UseQueryResult<TeacherSupplyList[]> {
+  return useQuery({
+    queryKey: ["supplies", "mine"],
+    queryFn: () => api<TeacherSupplyList[]>("/teacher/supplies"),
+  });
+}
+
+export function useSupplyOptions(): UseQueryResult<SupplyOptions> {
+  return useQuery({
+    queryKey: ["supplies", "options"],
+    queryFn: () => api<SupplyOptions>("/teacher/supplies/options"),
+    // A catalogue is agreed once and rarely touched.
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** Writes a draft. Saving is not sending — see `useSubmitSupplyList`. */
+export function useSaveSupplyList(): UseMutationResult<
+  { ok: boolean; reason?: string; listId?: string },
+  Error,
+  {
+    listId?: string;
+    schoolClassId: string;
+    subjectId: string | null;
+    title: string;
+    notes: string | null;
+    items: {
+      articleId: string;
+      quantity: number | null;
+      notes: string | null;
+      isRequired: boolean;
+    }[];
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input) =>
+      api<{ ok: boolean; reason?: string; listId?: string }>(
+        "/teacher/supplies",
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["supplies"] });
+    },
+  });
+}
+
+/** Hands the list to the direction — the teacher's last move on it. */
+export function useSubmitSupplyList(): UseMutationResult<
+  { ok: boolean; reason?: string },
+  Error,
+  string
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (listId: string) =>
+      api<{ ok: boolean; reason?: string }>(
+        `/teacher/supplies/${listId}/submit`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["supplies"] });
+    },
+  });
+}
+
+/** What this teacher has written, and whether the direction has released it. */
+export function useMyRemarks(): UseQueryResult<MyRemark[]> {
+  return useQuery({
+    queryKey: ["remarks", "mine"],
+    queryFn: () => api<MyRemark[]>("/teacher/remarks/mine"),
+  });
+}
+
+export function useMyPupils(): UseQueryResult<PupilOption[]> {
+  return useQuery({
+    queryKey: ["teacher", "pupils"],
+    queryFn: () => api<PupilOption[]>("/teacher/pupils"),
+    // A teacher's roster changes at the rentrée and rarely mid-year.
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** Writes an observation about a pupil the teacher teaches. */
+export function useSaveRemark(): UseMutationResult<
+  { ok: true },
+  Error,
+  {
+    enrollmentId: string;
+    subjectId: string | null;
+    kind: string;
+    tone: string;
+    body: string;
+    occurredOn: string;
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (remark) =>
+      api<{ ok: true }>("/teacher/remarks", {
+        method: "POST",
+        body: JSON.stringify(remark),
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["teacher"] });
+    },
   });
 }
 
@@ -134,6 +480,30 @@ export function useMarkRider(
         body: JSON.stringify(mark),
       }),
     onSuccess: (data) => client.setQueryData<RunRegister>(["run", runId], data),
+  });
+}
+
+/** Le trajet — readable before the départ, unlike the register. */
+export function useRunItinerary(runId: string): UseQueryResult<RunItinerary> {
+  return useQuery({
+    queryKey: ["run", runId, "trajet"],
+    queryFn: () => api<RunItinerary>(`/driver/runs/${runId}/trajet`),
+    enabled: Boolean(runId),
+    // A line's stops are drawn once and rarely moved.
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** One child on the bus, with how to reach their family. */
+export function useRunRider(
+  runId: string,
+  subscriptionId: string,
+): UseQueryResult<RunRider> {
+  return useQuery({
+    queryKey: ["run", runId, "rider", subscriptionId],
+    queryFn: () =>
+      api<RunRider>(`/driver/runs/${runId}/riders/${subscriptionId}`),
+    enabled: Boolean(runId && subscriptionId),
   });
 }
 

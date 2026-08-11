@@ -133,14 +133,29 @@ function toRow(list: ListWithRelations): SupplyListRow {
  */
 export async function listSupplyLists(
   context: AuthContext,
-  { canReview }: { canReview: boolean },
+  {
+    canReview,
+    mineOnly,
+  }: {
+    canReview: boolean;
+    /**
+     * Narrows to the reader's own lists, whatever else they may see.
+     *
+     * The phone's screen is "mes demandes" — a teacher tracking what they have
+     * sent and what came back — so a colleague's approved list is noise there,
+     * even though it is rightly on the school-wide screen.
+     */
+    mineOnly?: boolean;
+  },
 ): Promise<SupplyListRow[]> {
   const lists = await db.supplyList.findMany({
     where: {
       ...scope(context),
-      ...(canReview
-        ? {}
-        : { OR: [{ authorId: context.user.id }, { status: "APPROVED" }] }),
+      ...(mineOnly
+        ? { authorId: context.user.id }
+        : canReview
+          ? {}
+          : { OR: [{ authorId: context.user.id }, { status: "APPROVED" }] }),
     },
     // Waiting-on-a-decision first: the office opens this screen to clear that
     // queue, and a list already approved is not what they came for.

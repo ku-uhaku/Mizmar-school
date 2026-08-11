@@ -23,6 +23,7 @@ import {
 import {
   justifyAbsence,
   saveRegister,
+  setRemarkVisibility,
   writeRemark,
   type AttendanceMark,
 } from "@/modules/classroom/service";
@@ -227,6 +228,41 @@ export async function deleteRemarkAction(
 
     refresh();
     return success(t.classroom.remarkDeleted);
+  });
+}
+
+/**
+ * Releases a remark to the family, or takes it back.
+ *
+ * The office's half of the carnet: a teacher writes the observation and
+ * somebody answerable for the school decides whether the family is shown it.
+ * Behind CLASSROOM_REMARK_PUBLISH for that reason — holding the writing code is
+ * not enough, which is what makes "everything the teacher writes is approved
+ * before a parent sees it" a rule the app enforces rather than a habit.
+ */
+export async function publishRemarkAction(
+  remarkId: string,
+  isVisibleToFamily: boolean,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await teacherContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.CLASSROOM_REMARK_PUBLISH);
+
+    const result = await setRemarkVisibility(
+      remarkId,
+      schoolId,
+      isVisibleToFamily,
+    );
+    if (!result.ok) return failure(t.errors.notFound);
+
+    refresh();
+    return success(
+      isVisibleToFamily
+        ? t.classroom.remarkPublished
+        : t.classroom.remarkUnpublished,
+    );
   });
 }
 

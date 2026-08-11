@@ -211,6 +211,39 @@ export async function writeRemark(
 }
 
 /**
+ * Releases a teacher's observation to the family, or takes it back.
+ *
+ * ── Why this is a separate act from writing one ─────────────────────────────
+ * A remark is written internal and stays internal: `StudentRemark
+ * .isVisibleToFamily` defaults to false, and until this ran there was no way to
+ * change it afterwards at all — the flag could only be chosen at creation, by
+ * an author who already held the office code. So a school where teachers write
+ * and the direction decides had no way to say yes: the note existed, the family
+ * could not be shown it, and the only route was for the office to delete it and
+ * retype it under their own name.
+ *
+ * This is that missing half. It is the office's decision and nobody else's,
+ * which is why the action gating it requires CLASSROOM_REMARK_PUBLISH rather
+ * than the writing code — the same split as justifying an absence.
+ *
+ * Scoped by school in the `where` rather than checked afterwards, so a crafted
+ * id reaches nothing. The body is never touched: publishing is a decision about
+ * a teacher's words, not a licence to change them.
+ */
+export async function setRemarkVisibility(
+  remarkId: string,
+  schoolId: string,
+  isVisibleToFamily: boolean,
+): Promise<{ ok: boolean }> {
+  const updated = await db.studentRemark.updateMany({
+    where: { id: remarkId, enrollment: { student: { schoolId } } },
+    data: { isVisibleToFamily },
+  });
+
+  return { ok: updated.count > 0 };
+}
+
+/**
  * Marks an absence justified, or takes the justification back.
  *
  * Its own function because it is not the teacher's decision: a justification is

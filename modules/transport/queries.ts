@@ -1359,6 +1359,265 @@ export async function findMyRun(
   });
 }
 
+export type ItineraryStop = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  /** What to look for: "devant la pharmacie". */
+  landmark: string | null;
+  neighbourhoodName: string | null;
+  position: number;
+  /** "HH:MM", the scheduled time for the direction being driven. */
+  time: string | null;
+  /** Children holding a seat who board or alight here. */
+  riderCount: number;
+};
+
+export type RunItinerary = {
+  routeCode: string;
+  routeName: string;
+  direction: string;
+  /** In the order the bus meets them — reversed on the way home. */
+  stops: ItineraryStop[];
+  totalRiders: number;
+};
+
+/**
+ * Le trajet: the stops of the line this run drives, in the order they come.
+ *
+ * Separate from the register because it answers a different question. The
+ * register is "who am I missing"; this is "where do I go next, and how many am
+ * I picking up there" — which a driver new to a line, or covering somebody
+ * else's, has no other way to learn.
+ *
+ * ── Why it is available before the départ ───────────────────────────────────
+ * The register is withheld until the bus is under way, because a sheet marked
+ * from the yard is a sheet marked wrongly. The itinerary is the opposite: it is
+ * what somebody reads *before* setting off, and it names no child, so there is
+ * nothing in it to withhold. The rider counts are figures, not identities.
+ *
+ * Crew-scoped exactly as the register is, so a run belonging to another bus
+ * answers null rather than handing over a line's stops.
+ */
+export async function loadRunItinerary(
+  context: AuthContext,
+  runId: string,
+): Promise<RunItinerary | null> {
+  const run = await db.tripRun.findFirst({
+    where: {
+      id: runId,
+      route: {
+        schoolYearId: currentSchoolYearId(context),
+        ...crewScope(context.user.id),
+      },
+    },
+    select: {
+      route: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          direction: true,
+          stops: {
+            orderBy: [{ position: "asc" }, { name: "asc" }],
+            select: {
+              id: true,
+              name: true,
+              nameAr: true,
+              landmark: true,
+              position: true,
+              pickupTime: true,
+              dropoffTime: true,
+              neighbourhood: { select: { name: true } },
+              _count: {
+                select: {
+                  subscriptions: {
+                    where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      schedule: { select: { direction: true } },
+    },
+  });
+  if (!run) return null;
+
+  // The horaire's direction wins where there is one: the same line is driven
+  // outward in the morning and back in the afternoon, and the stops are read in
+  // opposite orders.
+  const direction = run.schedule?.direction ?? run.route.direction;
+  const isReturn = direction === "AFTERNOON";
+
+  const stops = run.route.stops.map((stop) => ({
+    id: stop.id,
+    name: stop.name,
+    nameAr: stop.nameAr,
+    landmark: stop.landmark,
+    neighbourhoodName: stop.neighbourhood?.name ?? null,
+    position: stop.position,
+    // Each stop carries both times; which one is meaningful depends on which
+    // way the bus is going.
+    time: isReturn ? stop.dropoffTime : stop.pickupTime,
+    riderCount: stop._count.subscriptions,
+  }));
+
+  return {
+    routeCode: run.route.code,
+    routeName: run.route.name,
+    direction,
+    // `position` runs from the first pick-up to the school, so the journey home
+    // is that same list read backwards.
+    stops: isReturn ? [...stops].reverse() : stops,
+    totalRiders: stops.reduce((total, stop) => total + stop.riderCount, 0),
+  };
+}
+
+export type RunRider = {
+  subscriptionId: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  className: string | null;
+  levelName: string | null;
+  photoUrl: string | null;
+  stopName: string;
+  landmark: string | null;
+  time: string | null;
+  status: string | null;
+  minutesLate: number;
+  reason: string | null;
+  /**
+   * Who to ring when the child is not at the kerb.
+   *
+   * The one piece of family data this app puts in front of a driver, and it is
+   * here for the reason the parent is given the driver's number: when a child
+   * is missing from a stop, a name without a telephone is of no use to anybody.
+   * Only the guardians on the child's own dossier, and only their name, their
+   * relationship and their number — no address, no fee, nothing about the
+   * household beyond how to reach it.
+   */
+  guardians: {
+    name: string;
+    relationship: string;
+    phone: string | null;
+    isPrimaryContact: boolean;
+    /** Whether this adult may take the child off the bus. */
+    canPickUp: boolean;
+  }[];
+};
+
+/**
+ * One rider of a run, for the crew.
+ *
+ * Reached from the register, and scoped the same way: the run must be this
+ * account's, and the subscription must be on that run's line. Both are `where`
+ * clauses, so a crafted subscription id answers null rather than a child.
+ */
+export async function findRunRider(
+  context: AuthContext,
+  runId: string,
+  subscriptionId: string,
+): Promise<RunRider | null> {
+  const run = await db.tripRun.findFirst({
+    where: {
+      id: runId,
+      route: {
+        schoolYearId: currentSchoolYearId(context),
+        ...crewScope(context.user.id),
+      },
+    },
+    select: { routeId: true, scheduleId: true, date: true },
+  });
+  if (!run) return null;
+
+  const subscription = await db.transportSubscription.findFirst({
+    // Bound to the run's own line: a subscription of another route is not on
+    // this bus, whoever asks.
+    where: { id: subscriptionId, routeId: run.routeId },
+    select: {
+      id: true,
+      stop: {
+        select: {
+          name: true,
+          landmark: true,
+          pickupTime: true,
+          dropoffTime: true,
+        },
+      },
+      schedule: { select: { direction: true } },
+      attendance: {
+        where: { date: run.date },
+        select: { status: true, minutesLate: true, reason: true },
+      },
+      enrollment: {
+        select: {
+          schoolClass: { select: { code: true } },
+          levelOffering: { select: { level: { select: { name: true } } } },
+          student: {
+            select: {
+              id: true,
+              code: true,
+              firstName: true,
+              lastName: true,
+              photoUrl: true,
+              family: {
+                select: {
+                  guardians: {
+                    where: { isActive: true },
+                    // The contact the school rings first, first here too.
+                    orderBy: [{ isPrimaryContact: "desc" }],
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      relationship: true,
+                      phone: true,
+                      isPrimaryContact: true,
+                      canPickUp: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!subscription) return null;
+
+  const student = subscription.enrollment.student;
+  const mark = subscription.attendance[0] ?? null;
+  const isReturn = subscription.schedule?.direction === "AFTERNOON";
+
+  return {
+    subscriptionId: subscription.id,
+    studentId: student.id,
+    studentName: `${student.firstName} ${student.lastName}`,
+    studentCode: student.code,
+    className: subscription.enrollment.schoolClass?.code ?? null,
+    levelName: subscription.enrollment.levelOffering?.level.name ?? null,
+    photoUrl: student.photoUrl,
+    stopName: subscription.stop?.name ?? "—",
+    landmark: subscription.stop?.landmark ?? null,
+    time: isReturn
+      ? (subscription.stop?.dropoffTime ?? null)
+      : (subscription.stop?.pickupTime ?? null),
+    status: mark?.status ?? null,
+    minutesLate: mark?.minutesLate ?? 0,
+    reason: mark?.reason ?? null,
+    guardians: (student.family?.guardians ?? []).map((guardian) => ({
+      name: `${guardian.firstName} ${guardian.lastName}`.trim(),
+      relationship: guardian.relationship,
+      phone: guardian.phone,
+      isPrimaryContact: guardian.isPrimaryContact,
+      canPickUp: guardian.canPickUp,
+    })),
+  };
+}
+
 /**
  * A run and the sheet that goes with it, keyed by the run itself — the
  * chauffeur's screen, and the only read behind it.

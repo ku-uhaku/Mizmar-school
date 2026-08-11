@@ -137,6 +137,307 @@ export type TeacherDay = {
   lessons: Lesson[];
 };
 
+/** One row of a lesson's register. Mirrors `RegisterPupil` in `modules/classroom/queries.ts`. */
+export type TeacherRegisterPupil = {
+  enrollmentId: string;
+  studentId: string;
+  studentCode: string;
+  firstName: string;
+  lastName: string;
+  photoUrl: string | null;
+  status: string | null;
+  minutesLate: number | null;
+  reason: string | null;
+  isJustified: boolean;
+  /** Unjustified absences this pupil already has this year, across all subjects. */
+  absencesThisYear: number;
+  latesThisYear: number;
+};
+
+/**
+ * One lesson's register, as taken from the phone. Mirrors `Register` in
+ * `modules/classroom/queries.ts`, plus `canMark` — added by the mobile route,
+ * since the shared type has no notion of "for this caller".
+ */
+export type TeacherRegister = {
+  schoolClassId: string;
+  classCode: string;
+  classGroupId: string | null;
+  groupLabel: string | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  timeSlotId: string | null;
+  slotLabel: string | null;
+  date: string;
+  pupils: TeacherRegisterPupil[];
+  tally: {
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    unmarked: number;
+    total: number;
+  };
+  canMark: boolean;
+};
+
+/** One pupil the signed-in teacher may write a remark about. Mirrors `PupilOption`. */
+export type PupilOption = {
+  enrollmentId: string;
+  label: string;
+  classCode: string;
+};
+
+/** One period of the week, as a column of the grid. Mirrors `SlotColumn`. */
+export type SlotColumn = {
+  key: string;
+  startTime: string;
+  endTime: string;
+  isBreak: boolean;
+};
+
+/** One lesson in the teacher's own grid. Mirrors `TeacherLesson`. */
+export type TeacherLesson = {
+  timetableEntryId: string;
+  timeSlotId: string;
+  schoolClassId: string;
+  classCode: string;
+  groupLabel: string | null;
+  subjectName: string;
+  subjectShort: string;
+  colorHex: string | null;
+  roomCode: string | null;
+};
+
+/**
+ * The teacher's week. Mirrors `TeacherWeek` in modules/timetable/queries.ts.
+ *
+ * Not the child's `Timetable`: a class grid names the teacher in each cell, a
+ * teacher's grid names the *class* — and an empty cell means a free period
+ * rather than a period the school does not teach.
+ */
+export type TeacherWeek = {
+  columns: SlotColumn[];
+  /** Indexed by ISO day (1 = Monday), then by column key. Null = free period. */
+  rows: { dayOfWeek: number; cells: Record<string, TeacherLesson | null> }[];
+  scheduleKind: string;
+  lessonCount: number;
+  classCount: number;
+};
+
+// ── Devoirs et contrôles ─────────────────────────────────────────────────────
+
+/** One paper in the teacher's list. Mirrors `AssessmentRow`. */
+export type Assessment = {
+  id: string;
+  title: string;
+  sequence: number;
+  status: string;
+  scheduledOn: string | null;
+  maxScore: number;
+  coefficient: number;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  subjectColorHex: string | null;
+  typeId: string;
+  typeName: string;
+  typeCode: string;
+  typeColorHex: string | null;
+  classId: string;
+  classCode: string;
+  groupLabel: string | null;
+  termId: string;
+  termName: string;
+  teacherName: string | null;
+  rosterCount: number;
+  markedCount: number;
+  absentCount: number;
+  average: number | null;
+};
+
+/** One pupil's row on a mark sheet. Mirrors `MarkRow`. */
+export type MarkRow = {
+  enrollmentId: string;
+  studentId: string;
+  studentCode: string;
+  firstName: string;
+  lastName: string;
+  photoUrl: string | null;
+  groupLabel: string | null;
+  score: number | null;
+  isAbsent: boolean;
+  isExcused: boolean;
+  comment: string | null;
+};
+
+/** One numbered question of the paper, in points. Mirrors `PaperQuestion`. */
+export type PaperQuestion = {
+  id: string;
+  position: number;
+  text: string;
+  points: number;
+};
+
+/**
+ * A paper with its roster and whatever is entered. Mirrors `MarkSheet`.
+ *
+ * Absences are excluded from the average rather than counted as zero — see
+ * `markStatistics`; the phone shows `absentCount` beside it so the exclusion
+ * reads as deliberate.
+ */
+export type MarkSheet = {
+  assessment: Assessment & { notes: string | null };
+  rows: MarkRow[];
+  statistics: {
+    markedCount: number;
+    absentCount: number;
+    pendingCount: number;
+    average: number | null;
+    lowest: number | null;
+    highest: number | null;
+    passCount: number;
+    passRate: number | null;
+  };
+  isMine: boolean;
+  /** Nobody validates a devoir, so the hand-in pair is not offered on one. */
+  isDevoir: boolean;
+  questions: PaperQuestion[];
+  questionsTotal: number;
+};
+
+/** A kind of paper the school lets a teacher set. Mirrors `AssessmentTypeOption`. */
+export type AssessmentTypeOption = {
+  id: string;
+  code: string;
+  name: string;
+  defaultCoefficient: number;
+  defaultMaxScore: number;
+  countsTowardAverage: boolean;
+  gradesWholeSubject: boolean;
+  colorHex: string | null;
+};
+
+/** Mirrors `TermOption`. */
+export type TermOption = {
+  id: string;
+  number: number;
+  name: string;
+  status: string;
+};
+
+/** One class-and-subject the teacher holds. Mirrors `TeachingSlot`. */
+export type TeachingSlot = {
+  assignmentId: string;
+  schoolClassId: string;
+  classCode: string;
+  className: string | null;
+  levelLabel: string;
+  classGroupId: string | null;
+  groupLabel: string | null;
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  subjectColorHex: string | null;
+  rosterCount: number;
+};
+
+/** Everything the "set a piece of work" form offers, in one call. */
+export type AssessmentOptions = {
+  types: AssessmentTypeOption[];
+  terms: TermOption[];
+  teaching: TeachingSlot[];
+};
+
+// ── Le carnet, vu par son auteur ─────────────────────────────────────────────
+
+/**
+ * One remark this teacher wrote. Mirrors `RemarkRow`.
+ *
+ * `isVisibleToFamily` is the whole point of showing it: a note is internal
+ * until the direction releases it, and the teacher should be able to see which
+ * of theirs have been.
+ */
+export type MyRemark = {
+  id: string;
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  classCode: string;
+  subjectName: string | null;
+  kind: string;
+  tone: string;
+  body: string;
+  occurredOn: string;
+  isVisibleToFamily: boolean;
+  authorName: string | null;
+  isMine: boolean;
+};
+
+// ── Fournitures ──────────────────────────────────────────────────────────────
+
+/**
+ * One line of a demande. Mirrors `SupplyItemRow` in modules/supplies/queries.ts.
+ *
+ * Not `SupplyItem` above: that is the family's shopping list, which carries
+ * only what a parent has to buy. This is the request as its author sees it,
+ * before anybody has approved it.
+ */
+export type TeacherSupplyItem = {
+  id: string;
+  articleId: string | null;
+  label: string;
+  labelAr: string | null;
+  quantity: number | null;
+  notes: string | null;
+  isRequired: boolean;
+  position: number;
+};
+
+/**
+ * A demande de fournitures. Mirrors `SupplyListRow`.
+ *
+ * `status` is DRAFT | SUBMITTED | APPROVED | REJECTED — see `SUPPLY_STATUSES`.
+ * Only APPROVED is ever shown to a family, and `reviewNote` carries the reason
+ * when the direction sends one back.
+ */
+export type TeacherSupplyList = {
+  id: string;
+  title: string;
+  notes: string | null;
+  status: string;
+  schoolClassId: string;
+  className: string;
+  levelLabel: string;
+  subjectId: string | null;
+  subjectName: string | null;
+  authorId: string | null;
+  authorName: string | null;
+  reviewedByName: string | null;
+  reviewedAt: string;
+  reviewNote: string | null;
+  itemCount: number;
+  items: TeacherSupplyItem[];
+};
+
+/** One article of the school's catalogue. Mirrors `SupplyArticleChoice`. */
+export type SupplyArticleChoice = {
+  id: string;
+  label: string;
+  labelAr: string | null;
+  category: string;
+  defaultQuantity: number | null;
+  notes: string | null;
+};
+
+/** Everything the fournitures request form offers, in one call. */
+export type SupplyOptions = {
+  articles: SupplyArticleChoice[];
+  subjects: { id: string; label: string }[];
+  teaching: TeachingSlot[];
+};
+
 // ── Chauffeur ────────────────────────────────────────────────────────────────
 
 export type TripRun = {
@@ -190,6 +491,63 @@ export type RegisterEntry = {
  * length of the list to decide what to show.
  */
 export type RunRegister = { run: TripRun; entries: RegisterEntry[] };
+
+/** One arrêt on the line. Mirrors `ItineraryStop`. */
+export type ItineraryStop = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  landmark: string | null;
+  neighbourhoodName: string | null;
+  position: number;
+  time: string | null;
+  riderCount: number;
+};
+
+/**
+ * Le trajet. Mirrors `RunItinerary`.
+ *
+ * Available before the départ, unlike the register: it names no child, and it
+ * is what somebody reads *before* setting off. The stops arrive already in the
+ * order the bus meets them — reversed for the journey home.
+ */
+export type RunItinerary = {
+  routeCode: string;
+  routeName: string;
+  direction: string;
+  stops: ItineraryStop[];
+  totalRiders: number;
+};
+
+/**
+ * One child on the bus, as the crew sees them. Mirrors `RunRider`.
+ *
+ * The guardians are here for the moment a child is not at the kerb — name,
+ * relationship and telephone, and nothing else about the household.
+ */
+export type RunRider = {
+  subscriptionId: string;
+  studentId: string;
+  studentName: string;
+  studentCode: string;
+  className: string | null;
+  levelName: string | null;
+  photoUrl: string | null;
+  stopName: string;
+  landmark: string | null;
+  time: string | null;
+  status: string | null;
+  minutesLate: number;
+  reason: string | null;
+  guardians: {
+    name: string;
+    relationship: string;
+    phone: string | null;
+    isPrimaryContact: boolean;
+    /** Whether this adult may take the child off the bus. */
+    canPickUp: boolean;
+  }[];
+};
 
 // ── Direction ────────────────────────────────────────────────────────────────
 

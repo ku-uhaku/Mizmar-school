@@ -136,6 +136,22 @@ export function monthLabel(month: string): string {
   return name ? `${name} ${year}` : month;
 }
 
+/** What a teacher notes about a pupil. Mirrors `REMARK_KINDS`. */
+export const REMARK_KIND_LABELS: Record<string, string> = {
+  BEHAVIOUR: "Comportement",
+  WORK: "Travail",
+  PROGRESS: "Progrès",
+  ATTENDANCE: "Assiduité",
+  OTHER: "Autre",
+};
+
+/** The tone of a remark, kept apart from its kind. Mirrors `REMARK_TONES`. */
+export const REMARK_TONE_LABELS: Record<string, string> = {
+  POSITIVE: "Positif",
+  NEUTRAL: "Neutre",
+  CONCERN: "Préoccupant",
+};
+
 /** How a period was spent, as a parent reads it. */
 export const ABSENCE_STATUS_LABELS: Record<string, string> = {
   ABSENT: "Absence",

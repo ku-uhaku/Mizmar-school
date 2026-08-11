@@ -44,6 +44,7 @@ import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   deleteRemarkAction,
+  publishRemarkAction,
   saveRemarkAction,
 } from "@/modules/classroom/actions";
 import {
@@ -60,6 +61,43 @@ const TONE_STYLES: Record<string, string> = {
   NEUTRAL: "",
   CONCERN: "border-destructive/40 text-destructive",
 };
+
+/**
+ * Releasing one remark to the family, or taking it back.
+ *
+ * Its own component so each row owns its pending state — a single shared one
+ * would grey out every button on the page while one of them was saving.
+ */
+function ReleaseButton({ remark }: { remark: RemarkRow }) {
+  const { t } = useI18n();
+  const [pending, startTransition] = React.useTransition();
+
+  return (
+    <Button
+      variant={remark.isVisibleToFamily ? "ghost" : "outline"}
+      size="sm"
+      className="shrink-0"
+      disabled={pending}
+      onClick={() =>
+        startTransition(async () => {
+          await publishRemarkAction(remark.id, !remark.isVisibleToFamily);
+        })
+      }
+    >
+      {remark.isVisibleToFamily ? (
+        <>
+          <LockIcon />
+          {t.classroom.withdrawFromFamily}
+        </>
+      ) : (
+        <>
+          <EyeIcon />
+          {t.classroom.releaseToFamily}
+        </>
+      )}
+    </Button>
+  );
+}
 
 /**
  * The carnet: what this teacher has noticed about their pupils.
@@ -194,9 +232,23 @@ export function RemarksManager({
                     ) : (
                       <Badge variant="outline" className="shrink-0 gap-1">
                         <LockIcon className="size-3" />
-                        {t.classroom.internalOnly}
+                        {permissions.canPublish
+                          ? t.classroom.awaitingRelease
+                          : t.classroom.internalOnly}
                       </Badge>
                     )}
+
+                    {/*
+                      The office's decision on somebody else's words.
+
+                      Only offered to whoever holds the publish code, which is
+                      what makes "a teacher writes, the direction releases" a
+                      rule rather than a convention — and it is the only way a
+                      note written on a phone ever reaches a parent.
+                    */}
+                    {permissions.canPublish ? (
+                      <ReleaseButton remark={remark} />
+                    ) : null}
 
                     {remark.isMine && permissions.canWrite ? (
                       <Button

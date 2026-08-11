@@ -6,6 +6,7 @@ import {
   acceptsMarks,
   assessmentScopeKey,
   defaultAssessmentTitle,
+  pointsToQuarters,
   roundScore,
 } from "@/modules/assessments/enums";
 
@@ -345,6 +346,150 @@ export async function generateAssessments(
       (target) => onProgramme.get(target.subjectId)!.subjectName,
     ),
   };
+}
+
+export type CreateDevoirInput = {
+  /** From the session, never the form. */
+  authorId: string;
+  schoolId: string;
+  schoolYearId: string;
+  /**
+   * Relaxes *which class* to the whole school — the office half of the pair,
+   * `assessment.manage`. A head of studies covering for an absent colleague
+   * sets work for a class they do not teach; a teacher without it is confined
+   * to their own assignments exactly as before.
+   */
+  actsForSchool: boolean;
+  schoolClassId: string;
+  subjectId: string;
+  termId: string;
+  assessmentTypeId: string;
+  title: string;
+  notes: string | null;
+  scheduledOn: Date;
+  maxScore: number;
+  coefficient: number;
+  questions: { text: string; points: number }[];
+};
+
+export type CreateDevoirResult =
+  | { ok: true; assessmentId: string }
+  | {
+      ok: false;
+      reason: "not-teaching" | "not-found" | "term-closed" | "kind-not-allowed";
+    };
+
+/**
+ * A devoir, set by the teacher for their own class.
+ *
+ * The counterpart to `generateAssessments`: that one is a head of studies
+ * planning a round across every subject, this one is a teacher setting a single
+ * piece of work. Both write the same `Assessment` table — the difference is who
+ * may, which is `AssessmentType.allowTeacherCreate`, and that the teaching
+ * assignment is re-derived here rather than taken from the caller.
+ *
+ * Lives in the service rather than in the action because two surfaces set a
+ * devoir now — the web form and the native app — and a rule enforced in one
+ * caller is a rule the other silently does without.
+ *
+ * Created PUBLISHED, not DRAFT: a teacher setting a devoir has already told the
+ * class about it, and making them press a second button to open their own mark
+ * sheet would be ceremony with no decision behind it.
+ */
+export async function createDevoir(
+  input: CreateDevoirInput,
+): Promise<CreateDevoirResult> {
+  // The teacher's own assignment is the authority for both the class and the
+  // subject — holding the permission is not enough to set work for a class
+  // somebody else teaches.
+  const assignment = await db.teachingAssignment.findFirst({
+    where: {
+      ...(input.actsForSchool ? {} : { teacherId: input.authorId }),
+      schoolClassId: input.schoolClassId,
+      subjectId: input.subjectId,
+      schoolClass: {
+        schoolId: input.schoolId,
+        levelOffering: { schoolYearId: input.schoolYearId },
+      },
+    },
+    select: {
+      classGroupId: true,
+      teacherId: true,
+      schoolClass: { select: { id: true } },
+    },
+  });
+  if (!assignment) return { ok: false, reason: "not-teaching" };
+
+  const [term, type] = await Promise.all([
+    db.term.findFirst({
+      where: { id: input.termId, schoolYearId: input.schoolYearId },
+      select: { id: true, status: true },
+    }),
+    db.assessmentType.findFirst({
+      // Only a kind the school lets teachers set. Checked here and not only in
+      // the picker, because the picker is client-side.
+      where: {
+        id: input.assessmentTypeId,
+        schoolId: input.schoolId,
+        allowTeacherCreate: true,
+        isActive: true,
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  if (!term) return { ok: false, reason: "not-found" };
+  if (term.status === "CLOSED") return { ok: false, reason: "term-closed" };
+  if (!type) return { ok: false, reason: "kind-not-allowed" };
+
+  // The next free sequence for this kind, so two devoirs in one term do not
+  // collide on the unique index.
+  const last = await db.assessment.findFirst({
+    where: {
+      schoolClassId: assignment.schoolClass.id,
+      subjectId: input.subjectId,
+      termId: term.id,
+      assessmentTypeId: type.id,
+    },
+    orderBy: { sequence: "desc" },
+    select: { sequence: true },
+  });
+
+  const created = await db.assessment.create({
+    data: {
+      schoolId: input.schoolId,
+      schoolClassId: assignment.schoolClass.id,
+      classGroupId: assignment.classGroupId,
+      subjectId: input.subjectId,
+      termId: term.id,
+      assessmentTypeId: type.id,
+      sequence: (last?.sequence ?? 0) + 1,
+      title: input.title,
+      notes: input.notes,
+      scheduledOn: input.scheduledOn,
+      maxScore: input.maxScore,
+      coefficient: input.coefficient,
+      status: "PUBLISHED",
+      // Answerable to whoever holds the class, not to whoever typed it in: an
+      // office user setting work for a colleague must not end up owning the
+      // mark sheet. Falls back to the author when the post is vacant.
+      teacherId: assignment.teacherId ?? input.authorId,
+      createdById: input.authorId,
+      scopeKey: assessmentScopeKey(assignment.classGroupId),
+      // Numbered here, from the order they were typed in — `position` is the
+      // paper's own order and must not depend on how the rows come back.
+      questions: {
+        create: input.questions.map((question, index) => ({
+          position: index + 1,
+          text: question.text,
+          pointsQuarters: pointsToQuarters(question.points),
+        })),
+      },
+    },
+    select: { id: true },
+  });
+
+  return { ok: true, assessmentId: created.id };
 }
 
 export type MarkInput = {

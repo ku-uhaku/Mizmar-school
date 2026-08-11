@@ -10,10 +10,9 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, listField, withActionErrors } from "@/lib/server-action";
 import { fieldErrors } from "@/lib/validation";
-import { isEditableByAuthor } from "@/modules/supplies/enums";
 import {
-  replaceItems,
   reviewList,
+  saveList,
   submitList,
   type ItemInput,
 } from "@/modules/supplies/service";
@@ -132,74 +131,30 @@ export async function saveSupplyListAction(
       }
     }
 
-    // The class must be one of this school's, this year — the id comes from the
-    // request and is never trusted.
-    const schoolClass = await db.schoolClass.findFirst({
-      where: {
-        id: parsed.data.schoolClassId,
-        schoolId,
-        levelOffering: { schoolYearId },
-      },
-      select: { id: true },
-    });
-    if (!schoolClass) return failure(t.errors.notFound);
-
-    const subject = parsed.data.subjectId
-      ? await db.subject.findFirst({
-          where: { id: parsed.data.subjectId, schoolId },
-          select: { id: true },
-        })
-      : null;
-
     const id = field(formData, "id");
 
-    if (id) {
-      const existing = await findScopedList(schoolId, id);
-      if (!existing) return failure(t.errors.notFound);
+    const result = await saveList({
+      authorId: context.user.id,
+      schoolId,
+      schoolYearId,
+      ...(id ? { listId: id } : {}),
+      schoolClassId: parsed.data.schoolClassId,
+      subjectId: parsed.data.subjectId || null,
+      title: parsed.data.title,
+      notes: parsed.data.notes,
+      items,
+    });
 
-      // Somebody else's draft is not yours to rewrite. The office may review it
-      // but reviewing is a decision, not an edit.
-      if (existing.authorId !== context.user.id) {
-        return failure(t.supply.notYourList);
-      }
-      // An approved list has been agreed and families may have bought against
-      // it; changing it is a new decision, so it must be withdrawn first.
-      if (!isEditableByAuthor(existing.status)) {
+    if (!result.ok) {
+      if (result.reason === "not-yours") return failure(t.supply.notYourList);
+      if (result.reason === "not-editable") {
         return failure(t.supply.cannotEditApproved);
       }
-
-      await db.supplyList.update({
-        where: { id: existing.id },
-        data: {
-          schoolClassId: schoolClass.id,
-          subjectId: subject?.id ?? null,
-          title: parsed.data.title,
-          notes: parsed.data.notes,
-        },
-      });
-      await replaceItems(existing.id, schoolId, items);
-
-      refresh();
-      return success(t.supply.saved);
+      return failure(t.errors.notFound);
     }
 
-    const created = await db.supplyList.create({
-      data: {
-        schoolId,
-        schoolYearId,
-        schoolClassId: schoolClass.id,
-        subjectId: subject?.id ?? null,
-        title: parsed.data.title,
-        notes: parsed.data.notes,
-        status: "DRAFT",
-        authorId: context.user.id,
-      },
-      select: { id: true },
-    });
-    await replaceItems(created.id, schoolId, items);
-
     refresh();
-    return success(t.supply.created);
+    return success(id ? t.supply.saved : t.supply.created);
   });
 }
 

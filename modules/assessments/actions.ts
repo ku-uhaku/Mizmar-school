@@ -13,6 +13,7 @@ import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { currentSchoolYearId } from "@/lib/scope";
 import {
+  createDevoir,
   generateAssessments,
   saveMarks,
   setAssessmentStatus,
@@ -23,11 +24,7 @@ import {
   generateSchema,
   statusSchema,
 } from "@/modules/assessments/validation";
-import {
-  assessmentScopeKey,
-  NOTES_MAX,
-  pointsToQuarters,
-} from "@/modules/assessments/enums";
+import { NOTES_MAX } from "@/modules/assessments/enums";
 import { devoirSchema } from "@/modules/classroom/validation";
 
 /**
@@ -628,102 +625,40 @@ export async function createDevoirAction(
       );
     }
 
-    // The teacher's own assignment is the authority for both the class and the
-    // subject — holding the permission is not enough to set work for a class
-    // somebody else teaches.
-    const assignment = await db.teachingAssignment.findFirst({
-      where: {
-        // A head of studies may set work for any class of the school; a teacher
-        // only for their own. Anything a teacher can do, the office can do too —
-        // and covering for an absent colleague is exactly when it is needed.
-        // ASSESSMENT_MANAGE is the office half of the pair whose teacher half
-        // (ASSESSMENT_GRADE) gates this action.
-        ...(actsForSchool ? {} : { teacherId: context.user.id }),
-        schoolClassId: parsed.data.schoolClassId,
-        subjectId: parsed.data.subjectId,
-        schoolClass: {
-          schoolId,
-          levelOffering: { schoolYearId: context.currentSchoolYear.id },
-        },
-      },
-      select: {
-        classGroupId: true,
-        teacherId: true,
-        schoolClass: { select: { id: true } },
-      },
-    });
-    if (!assignment) return failure(t.classroom.notYourClass);
-
-    const [term, type] = await Promise.all([
-      db.term.findFirst({
-        where: {
-          id: parsed.data.termId,
-          schoolYearId: context.currentSchoolYear.id,
-        },
-        select: { id: true, status: true },
-      }),
-      db.assessmentType.findFirst({
-        // Only a kind the school lets teachers set. Checked here and not only
-        // in the picker, because the picker is client-side.
-        where: {
-          id: parsed.data.assessmentTypeId,
-          schoolId,
-          allowTeacherCreate: true,
-          isActive: true,
-        },
-        select: { id: true, name: true },
-      }),
-    ]);
-
-    if (!term) return failure(t.errors.notFound);
-    if (term.status === "CLOSED") return failure(t.assessment.termClosed);
-    if (!type) return failure(t.classroom.kindNotAllowed);
-
-    // The next free sequence for this kind, so two devoirs in one term do not
-    // collide on the unique index.
-    const last = await db.assessment.findFirst({
-      where: {
-        schoolClassId: assignment.schoolClass.id,
-        subjectId: parsed.data.subjectId,
-        termId: term.id,
-        assessmentTypeId: type.id,
-      },
-      orderBy: { sequence: "desc" },
-      select: { sequence: true },
+    const result = await createDevoir({
+      authorId: context.user.id,
+      schoolId,
+      schoolYearId: context.currentSchoolYear.id,
+      // A head of studies may set work for any class of the school; a teacher
+      // only for their own. Anything a teacher can do, the office can do too —
+      // and covering for an absent colleague is exactly when it is needed.
+      // ASSESSMENT_MANAGE is the office half of the pair whose teacher half
+      // (ASSESSMENT_GRADE) gates this action.
+      actsForSchool,
+      schoolClassId: parsed.data.schoolClassId,
+      subjectId: parsed.data.subjectId,
+      termId: parsed.data.termId,
+      assessmentTypeId: parsed.data.assessmentTypeId,
+      title: parsed.data.title,
+      notes: parsed.data.notes ?? null,
+      scheduledOn: parsed.data.scheduledOn,
+      maxScore: parsed.data.maxScore,
+      coefficient: parsed.data.coefficient,
+      questions: parsed.data.questions,
     });
 
-    await db.assessment.create({
-      data: {
-        schoolId,
-        schoolClassId: assignment.schoolClass.id,
-        classGroupId: assignment.classGroupId,
-        subjectId: parsed.data.subjectId,
-        termId: term.id,
-        assessmentTypeId: type.id,
-        sequence: (last?.sequence ?? 0) + 1,
-        title: parsed.data.title,
-        notes: parsed.data.notes,
-        scheduledOn: parsed.data.scheduledOn,
-        maxScore: parsed.data.maxScore,
-        coefficient: parsed.data.coefficient,
-        status: "PUBLISHED",
-        // Answerable to whoever holds the class, not to whoever typed it in:
-        // an office user setting work for a colleague must not end up owning
-        // the mark sheet. Falls back to the author when the post is vacant.
-        teacherId: assignment.teacherId ?? context.user.id,
-        createdById: context.user.id,
-        scopeKey: assessmentScopeKey(assignment.classGroupId),
-        // Numbered here, from the order they were typed in — `position` is the
-        // paper's own order and must not depend on how the rows come back.
-        questions: {
-          create: parsed.data.questions.map((question, index) => ({
-            position: index + 1,
-            text: question.text,
-            pointsQuarters: pointsToQuarters(question.points),
-          })),
-        },
-      },
-    });
+    if (!result.ok) {
+      if (result.reason === "not-teaching") {
+        return failure(t.classroom.notYourClass);
+      }
+      if (result.reason === "term-closed") {
+        return failure(t.assessment.termClosed);
+      }
+      if (result.reason === "kind-not-allowed") {
+        return failure(t.classroom.kindNotAllowed);
+      }
+      return failure(t.errors.notFound);
+    }
 
     refresh();
     return success(t.classroom.devoirCreated);
