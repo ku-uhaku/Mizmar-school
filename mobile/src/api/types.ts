@@ -771,7 +771,8 @@ export type Channel = {
 export type ChatMessage = {
   id: string;
   body: string;
-  authorName: string;
+  /** Null when the account has no profile. The server never sends an email here. */
+  authorName: string | null;
   createdAt: string;
   /** True when this account wrote it, so the thread can align it right. */
   isMine: boolean;

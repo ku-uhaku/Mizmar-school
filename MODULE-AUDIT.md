@@ -60,49 +60,161 @@ Ordre = ordre d'enregistrement dans `modules/registry.ts`.
 
 | # | Module | Taille | État | Notes |
 | --- | --- | --- | --- | --- |
-| 14 | `school-life` | 10 f / 1 529 l | ⬜ | |
-| 15 | `events` | 14 f / 2 729 l | ⬜ | |
-| 16 | `requests` | 14 f / 2 322 l | ⬜ | |
-| 17 | `chat` | 12 f / 1 650 l | ⬜ | |
-| 18 | `families` | 18 f / 4 376 l | ⬜ | |
-| 19 | `students` | 22 f / 7 052 l | ⬜ | |
-| 20 | `enrolment` | 16 f / 6 332 l | ⬜ | |
-| 21 | `classes` | 16 f / 3 379 l | ⬜ | |
-| 22 | `assessments` | 23 f / 10 399 l | ⬜ | travail en cours (devoirs) non commité |
-| 23 | `massar` | 13 f / 4 255 l | ⬜ | |
-| 24 | `bulletins` | 15 f / 3 716 l | ⬜ | |
-| 25 | `classroom` | 17 f / 6 131 l | ⬜ | |
-| 26 | `timetable` | 26 f / 10 075 l | ⬜ | |
-| 27 | `supplies` | 16 f / 2 941 l | ⬜ | |
-| 28 | `documents` | 13 f / 2 214 l | ⬜ | |
-| 29 | `imports` | 12 f / 2 918 l | ⬜ | |
-| 30 | `reports` | 13 f / 5 751 l | ⬜ | |
+Légende de colonne : **Accès** = passe d'autorisation (faite sur les 17).
+**Logique** = revue ligne à ligne du métier (partielle, voir le journal).
+
+| # | Module | Accès | Logique | Notes |
+| --- | --- | --- | --- | --- |
+| 14 | `school-life` | ✅ | ✅ | filtre par permission dans l'action |
+| 15 | `events` | ✅ | ✅ | école → familles, sens unique |
+| 16 | `requests` | ✅ | ✅ | pas de `REQUEST_CREATE` : c'est le parent qui dépose |
+| 17 | `chat` | ✅ | ✅ | parent ↔ parent ; aucun chemin d'écriture pour le personnel |
+| 18 | `families` | ✅ | ✅ | `authorizeFamily` / `authorizeGuardianPortal` |
+| 19 | `students` | ✅ | 🔎 | n'expose de la famille que `id`/`name`/`code` |
+| 20 | `enrolment` | ✅ | 🔎 | `authorizeEnrolment` ; échéanciers non relus en détail |
+| 21 | `classes` | ✅ | 🔎 | |
+| 22 | `assessments` | ✅ | 🔎 | `FAMILY_VISIBLE_STATUSES = ["GRADED"]` |
+| 23 | `massar` | ✅ | 🔎 | |
+| 24 | `bulletins` | ✅ | 🔎 | |
+| 25 | `classroom` | ✅ | ✅ | aucune occurrence de « guardian » ni « phone » |
+| 26 | `timetable` | ✅ | ✅ | détection de conflits relue — voir le journal |
+| 27 | `supplies` | ✅ | 🔎 | |
+| 28 | `documents` | ✅ | 🔎 | |
+| 29 | `imports` | ✅ | ✅ | exige trois permissions, pas une |
+| 30 | `reports` | ✅ | 🔎 | seul module à utiliser `revalidatePath` |
 
 ### Caisse / logistique
 
 | # | Module | Taille | État | Notes |
 | --- | --- | --- | --- | --- |
-| 31 | `treasury` | 29 f / 14 850 l | ⬜ | |
-| 32 | `transport` | 21 f / 11 994 l | ⬜ | |
+| 31 | `treasury` | 29 f / 14 850 l | ✅ | 186 tests verts — voir le journal |
+| 32 | `transport` | 21 f / 11 994 l | ✅ | 17 actions / 19 autorisations |
 
 ### Configuration académique (pas de nav, pas de permissions)
 
 | # | Module | Taille | État | Notes |
 | --- | --- | --- | --- | --- |
-| 33 | `academics` | 5 f / 1 051 l | ⬜ | |
-| 34 | `facilities` | 4 f / 158 l | ⬜ | |
-| 35 | `geography` | 4 f / 533 l | ⬜ | |
-| 36 | `billing` | 6 f / 933 l | ⬜ | |
+| 33 | `academics` | 5 f / 1 051 l | ✅ | données pures + seed, aucune action |
+| 34 | `facilities` | 4 f / 158 l | ✅ | idem |
+| 35 | `geography` | 4 f / 533 l | ✅ | idem + une query |
+| 36 | `billing` | 6 f / 933 l | ✅ | idem + `service.ts` (reprise d'année) |
 
 ### Sans table ni nav
 
 | # | Module | Taille | État | Notes |
 | --- | --- | --- | --- | --- |
-| 37 | `auth` | 9 f / 960 l | ⬜ | |
-| 38 | `context` | 7 f / 610 l | ⬜ | |
-| 39 | `portal` | 6 f / 2 619 l | ⬜ | app native — à revoir avec `mobile/` |
+| 37 | `auth` | 9 f / 960 l | ✅ | throttling + message d'accès web |
+| 38 | `context` | 7 f / 610 l | ✅ | ne fait jamais confiance à l'id du client |
+| 39 | `portal` | 6 f / 2 619 l | 🔧 | fuite d'e-mails corrigée — voir la section frontière |
 
 ---
+
+## La frontière enseignant ↔ parent
+
+*Passe dédiée : aucun contact direct entre un enseignant et un parent. Vérifiée
+dans les deux sens, plus le rôle qui les sépare.*
+
+**Verdict : la règle tient, après un correctif.** Toutes les voies entre une
+famille et le personnel sont médiées par le bureau, et c'est écrit dans la
+conception, pas seulement dans le comportement.
+
+| Voie | Qui parle à qui | Statut |
+| --- | --- | --- |
+| `chat` | **parent ↔ parent** uniquement (école entière ou une classe) | ✅ |
+| `events` | école → familles, une seule direction, `event.publish` | ✅ |
+| `requests` | famille → **guichet**, traité sous `request.handle` | ✅ |
+| `classroom` remarques | enseignant → famille, une seule direction, et seulement si `classroom.remarkPublish` | ✅ |
+| `assessments` / `bulletins` | notes publiées par le bureau, jamais par l'enseignant | ✅ |
+| DTO du portail | **fuite d'adresses e-mail** | 🔧 corrigé |
+
+**Ce qui rend la règle solide (côté chat).** `ChatChannel` est décrit dans son
+propre schéma comme « une conversation entre les parents d'une école, ou d'une
+classe ». Le module ne déclare que deux permissions, et **aucune n'est
+« publier »** : `chat.view` pour lire, `chat.moderate` pour retirer un message
+ou archiver un fil. Il n'existe aucun chemin d'écriture pour le personnel, ni
+sur le web ni sur l'API mobile. Côté parent, l'écriture passe par
+`canPostToChannel` → `listMyChannels` → `householdScope`, donc un compte sans
+enfant inscrit n'a aucun canal — un enseignant n'a littéralement rien où poster.
+
+**Ce qui rend la règle solide (côté rôle).** Le rôle système `Enseignant` ne
+détient **ni `family.view`, ni `chat.view`, ni `request.handle`, ni
+`event.publish`** (vérifié : 0 occurrence). Il a `student.view`, mais
+`modules/students/queries.ts` n'expose de la famille que `id`, `name`, `code` —
+jamais un tuteur, jamais un téléphone. Et `modules/classroom/queries.ts` ne
+contient pas une seule occurrence de « guardian » ou « phone ». Un enseignant ne
+peut donc pas joindre un parent, même s'il le voulait.
+
+Les commentaires de `system-roles.ts` montrent que la séparation est
+intentionnelle et fine : pas d'`ATTENDANCE_JUSTIFY` (l'enseignant constate une
+absence, le bureau décide si le mot l'excuse), pas de `REMARK_PUBLISH` (« une
+inquiétude part vers la famille une fois que l'école a décidé quoi dire, pas au
+moment où elle est écrite »), pas de `SUPPLY_REVIEW`, pas d'`ASSESSMENT_PUBLISH`.
+
+**Corrigé — Le portail livrait des adresses e-mail aux familles.** ✅
+
+`modules/portal/queries.ts` recopiait à la main la logique de `displayName`
+(`lib/dal.ts`) à **trois** endroits. Ce helper retombe sur l'e-mail du compte
+quand le profil manque — ce qui est juste là où il est utilisé, le bandeau qui
+vous montre votre propre nom — et faux ici :
+
+1. **l'auteur d'une remarque** → l'e-mail de l'enseignant qui l'a écrite ;
+2. **l'enseignant d'un cours** sur l'emploi du temps de l'enfant → son e-mail ;
+3. **l'auteur d'un message** dans un canal de parents → l'e-mail **d'un autre
+   parent**, diffusé à toute la classe.
+
+Les deux premiers ouvrent exactement la ligne directe famille → enseignant que
+tout le reste de l'app referme : le chat est entre parents, une demande passe au
+guichet, une remarque va dans un seul sens. Une adresse dans un DTO contourne
+tout cela. Le troisième est d'une autre nature mais pire à sa façon : il divulgue
+l'adresse personnelle d'un parent à tous les autres.
+
+Se déclenchait dès qu'un compte n'a pas de ligne `Profile` ou un nom vide —
+typiquement un compte créé par import.
+
+Un seul helper local, `personName`, remplace les trois copies : il renvoie le nom
+du profil ou `null`, jamais l'e-mail. Et la colonne `email` est **retirée des
+trois `select`**, pour qu'elle ne quitte même pas la base. `PortalMessage.authorName`
+passe de `string` à `string | null`, avec son miroir dans
+`mobile/src/api/types.ts` (aucun écran mobile ne l'affichait encore, donc rien à
+reprendre côté rendu).
+
+## Bilan de la passe
+
+**39 / 39 modules revus pour l'accès. 10 correctifs sur 7 modules.**
+
+| # | Module | Correctif |
+| --- | --- | --- |
+| 1 | `dashboard` | « 0 inscrits » affirmé sans droit → `null` |
+| 1 | `dashboard` | un aller-retour DB de trop sur la page la plus ouverte |
+| 3 | `schools` | comptage d'élèves non scopé au tenant |
+| 3 | `schools` | garde de suppression élargie au personnel et à la caisse |
+| 4 | `school-years` | garde élargie aux reçus (le `Restrict` devient une phrase) |
+| 4 | `school-years` | lecture de toutes les colonnes pour un seul `id` |
+| 5 | `users` | **escalade de privilège** — `update` org-wide achetait `delete` org-wide |
+| 5 | `users` | `countUsers` sans `organizationId` |
+| 7 | `configuration` | fuite d'existence entre écoles à la suppression |
+| 39 | `portal` | **adresses e-mail livrées aux familles** (3 endroits) |
+
+Deux d'entre eux sont de vrais défauts de sécurité : l'escalade du module 5 et la
+fuite d'e-mails du module 39. Les autres sont des affirmations non gagnées, des
+gardes partielles ou des dérives de portée.
+
+**Ce qui reste ouvert** (rien de bloquant, tout est tracé plus haut) :
+
+- La revue métier des modules marqués 🔎 — surtout `bulletins` (moyennes) et
+  `massar` (mapping).
+- `configuration` n'a **aucun test au niveau des actions** : le CRUD de quatorze
+  tables sans filet.
+- `findBlockingReference` est séquentiel là où le cas courant paierait moins en
+  parallèle.
+- Les deux points de conception d'`access` à acter : `role.update` vaut la
+  racine, et `hasWebAccess` compare des noms de rôles.
+- `AGENTS.md` est en retard sur deux points (inventaire des modules, orchestrateurs
+  de seed).
+
+**Vérification finale :** `npm run typecheck` vert · `npx eslint` sur tous les
+fichiers touchés : rien · `npx vitest run` → **54 fichiers, 2 193 tests, tout
+vert** (2 189 au départ, +4 tests ajoutés).
 
 ## Constats transverses
 
@@ -626,6 +738,136 @@ toujours dans « qui a fait quoi ».
 **Après correction (module 7).** `npm run typecheck` vert ·
 `npx eslint modules/configuration` : rien · `npx vitest run` → **54 fichiers,
 2 193 tests, tout vert**.
+
+## Vie scolaire — passe d'autorisation (14 à 30)
+
+*Une passe sur les 17 modules d'un coup, parce que la question posée — « l'accès
+est-il bon ? » — se vérifie mieux en travers qu'un module à la fois. La revue
+métier ligne à ligne reste à faire sur les modules marqués 🔎.*
+
+**Verdict : aucun défaut d'autorisation sur les 17.**
+
+**Méthode.** Trois balayages, plus des plongées ciblées.
+
+1. **Chaque action est-elle autorisée ?** Comptage des `export async function`
+   contre les appels `authorize*` par module. Quatre modules affichaient moins
+   d'appels que d'actions — `families` (9/6), `enrolment` (6/4), `school-life`
+   (1/0), `reports` (1/0) — et les quatre sont corrects après lecture :
+   - `families` et `enrolment` passent par un helper
+     (`authorizeFamily`, `authorizeGuardianPortal`, `authorizeEnrolment`) qui
+     résout l'école **depuis la ligne** avant d'autoriser. Le bon patron, celui
+     que `school-years` a établi.
+   - `school-life` (recherche globale) et `reports` (favori) filtrent par
+     permission à l'intérieur de l'action, code par code.
+2. **Les compteurs dérivent-ils de leurs listes ?** C'est le bug trouvé au module
+   5. Aucun équivalent ici : `countFamilies`, `countStudentsByStanding`,
+   `countEnrolmentsByLevel`, `countAssessments`, `countAwaitingReview` passent
+   toutes par le `scope(context)` / `schoolScope(context)` partagé du fichier.
+3. **Le rôle `Enseignant` peut-il déborder ?** Voir la section « frontière
+   enseignant ↔ parent » plus haut : non.
+
+**Plongées.**
+
+- **`timetable` — détection de conflits.** La partie la plus subtile de tout ce
+  que j'ai lu. Trois règles se superposent : la parité de quinzaine
+  (`parityOverlaps` — deux semaines opposées ne se croisent jamais, et `ALL`
+  recouvre les deux, ce qui est précisément pourquoi l'index unique ne peut pas
+  trancher seul), la fenêtre de semaines (`weekWindowsOverlap` — les deux moitiés
+  d'un cours modifié en cours d'année ne sont pas un conflit, sinon la grille
+  deviendrait inéditable après le premier trimestre), et le semestre nul qui
+  signifie « toute l'année » et entre donc en collision avec tout. Ce dernier
+  point porte le commentaire juste : le filtre ne se resserre que si le cours
+  *entrant* a son propre semestre, sinon une réservation à l'année pourrait être
+  posée par-dessus un cours semestriel sans que personne soit prévenu. Rien à
+  redire.
+- **`imports` — écritures en masse.** Exige **trois** permissions et pas une :
+  `import.students`, `student.create` **et** `family.create`, parce qu'un import
+  crée les deux. L'export exige symétriquement `student.view` + `family.view`.
+- **`families` — ouverture d'un compte portail.** Le compte parent est créé
+  `roleId: null`, donc sans membership : « a parent is not staff, and everything
+  they may read is scoped by the household instead ». Un seul accès par dossier,
+  vérifié sur tout le dossier et pas sur le tuteur seul, pour que rouvrir un
+  compte existant et en ouvrir un second donnent la même réponse.
+- **`assessments` — ce qu'une famille voit.** `FAMILY_VISIBLE_STATUSES` ne
+  contient que `GRADED`, l'état où l'école a accepté la correction. Les écrans du
+  personnel utilisent `COUNTED_STATUSES`, plus large, parce qu'une moyenne en
+  cours de trimestre doit inclure une copie encore en correction. Les deux listes
+  sont séparées et commentées ; l'enseignant tient `ASSESSMENT_GRADE` mais pas
+  `ASSESSMENT_PUBLISH`, donc il ne décide pas de la publication.
+
+**Reste à faire.** La revue métier des modules marqués 🔎 — en particulier le
+calcul des moyennes de `bulletins` et le mapping `massar`. Les échéanciers
+d'`enrolment` ont été relus depuis (voir ci-dessous).
+
+## L'argent — `enrolment` (20) et `treasury` (31)
+
+*Relu en priorité : un mauvais chiffre y est pire qu'une mauvaise permission.*
+`npx vitest run modules/treasury modules/transport` → 186/186 vert.
+
+**Rien à corriger. C'est la partie la mieux raisonnée de l'application.**
+
+**`EnrollmentFee` — pourquoi la table existe.** Le schéma répond lui-même, en
+trois points qui sont chacun une décision : le prix est **copié** à l'inscription
+plutôt que relu à travers `feeRateId`, pour qu'un tarif corrigé en novembre ne
+réécrive pas ce qui a été signé en septembre ; une réduction est par élève **et
+par mois**, ce qu'une liste de prix ne peut pas exprimer ; et c'est la ligne à
+laquelle un encaissement s'attachera. `feeRateId` est conservé en `SetNull` et
+n'est **jamais** lu pour calculer un total — seulement pour répondre à « pourquoi
+suis-je facturé ça ? ».
+
+**`repriceFeeLine` — deux bugs d'argent déjà fermés, et le commentaire le dit.**
+
+1. *Waiver d'une ligne déjà payée.* Toute somme « payé par cet élève » se lit à
+   travers les lignes encore `DUE` ; annuler une ligne réglée sortait donc ses
+   allocations du total de l'élève pendant que le reçu et la caisse comptaient
+   toujours chaque centime. Les deux comptabilités divergeaient exactement du
+   montant réellement versé. L'édition est refusée tant que l'argent est attaché ;
+   annuler le reçu est le chemin de retour, et il laisse une trace.
+2. *La course entre le contrôle et l'écriture.* Les deux étaient deux requêtes
+   sur des connexions séparées, et un reçu validé entre elles passait à travers
+   un garde qui avait déjà lu zéro. Les deux partagent maintenant une
+   transaction, et `paidOnFeeLine` prend un client pour être lue **dedans**.
+
+**`recordPayment` — trois précautions.**
+
+- **Une ligne, une allocation.** Une requête nommant deux fois la même échéance
+  passait le contrôle de sur-paiement deux fois, chaque moitié comparée à un
+  reste qui ignorait l'autre ; seul l'index unique rattrapait, en plantant. Les
+  doublons sont fusionnés avant le contrôle.
+- **Relecture dans la transaction, scopée école + année.** Un id de la requête ne
+  peut pas atteindre l'échéancier d'un autre tenant, et le reste dû est celui qui
+  est vrai au moment de l'écriture.
+- **La notification est hors transaction, et après.** Un fan-out sur les tuteurs
+  d'une famille tiendrait le verrou d'écriture ouvert pendant des lectures
+  étrangères au grand livre. Si la notification échoue, le reçu tient — le bon
+  sens de la dépendance.
+
+**`transport`** : 17 actions, 19 appels d'autorisation. Rien à signaler.
+
+## Le reste (33 à 39)
+
+- **`academics`, `facilities`, `geography`, `billing`** — configuration
+  académique : `enums.ts`, `presets.ts`, `seed.ts`, pas d'`actions.ts`. Ils
+  n'exposent aucune surface d'écriture propre ; leurs tables sont éditées par le
+  CRUD générique de `configuration` (module 7), qui porte l'autorisation.
+  `billing/service.ts` ne sert qu'à la reprise d'année (`copyFeeConfiguration`),
+  appelée par `school-years`.
+- **`auth`** — la porte d'entrée, et elle est prudente. L'identifiant est validé
+  comme une simple chaîne et non comme un e-mail (le personnel se connecte par
+  nom d'utilisateur), la colonne interrogée est décidée dans `checkCredentials`,
+  et une adresse malformée reçoit la même réponse qu'un compte inexistant — ce
+  qui est aussi ce qui empêche le formulaire de dire à un inconnu quels comptes
+  existent. Throttling avec délai arrondi vers le haut « pour que le message ne
+  dise jamais réessayez dans 0 minute ». Et un enseignant qui tape son bon mot de
+  passe sur le web reçoit un message distinct de « identifiants invalides » : il
+  n'y a rien à protéger en restant vague, et il mérite qu'on lui dise quelle
+  application est la sienne.
+- **`context`** — les deux bascules ne font jamais confiance à l'id du client :
+  l'école doit être dans `context.schools`, et l'année doit appartenir à l'école
+  en contexte. Changer d'école déplace aussi vers une année sensée de la nouvelle
+  plutôt que de garder celle de l'école qu'on vient de quitter.
+- **`portal`** — voir la section « frontière enseignant ↔ parent ». Une
+  correction appliquée.
 
 **Rien à changer par ailleurs.** `quick-actions` (liste fixe filtrée par
 permission, dans le header et non sur le dashboard) et `section-card` (couleur

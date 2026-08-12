@@ -56,6 +56,39 @@ function householdScope(userId: string) {
   } as const;
 }
 
+/**
+ * Somebody's name as a household may see it — and **never their email address**.
+ *
+ * `displayName` in lib/dal.ts falls back to the account's email when there is no
+ * profile, which is right where it is used: the shell showing you your own name.
+ * That fallback was hand-copied into three DTOs here, and in this file it is a
+ * different thing entirely.
+ *
+ *   • a remark's author — the teacher who wrote it
+ *   • a lesson's teacher on the child's timetable
+ *   • a message's author in a parents' channel
+ *
+ * The first two hand a parent a member of staff's sign-in address, which is a
+ * direct line to a teacher that the school never opened: every route between a
+ * family and the staff in this app is deliberately mediated — the chat is
+ * parent-to-parent, a demande goes to the office, a remark travels one way. An
+ * address in a DTO routes around all of it. The third is worse in a quieter
+ * way: it discloses one parent's personal email to every other parent in the
+ * class.
+ *
+ * A missing profile is a data gap, so this answers null and lets the phone say
+ * whatever it says for "we do not know" — which is the honest rendering, and one
+ * that cannot become a mailto:.
+ */
+function personName(person: {
+  profile: { firstName: string; lastName: string } | null;
+} | null): string | null {
+  if (!person?.profile) return null;
+  const full =
+    `${person.profile.firstName} ${person.profile.lastName}`.trim();
+  return full === "" ? null : full;
+}
+
 export type PortalChild = {
   studentId: string;
   enrollmentId: string | null;
@@ -857,7 +890,7 @@ export async function loadChildRemarks(
       subject: { select: { name: true } },
       author: {
         select: {
-          email: true,
+          // No `email`: see `personName` — the address must not reach a household.
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -871,11 +904,7 @@ export async function loadChildRemarks(
     body: remark.body,
     occurredOn: remark.occurredOn.toISOString(),
     subjectName: remark.subject?.name ?? null,
-    authorName: remark.author
-      ? (remark.author.profile
-          ? `${remark.author.profile.firstName} ${remark.author.profile.lastName}`.trim()
-          : "") || remark.author.email
-      : null,
+    authorName: personName(remark.author),
   }));
 }
 
@@ -957,7 +986,7 @@ export async function loadChildTimetable(
       room: { select: { name: true } },
       teacher: {
         select: {
-          email: true,
+          // No `email`: see `personName` — the address must not reach a household.
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -974,11 +1003,7 @@ export async function loadChildTimetable(
       subjectShort:
         entry.subject.shortName || entry.subject.code || entry.subject.name,
       colorHex: entry.subject.colorHex,
-      teacherName: entry.teacher
-        ? (entry.teacher.profile
-            ? `${entry.teacher.profile.firstName} ${entry.teacher.profile.lastName}`.trim()
-            : "") || entry.teacher.email
-        : null,
+      teacherName: personName(entry.teacher),
       roomName: entry.room?.name ?? null,
     })),
   };
@@ -1233,7 +1258,8 @@ export async function listMyChannels(userId: string): Promise<PortalChannel[]> {
 export type PortalMessage = {
   id: string;
   body: string;
-  authorName: string;
+  /** Null when the account has no profile — never their email. See `personName`. */
+  authorName: string | null;
   createdAt: string;
   /** True when this account wrote it, so the phone can align it right. */
   isMine: boolean;
@@ -1270,7 +1296,7 @@ export async function loadChannelMessages(
       authorId: true,
       author: {
         select: {
-          email: true,
+          // No `email`: see `personName` — the address must not reach a household.
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -1280,10 +1306,7 @@ export async function loadChannelMessages(
   return messages.map((message) => ({
     id: message.id,
     body: message.body,
-    authorName: message.author.profile
-      ? `${message.author.profile.firstName} ${message.author.profile.lastName}`.trim() ||
-        message.author.email
-      : message.author.email,
+    authorName: personName(message.author),
     createdAt: message.createdAt.toISOString(),
     isMine: message.authorId === userId,
   }));
