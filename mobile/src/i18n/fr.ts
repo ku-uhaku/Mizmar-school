@@ -584,6 +584,8 @@ const fr: Dictionary = {
       TRANSPORT_MISSED: "{child} a été noté {status} au bus le {date}",
       SUPPLY_LIST_APPROVED: "Fournitures à acheter pour {child} : {title}",
       SUPPLY_LIST_SUBMITTED: "{title} ({className}) à valider — {teacher}",
+      REMARK_WRITTEN: "{teacher} a écrit au sujet de {child} — en attente de votre décision",
+      REGISTER_ABSENCES: "{className} : {count} absent(s) le {date}",
       SUPPLY_LIST_REVIEWED: "Votre liste {title} : {status}",
       LEAVE_DECIDED: "Votre congé du {date} : {status}",
       ADVANCE_DECIDED: "Votre avance de {amount} : {status}",

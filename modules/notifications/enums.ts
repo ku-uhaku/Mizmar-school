@@ -52,6 +52,10 @@ export const NOTIFICATION_KINDS = [
   "ASSESSMENT_SUBMITTED",
   /** A teacher handed a liste de fournitures up for approval. */
   "SUPPLY_LIST_SUBMITTED",
+  /** A teacher wrote an observation the office has not yet decided on. */
+  "REMARK_WRITTEN",
+  /** A register was taken and somebody was missing from it. */
+  "REGISTER_ABSENCES",
 
   // ── To the teacher ────────────────────────────────────────────────────────
   /** A paper this teacher is answerable for was accepted. */
@@ -101,6 +105,8 @@ export const KIND_TONES: Record<NotificationKind, NotificationTone> = {
   REQUEST_FILED: "warn",
   ASSESSMENT_SUBMITTED: "warn",
   SUPPLY_LIST_SUBMITTED: "warn",
+  REMARK_WRITTEN: "warn",
+  REGISTER_ABSENCES: "warn",
   ASSESSMENT_VALIDATED: "good",
   // Carries its own outcome, so the tone cannot say "good" — a refused list and
   // an approved one are the same kind. Neutral, and the words do the work.
@@ -130,6 +136,10 @@ export function webHref(
     case "SUPPLY_LIST_SUBMITTED":
     case "SUPPLY_LIST_REVIEWED":
       return "/supplies";
+    case "REMARK_WRITTEN":
+      return "/teacher/remarks";
+    case "REGISTER_ABSENCES":
+      return "/teacher/attendance";
     case "LEAVE_DECIDED":
       return "/hr/leave";
     case "ADVANCE_DECIDED":

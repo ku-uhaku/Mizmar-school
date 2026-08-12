@@ -1,6 +1,9 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
   type UseMutationResult,
   type UseQueryResult,
   useQuery,
@@ -747,12 +750,39 @@ export function useCancelRequest(): UseMutationResult<
  * school. React Query stops the interval when the app is backgrounded, so this
  * costs nothing while the phone is in a pocket.
  */
-export function useNotifications(): UseQueryResult<Inbox> {
-  return useQuery({
+export function useNotifications(): UseInfiniteQueryResult<
+  InfiniteData<Inbox>
+> {
+  return useInfiniteQuery({
     queryKey: ["notifications"],
-    queryFn: () => api<Inbox>("/notifications"),
+    queryFn: ({ pageParam }) =>
+      api<Inbox>(
+        pageParam ? `/notifications?cursor=${pageParam}` : "/notifications",
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+    /*
+      The same slow poll as before, and it is worth knowing what it costs here:
+      on an infinite query `refetchInterval` re-reads *every* page loaded so
+      far, not just the newest. In the ordinary case that is one page. Somebody
+      who has scrolled back through months has several — but they are actively
+      reading the screen while it happens, and the alternative (capping the
+      cache with `maxPages`) would throw away the pages they just scrolled
+      through, which is the scroll silently not working.
+    */
     refetchInterval: 60_000,
   });
+}
+
+/**
+ * The unread total, wherever the inbox has been scrolled to.
+ *
+ * Every page carries the same account-wide count, so page one is as good as any
+ * — but reading `pages[0]` at each call site would be the sort of detail that
+ * gets it wrong once and shows a stale badge for ever.
+ */
+export function unreadOf(data: InfiniteData<Inbox> | undefined): number {
+  return data?.pages[0]?.unread ?? 0;
 }
 
 /**
@@ -774,6 +804,31 @@ export function useMarkNotificationsRead(): UseMutationResult<
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: (inbox) => client.setQueryData(["notifications"], inbox),
+    /*
+      The server answers with page one; the screen may be showing five.
+
+      So rather than replacing the cache with that answer — which would throw
+      away everything the reader had scrolled through — the read marks are
+      applied across every loaded page, and only the *count* is taken from the
+      server. Replacing it outright was the obvious thing to write and would
+      have made marking one line read jump the list back to the top.
+    */
+    onSuccess: (fresh, input) => {
+      client.setQueryData<InfiniteData<Inbox>>(["notifications"], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            unread: fresh.unread,
+            items: page.items.map((item) =>
+              "all" in input || item.id === input.id
+                ? { ...item, isRead: true }
+                : item,
+            ),
+          })),
+        };
+      });
+    },
   });
 }

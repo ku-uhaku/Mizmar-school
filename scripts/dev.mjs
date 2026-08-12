@@ -24,6 +24,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { connect } from "node:net";
 import { networkInterfaces } from "node:os";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -105,6 +106,10 @@ function start(name, command, args, cwd) {
     shell: true,
     stdio: ["inherit", "pipe", "pipe"],
     env: { ...process.env, FORCE_COLOR: "1" },
+    // Its own process group, so `stopAll` can signal the whole tree rather than
+    // just the shell wrapper. Windows has no groups and uses `taskkill /T`
+    // instead, where this flag would detach the console and is not wanted.
+    detached: process.platform !== "win32",
   });
 
   const prefix = `${COLOURS[name]}[${name}]${RESET} `;
@@ -139,11 +144,48 @@ function start(name, command, args, cwd) {
   return child;
 }
 
+/**
+ * Stops both halves — and everything they started.
+ *
+ * ── Why `child.kill()` is not enough ────────────────────────────────────────
+ * Both children are spawned with `shell: true`, because on Windows `npm` and
+ * `npx` are `.cmd` shims that `spawn` cannot execute directly. That means the
+ * process this script holds is the *shell*, and `next dev` and Metro are its
+ * grandchildren. Killing the shell leaves them running.
+ *
+ * The failure that produces is unpleasant and looks like a bug in the app:
+ * Ctrl-C appears to work, both servers keep holding ports 3000 and 8081, and
+ * the next `npm run dev:all` reports "Port 3000 is in use" and starts a second
+ * web server on 3001 that the phone is not pointed at. Worse, the orphan's
+ * stdout is now a broken pipe — so it goes on serving pages while every render
+ * that writes a log line kills its worker, which surfaces as
+ * "Jest worker encountered N child process exceptions" on whatever page you
+ * happen to load next.
+ *
+ * So the whole tree goes: `taskkill /T` on Windows, the process group
+ * elsewhere. Failures are swallowed — a child that has already exited is the
+ * ordinary case here, not an error.
+ */
 function stopAll() {
   if (shuttingDown) return;
   shuttingDown = true;
+
   for (const child of children) {
-    if (child.exitCode === null) child.kill();
+    if (child.exitCode !== null || child.pid === undefined) continue;
+
+    try {
+      if (process.platform === "win32") {
+        spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+          stdio: "ignore",
+        });
+      } else {
+        // Negative pid = the whole process group, which `detached` gave it.
+        process.kill(-child.pid, "SIGTERM");
+      }
+    } catch {
+      // Already gone. Nothing to stop is the goal, not a problem.
+      child.kill();
+    }
   }
 }
 
@@ -154,8 +196,80 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
+// ── Is anything already there? ───────────────────────────────────────────────
+
+/** Whether something is listening on a local port. */
+function portTaken(port) {
+  return new Promise((resolve) => {
+    const socket = connect({ host: "127.0.0.1", port });
+    const done = (taken) => {
+      socket.destroy();
+      resolve(taken);
+    };
+    socket.setTimeout(600);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
+
+/**
+ * Refuses to start on top of servers that are already running.
+ *
+ * ── Why this is worth a preflight rather than letting Next cope ─────────────
+ * Next does cope, and that is the problem: a web server whose port is taken
+ * prints one grey warning and quietly moves to 3001. Everything then *looks*
+ * fine, while the phone — which reads a fixed `apiUrl` — is still pointed at
+ * whatever is on 3000. That is usually an orphan from a previous run, left
+ * behind because the shell was killed hard enough that no shutdown handler
+ * ran, and an orphan is not merely stale: its stdout is a broken pipe, so it
+ * serves pages while every render that logs kills its worker. What reaches the
+ * screen is "Jest worker encountered N child process exceptions" on some
+ * unrelated page, which reads as a bug in the app and is not one.
+ *
+ * One clear sentence at startup beats an afternoon of that.
+ */
+async function checkPorts() {
+  const held = [];
+  for (const [port, what] of [
+    [3000, "the web app"],
+    [8081, "Metro"],
+  ]) {
+    if (await portTaken(port)) held.push({ port, what });
+  }
+
+  if (held.length === 0) return;
+
+  const how =
+    process.platform === "win32"
+      ? [
+          "Find and stop it with:",
+          ...held.map(
+            ({ port }) =>
+              `  netstat -ano | findstr :${port}      then  taskkill /PID <pid> /T /F`,
+          ),
+        ]
+      : [
+          "Find and stop it with:",
+          ...held.map(({ port }) => `  lsof -ti :${port} | xargs kill`),
+        ];
+
+  warn(
+    ...held.map(
+      ({ port, what }) => `Port ${port} is already in use — ${what} is running.`,
+    ),
+    "",
+    "Starting now would put the web app on 3001, where the phone is not",
+    "looking. Most likely an orphan from a previous run.",
+    "",
+    ...how,
+  );
+  process.exit(1);
+}
+
 // ── Go ───────────────────────────────────────────────────────────────────────
 
+await checkPorts();
 checkApiUrl();
 
 console.log(

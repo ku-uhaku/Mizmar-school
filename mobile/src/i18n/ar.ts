@@ -579,6 +579,8 @@ const ar: Dictionary = {
       TRANSPORT_MISSED: "{child} سُجّل {status} في الحافلة بتاريخ {date}",
       SUPPLY_LIST_APPROVED: "لوازم يجب اقتناؤها لـ {child}: {title}",
       SUPPLY_LIST_SUBMITTED: "{title} ({className}) في انتظار المصادقة — {teacher}",
+      REMARK_WRITTEN: "{teacher} كتب ملاحظة بخصوص {child} — في انتظار قراركم",
+      REGISTER_ABSENCES: "{className}: {count} غائب بتاريخ {date}",
       SUPPLY_LIST_REVIEWED: "لائحتكم {title}: {status}",
       LEAVE_DECIDED: "عطلتكم بتاريخ {date}: {status}",
       ADVANCE_DECIDED: "تسبيقكم بمبلغ {amount}: {status}",

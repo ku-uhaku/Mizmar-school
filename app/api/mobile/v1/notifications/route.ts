@@ -19,8 +19,16 @@ import { loadInbox } from "@/modules/notifications/queries";
  * phone reading another's is the `userId` in the query's `where`, which comes
  * from the Bearer token and never from the request.
  */
-export async function GET(): Promise<NextResponse> {
-  return withAuth((context) => loadInbox(context));
+/**
+ * One page of the inbox, newest first.
+ *
+ * `?cursor=` is the id of the last row the phone already has — it scrolls to
+ * the bottom and asks for what comes after. Absent on the first page, and the
+ * answer carries `nextCursor: null` once there is nothing older.
+ */
+export async function GET(request: Request): Promise<NextResponse> {
+  const cursor = new URL(request.url).searchParams.get("cursor");
+  return withAuth((context) => loadInbox(context, { cursor }));
 }
 
 /**

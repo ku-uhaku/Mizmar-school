@@ -9,6 +9,7 @@ import {
   useBadges,
   useChannels,
   useIdentity,
+  unreadOf,
   useNotifications,
 } from "../src/api/hooks";
 import type { MobileSpace } from "../src/api/types";
@@ -189,7 +190,7 @@ function InboxBell() {
   const router = useRouter();
   const t = useT();
   const inbox = useNotifications();
-  const unread = inbox.data?.unread ?? 0;
+  const unread = unreadOf(inbox.data);
 
   return (
     <Pressable

@@ -87,7 +87,7 @@ const {
   staffHolding,
 } = await import("@/modules/notifications/service");
 
-const { listInbox, unreadCount } = await import(
+const { listInbox, loadInbox, unreadCount } = await import(
   "@/modules/notifications/queries"
 );
 
@@ -143,6 +143,13 @@ describe("the catalogue", () => {
     }
 
     expect(webHref("REQUEST_FILED", { subjectId: "req-1" })).toBe("/requests");
+    // The office's two teacher-facing lines open the screens they act on.
+    expect(webHref("REMARK_WRITTEN", { subjectId: "r-1" })).toBe(
+      "/teacher/remarks",
+    );
+    expect(webHref("REGISTER_ABSENCES", { subjectId: "c-1" })).toBe(
+      "/teacher/attendance",
+    );
     expect(webHref("ASSESSMENT_VALIDATED", { subjectId: "a-1" })).toBe(
       "/assessments/a-1",
     );
@@ -174,6 +181,25 @@ describe("dedupe keys", () => {
     // Refused, corrected, handed up again: the office has dealt with the first
     // version and needs telling about the second.
     expect(dedupeKeyFor("SUPPLY_LIST_SUBMITTED", "list-1")).toBeNull();
+  });
+
+  it("collapses a whole day's registers into one line for the office", () => {
+    /*
+      The noise rule. A secondary school takes six registers a day per class;
+      keyed per register the direction would arrive to thirty lines every
+      morning and would stop reading the bell — which would cost them the paper
+      waiting at the desk and the bus register too. Keyed on the class and the
+      day, the first absence raises one line and the rest of the day adds none.
+
+      Note this is the *opposite* choice from the family's line just below, and
+      deliberately: a parent needs to know about each lesson their child missed.
+    */
+    const morning = dedupeKeyFor("REGISTER_ABSENCES", "class-1", "2026-03-04");
+    const afternoon = dedupeKeyFor("REGISTER_ABSENCES", "class-1", "2026-03-04");
+    expect(morning).toBe(afternoon);
+
+    const nextDay = dedupeKeyFor("REGISTER_ABSENCES", "class-1", "2026-03-05");
+    expect(nextDay).not.toBe(morning);
   });
 
   it("keeps two lessons missed on the same day apart", () => {
@@ -417,8 +443,68 @@ describe("reading the inbox", () => {
 
     expect(of("notification", "findMany")[0]!.args).toMatchObject({
       where: { userId: "user-1", organizationId: "org-1" },
-      orderBy: [{ createdAt: "desc" }],
+      // Newest first, with `id` as the tiebreaker the cursor depends on.
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
+  });
+
+  it("pages from the row the phone last saw, and skips it", async () => {
+    await listInbox(context, { cursor: "n-30" });
+
+    expect(of("notification", "findMany")[0]!.args).toMatchObject({
+      cursor: { id: "n-30" },
+      // The cursor row is the last one already on screen.
+      skip: 1,
+      // `id` breaks ties: one fan-out writes a class's guardians inside a
+      // single millisecond, so `createdAt` alone is not a total order and a
+      // cursor could land in two places at once.
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+  });
+
+  it("ends the list when a page comes back short", async () => {
+    answers["notification.findMany"] = [
+      {
+        id: "n-1",
+        kind: "EVENT_PUBLISHED",
+        params: "{}",
+        subjectId: null,
+        studentId: null,
+        readAt: null,
+        createdAt: new Date(),
+      },
+    ];
+
+    const inbox = await loadInbox(context, { limit: 30 });
+    expect(inbox.nextCursor).toBeNull();
+  });
+
+  it("keeps paging past a kind it does not recognise", async () => {
+    /*
+      The trap. `toItem` drops unknown kinds, so a full page can render short —
+      and deciding "is there more" from the rendered length would wall an older
+      app off at the first unknown kind rather than at the end of the inbox.
+      Both answers come from the rows, not from what survived rendering.
+    */
+    const row = (id: string, kind: string) => ({
+      id,
+      kind,
+      params: "{}",
+      subjectId: null,
+      studentId: null,
+      readAt: null,
+      createdAt: new Date(),
+    });
+
+    answers["notification.findMany"] = [
+      row("n-1", "EVENT_PUBLISHED"),
+      row("n-2", "SOMETHING_NEWER"),
+    ];
+
+    const inbox = await loadInbox(context, { limit: 2 });
+    expect(inbox.items).toHaveLength(1);
+    // The page was full, so there is more — and the cursor is the last *row*.
+    expect(inbox.nextCursor).toBe("n-2");
   });
 
   it("counts only what is unread", async () => {

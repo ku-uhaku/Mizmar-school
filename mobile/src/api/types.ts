@@ -883,6 +883,8 @@ export type NotificationKind =
   | "REQUEST_FILED"
   | "ASSESSMENT_SUBMITTED"
   | "SUPPLY_LIST_SUBMITTED"
+  | "REMARK_WRITTEN"
+  | "REGISTER_ABSENCES"
   | "ASSESSMENT_VALIDATED"
   | "SUPPLY_LIST_REVIEWED"
   | "LEAVE_DECIDED"
@@ -908,8 +910,11 @@ export type AppNotification = {
   createdAt: string;
 };
 
-/** The inbox and its unread count in one answer. Mirrors `Inbox`. */
+/** One page of the inbox, and its unread count. Mirrors `Inbox`. */
 export type Inbox = {
   items: AppNotification[];
+  /** The whole account's unread total, not this page's — the bell's number. */
   unread: number;
+  /** Pass back as `?cursor=` for the next page. Null at the end of the list. */
+  nextCursor: string | null;
 };

@@ -598,6 +598,8 @@ const en = {
       TRANSPORT_MISSED: "{child} was marked {status} on the bus on {date}",
       SUPPLY_LIST_APPROVED: "Supplies to buy for {child}: {title}",
       SUPPLY_LIST_SUBMITTED: "{title} ({className}) awaits approval — {teacher}",
+      REMARK_WRITTEN: "{teacher} wrote about {child} — awaiting your decision",
+      REGISTER_ABSENCES: "{className}: {count} missing on {date}",
       SUPPLY_LIST_REVIEWED: "Your list {title}: {status}",
       LEAVE_DECIDED: "Your leave of {date}: {status}",
       ADVANCE_DECIDED: "Your salary advance of {amount}: {status}",

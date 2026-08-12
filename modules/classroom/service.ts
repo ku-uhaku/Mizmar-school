@@ -1,6 +1,8 @@
 import "server-only";
 
+import { displayName } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { PERMISSIONS } from "@/lib/permissions";
 import {
   attendanceScopeKey,
   MAX_MINUTES_LATE,
@@ -11,6 +13,7 @@ import {
   dispatch,
   guardiansOfStudent,
   notify,
+  staffHolding,
 } from "@/modules/notifications/service";
 
 /**
@@ -177,7 +180,79 @@ export async function saveRegister(
     }),
   );
 
+  await dispatch("REGISTER_ABSENCES", () =>
+    tellTheOfficeAboutAbsences({
+      schoolId: input.schoolId,
+      schoolClassId: input.schoolClassId,
+      day,
+      marks: writable,
+      recordedById: input.teacherId,
+    }),
+  );
+
   return { ok: true, saved: writable.length };
+}
+
+/**
+ * Tells the office a class has somebody missing today.
+ *
+ * ── One line per class per day, not per lesson ──────────────────────────────
+ * This is the notification in the app most at risk of being noise, and the
+ * dedupe key is what stops it. A secondary school takes six registers a day per
+ * class; keyed per *register* the direction would arrive to thirty lines every
+ * morning and would stop reading the bell inside a week — which would cost them
+ * the paper waiting at the desk and the bus register too.
+ *
+ * So the key is the class and the day. The first register that records an
+ * absence raises the line; the rest of that day's lessons add nothing, and
+ * re-taking a register cannot repeat it. The line is a pointer — "3AP-A has
+ * absences today" — and the screen behind it is the record.
+ *
+ * Only ABSENT counts. EXCUSED is an absence the school has already accepted a
+ * reason for, and the recipients here are exactly the people who accept them
+ * (`CLASSROOM_ATTENDANCE_JUSTIFY`) — telling them about their own decision is
+ * the same mistake the remark notification avoids.
+ */
+async function tellTheOfficeAboutAbsences(input: {
+  schoolId: string;
+  schoolClassId: string;
+  day: Date;
+  marks: AttendanceMark[];
+  recordedById: string;
+}): Promise<void> {
+  const absent = input.marks.filter((mark) => mark.status === "ABSENT");
+  if (absent.length === 0) return;
+
+  const schoolClass = await db.schoolClass.findFirst({
+    where: { id: input.schoolClassId, schoolId: input.schoolId },
+    select: { code: true, school: { select: { organizationId: true } } },
+  });
+  if (!schoolClass) return;
+
+  const organizationId = schoolClass.school.organizationId;
+
+  const targets = (
+    await staffHolding(
+      organizationId,
+      input.schoolId,
+      PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY,
+    )
+    // Not the person who just took the register — they know.
+  ).filter((target) => target.userId !== input.recordedById);
+
+  await notify({
+    organizationId,
+    schoolId: input.schoolId,
+    kind: "REGISTER_ABSENCES",
+    subjectId: input.schoolClassId,
+    dedupeOn: input.day.toISOString(),
+    params: {
+      className: schoolClass.code,
+      count: absent.length,
+      date: input.day.toISOString(),
+    },
+    targets,
+  });
 }
 
 /**
@@ -301,7 +376,7 @@ export async function writeRemark(
   });
   if (!enrollment) return { ok: false };
 
-  await db.studentRemark.create({
+  const remark = await db.studentRemark.create({
     data: {
       enrollmentId: enrollment.id,
       subjectId: input.subjectId,
@@ -312,9 +387,92 @@ export async function writeRemark(
       isVisibleToFamily: input.isVisibleToFamily,
       authorId: input.authorId,
     },
+    select: { id: true },
   });
 
+  /*
+    ── Only the ones still waiting on a decision ────────────────────────────
+    A remark written by a teacher is internal until the office releases it, and
+    that release is a decision somebody has to make — see `setRemarkVisibility`.
+    Until now the office found out by going to look, which is the same
+    queue-nobody-opens gap `REQUEST_FILED` closes.
+
+    But a remark the author *already* published — the office writing one under
+    their own name, which is what `isVisibleToFamily` true means here — has no
+    decision pending. Notifying on those would tell the direction about their
+    own action, which is the fastest way to teach somebody to ignore a bell.
+  */
+  if (!input.isVisibleToFamily) {
+    await dispatch("REMARK_WRITTEN", () =>
+      tellTheOfficeAboutRemark(remark.id, input.schoolId, input.authorId),
+    );
+  }
+
   return { ok: true };
+}
+
+/**
+ * Puts a teacher's observation in front of whoever may release it.
+ *
+ * Wordless about what it says, exactly as `REMARK_SHARED` is and for a related
+ * reason: this one names a child and the colleague who wrote about them, and
+ * the text is a judgement that belongs on the screen where it can be read in
+ * full and acted on, not in a line on a lock screen.
+ */
+async function tellTheOfficeAboutRemark(
+  remarkId: string,
+  schoolId: string,
+  authorId: string,
+): Promise<void> {
+  const remark = await db.studentRemark.findFirst({
+    where: { id: remarkId, enrollment: { student: { schoolId } } },
+    select: {
+      id: true,
+      enrollment: {
+        select: {
+          student: {
+            select: {
+              firstName: true,
+              lastName: true,
+              school: { select: { organizationId: true } },
+            },
+          },
+        },
+      },
+      author: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+  if (!remark) return;
+
+  const student = remark.enrollment.student;
+  const organizationId = student.school.organizationId;
+
+  const targets = (
+    await staffHolding(
+      organizationId,
+      schoolId,
+      PERMISSIONS.CLASSROOM_REMARK_PUBLISH,
+    )
+    // The author is not told about their own remark, even when they hold the
+    // code — an office user writing one has not created work for themselves.
+  ).filter((target) => target.userId !== authorId);
+
+  await notify({
+    organizationId,
+    schoolId,
+    kind: "REMARK_WRITTEN",
+    subjectId: remark.id,
+    params: {
+      child: `${student.firstName} ${student.lastName}`,
+      teacher: remark.author ? displayName(remark.author) : "—",
+    },
+    targets,
+  });
 }
 
 /**

@@ -63,6 +63,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
   const [inbox, setInbox] = React.useState<Inbox>({
     items: [],
     unread: initialUnread,
+    nextCursor: null,
   });
   const [loaded, setLoaded] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -120,6 +121,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
     // Optimistic: the line is already open in front of them, and waiting for a
     // round trip before the dot goes out makes the click feel broken.
     setInbox((current) => ({
+      ...current,
       unread: Math.max(0, current.unread - 1),
       items: current.items.map((item) =>
         item.id === notificationId ? { ...item, isRead: true } : item,
@@ -132,6 +134,7 @@ export function NotificationBell({ initialUnread }: { initialUnread: number }) {
 
   const markAllRead = () => {
     setInbox((current) => ({
+      ...current,
       unread: 0,
       items: current.items.map((item) => ({ ...item, isRead: true })),
     }));

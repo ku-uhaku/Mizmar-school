@@ -1,8 +1,20 @@
 import { Stack, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useMarkNotificationsRead, useNotifications } from "../src/api/hooks";
+import {
+  unreadOf,
+  useMarkNotificationsRead,
+  useNotifications,
+} from "../src/api/hooks";
 import type { AppNotification } from "../src/api/types";
 import { interpolate, label, useFormat, useT } from "../src/i18n";
 import { Empty, ErrorNote, Loading } from "../src/ui/components";
@@ -22,6 +34,14 @@ import { radius, spacing, useTheme } from "../src/ui/theme";
  * Pressing a line marks it read and, where there is somewhere to go, goes
  * there. Lines with nowhere to go are still pressable, because "I have seen
  * this" is itself the thing a reader wants to say.
+ *
+ * ── A list that goes on, in both directions ─────────────────────────────────
+ * Pull down to re-read the top; scroll to the bottom and the next page arrives.
+ * An inbox is the one screen here with no natural end — a family accumulates
+ * one line per absence, per mark, per receipt — so it is also the one that
+ * cannot be a single `ScrollView` of everything. This is the app's only
+ * `FlatList` for that reason: it renders the rows near the viewport instead of
+ * all of them, which is what keeps the screen usable at a thousand lines.
  */
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
@@ -31,8 +51,10 @@ export default function NotificationsScreen() {
   const inbox = useNotifications();
   const markRead = useMarkNotificationsRead();
 
-  const items = inbox.data?.items ?? [];
-  const unread = inbox.data?.unread ?? 0;
+  // Every loaded page, flattened — the pages are a fetching detail, not
+  // something a reader should be able to see the seams of.
+  const items = inbox.data?.pages.flatMap((page) => page.items) ?? [];
+  const unread = unreadOf(inbox.data);
 
   return (
     <>
@@ -40,43 +62,81 @@ export default function NotificationsScreen() {
         options={{ headerShown: true, title: t.notifications.title }}
       />
 
-      <ScrollView
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={{
           padding: spacing.lg,
           paddingBottom: insets.bottom + spacing.xxl,
           gap: spacing.sm,
+          flexGrow: 1,
         }}
-      >
-        {unread > 0 ? (
-          <Pressable
-            onPress={() => markRead.mutate({ all: true })}
-            disabled={markRead.isPending}
-            accessibilityRole="button"
-            style={{ alignSelf: "flex-end", padding: spacing.sm }}
-          >
-            <Text style={{ color: theme.primary, fontWeight: "600" }}>
-              {t.notifications.markAllRead}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {inbox.isPending ? <Loading /> : null}
-        {inbox.isError ? (
-          <ErrorNote message={t.notifications.loadError} />
-        ) : null}
-
-        {inbox.data && items.length === 0 ? (
-          <Empty message={t.notifications.none} />
-        ) : null}
-
-        {items.map((item) => (
+        refreshControl={
+          <RefreshControl
+            // `isRefetching` and not `isFetching`: the latter is also true while
+            // the *next page* loads, which would spin the pull-to-refresh
+            // indicator at the top every time somebody scrolled to the bottom.
+            refreshing={inbox.isRefetching && !inbox.isFetchingNextPage}
+            onRefresh={() => void inbox.refetch()}
+            tintColor={theme.muted}
+          />
+        }
+        /*
+          Half a screen from the end. Waiting for the actual bottom means the
+          reader hits it and stops, which is the jolt this is meant to avoid;
+          much more than half a screen and a slow scroll fetches pages nobody
+          reaches.
+        */
+        onEndReachedThreshold={0.5}
+        onEndReached={() => {
+          // Guarded: `onEndReached` fires repeatedly while the list settles, and
+          // without this each bounce would start another request for the page
+          // already in flight.
+          if (inbox.hasNextPage && !inbox.isFetchingNextPage) {
+            void inbox.fetchNextPage();
+          }
+        }}
+        ListHeaderComponent={
+          unread > 0 ? (
+            <Pressable
+              onPress={() => markRead.mutate({ all: true })}
+              disabled={markRead.isPending}
+              accessibilityRole="button"
+              style={{
+                alignSelf: "flex-end",
+                padding: spacing.sm,
+                marginBottom: spacing.xs,
+              }}
+            >
+              <Text style={{ color: theme.primary, fontWeight: "600" }}>
+                {t.notifications.markAllRead}
+              </Text>
+            </Pressable>
+          ) : null
+        }
+        ListEmptyComponent={
+          inbox.isPending ? (
+            <Loading />
+          ) : inbox.isError ? (
+            <ErrorNote message={t.notifications.loadError} />
+          ) : (
+            <Empty message={t.notifications.none} />
+          )
+        }
+        ListFooterComponent={
+          inbox.isFetchingNextPage ? (
+            <View style={{ paddingVertical: spacing.lg }}>
+              <ActivityIndicator color={theme.muted} />
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => (
           <NotificationRow
-            key={item.id}
             item={item}
             onRead={() => markRead.mutate({ id: item.id })}
           />
-        ))}
-      </ScrollView>
+        )}
+      />
     </>
   );
 }
