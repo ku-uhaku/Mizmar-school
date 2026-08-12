@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:all": "node scripts/dev.mjs",
+    "dev:mobile": "npm --prefix mobile run start",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",

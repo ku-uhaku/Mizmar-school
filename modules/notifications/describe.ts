@@ -1,5 +1,5 @@
 import type { Locale } from "@/lib/i18n/config";
-import { formatAmount, interpolate } from "@/lib/i18n/format";
+import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import type { Dictionary } from "@/lib/i18n/types";
 import type { NotificationItem } from "@/modules/notifications/queries";
 
@@ -41,11 +41,30 @@ function resolveParams(
 ): Record<string, string> {
   const params = { ...item.params };
 
+  /*
+    `status` means two different things and is deliberately not one lookup.
+
+    A dossier's status comes from the requests module and a register's from the
+    classroom module, and the two vocabularies overlap in neither direction. A
+    single map would have to merge them, which is how "READY" ends up rendering
+    as an attendance state the first time somebody adds one.
+
+    Falls back to the raw code rather than an empty slot: a status this build
+    has never heard of should read badly, not read as nothing.
+  */
   if (params.status) {
-    const statuses: Record<string, string> = t.requestOptions.statuses;
-    // Falls back to the raw code rather than an empty slot: a status this build
-    // has never heard of should read badly, not read as nothing.
-    params.status = statuses[params.status] ?? params.status;
+    const vocabulary: Record<string, string> =
+      item.kind === "ATTENDANCE_MISSED"
+        ? t.classroomOptions.attendanceStatuses
+        : t.requestOptions.statuses;
+    params.status = vocabulary[params.status] ?? params.status;
+  }
+
+  // Dates travel as ISO for the same reason money travels in centimes: the
+  // school writes 04/03/2026 and an Arabic reader should not be shown the
+  // cashier's or the teacher's formatting of it.
+  if (params.date) {
+    params.date = formatDate(params.date, locale);
   }
 
   // Money is stored in centimes and worded here, for the same reason the labels

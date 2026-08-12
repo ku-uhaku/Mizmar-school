@@ -167,6 +167,15 @@ describe("dedupe keys", () => {
     // the family actually paid.
     expect(dedupeKeyFor("PAYMENT_RECORDED", "payment-1")).toBeNull();
   });
+
+  it("keeps two lessons missed on the same day apart", () => {
+    // Missing maths and missing history are two absences. The scope key is what
+    // tells them apart, and one key per day would collapse them into whichever
+    // register was taken first.
+    const maths = dedupeKeyFor("ATTENDANCE_MISSED", "enrol-1", "2026-03-04:slot-1");
+    const history = dedupeKeyFor("ATTENDANCE_MISSED", "enrol-1", "2026-03-04:slot-2");
+    expect(maths).not.toBe(history);
+  });
 });
 
 describe("params", () => {
@@ -455,6 +464,44 @@ describe("wording a notification", () => {
     expect(
       describeNotification(item("EVENT_PUBLISHED", { title: "Réunion" }), t, "en"),
     ).toBe("New event: Réunion");
+  });
+
+  it("reads `status` in the right vocabulary for the kind", () => {
+    /*
+      The trap this guards. Both a dossier and a register carry a `status`, and
+      the two vocabularies share no values — one map for both would render an
+      attendance state through the requests module's labels, and the first
+      school to add a status to either would find the other one wrong.
+    */
+    const register = describeNotification(
+      item("ATTENDANCE_MISSED", {
+        child: "Sara",
+        status: "ABSENT",
+        date: "2026-03-04T00:00:00.000Z",
+      }),
+      t,
+      "en",
+    );
+
+    expect(register).toContain(t.classroomOptions.attendanceStatuses.ABSENT);
+    expect(register).not.toContain(t.requestOptions.statuses.PENDING);
+  });
+
+  it("formats a date in the reader's locale, not the teacher's", () => {
+    const line = describeNotification(
+      item("ASSESSMENT_SCHEDULED", {
+        child: "Sara",
+        title: "Contrôle n°1",
+        subject: "Mathématiques",
+        date: "2026-03-04T00:00:00.000Z",
+      }),
+      t,
+      "en",
+    );
+
+    // Whatever the locale chooses, never the raw ISO string.
+    expect(line).not.toContain("2026-03-04T00:00:00.000Z");
+    expect(line).toContain("Contrôle n°1");
   });
 
   it("words a status from the requests module rather than a copy of it", () => {

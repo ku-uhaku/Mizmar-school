@@ -1,5 +1,6 @@
 import "server-only";
 
+import { displayName } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
@@ -10,10 +11,12 @@ import {
   pointsToQuarters,
   roundScore,
 } from "@/modules/assessments/enums";
+import { ASSESSMENT_PERMISSIONS } from "@/modules/assessments/permissions";
 import {
   dispatch,
   guardiansOfClass,
   notify,
+  staffHolding,
 } from "@/modules/notifications/service";
 
 /**
@@ -495,6 +498,13 @@ export async function createDevoir(
     select: { id: true },
   });
 
+  /*
+    A devoir is created PUBLISHED — see the note above — so this is where the
+    class is told about it. A generated contrôle takes the other road: it is
+    written DRAFT and reaches the same function when somebody announces it.
+  */
+  await dispatch("ASSESSMENT_SCHEDULED", () => announceScheduled(created.id));
+
   return { ok: true, assessmentId: created.id };
 }
 
@@ -674,6 +684,30 @@ export async function setAssessmentStatus(
   if (status === "GRADED") {
     await dispatch("MARKS_PUBLISHED", () => tellAboutValidation(assessmentId));
   }
+
+  /*
+    The other half of the correction workflow.
+
+    A teacher finishing a mark sheet hands it up — SUBMITTED — and then nothing
+    happens until somebody at the office notices. That wait is the gap this
+    closes, and it is the same gap `REQUEST_FILED` closes for a dossier: work
+    arriving on a queue nobody has a reason to open.
+
+    To whoever may actually validate it, which is ASSESSMENT_PUBLISH — the code
+    that opens the marks to families. The teacher who pressed submit is not
+    excluded: an office user who also teaches has genuinely just created work
+    for themselves and should see it on the same list as the rest.
+  */
+  if (status === "SUBMITTED") {
+    await dispatch("ASSESSMENT_SUBMITTED", () => tellTheOffice(assessmentId));
+  }
+
+  // The other end of the same workflow: a generated contrôle being announced to
+  // the classes that will sit it. See `announceScheduled`.
+  if (status === "PUBLISHED") {
+    await dispatch("ASSESSMENT_SCHEDULED", () => announceScheduled(assessmentId));
+  }
+
   return { ok: true };
 }
 
@@ -699,6 +733,7 @@ async function tellAboutValidation(assessmentId: string): Promise<void> {
       title: true,
       schoolId: true,
       schoolClassId: true,
+      classGroupId: true,
       teacherId: true,
       subject: { select: { name: true } },
       school: { select: { organizationId: true } },
@@ -714,7 +749,12 @@ async function tellAboutValidation(assessmentId: string): Promise<void> {
     kind: "MARKS_PUBLISHED",
     subjectId: assessment.id,
     params: { subject: assessment.subject.name },
-    targets: await guardiansOfClass(assessment.schoolClassId),
+    // The group, where the paper has one: a TP mark sheet covers half the
+    // class, and the other half has no mark on it to be told about.
+    targets: await guardiansOfClass(
+      assessment.schoolClassId,
+      assessment.classGroupId,
+    ),
   });
 
   // A paper with no teacher on it is one whose account has since been removed —
@@ -729,6 +769,113 @@ async function tellAboutValidation(assessmentId: string): Promise<void> {
       targets: [{ userId: assessment.teacherId }],
     });
   }
+}
+
+/**
+ * "Il y a un contrôle vendredi."
+ *
+ * ── Announcing, not creating ────────────────────────────────────────────────
+ * Both roads into this function are the moment a paper becomes real to a class:
+ * a teacher's devoir, which is created PUBLISHED because setting one *is*
+ * telling the class; and a generated contrôle, which is written DRAFT by the
+ * head of studies and announced later. Generating a whole term's papers must
+ * not notify — that is planning, and a family would get a dozen lines about
+ * dates nobody has committed to yet.
+ *
+ * Only when a date was given. A paper with no `scheduledOn` is a mark sheet for
+ * work already handed in: there is nothing for a family to put in a diary, and
+ * a line saying a paper exists without saying when only prompts the question it
+ * fails to answer.
+ *
+ * Scoped to the group where there is one — a paper set for the TP half is sat
+ * by half the class, and telling the other half is telling them something
+ * untrue. Deduplicated on the paper's id, so announcing it twice tells a family
+ * once.
+ */
+async function announceScheduled(assessmentId: string): Promise<void> {
+  const assessment = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: {
+      id: true,
+      title: true,
+      schoolId: true,
+      schoolClassId: true,
+      classGroupId: true,
+      scheduledOn: true,
+      status: true,
+      subject: { select: { name: true } },
+      school: { select: { organizationId: true } },
+    },
+  });
+
+  if (!assessment?.scheduledOn) return;
+  // A cancelled paper is not an announcement, and a draft has not been made
+  // one yet. Re-checked here rather than trusted from the caller so the two
+  // roads in cannot disagree.
+  if (assessment.status !== "PUBLISHED") return;
+
+  await notify({
+    organizationId: assessment.school.organizationId,
+    schoolId: assessment.schoolId,
+    kind: "ASSESSMENT_SCHEDULED",
+    subjectId: assessment.id,
+    params: {
+      title: assessment.title,
+      subject: assessment.subject.name,
+      date: assessment.scheduledOn.toISOString(),
+    },
+    targets: await guardiansOfClass(
+      assessment.schoolClassId,
+      assessment.classGroupId,
+    ),
+  });
+}
+
+/**
+ * Puts a corrected paper on the office's list.
+ *
+ * The teacher's name is on it because that is what the office reads the list
+ * by — "les copies de Mme Bennani sont prêtes" — and it degrades to nothing
+ * rather than to a blank when the post is vacant.
+ */
+async function tellTheOffice(assessmentId: string): Promise<void> {
+  const assessment = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: {
+      id: true,
+      title: true,
+      schoolId: true,
+      subject: { select: { name: true } },
+      school: { select: { organizationId: true } },
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+  if (!assessment) return;
+
+  const organizationId = assessment.school.organizationId;
+
+  await notify({
+    organizationId,
+    schoolId: assessment.schoolId,
+    kind: "ASSESSMENT_SUBMITTED",
+    subjectId: assessment.id,
+    params: {
+      assessment: `${assessment.title} — ${assessment.subject.name}`,
+      // Through the DAL's own helper, so a teacher with no profile row reads
+      // the same here as everywhere else rather than as a blank.
+      teacher: assessment.teacher ? displayName(assessment.teacher) : "—",
+    },
+    targets: await staffHolding(
+      organizationId,
+      assessment.schoolId,
+      ASSESSMENT_PERMISSIONS.ASSESSMENT_PUBLISH,
+    ),
+  });
 }
 
 export type BandInput = {

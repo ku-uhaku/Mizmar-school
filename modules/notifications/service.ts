@@ -225,12 +225,20 @@ export async function guardiansOf(
   );
 }
 
-/** The guardians of everyone enrolled in a class this year. */
+/**
+ * The guardians of everyone enrolled in a class — or in one half of it.
+ *
+ * `classGroupId` is not optional decoration: a devoir set for the TP group is
+ * sat by half the class, and telling the other half about it is telling them
+ * something untrue. Null means the whole class, which is what a paper with no
+ * group means on `Assessment` too.
+ */
 export async function guardiansOfClass(
   schoolClassId: string,
+  classGroupId?: string | null,
 ): Promise<NotificationTarget[]> {
   const enrolments = await db.enrollment.findMany({
-    where: { schoolClassId },
+    where: { schoolClassId, ...(classGroupId ? { classGroupId } : {}) },
     select: { studentId: true },
   });
 

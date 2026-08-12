@@ -36,10 +36,16 @@ export const NOTIFICATION_KINDS = [
   "REMARK_SHARED",
   /** A payment was taken at the caisse — the receipt, not a demand. */
   "PAYMENT_RECORDED",
+  /** A devoir or contrôle has been set, with a date the child has to sit it. */
+  "ASSESSMENT_SCHEDULED",
+  /** L'appel: the child was not in the room, or arrived late. */
+  "ATTENDANCE_MISSED",
 
   // ── To the desk ───────────────────────────────────────────────────────────
   /** A family filed a request from the phone; somebody has to answer it. */
   "REQUEST_FILED",
+  /** A teacher has finished correcting and handed a paper up for validation. */
+  "ASSESSMENT_SUBMITTED",
 
   // ── To the teacher ────────────────────────────────────────────────────────
   /** A paper this teacher is answerable for was accepted. */
@@ -67,7 +73,11 @@ export const KIND_TONES: Record<NotificationKind, NotificationTone> = {
   BULLETIN_PUBLISHED: "good",
   REMARK_SHARED: "warn",
   PAYMENT_RECORDED: "good",
+  ASSESSMENT_SCHEDULED: "info",
+  // A missed lesson is the one line here a parent is expected to act on.
+  ATTENDANCE_MISSED: "warn",
   REQUEST_FILED: "warn",
+  ASSESSMENT_SUBMITTED: "warn",
   ASSESSMENT_VALIDATED: "good",
 };
 
@@ -86,6 +96,7 @@ export function webHref(
   switch (kind) {
     case "REQUEST_FILED":
       return "/requests";
+    case "ASSESSMENT_SUBMITTED":
     case "ASSESSMENT_VALIDATED":
       return subject.subjectId ? `/assessments/${subject.subjectId}` : "/assessments";
     default:
@@ -135,6 +146,9 @@ export function dedupeKeyFor(
   // A payment is not idempotent: two settlements on one day are two receipts,
   // and collapsing them would hide money the family actually paid.
   if (kind === "PAYMENT_RECORDED") return null;
+  // Nor is a register. A child can miss the maths lesson and the history one on
+  // the same day, and those are two absences — the subject id is what tells
+  // them apart, and it travels as the discriminator.
   if (!subjectId) return null;
   return discriminator
     ? `${kind}:${subjectId}:${discriminator}`

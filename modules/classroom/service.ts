@@ -6,11 +6,21 @@ import {
   MAX_MINUTES_LATE,
   startOfDay,
 } from "@/modules/classroom/enums";
+import { dedupeKeyFor } from "@/modules/notifications/enums";
 import {
   dispatch,
   guardiansOfStudent,
   notify,
 } from "@/modules/notifications/service";
+
+/**
+ * The register statuses a family is told about.
+ *
+ * EXCUSED is deliberately absent: the school has already accepted a reason for
+ * that one, so the parent is the person who *supplied* it and does not need
+ * telling. Notifying on it would train families to ignore the ones that matter.
+ */
+const NOTIFIED_STATUSES: readonly string[] = ["ABSENT", "LATE"];
 
 /**
  * Writes and invariants for the espace enseignant.
@@ -157,7 +167,99 @@ export async function saveRegister(
     }),
   );
 
+  await dispatch("ATTENDANCE_MISSED", () =>
+    tellTheFamiliesWhoWereMissed({
+      schoolId: input.schoolId,
+      subjectId: input.subjectId,
+      day,
+      scopeKey,
+      marks: writable,
+    }),
+  );
+
   return { ok: true, saved: writable.length };
+}
+
+/**
+ * L'appel, as the family reads it.
+ *
+ * ── Why this is the one worth having ────────────────────────────────────────
+ * Everything else in this module reaches a parent eventually — a mark on the
+ * bulletin, a remark at the meeting. An absence is the one fact that is only
+ * useful *today*: a parent who learns on Friday that their child was not in
+ * Tuesday's lesson has lost the week in which they could have done anything
+ * about it, and that is exactly the gap schools ask for this feature to close.
+ *
+ * ── And why marking somebody present unsends it ─────────────────────────────
+ * A register is retaken. A pupil marked absent at five past, who walks in at
+ * ten past and is corrected to present, must not leave a line on a phone saying
+ * they missed the lesson — the school would spend the evening on the telephone
+ * explaining a message it did not mean to send. So a correction away from
+ * ABSENT/LATE deletes the notification, but only while it is *unread*: once a
+ * parent has seen it, silently removing it would be the school editing what it
+ * has already said, and the honest repair is the teacher ringing them.
+ */
+async function tellTheFamiliesWhoWereMissed(input: {
+  schoolId: string;
+  subjectId: string | null;
+  day: Date;
+  scopeKey: string;
+  marks: AttendanceMark[];
+}): Promise<void> {
+  const missed = input.marks.filter((mark) => NOTIFIED_STATUSES.includes(mark.status));
+  const corrected = input.marks.filter(
+    (mark) => !NOTIFIED_STATUSES.includes(mark.status),
+  );
+
+  // Built through the module's own helper, never spelled out here: the delete
+  // below and the write further down have to agree on the key exactly, and two
+  // hand-written copies of a format string are two chances to disagree.
+  const discriminator = `${input.day.toISOString()}:${input.scopeKey}`;
+  const keyFor = (enrollmentId: string) =>
+    dedupeKeyFor("ATTENDANCE_MISSED", enrollmentId, discriminator) ?? "";
+
+  if (corrected.length > 0) {
+    await db.notification.deleteMany({
+      where: {
+        dedupeKey: { in: corrected.map((mark) => keyFor(mark.enrollmentId)) },
+        readAt: null,
+      },
+    });
+  }
+
+  if (missed.length === 0) return;
+
+  const enrolments = await db.enrollment.findMany({
+    where: { id: { in: missed.map((mark) => mark.enrollmentId) } },
+    select: {
+      id: true,
+      studentId: true,
+      student: { select: { school: { select: { organizationId: true } } } },
+    },
+  });
+
+  const statusOf = new Map(
+    missed.map((mark) => [mark.enrollmentId, mark.status]),
+  );
+
+  // One notify per pupil rather than one for the class: the dedupe key is the
+  // pupil's own register row, and the status differs between them.
+  await Promise.all(
+    enrolments.map(async (enrolment) =>
+      notify({
+        organizationId: enrolment.student.school.organizationId,
+        schoolId: input.schoolId,
+        kind: "ATTENDANCE_MISSED",
+        subjectId: enrolment.id,
+        dedupeOn: discriminator,
+        params: {
+          status: statusOf.get(enrolment.id),
+          date: input.day.toISOString(),
+        },
+        targets: await guardiansOfStudent(enrolment.studentId),
+      }),
+    ),
+  );
 }
 
 export type RemarkInput = {

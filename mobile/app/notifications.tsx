@@ -107,6 +107,12 @@ function routeFor(
       return child("remarques");
     case "PAYMENT_RECORDED":
       return child("paiements");
+    case "ASSESSMENT_SCHEDULED":
+      // The papers are on the marks screen whether or not they have been sat —
+      // a devoir announced on Monday and marked on Friday is one row there.
+      return child("notes");
+    case "ATTENDANCE_MISSED":
+      return child("absences");
     case "REQUEST_HANDLED":
       return { pathname: "/requests", params: {} };
     default:
@@ -132,13 +138,21 @@ function NotificationRow({
   if (!phrase) return null;
 
   const params = { ...item.params };
+  // Two vocabularies, never merged into one map — see the note in the web's
+  // describe.ts. A dossier is "Ready"; a register is "Absent".
   if (params.status) {
-    params.status = label(t.labels.requestStatus, params.status);
+    params.status = label(
+      item.kind === "ATTENDANCE_MISSED"
+        ? t.labels.attendance
+        : t.labels.requestStatus,
+      params.status,
+    );
   }
   if (params.amountCentimes) {
     const centimes = Number(params.amountCentimes);
     if (Number.isFinite(centimes)) params.amount = format.money(centimes);
   }
+  if (params.date) params.date = format.shortDate(params.date);
 
   const tones: Record<AppNotification["tone"], string> = {
     info: theme.primary,
