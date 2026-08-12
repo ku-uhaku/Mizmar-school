@@ -204,7 +204,7 @@ const ar: Dictionary = {
   childMenu: {
     defaultTitle: "التلميذ",
     loadError: "تعذّر تحميل ملف التلميذ.",
-    averageOf20: "المعدل /20",
+    averageOf: "المعدل /{max}",
     outstanding: "المتبقي أداؤه",
     unjustifiedAbsences: "غيابات غير مبررة",
     tiles: {
@@ -252,7 +252,7 @@ const ar: Dictionary = {
     notes: {
       allChip: "الكل",
       subjectsChip: "المواد",
-      average: "المعدل العام /20",
+      average: "المعدل العام /{max}",
       none: "لا توجد أي نقطة منشورة حاليًا.",
       absent: "غائب",
       score: "{score}/{max}",

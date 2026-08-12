@@ -205,7 +205,7 @@ const fr: Dictionary = {
   childMenu: {
     defaultTitle: "Élève",
     loadError: "Impossible de charger la fiche de l'élève.",
-    averageOf20: "Moyenne /20",
+    averageOf: "Moyenne /{max}",
     outstanding: "Reste à payer",
     unjustifiedAbsences: "Absences non justifiées",
     tiles: {
@@ -253,7 +253,7 @@ const fr: Dictionary = {
     notes: {
       allChip: "Tous",
       subjectsChip: "Matières",
-      average: "Moyenne générale /20",
+      average: "Moyenne générale /{max}",
       none: "Aucune note publiée pour le moment.",
       absent: "Absent",
       score: "{score}/{max}",

@@ -409,7 +409,12 @@ describe("visibility gates", () => {
     // would answer a question the caller has not earned the right to put.
     const result = await portal.loadChildMarks(USER, FOREIGN_CHILD);
 
-    expect(result).toEqual({ marks: [], average: null, outOf: 20 });
+    expect(result).toEqual({
+      marks: [],
+      average: null,
+      outOf: 20,
+      passMark: 10,
+    });
     expect(callsTo("schoolSettings")).toHaveLength(0);
   });
 });

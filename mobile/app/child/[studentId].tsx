@@ -109,12 +109,14 @@ export default function ChildScreen() {
                 }}
               >
                 <Stat
-                  value={detail.data.marks.averageOutOf20 ?? "—"}
-                  label={t.childMenu.averageOf20}
+                  value={detail.data.marks.average ?? "—"}
+                  label={interpolate(t.childMenu.averageOf, {
+                    max: detail.data.marks.outOf,
+                  })}
                   tone={
-                    detail.data.marks.averageOutOf20 === null
+                    detail.data.marks.average === null
                       ? "default"
-                      : detail.data.marks.averageOutOf20 >= 10
+                      : detail.data.marks.average >= detail.data.marks.passMark
                         ? "success"
                         : "danger"
                   }

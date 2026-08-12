@@ -80,7 +80,13 @@ export type ChildDetail = {
    * `average` is on the school's own scale — read it with `outOf` beside it and
    * never as a figure out of twenty. See PortalMarks in modules/portal/queries.ts.
    */
-  marks: { marks: Mark[]; average: number | null; outOf: number };
+  marks: {
+    marks: Mark[];
+    average: number | null;
+    outOf: number;
+    /** Where passing starts on that scale — the school's, never a literal 10. */
+    passMark: number;
+  };
   attendance: {
     entries: Absence[];
     /** Retards, counted apart: a school acts on them by accumulation. */

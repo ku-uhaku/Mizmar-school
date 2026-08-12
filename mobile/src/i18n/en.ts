@@ -208,7 +208,7 @@ const en = {
   childMenu: {
     defaultTitle: "Pupil",
     loadError: "Could not load the pupil's file.",
-    averageOf20: "Average /20",
+    averageOf: "Average /{max}",
     outstanding: "Balance due",
     unjustifiedAbsences: "Unjustified absences",
     tiles: {
@@ -256,7 +256,7 @@ const en = {
     notes: {
       allChip: "All",
       subjectsChip: "Subjects",
-      average: "Overall average /20",
+      average: "Overall average /{max}",
       none: "No mark published yet.",
       absent: "Absent",
       score: "{score}/{max}",

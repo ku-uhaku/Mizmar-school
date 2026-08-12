@@ -149,7 +149,7 @@ function Notes({ studentId }: { studentId: string }) {
   if (guard) return guard;
   if (!detail.data) return null;
 
-  const { marks, averageOutOf20 } = detail.data.marks;
+  const { marks, average, outOf, passMark } = detail.data.marks;
 
   /*
     By term, because that is the unit a parent asks in — "how was the first
@@ -200,12 +200,12 @@ function Notes({ studentId }: { studentId: string }) {
 
       <Card>
         <Stat
-          value={averageOutOf20 ?? "—"}
-          label={t.topic.notes.average}
+          value={average ?? "—"}
+          label={interpolate(t.topic.notes.average, { max: outOf })}
           tone={
-            averageOutOf20 === null
+            average === null
               ? "default"
-              : averageOutOf20 >= 10
+              : average >= passMark
                 ? "success"
                 : "danger"
           }

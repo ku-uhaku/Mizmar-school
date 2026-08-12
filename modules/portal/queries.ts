@@ -2,7 +2,12 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { ensureChannel } from "@/modules/chat/service";
-import { DEFAULT_SETTINGS, settingsOf, teachingDaysOf } from "@/lib/school-settings";
+import {
+  DEFAULT_SETTINGS,
+  passMarkOf,
+  settingsOf,
+  teachingDaysOf,
+} from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { firstLookSince, isSeenTopic } from "@/modules/portal/enums";
 import { isSettled } from "@/modules/documents/enums";
@@ -169,6 +174,12 @@ export type PortalMarks = {
   average: number | null;
   /** The school's own scale, from `SchoolSettings.gradingMaxScore`. */
   outOf: number;
+  /**
+   * The pass mark on that same scale, so the phone can colour an average
+   * without deciding for itself where passing starts. Half of `outOf` is only
+   * the default: `passMarkBps` exists because a school may set it elsewhere.
+   */
+  passMark: number;
 };
 
 /**
@@ -195,6 +206,7 @@ export async function loadChildMarks(
       marks: [],
       average: null,
       outOf: DEFAULT_SETTINGS.gradingMaxScore,
+      passMark: passMarkOf(DEFAULT_SETTINGS),
     };
   }
 
@@ -239,9 +251,8 @@ export async function loadChildMarks(
   // Normalised before averaging: a paper marked out of 10 and one out of 20 are
   // not comparable numbers, and a mean of the raw scores would be meaningless.
   // The scale normalised *onto* is the school's own, not a literal twenty.
-  const { gradingMaxScore: outOf } = await loadSchoolSettings(
-    child.student.schoolId,
-  );
+  const settings = await loadSchoolSettings(child.student.schoolId);
+  const outOf = settings.gradingMaxScore;
 
   const scored = marks.filter(
     (mark) => mark.score !== null && !mark.isAbsent && mark.maxScore > 0,
@@ -258,7 +269,7 @@ export async function loadChildMarks(
       )
     : null;
 
-  return { marks, average, outOf };
+  return { marks, average, outOf, passMark: passMarkOf(settings) };
 }
 
 export type PortalBulletinLine = {
