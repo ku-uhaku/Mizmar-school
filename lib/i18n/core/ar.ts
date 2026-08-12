@@ -88,9 +88,7 @@ const core = {
       "يشهد الموقع أسفله أن التلميذ(ة) المذكور(ة) أدناه مسجل(ة) بهذه المؤسسة برسم السنة الدراسية {year}، بالقسم المبين.",
     schedule: "جدول الأداءات",
     classList: "لائحة القسم",
-    timetable: "استعمال الزمن",
-    teacherTimetable: "استعمال زمن الأستاذ",
-    pupilCount: "{count} تلميذًا",
+    timetable: "استعمال الزمن",    pupilCount: "{count} تلميذًا",
     total: "المجموع",
     dueOn: "أجل الأداء",
     issuedOn: "حُرر في",
@@ -118,9 +116,7 @@ export const nav = {
   vieScolaire: "الحياة المدرسية",
   finance: "المالية",
   logistique: "اللوجستيك",
-  rh: "الموارد البشرية",
-  enseignant: "فضاء الأستاذ",
-  administration: "الإدارة",
+  rh: "الموارد البشرية",  administration: "الإدارة",
   account: "الحساب",
 };
 

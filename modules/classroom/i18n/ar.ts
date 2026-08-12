@@ -129,6 +129,13 @@ const ar = {
     noRemarks: "لا توجد ملاحظة بعد.",
     noRemarksHint: "الملاحظة هي الجملة التي كنت ستحتفظ بها في دفترك الخاص.",
     mineOnly: "ملاحظاتي فقط",
+    remarksReview: "متابعة الملاحظات",
+    showingFirst: "أحدث {count} ملاحظة. حدّد الفلاتر للاطّلاع على الباقي.",
+    remarksReviewHint: "ما كتبه الأساتذة عن التلاميذ، وما ينتظر قراراً.",
+    filterTeacher: "الأستاذ",
+    allTeachers: "كل الأساتذة",
+    filterClass: "القسم",
+    allClasses: "كل الأقسام",
     searchRemarks: "ابحث في الملاحظات…",
   },
   classroomOptions: {
@@ -155,10 +162,7 @@ const ar = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  classroomTimetable: "استعمال الزمن",
-  classroomAttendance: "الحضور",
-  classroomDevoirs: "الواجبات",
-  classroomRemarks: "الملاحظات",
+  remarksReview: "متابعة الملاحظات",
 };
 
 /** Permission matrix labels for this module's own codes. */
@@ -167,7 +171,7 @@ export const permissions = {
     classroom: "فضاء الأستاذ",
   },
   codes: {
-    "classroom.workspace": "فتح فضاء الأستاذ",
+    "classroom.workspace": "فتح فضاء الأستاذ في التطبيق",
     "classroom.attendanceView": "الاطلاع على الحضور",
     "classroom.attendanceMark": "تسجيل الحضور",
     "classroom.attendanceJustify": "تبرير الغياب",

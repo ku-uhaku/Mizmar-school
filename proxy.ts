@@ -16,7 +16,21 @@ const SESSION_COOKIES = [
   "__Secure-authjs.session-token",
 ];
 
-const PUBLIC_PATHS = ["/login"];
+/** Reachable without a session cookie. */
+const PUBLIC_PATHS = ["/login", "/no-access"];
+
+/**
+ * Of those, the ones a signed-in visitor is bounced away from.
+ *
+ * `/no-access` is deliberately not here: it exists precisely for somebody
+ * holding a perfectly valid session the web app will not open — a teacher, whose
+ * work is on the phone. Bouncing them to `/` would send them straight back to
+ * the redirect in `requireAuth` that put them there, and round again.
+ */
+const SIGNED_OUT_ONLY = ["/login"];
+
+const matches = (paths: string[], pathname: string) =>
+  paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -24,9 +38,7 @@ export function proxy(request: NextRequest) {
   const hasSessionCookie = SESSION_COOKIES.some((name) =>
     request.cookies.has(name),
   );
-  const isPublic = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isPublic = matches(PUBLIC_PATHS, pathname);
 
   if (!hasSessionCookie && !isPublic) {
     const url = new URL("/login", request.nextUrl);
@@ -35,7 +47,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (hasSessionCookie && isPublic) {
+  if (hasSessionCookie && matches(SIGNED_OUT_ONLY, pathname)) {
     return NextResponse.redirect(new URL("/", request.nextUrl));
   }
 

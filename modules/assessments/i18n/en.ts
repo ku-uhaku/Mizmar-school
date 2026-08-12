@@ -7,6 +7,7 @@
  */
 const en = {
   assessment: {
+    validationQueue: "Awaiting your validation",
     generatedAcross: "{count} papers written across {classes} classes.",
     willCover: "{classes} classes · {subjects} subjects each",
     scope: "Scope",

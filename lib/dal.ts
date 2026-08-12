@@ -12,6 +12,7 @@ import {
   verifyMobileToken,
 } from "@/lib/mobile-token";
 import { ALL_PERMISSION_CODES, type PermissionCode } from "@/lib/permissions";
+import { hasWebAccess } from "@/modules/access/web-access";
 import {
   DEFAULT_SETTINGS,
   settingsOf,
@@ -229,10 +230,20 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   };
 });
 
-/** For pages and actions that require a signed-in user. Redirects otherwise. */
+/**
+ * For pages and actions that require a signed-in user. Redirects otherwise.
+ *
+ * Also the web app's door for an account that already holds a session: a
+ * membership changed to Enseignant takes effect on the very next request, for
+ * the same reason a revoked role does — nothing here is carried in the token.
+ * Deliberately in `requireAuth` and not in `getAuthContext`: the native app's
+ * route handlers resolve their caller through the latter, and refusing them
+ * here would take the espace enseignant away from the people it is for.
+ */
 export async function requireAuth(): Promise<AuthContext> {
   const context = await getAuthContext();
   if (!context) redirect("/login");
+  if (!hasWebAccess(context.user)) redirect("/no-access");
   return context;
 }
 

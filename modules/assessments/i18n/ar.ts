@@ -7,6 +7,7 @@
  */
 const ar = {
   assessment: {
+    validationQueue: "في انتظار اعتمادكم",
     generatedAcross: "تم إنشاء {count} فرضًا عبر {classes} أقسام.",
     willCover: "{classes} أقسام · {subjects} مواد لكل قسم",
     scope: "النطاق",

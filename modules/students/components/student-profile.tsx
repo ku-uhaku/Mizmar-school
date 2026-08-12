@@ -103,6 +103,7 @@ export function StudentProfile({
   marks,
   bulletins,
   remarks,
+  defaultRemarkDate,
   payable,
   banks,
   hasOpenSession,
@@ -159,6 +160,8 @@ export function StudentProfile({
   /** Null when the reader may not see bulletins — a separate grant from marks. */
   bulletins: BulletinRow[] | null;
   remarks: PupilRemarkRow[] | null;
+  /** Today, clamped into the school year — the same default the carnet uses. */
+  defaultRemarkDate: string;
   /**
    * The bus. Null when the viewer may not see transport at all — the tab is
    * absent rather than empty, like the money tabs above.
@@ -186,6 +189,9 @@ export function StudentProfile({
     canCancelPayment: boolean;
     canSubscribeTransport: boolean;
     canManageDocuments: boolean;
+    /** Writing an observation about this pupil, and releasing one to the family. */
+    canWriteRemark: boolean;
+    canPublishRemark: boolean;
   };
 }) {
   const t = useT();
@@ -429,7 +435,18 @@ export function StudentProfile({
 
         {remarks ? (
           <TabsContent value="remarks">
-            <PupilRemarksPanel remarks={remarks} />
+            <PupilRemarksPanel
+              remarks={remarks}
+              // A remark hangs off the enrolment, not the pupil: the same child
+              // repeating a year has two, and an observation belongs to the one
+              // it happened in.
+              enrollmentId={enrolment?.id ?? null}
+              defaultDate={defaultRemarkDate}
+              permissions={{
+                canWrite: permissions.canWriteRemark,
+                canPublish: permissions.canPublishRemark,
+              }}
+            />
           </TabsContent>
         ) : null}
 

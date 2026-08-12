@@ -61,8 +61,6 @@ export type NavIcon =
   | "attendance"
   | "payroll"
   | "leave"
-  | "teacher"
-  | "homework"
   | "remarks"
   | "audit";
 
@@ -81,7 +79,6 @@ export const NAV_SECTIONS = [
   "finance",
   "logistique",
   "rh",
-  "enseignant",
   "administration",
   "account",
 ] as const;

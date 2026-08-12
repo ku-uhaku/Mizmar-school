@@ -7,6 +7,7 @@
  */
 const fr = {
   assessment: {
+    validationQueue: "En attente de votre validation",
     generatedAcross: "{count} contrôles créés sur {classes} classes.",
     willCover: "{classes} classes · {subjects} matières chacune",
     scope: "Portée",

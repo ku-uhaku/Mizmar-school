@@ -77,6 +77,17 @@ export type RemarkTone = (typeof REMARK_TONES)[number];
 /** Longest a remark may run — a paragraph, not an essay. */
 export const REMARK_MAX_LENGTH = 1000;
 
+/**
+ * How many remarks one read returns.
+ *
+ * Ample for a teacher's own carnet, which is what it was chosen for. It is not
+ * ample for the direction's review screen, where the scope is the whole school
+ * — so that screen says so when it is holding a full page, rather than quietly
+ * showing the newest 200 of 652 and letting somebody conclude they have worked
+ * through a backlog they have not seen the bottom of.
+ */
+export const REMARK_PAGE_SIZE = 200;
+
 /** Most minutes a retard can sensibly be before it is really an absence. */
 export const MAX_MINUTES_LATE = 120;
 

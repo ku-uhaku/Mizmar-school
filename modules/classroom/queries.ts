@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import {
   MISSING_STATUSES,
+  REMARK_PAGE_SIZE,
   startOfDay,
   tallyAttendance,
   type AttendanceTally,
@@ -394,36 +395,97 @@ export type RemarkRow = {
 };
 
 /**
- * Remarks the signed-in teacher may read.
+ * Remarks the signed-in user may read.
  *
  * Confined to their own classes, and — unless they hold the school-wide view —
  * to the ones they wrote. A remark is a colleague's private note until the
  * school decides otherwise, so seeing everybody's is a grant, not a default.
+ *
+ * ── Except for whoever has to decide on them ────────────────────────────────
+ * `classroom.remarkPublish` is the code that releases a teacher's observation
+ * to a family, and this read is the only place those observations are listed.
+ * Scoped to the reader's own teaching assignments, a directrice who teaches
+ * nothing resolved to an empty class list and therefore an empty screen — so
+ * the one screen in the app that can publish a remark showed the one group of
+ * people allowed to publish them nothing at all. On the seeded school that was
+ * 216 remarks awaiting release and a page that said there were none.
+ *
+ * So the office sees the school. It is the same `actsForSchool` rule the writes
+ * in this module already follow — see the note at the top of service.ts — and
+ * it relaxes *which classes*, never which school: `schoolScope` still applies,
+ * so another tenant's remarks remain unreachable.
  */
+export type RemarkFilters = {
+  mineOnly?: boolean;
+  studentId?: string;
+  /** Who wrote it. */
+  authorId?: string;
+  schoolClassId?: string;
+  tone?: string;
+  kind?: string;
+  /** Only the ones still waiting on the office's decision. */
+  pendingOnly?: boolean;
+  /** Matches the pupil's name or code, or the words of the remark itself. */
+  search?: string;
+};
+
 export async function listRemarks(
   context: AuthContext,
-  options: { mineOnly?: boolean; studentId?: string } = {},
+  options: RemarkFilters = {},
 ): Promise<RemarkRow[]> {
-  const myClassIds = await db.teachingAssignment.findMany({
-    where: {
-      teacherId: context.user.id,
-      schoolClass: { levelOffering: yearScope(context) },
-    },
-    select: { schoolClassId: true },
-  });
+  const actsForSchool = context.can(PERMISSIONS.CLASSROOM_REMARK_PUBLISH);
+
+  // Skipped entirely for the office: their scope is the school, so the answer
+  // would be read and then thrown away.
+  const myClassIds = actsForSchool
+    ? []
+    : await db.teachingAssignment.findMany({
+        where: {
+          teacherId: context.user.id,
+          schoolClass: { levelOffering: yearScope(context) },
+        },
+        select: { schoolClassId: true },
+      });
 
   const remarks = await db.studentRemark.findMany({
     where: {
       enrollment: {
         ...yearScope(context),
         student: schoolScope(context),
-        schoolClassId: { in: myClassIds.map((row) => row.schoolClassId) },
+        ...(actsForSchool
+          ? {}
+          : {
+              schoolClassId: { in: myClassIds.map((row) => row.schoolClassId) },
+            }),
         ...(options.studentId ? { studentId: options.studentId } : {}),
+        // Narrowing *within* the scope above, never widening it: a class id
+        // from a query string is intersected with what the reader may already
+        // reach, so a crafted one matches nothing rather than reaching another
+        // school's class.
+        ...(options.schoolClassId
+          ? { schoolClassId: options.schoolClassId }
+          : {}),
+        ...(options.search
+          ? {
+              student: {
+                ...schoolScope(context),
+                OR: [
+                  { firstName: { contains: options.search } },
+                  { lastName: { contains: options.search } },
+                  { code: { contains: options.search } },
+                ],
+              },
+            }
+          : {}),
       },
       ...(options.mineOnly ? { authorId: context.user.id } : {}),
+      ...(options.authorId ? { authorId: options.authorId } : {}),
+      ...(options.tone ? { tone: options.tone } : {}),
+      ...(options.kind ? { kind: options.kind } : {}),
+      ...(options.pendingOnly ? { isVisibleToFamily: false } : {}),
     },
     orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
-    take: 200,
+    take: REMARK_PAGE_SIZE,
     select: {
       id: true,
       kind: true,
@@ -467,6 +529,75 @@ export async function listRemarks(
     authorName: remark.author ? displayName(remark.author) : null,
     isMine: remark.authorId === context.user.id,
   }));
+}
+
+export type RemarkFilterChoices = {
+  teachers: { id: string; label: string }[];
+  classes: { id: string; label: string }[];
+  /** How many are still waiting on a decision, before any filter is applied. */
+  pendingCount: number;
+};
+
+/**
+ * What the review screen's pickers may offer, and how much is waiting.
+ *
+ * ── Read straight, not derived from the list ────────────────────────────────
+ * The obvious implementation builds these out of `listRemarks` and counts what
+ * comes back. It would be wrong twice over: that list is capped at 200 rows, so
+ * both the pickers and the "awaiting" badge would silently describe the newest
+ * page rather than the school — a director working through a backlog would
+ * watch the count stop falling. And it would key the pickers on *names*, which
+ * the filters cannot use: they take ids.
+ *
+ * ── Only the teachers who have actually written something ───────────────────
+ * A `distinct` over the remarks rather than a roll of the staff. A picker of
+ * every employee would be mostly names that select nothing, and the question
+ * this screen asks is "whose observations am I looking at" — which only has
+ * answers among the people who wrote one.
+ *
+ * For the office, whose scope is the school. See `listRemarks` on why that is
+ * the right scope for anyone holding the publish code.
+ */
+export async function listRemarkFilterChoices(
+  context: AuthContext,
+): Promise<RemarkFilterChoices> {
+  const inScope = {
+    enrollment: { ...yearScope(context), student: schoolScope(context) },
+  } as const;
+
+  const [authored, classes, pendingCount] = await Promise.all([
+    db.studentRemark.findMany({
+      where: { ...inScope, authorId: { not: null } },
+      distinct: ["authorId"],
+      select: {
+        authorId: true,
+        author: {
+          select: {
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+    db.schoolClass.findMany({
+      where: { levelOffering: yearScope(context), ...schoolScope(context) },
+      orderBy: [{ code: "asc" }],
+      select: { id: true, code: true },
+    }),
+    db.studentRemark.count({ where: { ...inScope, isVisibleToFamily: false } }),
+  ]);
+
+  return {
+    teachers: authored
+      .filter((row) => row.authorId !== null && row.author !== null)
+      .map((row) => ({
+        id: row.authorId as string,
+        label: displayName(row.author!),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    classes: classes.map((row) => ({ id: row.id, label: row.code })),
+    pendingCount,
+  };
 }
 
 export type PupilOption = {

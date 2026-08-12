@@ -19,8 +19,6 @@ import {
   CalendarRangeIcon,
   ContactIcon,
   MessageSquareTextIcon,
-  NotebookPenIcon,
-  PresentationIcon,
   GraduationCapIcon,
   CalendarHeartIcon,
   MessagesSquareIcon,
@@ -92,7 +90,5 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   attendance: CalendarCheckIcon,
   payroll: BanknoteArrowUpIcon,
   leave: CalendarOffIcon,
-  teacher: PresentationIcon,
-  homework: NotebookPenIcon,
   remarks: MessageSquareTextIcon,
 };

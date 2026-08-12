@@ -136,10 +136,18 @@ export function webHref(
     case "SUPPLY_LIST_SUBMITTED":
     case "SUPPLY_LIST_REVIEWED":
       return "/supplies";
+    // The direction's side of the carnet — where a remark waiting to be shared
+    // with a family is actually acted on.
     case "REMARK_WRITTEN":
-      return "/teacher/remarks";
-    case "REGISTER_ABSENCES":
-      return "/teacher/attendance";
+      return "/school-life/remarks";
+    /*
+      Deliberately no href.
+
+      The register is taken on the phone and read on the phone; the web app has
+      no attendance screen since the espace enseignant left it, and pointing the
+      office at a screen that does not exist is worse than a line that simply
+      says what happened. The record behind it is the pupil's own file.
+    */
     case "LEAVE_DECIDED":
       return "/hr/leave";
     case "ADVANCE_DECIDED":

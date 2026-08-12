@@ -133,6 +133,13 @@ const en = {
     noRemarksHint:
       "A remark is the sentence you would otherwise keep in your own notebook.",
     mineOnly: "Only mine",
+    remarksReview: "Remarks review",
+    showingFirst: "Showing the {count} most recent. Narrow the filters to reach the rest.",
+    remarksReviewHint: "What teachers have written about pupils, and what is waiting on a decision.",
+    filterTeacher: "Teacher",
+    allTeachers: "All teachers",
+    filterClass: "Class",
+    allClasses: "All classes",
     searchRemarks: "Search remarks…",
   },
   classroomOptions: {
@@ -159,10 +166,7 @@ const en = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  classroomTimetable: "Timetable",
-  classroomAttendance: "Attendance",
-  classroomDevoirs: "Homework",
-  classroomRemarks: "Remarks",
+  remarksReview: "Remarks review",
 } as const;
 
 /** Permission matrix labels for this module's own codes. */
@@ -171,7 +175,7 @@ export const permissions = {
     classroom: "Teaching",
   },
   codes: {
-    "classroom.workspace": "Open the teaching workspace",
+    "classroom.workspace": "Open the teachers' space on the app",
     "classroom.attendanceView": "View the register",
     "classroom.attendanceMark": "Take the register",
     "classroom.attendanceJustify": "Accept a justification for an absence",

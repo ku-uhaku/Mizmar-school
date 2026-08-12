@@ -136,6 +136,13 @@ const fr = {
     noRemarksHint:
       "Une remarque, c'est la phrase que vous garderiez sinon dans votre carnet.",
     mineOnly: "Les miennes seulement",
+    remarksReview: "Suivi des remarques",
+    showingFirst: "Les {count} plus récentes. Affinez les filtres pour voir les autres.",
+    remarksReviewHint: "Ce que les enseignants ont écrit sur les élèves, et ce qui attend une décision.",
+    filterTeacher: "Enseignant",
+    allTeachers: "Tous les enseignants",
+    filterClass: "Classe",
+    allClasses: "Toutes les classes",
     searchRemarks: "Rechercher une remarque…",
   },
   classroomOptions: {
@@ -162,10 +169,7 @@ const fr = {
 
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
-  classroomTimetable: "Emploi du temps",
-  classroomAttendance: "Appel",
-  classroomDevoirs: "Devoirs",
-  classroomRemarks: "Remarques",
+  remarksReview: "Suivi des remarques",
 };
 
 /** Permission matrix labels for this module's own codes. */
@@ -174,7 +178,7 @@ export const permissions = {
     classroom: "Espace enseignant",
   },
   codes: {
-    "classroom.workspace": "Ouvrir l'espace enseignant",
+    "classroom.workspace": "Ouvrir l'espace enseignant sur l'application",
     "classroom.attendanceView": "Consulter l'appel",
     "classroom.attendanceMark": "Faire l'appel",
     "classroom.attendanceJustify": "Justifier une absence",

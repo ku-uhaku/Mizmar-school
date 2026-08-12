@@ -95,9 +95,7 @@ const core = {
       "The undersigned certifies that the pupil named below is enrolled at this school for the {year} school year, in the class shown.",
     schedule: "Fee schedule",
     classList: "Class list",
-    timetable: "Timetable",
-    teacherTimetable: "Teacher's timetable",
-    pupilCount: "{count} pupils",
+    timetable: "Timetable",    pupilCount: "{count} pupils",
     total: "Total",
     dueOn: "Due",
     issuedOn: "Issued on",
@@ -125,9 +123,7 @@ export const nav = {
   vieScolaire: "School life",
   finance: "Finance",
   logistique: "Logistics",
-  rh: "Human resources",
-  enseignant: "Teaching",
-  administration: "Administration",
+  rh: "Human resources",  administration: "Administration",
   account: "Account",
 } as const;
 

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { defaultDateWithin } from "@/lib/school-year";
 import {
   findEnrolment,
   loadEnrolmentChoices,
@@ -277,6 +278,7 @@ export default async function StudentPage({
         marks={marks}
         bulletins={bulletins}
         remarks={remarks}
+        defaultRemarkDate={defaultDateWithin(context.currentSchoolYear)}
         payable={payable}
         banks={banks}
         hasOpenSession={openSession !== null}
@@ -305,6 +307,8 @@ export default async function StudentPage({
           canCancelPayment: context.can(PERMISSIONS.TREASURY_CANCEL),
           canSubscribeTransport: context.can(PERMISSIONS.TRANSPORT_SUBSCRIBE),
           canManageDocuments: context.can(PERMISSIONS.DOCUMENT_MANAGE),
+          canWriteRemark: context.can(PERMISSIONS.CLASSROOM_REMARK_WRITE),
+          canPublishRemark: context.can(PERMISSIONS.CLASSROOM_REMARK_PUBLISH),
         }}
       />
     </>

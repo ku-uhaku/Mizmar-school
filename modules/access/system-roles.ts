@@ -16,6 +16,13 @@ export const SYSTEM_ROLES: {
   description: string;
   scope: "ORG" | "SCHOOL";
   permissions: PermissionCode[];
+  /**
+   * The role's work happens on the phone, not at a desk. Holders are refused
+   * the web dashboard entirely — see modules/access/web-access.ts. Their
+   * permissions are unchanged: those are what their space in the native app
+   * runs on.
+   */
+  mobileOnly?: true;
 }[] = [
   {
     name: "Administrateur",
@@ -317,8 +324,12 @@ export const SYSTEM_ROLES: {
   },
   {
     name: "Enseignant",
-    description: "Accès en lecture seule à son école.",
+    description: "Son espace enseignant sur l'application mobile.",
     scope: "SCHOOL",
+    // A teacher works from the phone. Everything below is what the espace
+    // enseignant runs on; none of it is reachable from the web dashboard,
+    // which the account may not open at all.
+    mobileOnly: true,
     permissions: [
       PERMISSIONS.SCHOOL_VIEW,
       PERMISSIONS.SCHOOL_YEAR_VIEW,
@@ -384,3 +395,16 @@ export const SYSTEM_ROLES: {
     ],
   },
 ];
+
+/**
+ * The roles whose holders may not open the web dashboard, by name.
+ *
+ * Derived rather than written twice, so marking a role `mobileOnly` above is
+ * the single place the decision is made. Names are the key because that is what
+ * `modules/access/seed.ts` upserts on and what a system role cannot be renamed
+ * away from — an org's *own* roles are never in here, so a school that invents
+ * its own "Professeur principal" keeps the desk until somebody says otherwise.
+ */
+export const MOBILE_ONLY_ROLES: string[] = SYSTEM_ROLES.filter(
+  (role) => role.mobileOnly,
+).map((role) => role.name);

@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { defaultDateWithin } from "@/lib/school-year";
+import { AssessmentsAwaiting } from "@/modules/assessments/components/assessments-awaiting";
 import { AssessmentsManager } from "@/modules/assessments/components/assessments-manager";
 import {
   listAssessableClasses,
@@ -67,6 +68,18 @@ export default async function AssessmentsPage({
   // this the office's round of contrôles is interleaved with every piece of
   // homework every teacher of the class has set, which is neither their
   // business nor a list anybody can read.
+  /*
+    Every paper in the school waiting on the office, whatever class it belongs
+    to and whoever set it — deliberately ignoring both filters the list below
+    applies. See the note on `AssessmentsAwaiting`.
+
+    Only for whoever may actually accept one: to anybody else this is a list of
+    other people's work with a button they cannot press.
+  */
+  const awaitingValidation = context.can(PERMISSIONS.ASSESSMENT_PUBLISH)
+    ? await listAssessments(context, { statuses: ["SUBMITTED"] })
+    : [];
+
   const assessments = selectedClass
     ? await listAssessments(context, {
         classId: selectedClass.id,
@@ -90,6 +103,10 @@ export default async function AssessmentsPage({
           </Link>
         </Button>
       </PageHeader>
+
+      {/* Above the class picker, because it is not about the selected class:
+        these are papers waiting on the office from anywhere in the school. */}
+      <AssessmentsAwaiting assessments={awaitingValidation} />
 
       <AssessmentsManager
         defaultDate={defaultDateWithin(context.currentSchoolYear)}

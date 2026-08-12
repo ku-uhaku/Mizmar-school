@@ -18,6 +18,13 @@ const en = {
     signOut: "Sign out",
     invalidCredentials: "Incorrect email or password.",
     accountDisabled: "This account has been deactivated.",
+    mobileOnlyAccount:
+      "Teaching accounts work on the Mizmar app, not on this dashboard. Sign in there with the same username and password.",
+    noAccessTitle: "Your space is on the app",
+    noAccessBody:
+      "This account teaches, and the dashboard is the office's. Everything it does — the register, the marks, the carnet, the timetable — is on the Mizmar app.",
+    noAccessHint:
+      "Sign in on the app with the same username and password. If you believe you should have a dashboard account, ask your school office.",
     tooManyAttempts:
       "Too many failed sign-in attempts. Try again in {minutes} minutes.",
     brandTagline: "Multi-school administration, one organisation.",

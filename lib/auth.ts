@@ -14,6 +14,7 @@ import {
 } from "@/lib/login-throttle";
 import { SESSION_ENTITY } from "@/modules/audit/enums";
 import { looksLikeEmail } from "@/modules/users/enums";
+import { hasWebAccess } from "@/modules/access/web-access";
 
 /**
  * Auth.js v5. Sessions are JWT-based: the token carries only the user id, and
@@ -161,6 +162,30 @@ export async function checkCredentials(
 }
 
 /**
+ * Whether this account may open the web dashboard.
+ *
+ * Deliberately *not* inside `checkCredentials`: the native app signs in through
+ * that same function, and a teacher's credentials are perfectly good — it is
+ * this surface they are refused, not their account. Both web sign-in paths call
+ * this after the password has been accepted; the phone calls neither.
+ *
+ * An account that has vanished between the two reads answers `false`. There is
+ * nothing to let in.
+ */
+export async function accountMayOpenWebApp(userId: string): Promise<boolean> {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      isSuperAdmin: true,
+      orgRoleId: true,
+      memberships: { select: { role: { select: { name: true } } } },
+    },
+  });
+
+  return user ? hasWebAccess(user) : false;
+}
+
+/**
  * Puts a refused sign-in in the trail.
  *
  * The actor is the address that was typed, because that is all there is — there
@@ -218,6 +243,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const result = await checkCredentials(identifier, plain);
         if (!result.ok) return null;
+
+        /*
+          The web app's own door, after the password and before the cookie.
+
+          A teacher's account is refused here rather than at the first page it
+          asks for, so no session is ever issued for it — there is no cookie to
+          steal, to keep, or to come back with. The same account signs into the
+          native app a second later, which is where their work is.
+        */
+        if (!(await accountMayOpenWebApp(result.userId))) {
+          await recordAttempt(identifier.trim().toLowerCase(), "LOGIN_BLOCKED", {
+            reason: "web_access_denied",
+          });
+          return null;
+        }
 
         const account = await db.user.update({
           where: { id: result.userId },

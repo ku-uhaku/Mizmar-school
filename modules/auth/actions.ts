@@ -12,7 +12,12 @@ import {
   UI_PREFS_COOKIE,
   normalizeUiPrefs,
 } from "@/modules/appearance/prefs";
-import { checkCredentials, signIn, signOut } from "@/lib/auth";
+import {
+  accountMayOpenWebApp,
+  checkCredentials,
+  signIn,
+  signOut,
+} from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isLocale, LOCALE_COOKIE } from "@/lib/i18n/config";
 import { interpolate } from "@/lib/i18n/format";
@@ -113,6 +118,20 @@ export async function loginAction(
           ? t.auth.accountDisabled
           : t.auth.invalidCredentials,
       );
+    }
+
+    /*
+      The password was right and this surface is still not theirs.
+
+      Said plainly rather than folded into `invalidCredentials`: a teacher
+      typing their correct password into the wrong app deserves to be told which
+      app is theirs, and there is nothing to protect by being vague — whoever is
+      typing has already proved the account is theirs. Auth.js refuses the same
+      account in its own `authorize`, so this message is the courtesy and that
+      is the gate.
+    */
+    if (!(await accountMayOpenWebApp(check.userId))) {
+      return failure(t.auth.mobileOnlyAccount);
     }
 
     await applyStoredPreferences(check.userId);

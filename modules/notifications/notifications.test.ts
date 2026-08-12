@@ -143,13 +143,13 @@ describe("the catalogue", () => {
     }
 
     expect(webHref("REQUEST_FILED", { subjectId: "req-1" })).toBe("/requests");
-    // The office's two teacher-facing lines open the screens they act on.
+    // A remark waiting on the direction opens the screen they act on.
     expect(webHref("REMARK_WRITTEN", { subjectId: "r-1" })).toBe(
-      "/teacher/remarks",
+      "/school-life/remarks",
     );
-    expect(webHref("REGISTER_ABSENCES", { subjectId: "c-1" })).toBe(
-      "/teacher/attendance",
-    );
+    // The register left the web app with the espace enseignant, so this one is
+    // a line and not a link — see webHref.
+    expect(webHref("REGISTER_ABSENCES", { subjectId: "c-1" })).toBeNull();
     expect(webHref("ASSESSMENT_VALIDATED", { subjectId: "a-1" })).toBe(
       "/assessments/a-1",
     );
