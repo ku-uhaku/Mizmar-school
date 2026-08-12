@@ -1,6 +1,9 @@
 import { seedAcademics } from "@/modules/academics/seed";
 import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
-import { seedAssessmentTypes } from "@/modules/assessments/seed";
+import {
+  seedAppreciationBands,
+  seedAssessmentTypes,
+} from "@/modules/assessments/seed";
 import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
 import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedDocumentTypes } from "@/modules/documents/seed";
@@ -107,6 +110,9 @@ export async function configureSchool(
   // asked to buy, what a dossier d'inscription must contain. All year-
   // independent for the same reason — they are the school's, not any rentrée's.
   const assessmentTypeIdByCode = await seedAssessmentTypes(db, school.id);
+  // The wording beside a mark. Written only into a school that has none — see
+  // the note on seedAppreciationBands.
+  await seedAppreciationBands(db, school.id);
   await seedSupplyArticles(db, school.id);
   await seedDocumentTypes(db, school.id);
 

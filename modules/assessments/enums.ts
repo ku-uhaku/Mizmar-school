@@ -327,3 +327,85 @@ export function questionsTotal(
     questions.reduce((sum, question) => sum + question.pointsQuarters, 0),
   );
 }
+
+/**
+ * The school's appréciation scale — see
+ * prisma/schema/assessments/appreciation-band.prisma.
+ *
+ * Pure data, and deliberately: the mark sheet fills the remark in as the
+ * teacher types, on the phone as well as in the browser, so the rule that turns
+ * a mark into a word has to cross to the client. It is mirrored in
+ * mobile/src/api/types.ts for the same reason every DTO there is.
+ */
+export type AppreciationBandRow = {
+  id: string;
+  minPercentBps: number;
+  label: string;
+  labelAr: string | null;
+  colorHex: string | null;
+};
+
+/** Most rungs a scale may hold. Beyond this it is a mark sheet, not a scale. */
+export const MAX_APPRECIATION_BANDS = 12;
+
+/** Longest one rung's wording may run. It goes on a bulletin, not in an essay. */
+export const APPRECIATION_LABEL_MAX = 60;
+
+/**
+ * The scale a school starts with, floors first.
+ *
+ * Deliberately the ordinary Moroccan wording rather than something neutral: a
+ * school that agrees with it never opens the screen, and one that does not
+ * rewrites the labels it disagrees with instead of building a scale from
+ * nothing. Seeded per school — see modules/assessments/seed.ts — so editing it
+ * is editing rows, never the code.
+ */
+export const DEFAULT_APPRECIATION_BANDS: readonly {
+  minPercentBps: number;
+  label: string;
+  labelAr: string;
+  colorHex: string;
+}[] = [
+  { minPercentBps: 9000, label: "Excellent", labelAr: "ممتاز", colorHex: "#15803d" },
+  { minPercentBps: 8000, label: "Très bien", labelAr: "حسن جدا", colorHex: "#16a34a" },
+  { minPercentBps: 7000, label: "Bien", labelAr: "حسن", colorHex: "#65a30d" },
+  { minPercentBps: 6000, label: "Assez bien", labelAr: "مستحسن", colorHex: "#ca8a04" },
+  { minPercentBps: 5000, label: "Passable", labelAr: "مقبول", colorHex: "#ea580c" },
+  { minPercentBps: 0, label: "Insuffisant", labelAr: "غير كاف", colorHex: "#dc2626" },
+];
+
+/**
+ * The rung a mark falls on, or null when the scale does not reach it.
+ *
+ * A band holds only its floor, so this is "the highest rung the mark clears" —
+ * which is what makes the scale gapless without anybody maintaining ceilings.
+ * The share is of the paper's own `maxScore`, not of 20: an oral out of 10 must
+ * land on the same rung as the same performance on a paper out of 20.
+ *
+ * Null for a mark that has not been entered, for an absence, and for a scale
+ * with no rung at the bottom — in each case there is no remark to suggest, and
+ * suggesting the worst one would be a statement the school never made.
+ */
+export function appreciationFor<T extends { minPercentBps: number }>(
+  score: number | null,
+  maxScore: number,
+  bands: readonly T[],
+): T | null {
+  if (score === null || !Number.isFinite(score) || maxScore <= 0) return null;
+
+  const bps = (score / maxScore) * 10_000;
+
+  let best: T | null = null;
+  for (const band of bands) {
+    if (band.minPercentBps > bps) continue;
+    if (best === null || band.minPercentBps > best.minPercentBps) best = band;
+  }
+  return best;
+}
+
+/** Floors first, which is how a scale is read and how it is edited. */
+export function sortBands<T extends { minPercentBps: number }>(
+  bands: readonly T[],
+): T[] {
+  return [...bands].sort((a, b) => b.minPercentBps - a.minPercentBps);
+}

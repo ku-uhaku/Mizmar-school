@@ -148,6 +148,7 @@ const ar: Dictionary = {
     noStudents: "لا يوجد أي تلميذ في هذه الورقة.",
     markPresent: "تعليم كحاضر",
     absentAtExam: "غائب عن الاختبار",
+    appreciationPlaceholder: "التقدير (يُقترح حسب النقطة)",
     markRefusedTitle: "رُفضت النقطة",
     outOfRange: "يجب أن تتراوح النقطة بين 0 و{max}.",
     noMoreMarks: "لم تعد هذه الورقة تقبل نقطًا جديدة.",

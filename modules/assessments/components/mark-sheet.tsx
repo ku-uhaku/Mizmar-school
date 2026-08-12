@@ -27,7 +27,11 @@ import { formatNumber, interpolate } from "@/lib/i18n/format";
 import { passMarkOf } from "@/lib/school-settings";
 import { cn } from "@/lib/utils";
 import { saveMarksAction } from "@/modules/assessments/actions";
-import { isPassing, markStatistics } from "@/modules/assessments/enums";
+import {
+  appreciationFor,
+  isPassing,
+  markStatistics,
+} from "@/modules/assessments/enums";
 import type {
   MarkRow,
   MarkSheet as MarkSheetData,
@@ -95,6 +99,19 @@ export function MarkSheet({
     ),
   );
 
+  /**
+   * The remark the school's scale suggests for a mark — see `appreciationFor`.
+   *
+   * Written into the box as the mark is typed, and only over a box the teacher
+   * has not written in themselves: an empty one, or one still holding a
+   * suggestion from a previous mark. Anything else is their own wording and is
+   * left alone, which is what makes the suggestion safe to apply without asking.
+   */
+  const suggestions = React.useMemo(
+    () => new Set(sheet.appreciationBands.map((band) => band.label)),
+    [sheet.appreciationBands],
+  );
+
   function update(
     enrollmentId: string,
     patch: Partial<{
@@ -104,10 +121,26 @@ export function MarkSheet({
       comment: string;
     }>,
   ) {
-    setMarks((current) => ({
-      ...current,
-      [enrollmentId]: { ...current[enrollmentId], ...patch },
-    }));
+    setMarks((current) => {
+      const entry = { ...current[enrollmentId], ...patch };
+
+      if (patch.score !== undefined && patch.comment === undefined) {
+        const previous = current[enrollmentId]?.comment ?? "";
+        if (previous === "" || suggestions.has(previous)) {
+          const parsed = Number(entry.score);
+          const suggested = appreciationFor(
+            entry.score.trim() === "" || !Number.isFinite(parsed)
+              ? null
+              : parsed,
+            assessment.maxScore,
+            sheet.appreciationBands,
+          );
+          entry.comment = suggested?.label ?? "";
+        }
+      }
+
+      return { ...current, [enrollmentId]: entry };
+    });
   }
 
   /*

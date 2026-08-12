@@ -59,6 +59,9 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_VIEW,
       PERMISSIONS.ASSESSMENT_MANAGE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
+      // The wording beside a mark — the pedagogical convention they set, and
+      // the reason it is its own code rather than part of CONFIGURATION_MANAGE.
+      PERMISSIONS.ASSESSMENT_SCALE,
       // Runs the class councils of the schools they oversee and awards the
       // mentions. Not BULLETIN_PUBLISH, for the same reason as EVENT_PUBLISH:
       // handing a document to every family is the director's call in their own
@@ -144,6 +147,7 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.ASSESSMENT_GRADE,
       PERMISSIONS.ASSESSMENT_PUBLISH,
       PERMISSIONS.ASSESSMENT_DELETE,
+      PERMISSIONS.ASSESSMENT_SCALE,
       // The bulletins of their own school end to end, publication included —
       // issuing them is precisely what a head is answerable for.
       PERMISSIONS.BULLETIN_VIEW,
@@ -318,6 +322,11 @@ export const SYSTEM_ROLES: {
       // released.
       PERMISSIONS.ASSESSMENT_VIEW,
       PERMISSIONS.ASSESSMENT_GRADE,
+      // Rewords the appréciation scale. Granted where the rest of the school's
+      // setup is not: the remark beside a mark is the teachers' own language,
+      // and CONFIGURATION_MANAGE is one pair covering every configuration
+      // screen — see modules/assessments/permissions.ts.
+      PERMISSIONS.ASSESSMENT_SCALE,
       // Writes the appreciation for their own subject on a bulletin. Not
       // BULLETIN_COUNCIL: saying a pupil must work harder is not the same
       // authority as deciding they repeat the year, and that split is the whole

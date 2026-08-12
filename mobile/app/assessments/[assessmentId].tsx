@@ -11,11 +11,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { appreciationFor } from "../../src/api/appreciation";
 import {
   useMarkSheet,
   useSaveMark,
   useSetAssessmentStatus,
 } from "../../src/api/hooks";
+import type { AppreciationBand } from "../../src/api/types";
 import { interpolate, useT } from "../../src/i18n";
 import {
   Badge,
@@ -65,9 +67,10 @@ export default function MarkSheetScreen() {
     enrollmentId: string,
     score: number | null,
     isAbsent: boolean,
+    comment: string | null,
   ) {
     save.mutate(
-      { enrollmentId, score, isAbsent },
+      { enrollmentId, score, isAbsent, comment },
       {
         onSuccess: (result) => {
           if (!result.ok) {
@@ -235,6 +238,7 @@ export default function MarkSheetScreen() {
                   key={row.enrollmentId}
                   row={row}
                   maxScore={paper.maxScore}
+                  bands={data.appreciationBands}
                   onCommit={commit}
                 />
               ))
@@ -247,16 +251,25 @@ export default function MarkSheetScreen() {
 }
 
 /**
- * One pupil's mark.
+ * One pupil's mark and the appréciation beside it.
  *
  * Holds its own text while it is being typed and reports on blur — see the note
  * on the screen. The value is re-seeded from the server whenever the row's own
  * score changes, so a refusal snaps the box back to what is actually stored
  * rather than leaving a number on screen that was never saved.
+ *
+ * ── The appréciation fills itself in ────────────────────────────────────────
+ * Entering a mark writes the rung the school's scale puts it on — "Très bien" —
+ * into the remark box, and only over a box the teacher has not written in
+ * themselves: an empty one, or one still holding a suggestion from a previous
+ * mark. Their own wording is never overwritten, which is what makes filling it
+ * in safe to do without asking. The scale itself is the school's, edited on the
+ * web under Contrôles → Appréciations.
  */
 function PupilMark({
   row,
   maxScore,
+  bands,
   onCommit,
 }: {
   row: {
@@ -266,12 +279,15 @@ function PupilMark({
     studentCode: string;
     score: number | null;
     isAbsent: boolean;
+    comment: string | null;
   };
   maxScore: number;
+  bands: AppreciationBand[];
   onCommit: (
     enrollmentId: string,
     score: number | null,
     isAbsent: boolean,
+    comment: string | null,
   ) => void;
 }) {
   const theme = useTheme();
@@ -281,17 +297,44 @@ function PupilMark({
   const [draft, setDraft] = useState(stored);
   const [lastStored, setLastStored] = useState(stored);
 
+  const storedComment = row.comment ?? "";
+  const [commentDraft, setCommentDraft] = useState(storedComment);
+  const [lastComment, setLastComment] = useState(storedComment);
+
   // Re-seed when the server's value moves under us, without clobbering what is
   // being typed right now.
   if (stored !== lastStored) {
     setLastStored(stored);
     setDraft(stored);
   }
+  if (storedComment !== lastComment) {
+    setLastComment(storedComment);
+    setCommentDraft(storedComment);
+  }
+
+  /** Whether the box still holds a suggestion rather than the teacher's words. */
+  function isSuggestion(text: string): boolean {
+    const trimmed = text.trim();
+    return trimmed === "" || bands.some((band) => band.label === trimmed);
+  }
+
+  /**
+   * The remark to store alongside a mark: the scale's rung when the box is
+   * still a suggestion, and whatever the teacher wrote when it is not.
+   */
+  function remarkFor(score: number | null): string | null {
+    if (!isSuggestion(commentDraft)) return commentDraft.trim() || null;
+    return appreciationFor(score, maxScore, bands)?.label ?? null;
+  }
 
   function blur() {
     const trimmed = draft.trim().replace(",", ".");
     if (trimmed === "") {
-      if (row.score !== null) onCommit(row.enrollmentId, null, row.isAbsent);
+      if (row.score !== null) {
+        const remark = remarkFor(null);
+        setCommentDraft(remark ?? "");
+        onCommit(row.enrollmentId, null, row.isAbsent, remark);
+      }
       return;
     }
 
@@ -300,17 +343,31 @@ function PupilMark({
       setDraft(stored);
       return;
     }
-    if (parsed === row.score) return;
+
+    const remark = remarkFor(parsed);
+    if (parsed === row.score && remark === (row.comment ?? null)) return;
+    setCommentDraft(remark ?? "");
 
     // Entering a mark means the pupil sat the paper, so it clears an absence
     // rather than leaving the two contradicting each other.
-    onCommit(row.enrollmentId, parsed, false);
+    onCommit(row.enrollmentId, parsed, false, remark);
+  }
+
+  /** The remark on its own, when the teacher rewords what was suggested. */
+  function blurComment() {
+    const trimmed = commentDraft.trim();
+    if (trimmed === (row.comment ?? "")) return;
+    onCommit(row.enrollmentId, row.score, row.isAbsent, trimmed || null);
   }
 
   function toggleAbsent() {
     const next = !row.isAbsent;
-    // An absence is not a zero — the score goes, it does not become one.
-    onCommit(row.enrollmentId, next ? null : row.score, next);
+    // An absence is not a zero — the score goes, it does not become one. The
+    // suggested remark goes with it, since it described a mark that is gone;
+    // a remark the teacher wrote themselves stays.
+    const remark = next ? (isSuggestion(commentDraft) ? null : commentDraft.trim() || null) : remarkFor(row.score);
+    setCommentDraft(remark ?? "");
+    onCommit(row.enrollmentId, next ? null : row.score, next, remark);
   }
 
   return (
@@ -365,6 +422,27 @@ function PupilMark({
       </View>
 
       <Divider />
+
+      {/* The appréciation. Shown even for an absent pupil: "absent justifié,
+          rattrapage prévu" is exactly the sort of thing that goes here. */}
+      <TextInput
+        value={commentDraft}
+        onChangeText={setCommentDraft}
+        onBlur={blurComment}
+        placeholder={t.markSheet.appreciationPlaceholder}
+        placeholderTextColor={theme.muted}
+        maxLength={500}
+        style={{
+          color: theme.text,
+          backgroundColor: theme.background,
+          borderColor: theme.border,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderRadius: radius.sm,
+          paddingHorizontal: spacing.md,
+          paddingVertical: 10,
+          fontSize: 15,
+        }}
+      />
 
       <Pressable
         onPress={toggleAbsent}

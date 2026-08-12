@@ -128,6 +128,29 @@ const en = {
     markAllAbsent: "Mark the rest absent",
     clearMarks: "Clear",
 
+    // ── The appréciation scale ──────────────────────────────────────────────
+    scaleTitle: "Remarks",
+    scaleSubtitle: "The wording that goes beside a mark, and where each rung starts.",
+    scaleHelp:
+      "A rung runs from its own threshold up to the next one. Thresholds are a share of whatever the paper is marked out of, so the same scale serves an oral out of 10 and a paper out of 20.",
+    scaleEmpty: "No scale. Marks are entered without a suggested remark.",
+    scaleFrom: "From",
+    scaleCovers: "Out of 20",
+    scaleLabel: "Remark",
+    scaleLabelAr: "Remark (Arabic)",
+    scaleColour: "Colour",
+    scaleActive: "In use",
+    scaleAdd: "Add a rung",
+    scaleReset: "Restore the usual scale",
+    scaleRemove: "Remove this rung",
+    scaleSave: "Save the scale",
+    scaleSaved: "Scale saved.",
+    scaleDuplicateFloor: "Two rungs start at the same threshold.",
+    scaleTooMany: "A scale holds at most {max} rungs.",
+    scaleNoBottom:
+      "No rung starts at 0%, so the lowest marks get no suggested remark.",
+    scaleExample: "A mark of {mark}/{max} would read: {label}",
+
     // ── Summary ─────────────────────────────────────────────────────────────
     awaitingMarks: "Awaiting marks",
     awaitingMarksHint: "Published papers nobody has finished marking.",
@@ -170,6 +193,7 @@ export const permissions = {
     "assessment.grade": "Enter marks",
     "assessment.publish": "Publish and withdraw assessments",
     "assessment.delete": "Delete assessments",
+    "assessment.scale": "Edit the remarks scale",
   },
 } as const;
 

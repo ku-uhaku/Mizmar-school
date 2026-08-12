@@ -1,0 +1,60 @@
+/// One rung of the school's appréciation scale: "from this share of the paper
+/// upward, the remark reads *Très bien*".
+///
+/// ── Why a table and not a constant ──────────────────────────────────────────
+/// Every school words its appréciations differently — "Très bien / Bien /
+/// Assez bien / Insuffisant" in one, "Excellent / Satisfaisant / À revoir" in
+/// the next, five rungs here and three there — and the wording goes onto a
+/// bulletin a family keeps. Hard-coding the list would mean a migration every
+/// time a head of studies changed a word, and would put French in the code of
+/// an app that also prints in Arabic.
+///
+/// ── Why a threshold and not a range ─────────────────────────────────────────
+/// A band holds only its **floor**. Its ceiling is the next band up, derived,
+/// so the scale cannot develop a gap a mark falls into or an overlap two
+/// remarks claim. Adding a rung is one row, not a re-editing of its neighbours.
+///
+/// ── Why a share and not a score ─────────────────────────────────────────────
+/// A paper is out of 20, an oral out of 10 and a TP out of 100 — see
+/// `Assessment.maxScore`, which is per paper. A scale written in marks would be
+/// right for one denominator and silently wrong for the others, so the rung is
+/// a share of whatever the paper was marked out of. Basis points rather than a
+/// float, matching `SchoolSettings.passMarkBps`: this is the number that
+/// decides what a family reads next to their child's mark.
+///
+/// What this is *not* is the pass mark. `passMarkBps` decides whether a child
+/// passed and is one figure for the school; this decides what the remark says,
+/// and a school may perfectly well have a rung that straddles its own pass.
+model AppreciationBand {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// The floor of the band, in basis points of the paper's `maxScore` —
+  /// 10000 is full marks, 5000 a half. Unique per school, which is what stops
+  /// two rungs from claiming the same mark.
+  ///
+  /// INVARIANT (service layer): 0..10000, and the scale must have a rung at 0
+  /// so no mark is left without a remark.
+  minPercentBps Int
+
+  /// The remark itself, as it will be printed. Free text, because it is the
+  /// school's wording and not a value this code branches on.
+  label   String
+  labelAr String?
+
+  /// Recognisable at a glance on a mark sheet, the way a subject is on the
+  /// timetable. Optional — a school that wants no colour gets none.
+  colorHex String?
+
+  /// A rung retired without being deleted, so marks already carrying its
+  /// wording keep making sense. An inactive rung is never suggested.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, minPercentBps])
+  @@index([schoolId])
+  @@map("appreciation_bands")
+}

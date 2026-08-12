@@ -10,6 +10,7 @@ import {
   markStatistics,
   quartersToPoints,
   questionsTotal,
+  type AppreciationBandRow,
   type MarkStatistics,
 } from "@/modules/assessments/enums";
 
@@ -580,7 +581,60 @@ export type MarkSheet = {
   questions: PaperQuestion[];
   /** What the questions add up to — see `questionsTotal`. */
   questionsTotal: number;
+  /**
+   * The school's appréciation scale, floors first, so the sheet can fill the
+   * remark in as marks are typed. Carried on the sheet rather than fetched
+   * separately because the phone reads the whole screen in one request.
+   */
+  appreciationBands: AppreciationBandRow[];
 };
+
+/**
+ * The school's appréciation scale — the active rungs, highest floor first.
+ *
+ * Empty is a legitimate answer, not a missing row: a school that deleted every
+ * rung has said it wants no suggested remark, and the mark sheet then leaves
+ * the box blank rather than inventing one.
+ */
+export async function listAppreciationBands(
+  context: AuthContext,
+): Promise<AppreciationBandRow[]> {
+  const bands = await db.appreciationBand.findMany({
+    where: { ...schoolScope(context), isActive: true },
+    orderBy: { minPercentBps: "desc" },
+    select: {
+      id: true,
+      minPercentBps: true,
+      label: true,
+      labelAr: true,
+      colorHex: true,
+    },
+  });
+
+  return bands;
+}
+
+/**
+ * The scale as the editing screen needs it — retired rungs included, since a
+ * rung is retired *on this screen* and would otherwise vanish the moment it was
+ * unticked.
+ */
+export async function listAppreciationScale(
+  context: AuthContext,
+): Promise<(AppreciationBandRow & { isActive: boolean })[]> {
+  return db.appreciationBand.findMany({
+    where: schoolScope(context),
+    orderBy: { minPercentBps: "desc" },
+    select: {
+      id: true,
+      minPercentBps: true,
+      label: true,
+      labelAr: true,
+      colorHex: true,
+      isActive: true,
+    },
+  });
+}
 
 /**
  * One paper with its roster and whatever has been entered so far.
@@ -717,6 +771,7 @@ export async function findMarkSheet(
   });
 
   const statistics = markStatistics(rows, assessment.maxScore);
+  const appreciationBands = await listAppreciationBands(context);
 
   return {
     assessment: {
@@ -762,6 +817,7 @@ export async function findMarkSheet(
       points: quartersToPoints(question.pointsQuarters),
     })),
     questionsTotal: questionsTotal(assessment.questions),
+    appreciationBands,
   };
 }
 

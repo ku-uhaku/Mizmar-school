@@ -6,6 +6,7 @@ import {
   acceptsMarks,
   assessmentScopeKey,
   defaultAssessmentTitle,
+  MAX_APPRECIATION_BANDS,
   pointsToQuarters,
   roundScore,
 } from "@/modules/assessments/enums";
@@ -665,4 +666,83 @@ export async function setAssessmentStatus(
     data: { status },
   });
   return { ok: true };
+}
+
+export type BandInput = {
+  minPercentBps: number;
+  label: string;
+  labelAr: string | null;
+  colorHex: string | null;
+  isActive: boolean;
+};
+
+export type SaveScaleResult =
+  | { ok: true; saved: number }
+  | { ok: false; reason: "duplicate-floor" | "too-many" | "out-of-range" };
+
+/**
+ * Rewrites a school's appréciation scale in one transaction.
+ *
+ * ── Why the whole scale and not one rung at a time ──────────────────────────
+ * The rungs are only meaningful against each other: a band's ceiling is the
+ * next one's floor, so moving one moves its neighbour's range too. Saving them
+ * one at a time would mean a scale that is briefly wrong between two writes,
+ * and — worse — a floor that collides with another rung's would be refused by
+ * the unique index halfway through a reshuffle the user thought was one edit.
+ *
+ * Rungs the form no longer carries are gone afterwards. That is safe in a way
+ * it is not for most tables: nothing points at a band. A remark is copied onto
+ * the mark as text when it is entered, so rewriting the scale cannot change
+ * what a bulletin already said.
+ *
+ * Invariants the database cannot express, all enforced here:
+ *
+ *   * a floor lies in 0..10000 — it is a share of the paper, not a mark;
+ *   * no two rungs share a floor, so a mark cannot land on two remarks (the
+ *     unique index says so too, but a caught error is a 500 and this is a
+ *     message the teacher can act on);
+ *   * a scale is capped, because past a dozen rungs it stops being a scale.
+ */
+export async function saveAppreciationScale(
+  schoolId: string,
+  bands: BandInput[],
+): Promise<SaveScaleResult> {
+  if (bands.length > MAX_APPRECIATION_BANDS) {
+    return { ok: false, reason: "too-many" };
+  }
+
+  for (const band of bands) {
+    if (
+      !Number.isInteger(band.minPercentBps) ||
+      band.minPercentBps < 0 ||
+      band.minPercentBps > 10_000
+    ) {
+      return { ok: false, reason: "out-of-range" };
+    }
+  }
+
+  const floors = new Set(bands.map((band) => band.minPercentBps));
+  if (floors.size !== bands.length) {
+    return { ok: false, reason: "duplicate-floor" };
+  }
+
+  // Cleared and rewritten rather than reconciled row by row, and scoped by the
+  // school so nothing outside it is touched. The floors carry a unique index,
+  // so swapping two rungs over would collide halfway through a reconciliation
+  // the user thought was one edit; writing against an empty slate cannot.
+  await db.$transaction([
+    db.appreciationBand.deleteMany({ where: { schoolId } }),
+    db.appreciationBand.createMany({
+      data: bands.map((band) => ({
+        schoolId,
+        minPercentBps: band.minPercentBps,
+        label: band.label,
+        labelAr: band.labelAr,
+        colorHex: band.colorHex,
+        isActive: band.isActive,
+      })),
+    }),
+  ]);
+
+  return { ok: true, saved: bands.length };
 }

@@ -8,6 +8,7 @@ import {
   requiredText,
 } from "@/lib/validation";
 import {
+  APPRECIATION_LABEL_MAX,
   ASSESSMENT_STATUSES,
   GENERATE_SCOPES,
   MAX_SEQUENCE,
@@ -68,4 +69,26 @@ export function assessmentSchema(t: Dictionary) {
 
 export function statusSchema(t: Dictionary) {
   return z.object({ status: enumField(ASSESSMENT_STATUSES, t.validation) });
+}
+
+/**
+ * One rung of the appréciation scale, as the editing screen posts it.
+ *
+ * The floor is typed as a percentage because that is how a school talks about
+ * it — "à partir de 90%" — and stored in basis points, which is the same trick
+ * `percent` fields use elsewhere. Halves are accepted (87,5%) since a scale of
+ * five rungs over 20 marks does not divide into whole percents.
+ */
+export function appreciationBandSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    minPercent: z.coerce
+      .number({ error: v.invalidNumber })
+      .min(0, { error: v.invalidNumber })
+      .max(100, { error: v.invalidNumber }),
+    label: requiredText(v, { max: APPRECIATION_LABEL_MAX }),
+    labelAr: optionalText(APPRECIATION_LABEL_MAX),
+    colorHex: optionalText(9),
+    isActive: z.boolean(),
+  });
 }

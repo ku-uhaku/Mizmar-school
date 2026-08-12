@@ -281,6 +281,20 @@ export type MarkRow = {
   comment: string | null;
 };
 
+/**
+ * One rung of the school's appréciation scale. Mirrors `AppreciationBandRow`.
+ *
+ * `minPercentBps` is a share of the paper's own `maxScore` — 10000 is full
+ * marks — so the same rung serves an oral out of 10 and a paper out of 20.
+ */
+export type AppreciationBand = {
+  id: string;
+  minPercentBps: number;
+  label: string;
+  labelAr: string | null;
+  colorHex: string | null;
+};
+
 /** One numbered question of the paper, in points. Mirrors `PaperQuestion`. */
 export type PaperQuestion = {
   id: string;
@@ -314,6 +328,11 @@ export type MarkSheet = {
   isDevoir: boolean;
   questions: PaperQuestion[];
   questionsTotal: number;
+  /**
+   * The school's appréciation scale, highest floor first, so the phone can
+   * suggest the remark as a mark is typed rather than after a round trip.
+   */
+  appreciationBands: AppreciationBand[];
 };
 
 /** A kind of paper the school lets a teacher set. Mirrors `AssessmentTypeOption`. */

@@ -174,6 +174,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Subject: "configuration",
   LevelSubject: "configuration",
   AssessmentType: "configuration",
+  AppreciationBand: "configuration",
   DocumentType: "configuration",
   FeeType: "configuration",
   FeeRate: "configuration",

@@ -70,6 +70,9 @@ model School {
   /// The kinds of evaluation this school runs, and every paper set under them.
   assessmentTypes AssessmentType[]
   assessments     Assessment[]
+  /// How this school words the remark beside a mark. See
+  /// prisma/schema/assessments/appreciation-band.prisma.
+  appreciationBands AppreciationBand[]
   /// The report cards issued here. See prisma/schema/bulletins/.
   bulletins       Bulletin[]
   /// What the school can charge. How much, per year, is FeeRate.

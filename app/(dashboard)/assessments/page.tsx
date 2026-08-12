@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { MessageSquareTextIcon } from "lucide-react";
 
 import { PageHeader } from "@/components/shell/page-header";
+import { Button } from "@/components/ui/button";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
@@ -77,7 +80,16 @@ export default async function AssessmentsPage({
       <PageHeader
         title={t.assessment.title}
         description={t.assessment.subtitle}
-      />
+      >
+        {/* The wording beside a mark is set here rather than under
+            /configuration — see the note on the page it links to. */}
+        <Button asChild variant="outline">
+          <Link href="/assessments/appreciations">
+            <MessageSquareTextIcon />
+            {t.assessment.scaleTitle}
+          </Link>
+        </Button>
+      </PageHeader>
 
       <AssessmentsManager
         defaultDate={defaultDateWithin(context.currentSchoolYear)}

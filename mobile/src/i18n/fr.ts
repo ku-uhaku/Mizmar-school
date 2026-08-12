@@ -149,6 +149,7 @@ const fr: Dictionary = {
     noStudents: "Aucun élève sur cette copie.",
     markPresent: "Marquer présent",
     absentAtExam: "Absent à l'épreuve",
+    appreciationPlaceholder: "Appréciation (proposée d'après la note)",
     markRefusedTitle: "Note refusée",
     outOfRange: "La note doit être comprise entre 0 et {max}.",
     noMoreMarks: "Cette copie n'accepte plus de notes.",

@@ -152,6 +152,7 @@ const en = {
     noStudents: "No pupil on this paper.",
     markPresent: "Mark present",
     absentAtExam: "Absent from the exam",
+    appreciationPlaceholder: "Remark (filled in from the mark)",
     markRefusedTitle: "Mark refused",
     outOfRange: "The mark must be between 0 and {max}.",
     noMoreMarks: "This paper no longer accepts marks.",

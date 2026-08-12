@@ -131,6 +131,30 @@ const fr = {
     markAllAbsent: "Marquer le reste absent",
     clearMarks: "Effacer",
 
+    // ── Le barème des appréciations ─────────────────────────────────────────
+    scaleTitle: "Appréciations",
+    scaleSubtitle:
+      "Le mot porté à côté de la note, et le seuil à partir duquel il s'applique.",
+    scaleHelp:
+      "Un palier va de son propre seuil jusqu'au suivant. Les seuils s'expriment en pourcentage du barème de l'épreuve : la même échelle sert un oral sur 10 et un contrôle sur 20.",
+    scaleEmpty: "Aucun barème. Les notes se saisissent sans appréciation proposée.",
+    scaleFrom: "À partir de",
+    scaleCovers: "Sur 20",
+    scaleLabel: "Appréciation",
+    scaleLabelAr: "Appréciation (arabe)",
+    scaleColour: "Couleur",
+    scaleActive: "Utilisé",
+    scaleAdd: "Ajouter un palier",
+    scaleReset: "Rétablir le barème usuel",
+    scaleRemove: "Supprimer ce palier",
+    scaleSave: "Enregistrer le barème",
+    scaleSaved: "Barème enregistré.",
+    scaleDuplicateFloor: "Deux paliers partent du même seuil.",
+    scaleTooMany: "Un barème compte au plus {max} paliers.",
+    scaleNoBottom:
+      "Aucun palier ne part de 0 %, les notes les plus basses n'auront donc pas d'appréciation proposée.",
+    scaleExample: "Une note de {mark}/{max} donnerait : {label}",
+
     // ── Synthèse ────────────────────────────────────────────────────────────
     awaitingMarks: "En attente de notes",
     awaitingMarksHint: "Contrôles publiés dont la correction n'est pas finie.",
@@ -173,6 +197,7 @@ export const permissions = {
     "assessment.grade": "Saisir les notes",
     "assessment.publish": "Publier et retirer les contrôles",
     "assessment.delete": "Supprimer les contrôles",
+    "assessment.scale": "Modifier le barème des appréciations",
   },
 };
 

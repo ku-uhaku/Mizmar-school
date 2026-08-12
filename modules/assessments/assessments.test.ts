@@ -6,10 +6,13 @@ import {
   ASSESSMENT_STAGES,
   ASSESSMENT_STATUSES,
   COUNTED_STATUSES,
+  DEFAULT_APPRECIATION_BANDS,
   DEFAULT_PASS_BPS,
   FAMILY_VISIBLE_STATUSES,
+  MAX_APPRECIATION_BANDS,
   MAX_SEQUENCE,
   acceptsMarks,
+  appreciationFor,
   assessmentScopeKey,
   awaitingValidation,
   isPassing,
@@ -18,6 +21,7 @@ import {
   quartersToPoints,
   questionsTotal,
   roundScore,
+  sortBands,
   stageOf,
 } from "@/modules/assessments/enums";
 import {
@@ -1429,5 +1433,76 @@ describe("resolveProgramme", () => {
   it("answers nothing for a class that does not exist", async () => {
     expect(await resolveProgramme("nowhere")).toEqual([]);
     expect(of("levelSubject", "findMany")).toEqual([]);
+  });
+});
+
+/**
+ * The appréciation scale — the word that goes next to the mark.
+ *
+ * What matters about it is that it is gapless and denominator-independent: a
+ * rung holds only its floor and takes its ceiling from the rung above, and the
+ * mark is compared as a *share* of the paper, because `maxScore` is per paper.
+ * Both are the sort of thing that looks right on a scale out of 20 and turns
+ * out to be wrong the first time somebody marks an oral out of 10.
+ */
+describe("the appréciation scale", () => {
+  const scale = DEFAULT_APPRECIATION_BANDS;
+
+  it("puts a mark on the highest rung it clears", () => {
+    expect(appreciationFor(19, 20, scale)?.label).toBe("Excellent");
+    expect(appreciationFor(16.5, 20, scale)?.label).toBe("Très bien");
+    expect(appreciationFor(12, 20, scale)?.label).toBe("Assez bien");
+    expect(appreciationFor(4, 20, scale)?.label).toBe("Insuffisant");
+  });
+
+  it("lands a rung exactly on its own floor", () => {
+    // 90% of 20 is 18, and the rung starting at 90% must claim it rather than
+    // leave it to the one below.
+    expect(appreciationFor(18, 20, scale)?.label).toBe("Excellent");
+    expect(appreciationFor(17.9, 20, scale)?.label).toBe("Très bien");
+  });
+
+  it("reads the same rung whatever the paper is marked out of", () => {
+    // The same performance — 85% — on an oral out of 10 and a paper out of 20.
+    expect(appreciationFor(8.5, 10, scale)?.label).toBe(
+      appreciationFor(17, 20, scale)?.label,
+    );
+    expect(appreciationFor(85, 100, scale)?.label).toBe("Très bien");
+  });
+
+  it("suggests nothing for a pupil who has no mark", () => {
+    expect(appreciationFor(null, 20, scale)).toBeNull();
+  });
+
+  it("suggests nothing when the scale does not reach the mark", () => {
+    // A scale whose lowest rung starts at 50% says nothing about a 4/20 —
+    // inventing the bottom rung would be a statement the school never made.
+    const partial = [{ minPercentBps: 5000, label: "Passable" }];
+    expect(appreciationFor(4, 20, partial)).toBeNull();
+    expect(appreciationFor(14, 20, partial)?.label).toBe("Passable");
+  });
+
+  it("says nothing rather than dividing by a paper marked out of nothing", () => {
+    expect(appreciationFor(0, 0, scale)).toBeNull();
+  });
+
+  it("ships a scale that covers every mark from 0 up", () => {
+    // The floor at 0 is what makes the scale gapless — without it the weakest
+    // marks silently get no remark. Guarded because it is one edited constant
+    // away from being untrue.
+    expect(scale.some((band) => band.minPercentBps === 0)).toBe(true);
+    expect(new Set(scale.map((band) => band.minPercentBps)).size).toBe(
+      scale.length,
+    );
+    expect(scale.length).toBeLessThanOrEqual(MAX_APPRECIATION_BANDS);
+  });
+
+  it("reads a scale highest first, however it was stored", () => {
+    const shuffled = [...scale].sort((a, b) => a.minPercentBps - b.minPercentBps);
+    expect(sortBands(shuffled).map((band) => band.minPercentBps)).toEqual(
+      scale.map((band) => band.minPercentBps),
+    );
+    // The order it is read in must not change which rung a mark lands on.
+    expect(appreciationFor(19, 20, shuffled)?.label).toBe("Excellent");
   });
 });

@@ -1,6 +1,7 @@
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 import {
+  DEFAULT_APPRECIATION_BANDS,
   assessmentScopeKey,
   defaultAssessmentTitle,
 } from "@/modules/assessments/enums";
@@ -156,6 +157,42 @@ export async function seedAssessmentTypes(
 
   log("assessment types", idByCode.size);
   return idByCode;
+}
+
+/**
+ * The appréciation scale a school starts with — see
+ * `DEFAULT_APPRECIATION_BANDS`.
+ *
+ * ── Why this one seed does not upsert ───────────────────────────────────────
+ * The wording is the whole point of the table: a school opens the screen and
+ * rewrites "Assez bien" to whatever it says on its own bulletins. An upsert
+ * would put the default back on every re-seed and quietly undo that, which is
+ * exactly what the "a school you added by hand survives a re-seed" rule is
+ * about. So the scale is written only into a school that has none, and a school
+ * that deleted every rung has said it wants no suggested remark — leaving it
+ * empty is the honest answer, not a gap to fill.
+ *
+ * Still idempotent: a second run finds rows and writes nothing.
+ */
+export async function seedAppreciationBands(
+  db: SeedDb,
+  schoolId: string,
+): Promise<number> {
+  const existing = await db.appreciationBand.count({ where: { schoolId } });
+  if (existing > 0) return 0;
+
+  await db.appreciationBand.createMany({
+    data: DEFAULT_APPRECIATION_BANDS.map((band) => ({
+      schoolId,
+      minPercentBps: band.minPercentBps,
+      label: band.label,
+      labelAr: band.labelAr,
+      colorHex: band.colorHex,
+    })),
+  });
+
+  log("appreciation bands", DEFAULT_APPRECIATION_BANDS.length);
+  return DEFAULT_APPRECIATION_BANDS.length;
 }
 
 // ── The papers themselves, and the marks on them ─────────────────────────────

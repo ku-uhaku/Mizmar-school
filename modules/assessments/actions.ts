@@ -15,16 +15,22 @@ import { currentSchoolYearId } from "@/lib/scope";
 import {
   createDevoir,
   generateAssessments,
+  saveAppreciationScale,
   saveMarks,
   setAssessmentStatus,
+  type BandInput,
   type MarkInput,
 } from "@/modules/assessments/service";
 import {
+  appreciationBandSchema,
   assessmentSchema,
   generateSchema,
   statusSchema,
 } from "@/modules/assessments/validation";
-import { NOTES_MAX } from "@/modules/assessments/enums";
+import {
+  MAX_APPRECIATION_BANDS,
+  NOTES_MAX,
+} from "@/modules/assessments/enums";
 import { devoirSchema } from "@/modules/classroom/validation";
 
 /**
@@ -662,5 +668,86 @@ export async function createDevoirAction(
 
     refresh();
     return success(t.classroom.devoirCreated);
+  });
+}
+
+/**
+ * Rewrites the school's appréciation scale.
+ *
+ * The rungs travel as parallel arrays, the same shape a mark sheet posts in and
+ * for the same reason — see `saveMarksAction`. The whole scale goes at once
+ * because a rung only means anything against its neighbours; see
+ * `saveAppreciationScale`.
+ *
+ * Authorized on ASSESSMENT_SCALE **in the school in context**, which is what
+ * lets a school give its teachers the wording without giving them the fee grid:
+ * the configuration permission is one pair covering every configuration screen,
+ * and this is deliberately not it.
+ */
+export async function saveAppreciationScaleAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_SCALE);
+
+    const percents = listField(formData, "minPercent");
+    const labels = listField(formData, "label");
+    const labelsAr = listField(formData, "labelAr");
+    const colors = listField(formData, "colorHex");
+    const active = listField(formData, "active");
+
+    if (
+      labels.length !== percents.length ||
+      labelsAr.length !== percents.length ||
+      colors.length !== percents.length ||
+      active.length !== percents.length
+    ) {
+      return failure(t.errors.invalid);
+    }
+
+    const schema = appreciationBandSchema(t);
+    const bands: BandInput[] = [];
+
+    for (const [index, percent] of percents.entries()) {
+      const parsed = schema.safeParse({
+        minPercent: percent,
+        label: labels[index],
+        labelAr: labelsAr[index],
+        colorHex: colors[index],
+        isActive: active[index] === "1",
+      });
+      if (!parsed.success) {
+        return failure(t.errors.invalid, fieldErrors(parsed.error), formValues(formData));
+      }
+
+      bands.push({
+        // Percent in, basis points stored — see the note on the column.
+        minPercentBps: Math.round(parsed.data.minPercent * 100),
+        label: parsed.data.label,
+        labelAr: parsed.data.labelAr,
+        colorHex: parsed.data.colorHex,
+        isActive: parsed.data.isActive,
+      });
+    }
+
+    const result = await saveAppreciationScale(schoolId, bands);
+    if (!result.ok) {
+      if (result.reason === "duplicate-floor") {
+        return failure(t.assessment.scaleDuplicateFloor);
+      }
+      if (result.reason === "too-many") {
+        return failure(
+          interpolate(t.assessment.scaleTooMany, { max: MAX_APPRECIATION_BANDS }),
+        );
+      }
+      return failure(t.errors.invalid);
+    }
+
+    refresh();
+    return success(t.assessment.scaleSaved);
   });
 }
