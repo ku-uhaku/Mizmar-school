@@ -32,8 +32,22 @@ function createClient() {
 
   return new PrismaClient({
     adapter,
+    /*
+      `PRISMA_LOG_QUERIES=1 npm run dev` prints every statement.
+
+      Off by default and never on in production, because it prints one line per
+      query and the dashboard alone issues fifty. It exists because the only
+      honest way to find an N+1 in this app is to count the statements one page
+      render actually makes — reading the code finds the loops you thought of,
+      and a nested `select` that Prisma quietly fans out into a chunked `IN` is
+      exactly the one you did not.
+    */
     log:
-      process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+      process.env.NODE_ENV === "development"
+        ? process.env.PRISMA_LOG_QUERIES === "1"
+          ? ["query", "warn", "error"]
+          : ["warn", "error"]
+        : ["error"],
   });
 }
 

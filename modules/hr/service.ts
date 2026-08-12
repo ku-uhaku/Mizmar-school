@@ -2,6 +2,11 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import {
+  dispatch,
+  notify,
+  staffAccount,
+} from "@/modules/notifications/service";
+import {
   codePrefixOf,
   formatEntityCode,
   sequenceFromCode,
@@ -662,7 +667,50 @@ export async function decideLeave(
 
   await refreshStaffLeaveStatus(request.staffId);
 
+  await dispatch("LEAVE_DECIDED", () =>
+    tellTheEmployee(request.id, input.status),
+  );
+
   return { staffId: request.staffId };
+}
+
+/**
+ * Tells somebody what was decided about their own congé.
+ *
+ * ── The one HR notification that is not administrative ──────────────────────
+ * A leave request is the one thing in this module an employee is genuinely
+ * *waiting* on — they have a train to book or a family to tell — and until now
+ * the answer arrived by them asking somebody. Everything else RH does is the
+ * school's business about a person; this is the person's own business.
+ *
+ * Reaches nobody when the employee has no account, which is most of a payroll.
+ * See `staffAccount`.
+ */
+async function tellTheEmployee(
+  leaveId: string,
+  status: string,
+): Promise<void> {
+  const request = await db.leaveRequest.findUnique({
+    where: { id: leaveId },
+    select: {
+      id: true,
+      startsOn: true,
+      staffId: true,
+      staff: { select: { schoolId: true, school: { select: { organizationId: true } } } },
+    },
+  });
+  if (!request) return;
+
+  await notify({
+    organizationId: request.staff.school.organizationId,
+    schoolId: request.staff.schoolId,
+    kind: "LEAVE_DECIDED",
+    subjectId: request.id,
+    // A decision reversed is a second answer, and the employee needs both.
+    dedupeOn: status,
+    params: { date: request.startsOn.toISOString(), status },
+    targets: await staffAccount(request.staffId),
+  });
 }
 
 // ── Avances sur salaire ──────────────────────────────────────────────────────
@@ -747,17 +795,61 @@ export async function decideAdvance(
     return { ok: false, reason: "ALREADY_DECIDED" };
   }
 
+  const status = approve ? "APPROVED" : "CANCELLED";
+
   await db.salaryAdvance.update({
     where: { id: advance.id },
     data: {
-      status: approve ? "APPROVED" : "CANCELLED",
+      status,
       approvedById,
       approvedAt: new Date(),
       decisionNote,
     },
   });
 
+  await dispatch("ADVANCE_DECIDED", () =>
+    tellAboutAdvance(advance.id, status),
+  );
+
   return { ok: true };
+}
+
+/**
+ * Tells somebody whether they are getting the avance they asked for.
+ *
+ * Somebody asks for an advance because they need the money, which makes the
+ * answer the most time-sensitive thing RH produces — and the amount travels in
+ * centimes so the employee reads it in their own language's formatting rather
+ * than the payroll clerk's. Note that this is the *decision*, not the handover:
+ * `payAdvance` is a separate act by a different person, and telling somebody
+ * their advance was approved is not telling them it is at the desk.
+ */
+async function tellAboutAdvance(
+  advanceId: string,
+  status: string,
+): Promise<void> {
+  const advance = await db.salaryAdvance.findUnique({
+    where: { id: advanceId },
+    select: {
+      id: true,
+      amountCentimes: true,
+      staffId: true,
+      staff: {
+        select: { schoolId: true, school: { select: { organizationId: true } } },
+      },
+    },
+  });
+  if (!advance) return;
+
+  await notify({
+    organizationId: advance.staff.school.organizationId,
+    schoolId: advance.staff.schoolId,
+    kind: "ADVANCE_DECIDED",
+    subjectId: advance.id,
+    dedupeOn: status,
+    params: { amountCentimes: advance.amountCentimes, status },
+    targets: await staffAccount(advance.staffId),
+  });
 }
 
 export type PayAdvanceInput = {

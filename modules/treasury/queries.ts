@@ -1732,44 +1732,94 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
     };
   }
 
-  const lines = await db.enrollmentFee.findMany({
-    where: {
-      // DUE only, exactly as every other standing on these tables counts.
-      // Omitting it charged the school for every line it had itself waived or
-      // cancelled — a bourse, a discount, a withdrawn enrolment — so the
-      // dashboard's charged, outstanding and overdue figures were all inflated
-      // and disagreed with the sum of the rows on /caisse/familles.
-      status: "DUE",
-      enrollment: {
-        schoolYearId: yearId,
-        student: { schoolId },
-      },
+  /*
+    The scope both figures are taken over.
+
+    DUE only, exactly as every other standing on these tables counts. Omitting
+    it charged the school for every line it had itself waived or cancelled — a
+    bourse, a discount, a withdrawn enrolment — so the dashboard's charged,
+    outstanding and overdue figures were all inflated and disagreed with the sum
+    of the rows on /caisse/familles.
+  */
+  const scope = {
+    status: "DUE",
+    enrollment: {
+      schoolYearId: yearId,
+      student: { schoolId },
     },
-    select: {
-      amountCentimes: true,
-      dueDate: true,
-      allocations: {
-        // POSTED, stated positively, like every other read of these rows.
-        where: { payment: POSTED },
-        select: { amountCentimes: true },
-      },
-    },
-  });
+  } as const;
 
   const now = new Date();
-  let charged = 0;
-  let paid = 0;
+
+  /*
+    ── Summed by the database, not by this process ──────────────────────────
+    This used to read every DUE line of the year with its allocations nested,
+    and add them up in a loop — on a demo school that is 11,000 rows and 7,000
+    more hanging off them, marshalled into JavaScript to produce four integers,
+    on the screen every single user opens first. A group of five schools would
+    have moved a hundred thousand rows per dashboard.
+
+    Two aggregates answer charged and paid without a row leaving SQLite.
+
+    Overdue cannot be one of them — it is a *per line* question, since a line
+    that is fully settled is not overdue however late its date — so it stays a
+    read, but only over the lines whose date has actually passed. That filter
+    is the same comparison `isOverdue` makes: `dueDate` is stored at midnight
+    and lateness is measured by day, so "strictly before today" is exact rather
+    than an approximation of it. In October that is nearly nothing.
+  */
+  const [chargedAgg, paidAgg, pastDue, settledPastDue] = await Promise.all([
+    db.enrollmentFee.aggregate({
+      where: scope,
+      _sum: { amountCentimes: true },
+    }),
+    db.paymentAllocation.aggregate({
+      // POSTED, stated positively, like every other read of these rows.
+      where: { payment: POSTED, enrollmentFee: scope },
+      _sum: { amountCentimes: true },
+    }),
+    db.enrollmentFee.findMany({
+      where: { ...scope, dueDate: { lt: startOfDay(now) } },
+      select: { id: true, amountCentimes: true },
+    }),
+    /*
+      Settled-per-line, as one flat row per line rather than one row per
+      allocation nested under its line. Nesting reads the allocations back
+      through a chunked `IN (…)` — eight separate statements on this demo — and
+      hands back every individual allocation only for the loop below to add them
+      up. `groupBy` is the same answer in one statement and one row per line.
+    */
+    db.paymentAllocation.groupBy({
+      by: ["enrollmentFeeId"],
+      where: {
+        payment: POSTED,
+        enrollmentFee: { ...scope, dueDate: { lt: startOfDay(now) } },
+      },
+      _sum: { amountCentimes: true },
+    }),
+  ]);
+
+  const charged = chargedAgg._sum.amountCentimes ?? 0;
+  const paid = paidAgg._sum.amountCentimes ?? 0;
+
+  const settledByLine = new Map(
+    settledPastDue.map((row) => [row.enrollmentFeeId, row._sum.amountCentimes ?? 0]),
+  );
+
+  /*
+    Still line by line, and deliberately so. `sum(charged) - sum(paid)` over the
+    past-due lines would be the same figure *only* while no line is ever settled
+    for more than it charges — which the service enforces on write, but which a
+    legacy row or a hand-repaired one could break. There, subtracting in bulk
+    would let one over-paid line quietly cancel out another family's arrears.
+    `outstandingOf` floors each line at zero, so it cannot.
+  */
   let overdue = 0;
-
-  for (const line of lines) {
-    const settled = sumCentimes(
-      line.allocations.map((allocation) => allocation.amountCentimes),
+  for (const line of pastDue) {
+    overdue += outstandingOf(
+      line.amountCentimes,
+      settledByLine.get(line.id) ?? 0,
     );
-    charged += line.amountCentimes;
-    paid += settled;
-
-    const owing = outstandingOf(line.amountCentimes, settled);
-    if (owing > 0 && isOverdue(line.dueDate, now)) overdue += owing;
   }
 
   return {

@@ -42,22 +42,22 @@ function resolveParams(
   const params = { ...item.params };
 
   /*
-    `status` means two different things and is deliberately not one lookup.
+    `status` means five different things, and is deliberately five lookups.
 
-    A dossier's status comes from the requests module and a register's from the
-    classroom module, and the two vocabularies overlap in neither direction. A
-    single map would have to merge them, which is how "READY" ends up rendering
-    as an attendance state the first time somebody adds one.
+    A dossier's status comes from the requests module, a register's from the
+    classroom module, a leave's from RH — and the vocabularies overlap in
+    neither direction while sharing values that look interchangeable and are
+    not. "APPROVED" is a supply list the office agreed to buy and a leave the
+    directrice granted; "REJECTED" is a refused list and a refused congé. One
+    merged map would render whichever was declared last, and the bug would show
+    up as a single wrong word in a sentence that otherwise reads perfectly.
 
     Falls back to the raw code rather than an empty slot: a status this build
     has never heard of should read badly, not read as nothing.
   */
   if (params.status) {
-    const vocabulary: Record<string, string> =
-      item.kind === "ATTENDANCE_MISSED"
-        ? t.classroomOptions.attendanceStatuses
-        : t.requestOptions.statuses;
-    params.status = vocabulary[params.status] ?? params.status;
+    params.status =
+      statusVocabulary(item.kind, t)[params.status] ?? params.status;
   }
 
   // Dates travel as ISO for the same reason money travels in centimes: the
@@ -79,4 +79,32 @@ function resolveParams(
   }
 
   return params;
+}
+
+/**
+ * Which module's words a kind's `status` is spelled in.
+ *
+ * Each entry points at the owning module's own labels rather than restating
+ * them, so a school renaming a status renames it everywhere at once — that is
+ * the whole reason the row stores a code.
+ */
+function statusVocabulary(
+  kind: NotificationItem["kind"],
+  t: Dictionary,
+): Record<string, string> {
+  switch (kind) {
+    case "ATTENDANCE_MISSED":
+    case "TRANSPORT_MISSED":
+      // The bus register and the classroom one share a vocabulary by design —
+      // see RIDER_ATTENDANCE_STATUSES, which mirrors ATTENDANCE_STATUSES.
+      return t.classroomOptions.attendanceStatuses;
+    case "SUPPLY_LIST_REVIEWED":
+      return t.supplyOptions.statuses;
+    case "LEAVE_DECIDED":
+      return t.hrOptions.leaveStatuses;
+    case "ADVANCE_DECIDED":
+      return t.hrOptions.advanceStatuses;
+    default:
+      return t.requestOptions.statuses;
+  }
 }

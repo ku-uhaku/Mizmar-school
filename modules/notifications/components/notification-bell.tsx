@@ -38,21 +38,33 @@ import type { Inbox } from "@/modules/notifications/queries";
  * on a spare screen over a weekend would make several thousand pointless
  * round trips, and would wake the database to answer every one of them.
  *
- * ── Why the first count comes from the server ───────────────────────────────
- * `initial` is read in the layout and passed down, so the badge is correct in
- * the first paint. Fetching it on mount instead would show every reader a bell
- * with no dot for a moment and then pop one in, which reads as a notification
- * having just arrived when it has been sitting there since Tuesday.
+ * ── Why the first count comes from the server, and only the count ───────────
+ * `initialUnread` is read in the layout and passed down, so the badge is right
+ * in the first paint. Fetching it on mount instead would show every reader a
+ * bell with no dot for a moment and then pop one in, which reads as a
+ * notification having just arrived when it has been sitting there since
+ * Tuesday.
+ *
+ * The *list* is deliberately not fetched there. It is invisible until somebody
+ * opens the menu, and the menu reloads on open regardless — so reading it in
+ * the layout put a second query on every page render of the whole app to
+ * prepare a dropdown almost nobody opens. The badge is the only part that has
+ * to be right before a click, and one `count` answers it.
  */
 
 /** How often the count is re-read while somebody is actually looking. */
 const POLL_MS = 60_000;
 
-export function NotificationBell({ initial }: { initial: Inbox }) {
+export function NotificationBell({ initialUnread }: { initialUnread: number }) {
   const t = useT();
   const locale = useLocale();
 
-  const [inbox, setInbox] = React.useState<Inbox>(initial);
+  // Items start empty and arrive on first open; the count is server-rendered.
+  const [inbox, setInbox] = React.useState<Inbox>({
+    items: [],
+    unread: initialUnread,
+  });
+  const [loaded, setLoaded] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
   const reload = React.useCallback(() => {
@@ -60,7 +72,10 @@ export function NotificationBell({ initial }: { initial: Inbox }) {
     // worth an error state: the next tick will either fix it or the reader will
     // open the page, which renders on the server and cannot be stale.
     loadInboxAction()
-      .then(setInbox)
+      .then((fresh) => {
+        setInbox(fresh);
+        setLoaded(true);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -175,7 +190,10 @@ export function NotificationBell({ initial }: { initial: Inbox }) {
 
         {inbox.items.length === 0 ? (
           <p className="text-muted-foreground px-2 py-6 text-center text-sm">
-            {t.notification.empty}
+            {/* Before the first answer comes back there is nothing to say yet —
+              claiming the inbox is empty would be a guess, and a wrong one for
+              anyone whose badge is showing a number. */}
+            {loaded ? t.notification.empty : "…"}
           </p>
         ) : (
           inbox.items.map((item) => {

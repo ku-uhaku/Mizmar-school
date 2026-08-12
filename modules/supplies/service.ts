@@ -1,7 +1,19 @@
 import "server-only";
 
+import { displayName } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { canReviewTo, isEditableByAuthor } from "@/modules/supplies/enums";
+import {
+  dispatch,
+  guardiansOfClass,
+  notify,
+  staffHolding,
+} from "@/modules/notifications/service";
+import {
+  canReviewTo,
+  isEditableByAuthor,
+  isVisibleToFamilies,
+} from "@/modules/supplies/enums";
+import { SUPPLY_PERMISSIONS } from "@/modules/supplies/permissions";
 
 /**
  * Writes and invariants for the supplies module.
@@ -208,7 +220,16 @@ export async function reviewList(
 ): Promise<ReviewResult> {
   const list = await db.supplyList.findFirst({
     where: { id: listId, schoolId },
-    select: { id: true, status: true },
+    // The announcement's fields come off the row already read and scoped here,
+    // rather than from a second lookup after the write — see `tellAboutDecision`.
+    select: {
+      id: true,
+      status: true,
+      title: true,
+      authorId: true,
+      schoolClassId: true,
+      school: { select: { organizationId: true } },
+    },
   });
   if (!list) return { ok: false, reason: "not-found" };
 
@@ -228,7 +249,68 @@ export async function reviewList(
     },
   });
 
+  await dispatch("SUPPLY_LIST_REVIEWED", () =>
+    tellAboutDecision(list, schoolId, status),
+  );
+
   return { ok: true };
+}
+
+/** What `tellAboutDecision` needs, as `reviewList` has already read it. */
+type ReviewedList = {
+  id: string;
+  title: string;
+  authorId: string | null;
+  schoolClassId: string;
+  school: { organizationId: string };
+};
+
+/**
+ * The two people a decision on a list concerns.
+ *
+ * ── The families, and only once it is approved ──────────────────────────────
+ * A liste de fournitures costs a household money, and the whole point of the
+ * DRAFT → SUBMITTED → APPROVED road is that nobody is asked to buy anything the
+ * school has not agreed to ask for. So a refusal reaches the teacher who wrote
+ * it and nobody else: telling a family about a list that was turned down would
+ * have them buying things off it, which is the exact failure the review exists
+ * to prevent.
+ *
+ * ── And the author, either way ──────────────────────────────────────────────
+ * A teacher whose list is refused currently finds out by going back to look. The
+ * decision carries its own status, so approval and refusal are one kind — see
+ * the note on `SUPPLY_LIST_REVIEWED`.
+ */
+async function tellAboutDecision(
+  list: ReviewedList,
+  schoolId: string,
+  status: string,
+): Promise<void> {
+  const organizationId = list.school.organizationId;
+
+  if (list.authorId) {
+    await notify({
+      organizationId,
+      schoolId,
+      kind: "SUPPLY_LIST_REVIEWED",
+      subjectId: list.id,
+      // A list refused, corrected and approved is two decisions and two lines.
+      dedupeOn: status,
+      params: { title: list.title, status },
+      targets: [{ userId: list.authorId }],
+    });
+  }
+
+  if (isVisibleToFamilies(status)) {
+    await notify({
+      organizationId,
+      schoolId,
+      kind: "SUPPLY_LIST_APPROVED",
+      subjectId: list.id,
+      params: { title: list.title },
+      targets: await guardiansOfClass(list.schoolClassId),
+    });
+  }
 }
 
 /**
@@ -247,7 +329,20 @@ export async function submitList(
     // Scoped by author as well as school: submitting somebody else's draft
     // would put their name on a decision they did not ask for.
     where: { id: listId, schoolId, authorId },
-    select: { id: true, status: true },
+    // As in `reviewList`, the office's line is built from this one read.
+    select: {
+      id: true,
+      status: true,
+      title: true,
+      school: { select: { organizationId: true } },
+      schoolClass: { select: { code: true } },
+      author: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
   });
   if (!list) return { ok: false, reason: "not-found" };
   if (list.status !== "DRAFT" && list.status !== "REJECTED") {
@@ -259,5 +354,46 @@ export async function submitList(
     data: { status: "SUBMITTED", reviewNote: null },
   });
 
+  // The same queue-nobody-opens gap `REQUEST_FILED` closes: a list handed up in
+  // July sits until somebody thinks to look, and the rentrée is the deadline.
+  await dispatch("SUPPLY_LIST_SUBMITTED", () => tellTheOffice(list, schoolId));
+
   return { ok: true };
+}
+
+/** What `tellTheOffice` needs, as `submitList` has already read it. */
+type SubmittedList = {
+  id: string;
+  title: string;
+  school: { organizationId: string };
+  schoolClass: { code: string };
+  author: {
+    email: string;
+    profile: { firstName: string; lastName: string } | null;
+  } | null;
+};
+
+/** Puts a submitted list in front of whoever may actually approve it. */
+async function tellTheOffice(
+  list: SubmittedList,
+  schoolId: string,
+): Promise<void> {
+  const organizationId = list.school.organizationId;
+
+  await notify({
+    organizationId,
+    schoolId,
+    kind: "SUPPLY_LIST_SUBMITTED",
+    subjectId: list.id,
+    params: {
+      title: list.title,
+      className: list.schoolClass.code,
+      teacher: list.author ? displayName(list.author) : "—",
+    },
+    targets: await staffHolding(
+      organizationId,
+      schoolId,
+      SUPPLY_PERMISSIONS.SUPPLY_REVIEW,
+    ),
+  });
 }

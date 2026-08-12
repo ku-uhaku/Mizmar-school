@@ -113,10 +113,37 @@ function routeFor(
       return child("notes");
     case "ATTENDANCE_MISSED":
       return child("absences");
+    case "TRANSPORT_MISSED":
+      return child("transport");
+    case "SUPPLY_LIST_APPROVED":
+      return child("fournitures");
     case "REQUEST_HANDLED":
       return { pathname: "/requests", params: {} };
     default:
       return null;
+  }
+}
+
+/**
+ * Which module's words a kind's `status` is spelled in. Mirrors
+ * `statusVocabulary` in modules/notifications/describe.ts.
+ */
+function statusVocabulary(
+  kind: AppNotification["kind"],
+  t: ReturnType<typeof useT>,
+): Record<string, string> {
+  switch (kind) {
+    case "ATTENDANCE_MISSED":
+    case "TRANSPORT_MISSED":
+      return t.labels.attendance;
+    case "SUPPLY_LIST_REVIEWED":
+      return t.labels.supplyStatus;
+    case "LEAVE_DECIDED":
+      return t.labels.leaveStatus;
+    case "ADVANCE_DECIDED":
+      return t.labels.advanceStatus;
+    default:
+      return t.labels.requestStatus;
   }
 }
 
@@ -138,15 +165,11 @@ function NotificationRow({
   if (!phrase) return null;
 
   const params = { ...item.params };
-  // Two vocabularies, never merged into one map — see the note in the web's
-  // describe.ts. A dossier is "Ready"; a register is "Absent".
+  // Five vocabularies, never merged into one map — see the note in the web's
+  // describe.ts. "APPROVED" is a supply list the office agreed to buy and a
+  // congé the directrice granted, and they are not the same word.
   if (params.status) {
-    params.status = label(
-      item.kind === "ATTENDANCE_MISSED"
-        ? t.labels.attendance
-        : t.labels.requestStatus,
-      params.status,
-    );
+    params.status = label(statusVocabulary(item.kind, t), params.status);
   }
   if (params.amountCentimes) {
     const centimes = Number(params.amountCentimes);

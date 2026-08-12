@@ -288,6 +288,27 @@ export async function guardiansOfStudent(
 }
 
 /**
+ * The account behind an employment record, when there is one.
+ *
+ * Most of a payroll never signs in — see the note on `Staff.userId` — so this
+ * answers with an empty list far more often than not, and that is not a
+ * failure. A school that pays forty people and gives two of them logins should
+ * notify those two and stay silent about the rest, rather than the write
+ * failing or a notification being addressed to nobody.
+ */
+export async function staffAccount(
+  staffId: string,
+): Promise<NotificationTarget[]> {
+  const staff = await db.staff.findUnique({
+    where: { id: staffId },
+    select: { userId: true, user: { select: { isActive: true } } },
+  });
+
+  if (!staff?.userId || !staff.user?.isActive) return [];
+  return [{ userId: staff.userId }];
+}
+
+/**
  * The guardians on one dossier familial, without going through a pupil.
  *
  * What a receipt needs: a payment settles a *family's* schedule and may cover

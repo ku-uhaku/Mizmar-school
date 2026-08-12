@@ -2,11 +2,18 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { generateFeeSchedule } from "@/modules/enrolment/service";
+import { dedupeKeyFor } from "@/modules/notifications/enums";
+import {
+  dispatch,
+  guardiansOfStudent,
+  notify,
+} from "@/modules/notifications/service";
 import {
   recordDisbursement,
   type TxClient,
 } from "@/modules/treasury/service";
 import {
+  OFF_BUS_STATUSES,
   REGISTER_OPEN_STATUSES,
   SEAT_HOLDING_STATUSES,
   driverLabel,
@@ -765,7 +772,7 @@ export async function markRiderAttendance(
     recordedById: input.recordedById,
   };
 
-  return db.transportAttendance.upsert({
+  const row = await db.transportAttendance.upsert({
     where: {
       subscriptionId_date_scopeKey: {
         subscriptionId: input.subscriptionId,
@@ -782,6 +789,73 @@ export async function markRiderAttendance(
       ...data,
     },
     select: { id: true },
+  });
+
+  await dispatch("TRANSPORT_MISSED", () =>
+    tellTheHousehold(input, scopeKey),
+  );
+
+  return row;
+}
+
+/**
+ * Tells a household their child was not on the bus.
+ *
+ * ── The most urgent line in the app ─────────────────────────────────────────
+ * Everything else here can wait until the evening. A child who is not on the
+ * bus home is a parent standing at a stop, and the difference between hearing
+ * at 16h05 and hearing at 18h00 is the whole value of the feature. It is also
+ * the one where a *wrong* line is most costly, which is why the correction path
+ * below matters as much as the notification.
+ *
+ * Withdrawn on correction while still unread, exactly as the classroom register
+ * does it and for the same reason — a driver who taps the wrong name and fixes
+ * it must not leave a parent believing their child was left behind. Once read,
+ * it stands: the repair for that is a telephone call, not a silent deletion.
+ */
+async function tellTheHousehold(
+  input: MarkRiderInput,
+  scopeKey: string,
+): Promise<void> {
+  const discriminator = `${input.date.toISOString()}:${scopeKey}`;
+  const key = dedupeKeyFor(
+    "TRANSPORT_MISSED",
+    input.subscriptionId,
+    discriminator,
+  );
+
+  if (!OFF_BUS_STATUSES.includes(input.status) && input.status !== "LATE") {
+    if (key) {
+      await db.notification.deleteMany({ where: { dedupeKey: key, readAt: null } });
+    }
+    return;
+  }
+
+  const subscription = await db.transportSubscription.findUnique({
+    where: { id: input.subscriptionId },
+    select: {
+      enrollment: {
+        select: {
+          studentId: true,
+          student: {
+            select: { schoolId: true, school: { select: { organizationId: true } } },
+          },
+        },
+      },
+    },
+  });
+  if (!subscription) return;
+
+  const student = subscription.enrollment.student;
+
+  await notify({
+    organizationId: student.school.organizationId,
+    schoolId: student.schoolId,
+    kind: "TRANSPORT_MISSED",
+    subjectId: input.subscriptionId,
+    dedupeOn: discriminator,
+    params: { status: input.status, date: input.date.toISOString() },
+    targets: await guardiansOfStudent(subscription.enrollment.studentId),
   });
 }
 

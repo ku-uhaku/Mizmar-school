@@ -40,16 +40,35 @@ export const NOTIFICATION_KINDS = [
   "ASSESSMENT_SCHEDULED",
   /** L'appel: the child was not in the room, or arrived late. */
   "ATTENDANCE_MISSED",
+  /** The child was not on the bus. */
+  "TRANSPORT_MISSED",
+  /** A liste de fournitures was approved — things the family has to go and buy. */
+  "SUPPLY_LIST_APPROVED",
 
   // ── To the desk ───────────────────────────────────────────────────────────
   /** A family filed a request from the phone; somebody has to answer it. */
   "REQUEST_FILED",
   /** A teacher has finished correcting and handed a paper up for validation. */
   "ASSESSMENT_SUBMITTED",
+  /** A teacher handed a liste de fournitures up for approval. */
+  "SUPPLY_LIST_SUBMITTED",
 
   // ── To the teacher ────────────────────────────────────────────────────────
   /** A paper this teacher is answerable for was accepted. */
   "ASSESSMENT_VALIDATED",
+  /** The office has decided on a list this teacher wrote. */
+  "SUPPLY_LIST_REVIEWED",
+
+  // ── To a member of staff, about themselves ────────────────────────────────
+  /*
+    The two HR answers a person is actually waiting on. Both reach the *staff
+    member's own account*, which most of a payroll does not have — see the note
+    on `Staff.userId` — so both resolve through `staffAccount` and quietly reach
+    nobody when there is no account to reach. That is the right failure: a
+    school where nobody signs in still runs its payroll on paper.
+  */
+  "LEAVE_DECIDED",
+  "ADVANCE_DECIDED",
 ] as const;
 
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -76,9 +95,18 @@ export const KIND_TONES: Record<NotificationKind, NotificationTone> = {
   ASSESSMENT_SCHEDULED: "info",
   // A missed lesson is the one line here a parent is expected to act on.
   ATTENDANCE_MISSED: "warn",
+  // And a missed bus is the one they are expected to act on *now*.
+  TRANSPORT_MISSED: "warn",
+  SUPPLY_LIST_APPROVED: "info",
   REQUEST_FILED: "warn",
   ASSESSMENT_SUBMITTED: "warn",
+  SUPPLY_LIST_SUBMITTED: "warn",
   ASSESSMENT_VALIDATED: "good",
+  // Carries its own outcome, so the tone cannot say "good" — a refused list and
+  // an approved one are the same kind. Neutral, and the words do the work.
+  SUPPLY_LIST_REVIEWED: "info",
+  LEAVE_DECIDED: "info",
+  ADVANCE_DECIDED: "info",
 };
 
 /**
@@ -99,6 +127,13 @@ export function webHref(
     case "ASSESSMENT_SUBMITTED":
     case "ASSESSMENT_VALIDATED":
       return subject.subjectId ? `/assessments/${subject.subjectId}` : "/assessments";
+    case "SUPPLY_LIST_SUBMITTED":
+    case "SUPPLY_LIST_REVIEWED":
+      return "/supplies";
+    case "LEAVE_DECIDED":
+      return "/hr/leave";
+    case "ADVANCE_DECIDED":
+      return "/hr/advances";
     default:
       return null;
   }
@@ -143,9 +178,20 @@ export function dedupeKeyFor(
    */
   discriminator?: string | null,
 ): string | null {
-  // A payment is not idempotent: two settlements on one day are two receipts,
-  // and collapsing them would hide money the family actually paid.
-  if (kind === "PAYMENT_RECORDED") return null;
+  /*
+    The kinds where saying it twice is saying two different things.
+
+    A payment: two settlements on one day are two receipts, and collapsing them
+    would hide money the family actually paid.
+
+    A submitted list: a teacher whose list is refused corrects it and hands it
+    up again, and that second submission is a second thing for the office to
+    look at — the first has already been dealt with. Keyed on the list, the
+    office would be told once and never again.
+  */
+  if (kind === "PAYMENT_RECORDED" || kind === "SUPPLY_LIST_SUBMITTED") {
+    return null;
+  }
   // Nor is a register. A child can miss the maths lesson and the history one on
   // the same day, and those are two absences — the subject id is what tells
   // them apart, and it travels as the discriminator.

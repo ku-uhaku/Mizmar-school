@@ -80,8 +80,10 @@ vi.mock("@/lib/audit", () => ({ recordEvent: async () => {} }));
 const {
   dispatch,
   guardiansOf,
+  guardiansOfClass,
   guardiansOfFamily,
   notify,
+  staffAccount,
   staffHolding,
 } = await import("@/modules/notifications/service");
 
@@ -166,6 +168,12 @@ describe("dedupe keys", () => {
     // Two settlements on one day are two receipts, and hiding one hides money
     // the family actually paid.
     expect(dedupeKeyFor("PAYMENT_RECORDED", "payment-1")).toBeNull();
+  });
+
+  it("never collapses a resubmitted list", () => {
+    // Refused, corrected, handed up again: the office has dealt with the first
+    // version and needs telling about the second.
+    expect(dedupeKeyFor("SUPPLY_LIST_SUBMITTED", "list-1")).toBeNull();
   });
 
   it("keeps two lessons missed on the same day apart", () => {
@@ -344,6 +352,32 @@ describe("who gets told", () => {
     ]);
   });
 
+  it("reaches nobody for a member of staff with no account", async () => {
+    // Most of a payroll never signs in — see the note on `Staff.userId`. That
+    // is silence, not a failure.
+    answers["staff.findUnique"] = { userId: null, user: null };
+    expect(await staffAccount("staff-1")).toEqual([]);
+  });
+
+  it("skips a member of staff whose account was deactivated", async () => {
+    answers["staff.findUnique"] = { userId: "user-9", user: { isActive: false } };
+    expect(await staffAccount("staff-1")).toEqual([]);
+  });
+
+  it("reaches a member of staff who does have a live account", async () => {
+    answers["staff.findUnique"] = { userId: "user-9", user: { isActive: true } };
+    expect(await staffAccount("staff-1")).toEqual([{ userId: "user-9" }]);
+  });
+
+  it("narrows a class fan-out to the group when there is one", async () => {
+    // A devoir set for the TP half is sat by half the class; telling the other
+    // half is telling them something untrue.
+    await guardiansOfClass("class-1", "group-1");
+    expect(of("enrollment", "findMany")[0]!.args).toMatchObject({
+      where: { schoolClassId: "class-1", classGroupId: "group-1" },
+    });
+  });
+
   it("resolves the desk exactly as the DAL resolves a permission", async () => {
     await staffHolding("org-1", "school-1", "request.handle");
 
@@ -464,6 +498,38 @@ describe("wording a notification", () => {
     expect(
       describeNotification(item("EVENT_PUBLISHED", { title: "Réunion" }), t, "en"),
     ).toBe("New event: Réunion");
+  });
+
+  it("never spells one status in another module's words", () => {
+    /*
+      The trap the vocabulary map exists for. "APPROVED" is a supply list the
+      office agreed to buy, a congé the directrice granted, and an avance the
+      payroll signed off — three different words in French, three in Arabic, and
+      one merged map would render whichever module was declared last. The bug
+      would show as a single wrong word in a sentence that otherwise reads
+      perfectly, which is the kind nobody reports.
+    */
+    const spelling = (kind: (typeof NOTIFICATION_KINDS)[number]) =>
+      describeNotification(
+        item(kind, {
+          child: "Sara",
+          title: "L", teacher: "T", amountCentimes: "1000",
+          date: "2026-03-04T00:00:00.000Z",
+          status: "APPROVED",
+        }),
+        t,
+        "en",
+      );
+
+    expect(spelling("SUPPLY_LIST_REVIEWED")).toContain(
+      t.supplyOptions.statuses.APPROVED,
+    );
+    expect(spelling("LEAVE_DECIDED")).toContain(
+      t.hrOptions.leaveStatuses.APPROVED,
+    );
+    expect(spelling("ADVANCE_DECIDED")).toContain(
+      t.hrOptions.advanceStatuses.APPROVED,
+    );
   });
 
   it("reads `status` in the right vocabulary for the kind", () => {
