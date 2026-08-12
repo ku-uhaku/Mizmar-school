@@ -278,6 +278,26 @@ export async function deleteConfigItemAction(
     const { context, resource } = resolved;
     const schema = resourceSchema(resource.id)!;
 
+    /*
+      Establish that the row is one this context may reach *before* asking
+      anything else about it.
+
+      `findBlockingReference` counts by bare id — it has to, since it walks the
+      runtime data model rather than this resource's scope — so consulting it
+      first answered "used by 12 records" for a room, a subject or a fee type
+      belonging to another school in the same organisation. A director configures
+      their own school and no other, and that reply confirmed both the existence
+      of a neighbour's row and how heavily it is used, where the scoped
+      `deleteMany` below correctly says nothing at all. This file's own header
+      promises "a crafted id matches no rows instead of reaching another
+      school's", and the guard was reading ahead of the promise.
+    */
+    const inScope = await schema.table().findFirst({
+      where: { ...schema.where(context), id },
+      select: { id: true },
+    });
+    if (!inScope) return failure(t.errors.notFound);
+
     // Refuse rather than let the database decide: a `Cascade` relation would
     // silently take a whole programme or price list down with one row, and a
     // `Restrict` one would surface as a raw constraint error instead of a

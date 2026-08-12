@@ -191,13 +191,32 @@ export async function deleteSchoolYearAction(
       So the year is refused while it has pupils, the way a dossier familial is
       refused while it has children. A year entered in error has none and still
       deletes; a year that ran is closed, not removed.
+
+      ── And while it has receipts ─────────────────────────────────────────────
+      `Payment.schoolYearId` is the `Restrict` the note above describes, and it
+      is the only part of this the database was already refusing — as a raw
+      constraint error, which is precisely the "something went wrong" a bursar
+      can do nothing with. Counting the receipts here turns that into the same
+      sentence the enrolments get.
+
+      It is not covered by the count above: money is taken against a year, and a
+      year can hold receipts whose inscriptions were since removed. Asking the
+      database to answer first, in the language of the screen, is the whole
+      point of the guard.
     */
-    const enrolled = await db.enrollment.count({
-      where: { schoolYearId: yearId },
-    });
+    const [enrolled, receipts] = await Promise.all([
+      db.enrollment.count({ where: { schoolYearId: yearId } }),
+      db.payment.count({ where: { schoolYearId: yearId } }),
+    ]);
+
     if (enrolled > 0) {
       return failure(
         interpolate(t.schoolYear.hasEnrolments, { count: enrolled }),
+      );
+    }
+    if (receipts > 0) {
+      return failure(
+        interpolate(t.schoolYear.hasPayments, { count: receipts }),
       );
     }
 

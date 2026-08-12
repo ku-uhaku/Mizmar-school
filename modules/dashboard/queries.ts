@@ -82,10 +82,15 @@ export async function loadDashboardStats(
 export type SectionHeadline = {
   /** The figure the card leads with. */
   value: number;
-  /** A second figure, when the section has one worth carrying. */
-  detail: number;
+  /**
+   * A second figure, when the section has one worth carrying — null when the
+   * reader holds the section but not the code behind this particular number.
+   * The card then omits the line rather than printing a zero it cannot stand
+   * behind, which is the same rule the section itself is gated by.
+   */
+  detail: number | null;
   /** Something waiting on somebody — drawn as a warning on the card. */
-  attention: number;
+  attention: number | null;
 };
 
 export type SectionHeadlines = {

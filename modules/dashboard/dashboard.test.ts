@@ -46,12 +46,17 @@ vi.mock("@/modules/access/queries", () => ({
 vi.mock("@/modules/school-years/queries", () => ({
   countSchoolYears: record("countSchoolYears", 4),
 }));
+let lifeSummary: {
+  students: number;
+  enrolled: number | null;
+  unplaced: number | null;
+} = { students: 234, enrolled: 214, unplaced: 3 };
+
 vi.mock("@/modules/school-life/queries", () => ({
-  loadSchoolLifeSummary: record("loadSchoolLifeSummary", {
-    students: 234,
-    enrolled: 214,
-    unplaced: 3,
-  }),
+  loadSchoolLifeSummary: async (...args: unknown[]) => {
+    asked.push({ name: "loadSchoolLifeSummary", args });
+    return lifeSummary;
+  },
 }));
 vi.mock("@/modules/treasury/queries", () => ({
   treasurySummary: record("treasurySummary", {
@@ -118,6 +123,7 @@ const EVERYTHING = Object.values(PERMISSIONS) as string[];
 beforeEach(() => {
   asked.length = 0;
   levels = [];
+  lifeSummary = { students: 234, enrolled: 214, unplaced: 3 };
 });
 
 // ── The four administrative tiles ────────────────────────────────────────────
@@ -232,6 +238,22 @@ describe("loadSectionHeadlines", () => {
       await loadSectionHeadlines(reader(code));
       expect(wasAsked(read), code).toBe(true);
     }
+  });
+
+  it("carries a missing figure through as missing, not as zero", async () => {
+    // A reader may hold `schoolLife.view` and `student.view` without
+    // `enrolment.view`. The summary answers null for the two figures it may not
+    // give, and the card has to drop the line rather than print "0 inscrits" —
+    // a zero here is a claim about the school the reader has not earned.
+    lifeSummary = { students: 234, enrolled: null, unplaced: null };
+
+    const headlines = await loadSectionHeadlines(reader(...EVERYTHING));
+
+    expect(headlines.vieScolaire).toEqual({
+      value: 234,
+      detail: null,
+      attention: null,
+    });
   });
 
   it("rounds money to dirhams once, at the source", async () => {

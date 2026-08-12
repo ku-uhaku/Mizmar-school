@@ -50,7 +50,12 @@ export function SectionCard({
   valueLabel: string;
   /** Unit written after the figure, e.g. " MAD" — without it money reads as a count. */
   suffix?: string;
-  detail: string;
+  /**
+   * The second figure. Absent when the reader holds the section but not the
+   * code behind this particular number — the line is then dropped rather than
+   * reading "0", which would be a claim about the school they have not earned.
+   */
+  detail?: string;
   /** Rendered as a warning badge, and only when there is something to warn about. */
   attention?: string;
 }) {
@@ -96,14 +101,16 @@ export function SectionCard({
               {attention ? (
                 <Badge variant="destructive">{attention}</Badge>
               ) : null}
-              <span
-                className={cn(
-                  "text-muted-foreground text-xs",
-                  attention ? "" : "pb-0.5",
-                )}
-              >
-                {detail}
-              </span>
+              {detail ? (
+                <span
+                  className={cn(
+                    "text-muted-foreground text-xs",
+                    attention ? "" : "pb-0.5",
+                  )}
+                >
+                  {detail}
+                </span>
+              ) : null}
             </div>
           </div>
         </CardContent>

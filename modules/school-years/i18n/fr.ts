@@ -46,6 +46,8 @@ const fr = {
     deleteBody: "« {name} » sera définitivement supprimée.",
     hasEnrolments:
       "{count} élèves sont inscrits sur cette année. Clôturez-la plutôt : la supprimer effacerait leurs inscriptions et leurs échéanciers.",
+    hasPayments:
+      "{count} reçus ont été émis sur cette année. Clôturez-la plutôt : une année sur laquelle de l'argent a été encaissé est un historique clos.",
     nameTaken: "Ce libellé existe déjà pour cette école.",
     endBeforeStart: "La date de fin doit être postérieure à la date de début.",
     noYears: "Aucune année scolaire pour cette école.",

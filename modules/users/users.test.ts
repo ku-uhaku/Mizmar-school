@@ -369,6 +369,23 @@ function asOrgAdmin(): Actor {
   };
 }
 
+/**
+ * Reach that differs by code: may correct anyone's record across the
+ * organisation, may only remove people in their own school.
+ *
+ * An ordinary thing for a school group to want, and the shape no other persona
+ * here has — every one of them is uniformly org-wide or uniformly school-scoped.
+ */
+function asMixedReach(): Actor {
+  return {
+    id: "u-mixed",
+    isSuperAdmin: false,
+    orgPermissions: new Set([PERMISSIONS.USER_UPDATE]),
+    schoolPermissions: new Set([PERMISSIONS.USER_DELETE]),
+    schoolIds: ["school-a"],
+  };
+}
+
 function asSuperAdmin(): Actor {
   return {
     id: "u-superadmin",
@@ -479,6 +496,51 @@ describe("assertCanActOnUser", () => {
     );
     expect(result.status).toBe("error");
     expect(writes.updated).toEqual([]);
+  });
+
+  // ── Mixed reach: org-wide for one code, school-scoped for another ──────────
+  /*
+    The blind spot the three personas above share: each of them is *entirely*
+    org-wide or *entirely* school-scoped, so nothing ever asked which of the two
+    codes had bought the reach. `assertCanActOnUser` used to widen on
+    `canOrg(USER_UPDATE) || canOrg(USER_DELETE)` whichever action was running,
+    and this actor is what that `||` handed the organisation to.
+  */
+  it("does not let org-wide update buy organisation-wide delete", async () => {
+    actor = asMixedReach();
+
+    const result = await deleteUserAction("u-elsewhere");
+
+    expect(result.status).toBe("error");
+    expect(writes.deletedUsers).toEqual([]);
+  });
+
+  it("least of all over somebody who outranks them", async () => {
+    actor = asMixedReach();
+
+    for (const target of ["u-superadmin", "u-orgadmin"]) {
+      const result = await deleteUserAction(target);
+      expect(result.status, target).toBe("error");
+    }
+    expect(writes.deletedUsers).toEqual([]);
+  });
+
+  it("still deletes inside their own school, which is what they do hold", async () => {
+    actor = asMixedReach();
+
+    const result = await deleteUserAction("u-teacher");
+    expect(result.status).toBe("success");
+  });
+
+  it("still edits organisation-wide, which is the code they hold org-wide", async () => {
+    // The fix narrows delete without taking away the update they really have.
+    actor = asMixedReach();
+
+    const result = await updateUserAction(
+      IDLE,
+      userForm({ id: "u-elsewhere", email: "elsewhere@school.ma", password: "" }),
+    );
+    expect(result.status).toBe("success");
   });
 });
 

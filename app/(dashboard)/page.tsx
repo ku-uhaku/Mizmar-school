@@ -58,19 +58,25 @@ export default async function DashboardPage() {
   const t = await getDictionary();
   const locale = await getLocale();
 
-  const [{ activeSchools, users, roleCount, yearCount }, headlines] =
+  // All three in one round. The charts read the same permission-scoped module
+  // queries the counts do — so a reader who may not open a section is not
+  // charted one either — but they depend on nothing the other two return, and
+  // awaiting them separately cost this page, the most opened in the app, a
+  // whole extra round-trip for nothing.
+  const [{ activeSchools, users, roleCount, yearCount }, headlines, charts] =
     await Promise.all([
       loadDashboardStats(context),
       loadSectionHeadlines(context),
+      loadDashboardCharts(context),
     ]);
 
-  // The charts read the same permission-scoped module queries the counts do, so
-  // a reader who may not open a section is not charted one either.
-  const charts = await loadDashboardCharts(context);
-
   /** A warning label, or undefined when there is nothing to warn about. */
-  const attention = (count: number, template: string) =>
-    count > 0 ? interpolate(template, { count }) : undefined;
+  const attention = (count: number | null, template: string) =>
+    count !== null && count > 0 ? interpolate(template, { count }) : undefined;
+
+  /** A second figure, or undefined when the reader may not be told it. */
+  const detail = (count: number | null, template: string) =>
+    count !== null ? interpolate(template, { count }) : undefined;
 
   return (
     <>
@@ -107,9 +113,10 @@ export default async function DashboardPage() {
                 icon={<HeartHandshakeIcon className="size-4" />}
                 value={headlines.vieScolaire.value}
                 valueLabel={t.dashboard.students}
-                detail={interpolate(t.dashboard.enrolledCount, {
-                  count: headlines.vieScolaire.detail,
-                })}
+                detail={detail(
+                  headlines.vieScolaire.detail,
+                  t.dashboard.enrolledCount,
+                )}
                 attention={attention(
                   headlines.vieScolaire.attention,
                   t.dashboard.toPlaceCount,
@@ -126,9 +133,10 @@ export default async function DashboardPage() {
                 value={headlines.finance.value}
                 suffix={` ${context.settings.currencyCode}`}
                 valueLabel={t.treasury.collectedToday}
-                detail={interpolate(t.treasury.openRegisterCount, {
-                  count: headlines.finance.detail,
-                })}
+                detail={detail(
+                  headlines.finance.detail,
+                  t.treasury.openRegisterCount,
+                )}
                 attention={attention(
                   headlines.finance.attention,
                   t.treasury.bouncedCount,
@@ -144,9 +152,10 @@ export default async function DashboardPage() {
                 icon={<BusIcon className="size-4" />}
                 value={headlines.logistique.value}
                 valueLabel={t.transport.ridersTotal}
-                detail={interpolate(t.dashboard.linesCount, {
-                  count: headlines.logistique.detail,
-                })}
+                detail={detail(
+                  headlines.logistique.detail,
+                  t.dashboard.linesCount,
+                )}
                 attention={attention(
                   headlines.logistique.attention,
                   t.transport.paperworkCount,
@@ -162,9 +171,10 @@ export default async function DashboardPage() {
                 icon={<BriefcaseIcon className="size-4" />}
                 value={headlines.rh.value}
                 valueLabel={t.hr.headcount}
-                detail={interpolate(t.dashboard.leaveRequestCount, {
-                  count: headlines.rh.detail,
-                })}
+                detail={detail(
+                  headlines.rh.detail,
+                  t.dashboard.leaveRequestCount,
+                )}
                 attention={attention(
                   headlines.rh.attention,
                   t.hr.unmarkedCount,

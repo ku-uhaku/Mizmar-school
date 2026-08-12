@@ -39,6 +39,10 @@ const fr = {
     deleteBody: "« {name} » ainsi que toutes ses années scolaires et affectations seront définitivement supprimées.",
     hasStudents:
       "{count} élèves sont inscrits dans cette école. Désactivez-la plutôt : la supprimer effacerait ces élèves et tout ce qui les concerne.",
+    hasStaff:
+      "{count} membres du personnel sont employés dans cette école. Désactivez-la plutôt : la supprimer effacerait leurs dossiers et tous les bulletins de paie émis.",
+    hasCashOperations:
+      "{count} mouvements de caisse ont été enregistrés dans cette école. Désactivez-la plutôt : la supprimer effacerait ses caisses et tout ce qui y a été encaissé ou décaissé.",
     codeTaken: "Ce code est déjà utilisé par une autre école.",
     massarTaken: "Une autre \u00e9cole est d\u00e9j\u00e0 rattach\u00e9e \u00e0 ce code MASSAR.",
     noSchools: "Aucune école pour le moment. Créez la première.",

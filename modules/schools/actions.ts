@@ -170,13 +170,42 @@ export async function deleteSchoolAction(
       exist.
 
       So the same rule the school year already follows, for the same reason and
-      a great deal more of it: a school entered in error has no pupils and still
-      deletes; one that taught anybody is deactivated, not removed. `isActive`
-      is on the form for exactly that.
+      a great deal more of it: a school entered in error has nothing on its
+      books and still deletes; one that has run is deactivated, not removed.
+      `isActive` is on the form for exactly that.
+
+      ── Three counts, not one ─────────────────────────────────────────────────
+      Pupils alone were not the whole promise. A school set up in September with
+      its staff hired, a payroll run and a till opened — or one created and then
+      abandoned after the setup wizard — has nobody enrolled yet and passed the
+      guard, taking the payslips and the caisse's movements with it. Those are
+      the records that cannot be reconstructed from anything else, so each one
+      is counted and the first that answers stops the delete.
+
+      Every count is scoped through its school's `organizationId` as well as by
+      id. `authorizeOrg` validates a *code*, not the id in the request, so
+      without that an id from another tenant would come back "this school has
+      412 pupils" — a figure about a school the caller may not even name — where
+      the `deleteMany` below correctly answers "not found".
     */
-    const pupils = await db.student.count({ where: { schoolId } });
+    const reachable = { organizationId: context.organization.id };
+
+    const [pupils, staff, movements] = await Promise.all([
+      db.student.count({ where: { schoolId, school: reachable } }),
+      db.staff.count({ where: { schoolId, school: reachable } }),
+      db.cashOperation.count({ where: { schoolId, school: reachable } }),
+    ]);
+
     if (pupils > 0) {
       return failure(interpolate(t.school.hasStudents, { count: pupils }));
+    }
+    if (staff > 0) {
+      return failure(interpolate(t.school.hasStaff, { count: staff }));
+    }
+    if (movements > 0) {
+      return failure(
+        interpolate(t.school.hasCashOperations, { count: movements }),
+      );
     }
 
     const deleted = await db.school.deleteMany({

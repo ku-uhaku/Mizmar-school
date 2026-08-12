@@ -191,8 +191,15 @@ export async function loadSchoolLifeStats(
  */
 export type SchoolLifeSummary = {
   students: number;
-  enrolled: number;
-  unplaced: number;
+  /**
+   * This year's inscriptions, and how many of them are not yet seated. Both
+   * null without `enrolment.view`, by the same rule `loadSchoolLifeStats`
+   * follows: these used to fall back to zero, which put "0 inscrits" on the
+   * card as a statement about the school for a reader not entitled to the
+   * figure at all. A missing number reads as missing; a zero reads as none.
+   */
+  enrolled: number | null;
+  unplaced: number | null;
 };
 
 export async function loadSchoolLifeSummary(
@@ -209,7 +216,7 @@ export async function loadSchoolLifeSummary(
 
   return {
     students: standing.total,
-    enrolled: enrolment?.enrolled ?? 0,
-    unplaced: enrolment?.unplaced ?? 0,
+    enrolled: enrolment?.enrolled ?? null,
+    unplaced: enrolment?.unplaced ?? null,
   };
 }

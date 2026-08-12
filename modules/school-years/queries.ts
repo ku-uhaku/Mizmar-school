@@ -24,11 +24,21 @@ export function listSchoolYears(schoolId: string) {
 /**
  * The year a school should land on when it becomes the working context:
  * its default, else the active one, else the most recent. Null when it has none.
+ *
+ * One pass rather than three queries — the three preferences are a fallback
+ * chain over the same rows, and asking three times would be three round-trips
+ * to answer one question. But only the three columns that decide it: this runs
+ * on every school switch, and the caller keeps an id.
  */
 export async function defaultSchoolYearFor(
   schoolId: string,
 ): Promise<{ id: string } | null> {
-  const years = await listSchoolYears(schoolId);
+  const years = await db.schoolYear.findMany({
+    where: { schoolId },
+    orderBy: [{ startDate: "desc" }],
+    select: { id: true, isDefault: true, status: true },
+  });
+
   return (
     years.find((year) => year.isDefault) ??
     years.find((year) => year.status === "ACTIVE") ??

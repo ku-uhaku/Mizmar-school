@@ -181,9 +181,16 @@ export async function countUsers(
   context: AuthContext,
 ): Promise<{ total: number; active: number }> {
   const visibleSchoolIds = context.schools.map((school) => school.id);
+  // The tenant is on both branches, exactly as `listUsers` has it. A membership
+  // in one of the reader's own schools already implies the organisation, so this
+  // changes no figure today — but the count and the list are meant to be the
+  // same scope, and only one of them saying so is how they come apart later.
   const scope = context.canOrg(PERMISSIONS.USER_VIEW)
     ? { organizationId: context.organization.id }
-    : { memberships: { some: { schoolId: { in: visibleSchoolIds } } } };
+    : {
+        organizationId: context.organization.id,
+        memberships: { some: { schoolId: { in: visibleSchoolIds } } },
+      };
 
   const [total, active] = await Promise.all([
     db.user.count({ where: scope }),

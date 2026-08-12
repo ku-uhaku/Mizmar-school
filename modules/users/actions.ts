@@ -110,13 +110,26 @@ async function resolveOrgRoleId(
  * administrator may only act on users who hold a membership in one of their
  * schools, and never on someone who outranks them — otherwise a director could
  * reset an organisation admin's password and take over the account.
+ *
+ * ── The reach is decided per permission, not once for the module ─────────────
+ * `permission` is the code the caller is actually exercising, for the same
+ * reason `findUser` takes one: holding `user.update` across the organisation
+ * says nothing about how far somebody may *delete*.
+ *
+ * This used to widen on `canOrg(USER_UPDATE) || canOrg(USER_DELETE)` whichever
+ * action was running, and the `||` was an escalation. An actor with `user.update`
+ * org-wide but `user.delete` in one school only — "may correct anyone's record,
+ * may only remove people here" — cleared `authorizeAnyScope(USER_DELETE)` on the
+ * school grant and then took the organisation-wide branch on the strength of the
+ * update, reaching every account in the tenant including the super admins and
+ * org-role holders the school branch below refuses by name.
  */
-async function assertCanActOnUser(context: AuthContext, targetUserId: string) {
-  if (
-    context.isSuperAdmin ||
-    context.canOrg(PERMISSIONS.USER_UPDATE) ||
-    context.canOrg(PERMISSIONS.USER_DELETE)
-  ) {
+async function assertCanActOnUser(
+  context: AuthContext,
+  targetUserId: string,
+  permission: typeof PERMISSIONS.USER_UPDATE | typeof PERMISSIONS.USER_DELETE,
+) {
+  if (context.isSuperAdmin || context.canOrg(permission)) {
     const target = await db.user.findFirst({
       where: { id: targetUserId, organizationId: context.organization.id },
       select: { id: true, isSuperAdmin: true, orgRoleId: true },
@@ -250,7 +263,11 @@ export async function updateUserAction(
     const userId = field(formData, "id");
 
     // Re-derives authority over this specific user from the session.
-    const target = await assertCanActOnUser(context, userId);
+    const target = await assertCanActOnUser(
+      context,
+      userId,
+      PERMISSIONS.USER_UPDATE,
+    );
 
     const parsed = userSchema(t, { requirePassword: false }).safeParse(
       readUserForm(formData),
@@ -375,7 +392,7 @@ export async function deleteUserAction(userId: string): Promise<ActionState> {
       return failure(t.user.cannotDeleteSelf);
     }
 
-    await assertCanActOnUser(context, userId);
+    await assertCanActOnUser(context, userId, PERMISSIONS.USER_DELETE);
 
     const deleted = await db.user.deleteMany({
       where: { id: userId, organizationId: context.organization.id },
@@ -400,7 +417,7 @@ export async function toggleUserActiveAction(
       return failure(t.user.cannotDemoteSelf);
     }
 
-    await assertCanActOnUser(context, userId);
+    await assertCanActOnUser(context, userId, PERMISSIONS.USER_UPDATE);
 
     const updated = await db.user.updateMany({
       where: { id: userId, organizationId: context.organization.id },

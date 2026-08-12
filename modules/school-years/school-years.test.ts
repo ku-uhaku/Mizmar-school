@@ -187,8 +187,31 @@ describe("deleteSchoolYearAction", () => {
     });
   });
 
+  it("refuses a year money has been collected against", async () => {
+    // `Payment.schoolYearId` is a Restrict, so the database was already saying
+    // no — as a raw constraint error, which reaches a bursar as "something went
+    // wrong" and tells them nothing. And it is not covered by the count above:
+    // a year can hold receipts whose inscriptions were since removed.
+    year();
+    answers["payment.count"] = 57;
+
+    const state = await deleteSchoolYearAction("year-1");
+    expect(state.status).toBe("error");
+    expect(state.message).toContain("57");
+    expect(of("schoolYear", "delete")).toEqual([]);
+  });
+
+  it("counts the receipts of that year and no other", async () => {
+    year();
+    await deleteSchoolYearAction("year-1");
+    expect(only("payment", "count").args).toMatchObject({
+      where: { schoolYearId: "year-1" },
+    });
+  });
+
   it("still deletes a year entered in error", async () => {
-    // One nobody has enrolled anybody on. That is the case the button is for.
+    // One nobody has enrolled anybody on, and nothing has been paid against.
+    // That is the case the button is for.
     year();
     const state = await deleteSchoolYearAction("year-1");
 
@@ -219,6 +242,7 @@ describe("deleteSchoolYearAction", () => {
     const state = await deleteSchoolYearAction("nowhere");
     expect(state.status).toBe("error");
     expect(of("enrollment", "count")).toEqual([]);
+    expect(of("payment", "count")).toEqual([]);
     expect(of("schoolYear", "delete")).toEqual([]);
   });
 
@@ -227,6 +251,7 @@ describe("deleteSchoolYearAction", () => {
     granted.clear();
     await deleteSchoolYearAction("year-1");
     expect(of("enrollment", "count")).toEqual([]);
+    expect(of("payment", "count")).toEqual([]);
   });
 });
 

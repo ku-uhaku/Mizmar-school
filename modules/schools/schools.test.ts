@@ -29,7 +29,10 @@ const t = getDictionaryFor("en");
 
 const calls: { model: string; op: string; args: unknown }[] = [];
 let answers: Record<string, unknown> = {};
+/** What the school has on its books, for the three counts the delete guard takes. */
 let pupilCount = 0;
+let staffCount = 0;
+let cashCount = 0;
 
 const db = new Proxy(
   {},
@@ -40,7 +43,11 @@ const db = new Proxy(
         {
           get: (_d, op: string) => async (args: unknown) => {
             calls.push({ model, op, args });
-            if (model === "student" && op === "count") return pupilCount;
+            if (op === "count") {
+              if (model === "student") return pupilCount;
+              if (model === "staff") return staffCount;
+              if (model === "cashOperation") return cashCount;
+            }
             const key = `${model}.${op}`;
             if (key in answers) return answers[key];
             return op === "findFirst" || op === "findUnique"
@@ -128,6 +135,8 @@ beforeEach(() => {
   calls.length = 0;
   answers = {};
   pupilCount = 0;
+  staffCount = 0;
+  cashCount = 0;
   asked.length = 0;
   reachable = ["school-1"];
   granted.clear();
@@ -150,11 +159,39 @@ describe("deleteSchoolAction", () => {
     expect(of("school", "deleteMany")).toEqual([]);
   });
 
-  it("counts the pupils of that school and no other", async () => {
+  it("refuses a school that employs anybody, even with nobody enrolled", async () => {
+    // September, or a school created and then abandoned after the setup wizard:
+    // nobody on the books yet, but the staff are hired and a payroll may have
+    // run. Pupils alone let that through, and the payslips went with it.
+    staffCount = 37;
+
+    const state = await deleteSchoolAction("school-1");
+    expect(state.status).toBe("error");
+    expect(state.message).toContain("37");
+    expect(of("school", "deleteMany")).toEqual([]);
+  });
+
+  it("refuses a school whose caisse has moved money", async () => {
+    cashCount = 8;
+
+    const state = await deleteSchoolAction("school-1");
+    expect(state.status).toBe("error");
+    expect(state.message).toContain("8");
+    expect(of("school", "deleteMany")).toEqual([]);
+  });
+
+  it("counts within the caller's own tenant, not by bare id", async () => {
+    // `authorizeOrg` validates a *code*, not the id in the request. Without the
+    // organisation on each count, an id from another tenant came back "this
+    // school has 412 pupils" — a figure about a school the caller may not even
+    // name — where the deleteMany below correctly answers "not found".
     await deleteSchoolAction("school-1");
-    expect(only("student", "count").args).toMatchObject({
-      where: { schoolId: "school-1" },
-    });
+
+    for (const model of ["student", "staff", "cashOperation"]) {
+      expect(only(model, "count").args, model).toMatchObject({
+        where: { schoolId: "school-1", school: { organizationId: "org-1" } },
+      });
+    }
   });
 
   it("still deletes a school entered in error", async () => {
@@ -178,6 +215,8 @@ describe("deleteSchoolAction", () => {
 
     expect(state.status).toBe("error");
     expect(of("student", "count")).toEqual([]);
+    expect(of("staff", "count")).toEqual([]);
+    expect(of("cashOperation", "count")).toEqual([]);
     expect(of("school", "deleteMany")).toEqual([]);
   });
 

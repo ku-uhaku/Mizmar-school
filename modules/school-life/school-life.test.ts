@@ -315,8 +315,12 @@ describe("loadSchoolLifeSummary", () => {
   });
 
   it("reports the pupils without the inscriptions when that is all it may see", async () => {
+    // Null, not zero. These used to fall back to 0, which put "0 inscrits" on
+    // the dashboard card as a statement about the school for a reader not
+    // entitled to the figure — the very claim `loadSchoolLifeStats` refuses to
+    // make one function above. A missing number reads as missing.
     const summary = await loadSchoolLifeSummary(reader(PERMISSIONS.STUDENT_VIEW));
-    expect(summary).toEqual({ students: 234, enrolled: 0, unplaced: 0 });
+    expect(summary).toEqual({ students: 234, enrolled: null, unplaced: null });
     expect(wasAsked("loadEnrolmentStats")).toBe(false);
   });
 });
