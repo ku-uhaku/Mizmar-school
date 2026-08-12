@@ -8,6 +8,8 @@
 const en = {
   schoolLife: {
     assessmentsHint: "Papers set this year, and the marks against them.",
+    devoirsHint: "Homework the teaching staff has set, and what is to validate.",
+    remarksHint: "What teachers have written, and what is waiting on a decision.",
     attendanceHint: "Absences and lateness, on each pupil's file.",
     title: "School life",
     subtitle: "{school} — {year}, as it stands today.",

@@ -47,6 +47,7 @@ const en = {
       LEAVE_DECIDED: "Your leave of {date}: {status}",
       ADVANCE_DECIDED: "Your salary advance of {amount}: {status}",
       REQUEST_FILED: "{document} asked for by {child}’s family",
+      ASSESSMENT_CREATED: "{teacher} set “{assessment}” for {className} — awaiting your decision",
       ASSESSMENT_SUBMITTED: "“{assessment}” corrected by {teacher} — awaiting validation",
       ASSESSMENT_VALIDATED: "“{assessment}” was accepted",
     },

@@ -332,6 +332,9 @@ export type AssessmentFilters = {
   termId?: string;
   /** Confines the list to one teacher's own papers — the workspace uses it. */
   teacherId?: string;
+  subjectId?: string;
+  /** Matches the paper's title, or the subject or class it was set for. */
+  search?: string;
   /**
    * "CONTROLE" keeps the kinds a teacher may not set; "DEVOIR" keeps the ones
    * they may. The split is `AssessmentType.allowTeacherCreate`, so the vie
@@ -356,6 +359,15 @@ export type AssessmentFilters = {
    * remainder from `countAssessments`.
    */
   take?: number;
+  /**
+   * Orders by the date sat, most recent first, instead of by term and sequence.
+   *
+   * The class-and-term list is a syllabus and reads forwards — contrôle n°1 then
+   * n°2. A school-wide list is a feed and reads backwards: what was set this
+   * week is what somebody is asking about, and it is also what a capped read
+   * must not be the part that gets cut off.
+   */
+  recentFirst?: boolean;
 };
 
 function assessmentWhere(context: AuthContext, filters: AssessmentFilters) {
@@ -367,6 +379,18 @@ function assessmentWhere(context: AuthContext, filters: AssessmentFilters) {
     ...(filters.classId ? { schoolClassId: filters.classId } : {}),
     ...(filters.termId ? { termId: filters.termId } : {}),
     ...(filters.teacherId ? { teacherId: filters.teacherId } : {}),
+    ...(filters.subjectId ? { subjectId: filters.subjectId } : {}),
+    // Narrowing within the scope above, never widening it: the school and year
+    // clauses still apply, so a search term can only ever shrink the set.
+    ...(filters.search
+      ? {
+          OR: [
+            { title: { contains: filters.search } },
+            { subject: { name: { contains: filters.search } } },
+            { schoolClass: { code: { contains: filters.search } } },
+          ],
+        }
+      : {}),
     ...(filters.statuses ? { status: { in: [...filters.statuses] } } : {}),
     ...(filters.kind
       ? {
@@ -392,6 +416,86 @@ export async function countAssessments(
   return db.assessment.count({ where: assessmentWhere(context, filters) });
 }
 
+export type AssessmentFilterChoices = {
+  teachers: { id: string; label: string }[];
+  classes: { id: string; label: string }[];
+  subjects: { id: string; label: string }[];
+  /** How many are handed in and waiting, before any filter is applied. */
+  awaitingCount: number;
+};
+
+/**
+ * What the devoirs review screen's pickers may offer, and how much is waiting.
+ *
+ * ── Read straight, not derived from the list ────────────────────────────────
+ * The obvious implementation counts what `listAssessments` returned. That would
+ * be wrong twice: the list is capped, so both the pickers and the "to validate"
+ * badge would describe the newest page rather than the school — somebody working
+ * through the queue would watch the count stop falling — and it would key the
+ * pickers on names, which the filters cannot use, since they take ids.
+ *
+ * ── Only the people and subjects that have actually set one ─────────────────
+ * A `distinct` over the papers themselves rather than a roll of the staff or of
+ * the cursus. A picker of every employee would be mostly names that select
+ * nothing, and the question this screen asks is "whose devoirs am I looking at",
+ * which only has answers among the people who set one.
+ *
+ * `kind` is passed through so the same shape serves the devoirs screen it was
+ * written for and any contrôles equivalent later, without either inheriting the
+ * other's pickers.
+ */
+export async function listAssessmentFilterChoices(
+  context: AuthContext,
+  filters: AssessmentFilters = {},
+): Promise<AssessmentFilterChoices> {
+  // Only the scoping clauses, never the reader's own selections: pickers that
+  // narrowed themselves as you used them would strand you on a filter you could
+  // no longer clear.
+  const inScope = assessmentWhere(context, { kind: filters.kind });
+
+  const [authored, taught, classes, awaitingCount] = await Promise.all([
+    db.assessment.findMany({
+      where: { ...inScope, teacherId: { not: null } },
+      distinct: ["teacherId"],
+      select: {
+        teacherId: true,
+        teacher: {
+          select: {
+            email: true,
+            profile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+    }),
+    db.assessment.findMany({
+      where: inScope,
+      distinct: ["subjectId"],
+      select: { subject: { select: { id: true, name: true } } },
+    }),
+    db.schoolClass.findMany({
+      where: { levelOffering: yearScope(context), ...schoolScope(context) },
+      orderBy: [{ code: "asc" }],
+      select: { id: true, code: true },
+    }),
+    db.assessment.count({ where: { ...inScope, status: "SUBMITTED" } }),
+  ]);
+
+  return {
+    teachers: authored
+      .filter((row) => row.teacherId !== null && row.teacher !== null)
+      .map((row) => ({
+        id: row.teacherId as string,
+        label: displayName(row.teacher!),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    subjects: taught
+      .map((row) => ({ id: row.subject.id, label: row.subject.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    classes: classes.map((row) => ({ id: row.id, label: row.code })),
+    awaitingCount,
+  };
+}
+
 /**
  * The papers of a class and term, with how far along the marking is.
  *
@@ -407,11 +511,13 @@ export async function listAssessments(
   const assessments = await db.assessment.findMany({
     where: assessmentWhere(context, filters),
     ...(filters.take === undefined ? {} : { take: filters.take }),
-    orderBy: [
-      { term: { number: "asc" } },
-      { sequence: "asc" },
-      { subject: { code: "asc" } },
-    ],
+    orderBy: filters.recentFirst
+      ? [{ scheduledOn: "desc" as const }, { createdAt: "desc" as const }]
+      : [
+          { term: { number: "asc" as const } },
+          { sequence: "asc" as const },
+          { subject: { code: "asc" as const } },
+        ],
     select: {
       id: true,
       title: true,

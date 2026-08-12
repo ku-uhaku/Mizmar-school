@@ -53,6 +53,18 @@ const en = {
     coversPlaceholder: "Lesson, chapter, pages…",
     progress: "Marking",
     average: "Average",
+    stage: "Stage",
+
+    // ── The devoirs review ──────────────────────────────────────────────────
+    devoirsReview: "Devoirs review",
+    devoirsReviewHint:
+      "The homework teachers have set across the school, and what is waiting to be accepted.",
+    noDevoirs: "No teacher has set a devoir this year yet.",
+    noDevoirsHint:
+      "Devoirs are set from the espace enseignant and appear here as they are.",
+    showingFirst: "Showing the most recent {count}. Narrow the filters to see the rest.",
+    allTeachers: "All teachers",
+    allClasses: "All classes",
 
     // ── The generator ───────────────────────────────────────────────────────
     generate: "Generate a round",
@@ -181,6 +193,7 @@ const en = {
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
   assessments: "Assessments",
+  devoirs: "Devoirs",
 } as const;
 
 /** Permission matrix labels for this module's own codes. */

@@ -43,6 +43,7 @@ export type NavIcon =
   | "families"
   | "classes"
   | "assessments"
+  | "devoirs"
   | "bulletins"
   | "massar"
   | "supplies"

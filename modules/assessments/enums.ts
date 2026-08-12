@@ -122,6 +122,18 @@ export function stageOf(status: string): AssessmentStage | null {
 }
 
 /**
+ * The statuses a stage covers, for a screen that filters on "whose move".
+ *
+ * Derived from `STAGE_OF` rather than written out a second time, so a status
+ * that changes stage cannot end up in one list and not the other. An unknown
+ * stage — a query parameter somebody typed — yields nothing to filter on, and
+ * the caller shows the unfiltered list rather than an empty one.
+ */
+export function statusesForStage(stage: string): AssessmentStatus[] {
+  return ASSESSMENT_STATUSES.filter((status) => STAGE_OF[status] === stage);
+}
+
+/**
  * Whether the teacher has handed this paper back and is waiting on the office.
  *
  * The one thing both the teacher's list and the office's list want to know, so
@@ -144,6 +156,20 @@ export const DEFAULT_PASS_BPS = 5000;
 
 /** The most papers of one kind a term can hold — guards the sequence field. */
 export const MAX_SEQUENCE = 20;
+
+/**
+ * How many papers a school-wide read returns.
+ *
+ * The class-and-term list needs no cap — a class sits a dozen papers a term. The
+ * devoirs review is the whole school's homework for the year, and every row of
+ * it pulls that paper's marks to work out how far the marking has got. Uncapped,
+ * opening the screen in June would be a query per paper set since September.
+ *
+ * The screen says when it is holding a full page, for the same reason the
+ * carnet's review does: a reader working through a queue must be able to tell a
+ * cap from a finished backlog.
+ */
+export const ASSESSMENT_PAGE_SIZE = 200;
 
 /**
  * How long `Assessment.notes` may be — what the paper covers, in the words a

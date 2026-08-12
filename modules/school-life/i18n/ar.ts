@@ -5,6 +5,8 @@
 const ar = {
   schoolLife: {
     assessmentsHint: "فروض السنة والنقط المرتبطة بها.",
+    devoirsHint: "الواجبات التي أعطاها الأساتذة، وما بقي للمصادقة.",
+    remarksHint: "ما كتبه الأساتذة، وما ينتظر قراراً.",
     attendanceHint: "الغيابات والتأخرات، في ملف كل تلميذ.",
     title: "الحياة المدرسية",
     subtitle: "{school} — {year}، إلى حدود اليوم.",

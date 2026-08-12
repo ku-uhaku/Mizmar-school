@@ -33,6 +33,21 @@ export const assessmentsModule = defineModule({
       order: 45,
       schoolPermission: ASSESSMENT_PERMISSIONS.ASSESSMENT_VIEW,
     },
+    /*
+      The devoirs teachers set from the phone, which the screen above
+      deliberately hides — see the note on `DevoirsReview`. Directly after the
+      contrôles, because it is the same table read with the other half of the
+      `allowTeacherCreate` split, and somebody looking for one paper should find
+      both entries side by side rather than guess which list it landed in.
+    */
+    {
+      href: "/school-life/devoirs",
+      icon: "devoirs",
+      section: "vieScolaire",
+      labelKey: "devoirs",
+      order: 46,
+      schoolPermission: ASSESSMENT_PERMISSIONS.ASSESSMENT_VIEW,
+    },
   ],
   permissions: [
     { group: "assessment", codes: Object.values(ASSESSMENT_PERMISSIONS) },

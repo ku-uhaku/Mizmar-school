@@ -401,9 +401,20 @@ export type CreateDevoirResult =
  * devoir now — the web form and the native app — and a rule enforced in one
  * caller is a rule the other silently does without.
  *
- * Created PUBLISHED, not DRAFT: a teacher setting a devoir has already told the
- * class about it, and making them press a second button to open their own mark
- * sheet would be ceremony with no decision behind it.
+ * ── Created DRAFT, and why that is not ceremony ─────────────────────────────
+ * It used to be created PUBLISHED, on the reasoning that a teacher setting a
+ * devoir has already told the class about it. That reasoning was about the
+ * *class*; the code it justified told the *families*, because PUBLISHED is what
+ * fires `announceScheduled`. So a teacher on a phone could put a line on every
+ * parent's lock screen with nobody at the school having seen it, and the office
+ * was not told either — the paper existed, addressed to the families, and the
+ * only party who could not see it was the direction.
+ *
+ * DRAFT is the stage the workflow already had a name for: TO_PUBLISH, "the
+ * office has to open it before anybody can mark". Opening it is what announces
+ * it to the families, so the school says it rather than the teacher, and it is
+ * the same single decision that lets the marking start. The teacher is not left
+ * waiting on a second decision later — there is one gate, not two.
  */
 export async function createDevoir(
   input: CreateDevoirInput,
@@ -478,7 +489,7 @@ export async function createDevoir(
       scheduledOn: input.scheduledOn,
       maxScore: input.maxScore,
       coefficient: input.coefficient,
-      status: "PUBLISHED",
+      status: "DRAFT",
       // Answerable to whoever holds the class, not to whoever typed it in: an
       // office user setting work for a colleague must not end up owning the
       // mark sheet. Falls back to the author when the post is vacant.
@@ -499,11 +510,16 @@ export async function createDevoir(
   });
 
   /*
-    A devoir is created PUBLISHED — see the note above — so this is where the
-    class is told about it. A generated contrôle takes the other road: it is
-    written DRAFT and reaches the same function when somebody announces it.
+    The office, and deliberately not the families.
+
+    A devoir is written DRAFT — see the note above — so nothing has been said to
+    anybody yet, and this is the line that stops that from meaning "nothing
+    happens". The families are told by `announceScheduled` when the office opens
+    it, which is the same road a generated contrôle takes.
   */
-  await dispatch("ASSESSMENT_SCHEDULED", () => announceScheduled(created.id));
+  await dispatch("ASSESSMENT_CREATED", () =>
+    tellTheOfficeAboutNewDevoir(created.id, input.authorId),
+  );
 
   return { ok: true, assessmentId: created.id };
 }
@@ -676,6 +692,13 @@ export async function setAssessmentStatus(
     if (marked > 0) return { ok: false, reason: "has-marks" };
   }
 
+  // Read before the write, because whether the families are told depends on
+  // where the paper is coming *from* and not only where it lands. See below.
+  const before = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: { status: true },
+  });
+
   await db.assessment.update({
     where: { id: assessmentId },
     data: { status },
@@ -702,9 +725,21 @@ export async function setAssessmentStatus(
     await dispatch("ASSESSMENT_SUBMITTED", () => tellTheOffice(assessmentId));
   }
 
-  // The other end of the same workflow: a generated contrôle being announced to
-  // the classes that will sit it. See `announceScheduled`.
-  if (status === "PUBLISHED") {
+  /*
+    The other end of the same workflow: a paper being announced to the classes
+    that will sit it. See `announceScheduled`.
+
+    Only out of DRAFT, which is narrower than it looks and is the point. The
+    other road to PUBLISHED is a teacher taking back a paper they had handed in
+    — SUBMITTED → PUBLISHED — and that is a correction to their own mark sheet,
+    not an announcement. Firing here would have let a teacher reach every family
+    of the class directly, and `dedupeKeyFor` only hid it: the line was
+    suppressed because the office's own announcement had already used the key.
+    On a devoir, which is now never announced at creation, nothing would have
+    used that key and the take-back would have been the first thing the families
+    heard — from the teacher, with no decision behind it.
+  */
+  if (status === "PUBLISHED" && before?.status === "DRAFT") {
     await dispatch("ASSESSMENT_SCHEDULED", () => announceScheduled(assessmentId));
   }
 
@@ -828,6 +863,66 @@ async function announceScheduled(assessmentId: string): Promise<void> {
       assessment.schoolClassId,
       assessment.classGroupId,
     ),
+  });
+}
+
+/**
+ * Puts a teacher's new devoir in front of whoever may open it.
+ *
+ * The class code is on the line because that is what makes it decidable at a
+ * glance — "3AP-A already has two this week" is the judgement being asked for,
+ * and it cannot be made from a title alone.
+ *
+ * The author is excluded even when they hold the code: an office user setting
+ * work for a class they teach has not created a decision for themselves. Same
+ * rule as `tellTheOfficeAboutRemark`, and deliberately the opposite of
+ * `tellTheOffice` below — handing marks up *is* work for whoever validates them,
+ * including yourself.
+ */
+async function tellTheOfficeAboutNewDevoir(
+  assessmentId: string,
+  authorId: string,
+): Promise<void> {
+  const assessment = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: {
+      id: true,
+      title: true,
+      schoolId: true,
+      subject: { select: { name: true } },
+      schoolClass: { select: { code: true } },
+      school: { select: { organizationId: true } },
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+  if (!assessment) return;
+
+  const organizationId = assessment.school.organizationId;
+
+  const targets = (
+    await staffHolding(
+      organizationId,
+      assessment.schoolId,
+      ASSESSMENT_PERMISSIONS.ASSESSMENT_PUBLISH,
+    )
+  ).filter((target) => target.userId !== authorId);
+
+  await notify({
+    organizationId,
+    schoolId: assessment.schoolId,
+    kind: "ASSESSMENT_CREATED",
+    subjectId: assessment.id,
+    params: {
+      assessment: `${assessment.title} — ${assessment.subject.name}`,
+      className: assessment.schoolClass.code,
+      teacher: assessment.teacher ? displayName(assessment.teacher) : "—",
+    },
+    targets,
   });
 }
 

@@ -5,6 +5,10 @@
 const fr = {
   schoolLife: {
     assessmentsHint: "Les épreuves de l'année et les notes qui vont avec.",
+    devoirsHint:
+      "Les devoirs donnés par les enseignants, et ce qui reste à valider.",
+    remarksHint:
+      "Ce que les enseignants ont écrit, et ce qui attend une décision.",
     attendanceHint: "Absences et retards, sur la fiche de chaque élève.",
     title: "Vie scolaire",
     subtitle: "{school} — {year}, à ce jour.",

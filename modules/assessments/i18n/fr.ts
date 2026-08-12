@@ -55,6 +55,19 @@ const fr = {
     coversPlaceholder: "Leçon, chapitre, pages…",
     progress: "Correction",
     average: "Moyenne",
+    stage: "Étape",
+
+    // ── Le suivi des devoirs ────────────────────────────────────────────────
+    devoirsReview: "Suivi des devoirs",
+    devoirsReviewHint:
+      "Les devoirs donnés par les enseignants dans toute l'école, et ce qui attend d'être validé.",
+    noDevoirs: "Aucun enseignant n'a encore donné de devoir cette année.",
+    noDevoirsHint:
+      "Les devoirs sont créés depuis l'espace enseignant et apparaissent ici au fur et à mesure.",
+    showingFirst:
+      "Les {count} plus récents. Affinez les filtres pour voir le reste.",
+    allTeachers: "Tous les enseignants",
+    allClasses: "Toutes les classes",
 
     // ── Le générateur ───────────────────────────────────────────────────────
     generate: "Générer une série",
@@ -185,6 +198,7 @@ const fr = {
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
   assessments: "Contrôles",
+  devoirs: "Devoirs",
 };
 
 /** Permission matrix labels for this module's own codes. */

@@ -36,6 +36,7 @@ const ar = {
       LEAVE_DECIDED: "عطلتكم بتاريخ {date}: {status}",
       ADVANCE_DECIDED: "تسبيقكم بمبلغ {amount}: {status}",
       REQUEST_FILED: "{document} مطلوب من طرف عائلة {child}",
+      ASSESSMENT_CREATED: "{teacher} أعطى «{assessment}» لقسم {className} — في انتظار قراركم",
       ASSESSMENT_SUBMITTED: "«{assessment}» صُحّح من طرف {teacher} — في انتظار الاعتماد",
       ASSESSMENT_VALIDATED: "تمّ اعتماد «{assessment}»",
     },

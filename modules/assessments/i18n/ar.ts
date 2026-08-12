@@ -53,6 +53,17 @@ const ar = {
     coversPlaceholder: "الدرس، الوحدة، الصفحات…",
     progress: "التصحيح",
     average: "المعدل",
+    stage: "المرحلة",
+
+    // ── متابعة الواجبات ─────────────────────────────────────────────────────
+    devoirsReview: "متابعة الواجبات",
+    devoirsReviewHint:
+      "الواجبات التي أعطاها الأساتذة في المدرسة كلها، وما ينتظر المصادقة.",
+    noDevoirs: "لم يعطِ أي أستاذ واجباً هذه السنة بعد.",
+    noDevoirsHint: "تُنشأ الواجبات من فضاء الأستاذ وتظهر هنا تباعاً.",
+    showingFirst: "أحدث {count}. ضيّق عوامل التصفية لرؤية الباقي.",
+    allTeachers: "كل الأساتذة",
+    allClasses: "كل الأقسام",
 
     // ── المولّد ─────────────────────────────────────────────────────────────
     generate: "توليد سلسلة",
@@ -176,6 +187,7 @@ const ar = {
 /** Sidebar labels this module contributes to the `nav` namespace. */
 export const nav = {
   assessments: "الفروض",
+  devoirs: "الواجبات",
 };
 
 /** Permission matrix labels for this module's own codes. */

@@ -48,6 +48,16 @@ export const NOTIFICATION_KINDS = [
   // ── To the desk ───────────────────────────────────────────────────────────
   /** A family filed a request from the phone; somebody has to answer it. */
   "REQUEST_FILED",
+  /**
+   * A teacher set a devoir, and it is waiting to be opened.
+   *
+   * The counterpart to `ASSESSMENT_SUBMITTED` at the other end of the paper's
+   * life: that one says the marking is done, this one says the work exists at
+   * all. Both are needed because a devoir is now written DRAFT — see
+   * `createDevoir` — so between setting it and handing it back there is a period
+   * where the office is the only party who can move it, and nothing told them.
+   */
+  "ASSESSMENT_CREATED",
   /** A teacher has finished correcting and handed a paper up for validation. */
   "ASSESSMENT_SUBMITTED",
   /** A teacher handed a liste de fournitures up for approval. */
@@ -103,6 +113,7 @@ export const KIND_TONES: Record<NotificationKind, NotificationTone> = {
   TRANSPORT_MISSED: "warn",
   SUPPLY_LIST_APPROVED: "info",
   REQUEST_FILED: "warn",
+  ASSESSMENT_CREATED: "warn",
   ASSESSMENT_SUBMITTED: "warn",
   SUPPLY_LIST_SUBMITTED: "warn",
   REMARK_WRITTEN: "warn",
@@ -133,6 +144,16 @@ export function webHref(
     case "ASSESSMENT_SUBMITTED":
     case "ASSESSMENT_VALIDATED":
       return subject.subjectId ? `/assessments/${subject.subjectId}` : "/assessments";
+    /*
+      The devoirs review rather than the paper itself, unlike the two above.
+
+      A devoir waiting to be opened is decided on from a list — the office works
+      through a morning's worth in one sitting — while a paper waiting to be
+      validated is decided on by reading its mark sheet. Sending both to the same
+      screen would make the commoner of the two journeys the longer one.
+    */
+    case "ASSESSMENT_CREATED":
+      return "/school-life/devoirs?stage=TO_PUBLISH";
     case "SUPPLY_LIST_SUBMITTED":
     case "SUPPLY_LIST_REVIEWED":
       return "/supplies";

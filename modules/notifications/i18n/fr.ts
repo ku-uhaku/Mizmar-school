@@ -37,6 +37,7 @@ const fr = {
       LEAVE_DECIDED: "Votre congé du {date} : {status}",
       ADVANCE_DECIDED: "Votre avance de {amount} : {status}",
       REQUEST_FILED: "{document} demandé par la famille de {child}",
+      ASSESSMENT_CREATED: "{teacher} a donné « {assessment} » à {className} — en attente de votre décision",
       ASSESSMENT_SUBMITTED: "« {assessment} » corrigé par {teacher} — à valider",
       ASSESSMENT_VALIDATED: "« {assessment} » a été validé",
     },

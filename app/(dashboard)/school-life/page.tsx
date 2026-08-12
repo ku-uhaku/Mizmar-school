@@ -9,6 +9,8 @@ import {
   GraduationCapIcon,
   HomeIcon,
   LayersIcon,
+  MessageSquareTextIcon,
+  NotebookPenIcon,
   WalletIcon,
 } from "lucide-react";
 
@@ -174,6 +176,35 @@ export default async function SchoolLifePage() {
       label: t.assessment.title,
       description: t.schoolLife.assessmentsHint,
       icon: <ClipboardCheckIcon className="size-4" />,
+    });
+    /*
+      The other half of the `allowTeacherCreate` split. A devoir is set from the
+      espace enseignant and the contrôles screen hides it on purpose, so without
+      an entry of its own the office's only route to a teacher's homework was to
+      already know the paper's id.
+    */
+    links.push({
+      href: "/school-life/devoirs",
+      label: t.assessment.devoirsReview,
+      description: t.schoolLife.devoirsHint,
+      icon: <NotebookPenIcon className="size-4" />,
+      // Deliberately no count: `stats.awaitingValidation` is every kind of
+      // paper, contrôles included, and a number about contrôles on the card
+      // headed "devoirs" would be a claim the page never checked. The screen's
+      // own badge counts devoirs, and counts them in the database.
+    });
+  }
+  /*
+    Behind the publish code, matching the screen it leads to: releasing an
+    observation to a family is the whole purpose of that page, and a reader who
+    cannot make that decision is better served by the pupil's own file.
+  */
+  if (context.can(PERMISSIONS.CLASSROOM_REMARK_PUBLISH)) {
+    links.push({
+      href: "/school-life/remarks",
+      label: t.classroom.remarksReview,
+      description: t.schoolLife.remarksHint,
+      icon: <MessageSquareTextIcon className="size-4" />,
     });
   }
   if (context.can(PERMISSIONS.TIMETABLE_VIEW)) {
