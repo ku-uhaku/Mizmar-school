@@ -1,0 +1,97 @@
+/// A family asking the school for a paper, and what the office did about it.
+///
+/// ── Why it hangs off the pupil ──────────────────────────────────────────────
+/// Every paper a school issues is *about a child* — an attestation de scolarité
+/// names one. A parent of three asking for one means one of the three, so the
+/// pupil is what the request is filed against, and `requestedById` records
+/// which guardian asked. Both are needed: the guardian is who the office rings
+/// back, and the child is what the paper says.
+///
+/// ── Why the office's answer lives here and not in a message ─────────────────
+/// "Come Thursday after 14h" is the answer to *this request*, not a remark in a
+/// conversation. Keeping it on the row is what lets the parent's screen show
+/// the request and its answer as one line, and what lets the office list
+/// everything still owed without reading a chat log.
+///
+/// The school is denormalised from the pupil, as it is on Assessment and
+/// SchoolClass: every screen here lists and scopes by school, and reaching it
+/// through the pupil on each read is not worth it.
+///
+/// INVARIANT (service layer): `schoolId` equals the pupil's school. Set it from
+/// the pupil, never from the request.
+model DocumentRequest {
+  id String @id @default(cuid())
+
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// The guardian who asked. SetNull rather than Cascade: a request already
+  /// handled is a fact about the school's work, and it must not disappear
+  /// because a parent's account was closed over the summer.
+  requestedById String?
+  requestedBy   User?   @relation("DocumentRequestAuthor", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  /// Restrict: a paper with requests filed against it is not deletable out from
+  /// under them. Withdraw it instead — `DocumentRequestType.isActive`.
+  typeId String
+  type   DocumentRequestType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  /// How many copies are wanted. Families ask for two as often as one — a bank
+  /// keeps its copy — and a second request for the same paper is not the same
+  /// fact as one request for two.
+  copies Int @default(1)
+
+  /// What the family needs it for, in their own words, and anything else they
+  /// want the office to know. Required for a type that says so — see
+  /// `DocumentRequestType.requiresReason`.
+  reason String?
+
+  /// "PENDING" | "ACCEPTED" | "READY" | "COLLECTED" | "REJECTED" | "CANCELLED"
+  /// see modules/requests/enums.ts, which owns the allowed moves as well as the
+  /// list.
+  status String @default("PENDING")
+
+  /// When the family may come for it.
+  ///
+  /// Set when the office accepts a request and names a day, which is the whole
+  /// point of accepting rather than silently working on it: a parent who is not
+  /// told when to come either turns up to nothing or does not turn up at all.
+  /// Null on a request the office marked ready straight away — there is no
+  /// appointment to keep when the paper is already on the desk.
+  readyAt DateTime?
+
+  /// The office's answer to the family, shown on their phone beside the status:
+  /// what to bring, which door, or — on a refusal — why not.
+  ///
+  /// One field rather than one per outcome, because a request has exactly one
+  /// answer and the two can never both apply. What it means is read from the
+  /// status, which is the thing the screens already switch on.
+  officeNote String?
+
+  /// Who last moved it, and when. A parent will ring in November about a paper
+  /// they were promised in October, and "who said what" is the question.
+  handledById String?
+  handledBy   User?     @relation("DocumentRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt   DateTime?
+
+  /// When it was actually handed over. Distinct from `handledAt`, which moves
+  /// every time the office touches the row: this is the moment the paper left
+  /// the counter, and it is what a family disputing receipt is asking about.
+  collectedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The office's queue: this school's requests, newest first, filtered by
+  /// where they have got to.
+  @@index([schoolId, status])
+  @@index([schoolId])
+  @@index([studentId])
+  @@index([typeId])
+  @@index([requestedById])
+  @@index([handledById])
+  @@map("document_requests")
+}

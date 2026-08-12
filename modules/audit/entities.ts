@@ -122,6 +122,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   SupplyList: "vieScolaire",
   SupplyItem: "vieScolaire",
   StudentDocument: "vieScolaire",
+  DocumentRequest: "vieScolaire",
   ReportFavourite: "vieScolaire",
 
   // The week.
@@ -174,6 +175,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Subject: "configuration",
   LevelSubject: "configuration",
   AssessmentType: "configuration",
+  DocumentRequestType: "configuration",
   AppreciationBand: "configuration",
   DocumentType: "configuration",
   FeeType: "configuration",

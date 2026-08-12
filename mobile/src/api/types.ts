@@ -818,3 +818,43 @@ export type SupplyList = {
   items: SupplyItem[];
   requiredCount: number;
 };
+
+// ── Les demandes de documents ────────────────────────────────────────────────
+
+/** A paper this child's school will issue. Mirrors `PortalRequestType`. */
+export type RequestType = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  descriptionAr: string | null;
+  /** Null when the school promises no particular delay. */
+  usualDelayDays: number | null;
+  /** The office will not write this one without knowing what it is for. */
+  requiresReason: boolean;
+};
+
+/**
+ * One request this household has filed, and the school's answer to it.
+ * Mirrors `PortalRequest`.
+ *
+ * `canCancel` comes from the server rather than being re-derived here, so the
+ * button the parent sees and the move the server will accept cannot disagree.
+ */
+export type DocumentRequest = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  typeName: string;
+  typeNameAr: string | null;
+  copies: number;
+  reason: string | null;
+  /** "PENDING" | "ACCEPTED" | "READY" | "COLLECTED" | "REJECTED" | "CANCELLED" */
+  status: string;
+  requestedAt: string;
+  readyAt: string | null;
+  collectedAt: string | null;
+  /** The office's answer, in the words the school wrote for the family. */
+  officeNote: string | null;
+  canCancel: boolean;
+};

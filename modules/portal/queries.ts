@@ -11,6 +11,9 @@ import {
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { firstLookSince, isSeenTopic } from "@/modules/portal/enums";
 import { isSettled } from "@/modules/documents/enums";
+// Aliased: `documents` and `requests` both have a notion of what a family may
+// still do to a row, and the two answer about different tables.
+import { isCancellable as isRequestCancellable } from "@/modules/requests/enums";
 import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
 import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
 // Aliased: this file already reads the assessments module's list of the same
@@ -1517,4 +1520,149 @@ export async function loadChildSupplies(
     items: list.items,
     requiredCount: list.items.filter((item) => item.isRequired).length,
   }));
+}
+
+// ── Les demandes de documents ────────────────────────────────────────────────
+
+/**
+ * A child of this household, resolved at the *pupil* level rather than through
+ * an enrolment.
+ *
+ * `resolveChild` above goes through Enrollment because everything it serves —
+ * marks, timetable, fees — is a fact about a year. A document request is not: a
+ * family asks for a certificat de radiation precisely when the child has left,
+ * and asks for an attestation covering last year in September. Scoping that
+ * through an enrolment would refuse exactly the cases the feature exists for.
+ *
+ * Still the same guarantee: `householdScope` is what the id is combined with,
+ * so a crafted student id resolves to nothing unless the caller is genuinely
+ * that child's guardian.
+ */
+async function resolveOwnStudent(userId: string, studentId: string) {
+  return db.student.findFirst({
+    where: { id: studentId, ...householdScope(userId) },
+    select: { id: true, schoolId: true, firstName: true, lastName: true },
+  });
+}
+
+export type PortalRequestType = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  description: string | null;
+  descriptionAr: string | null;
+  usualDelayDays: number | null;
+  /** The office will not write this one without knowing what it is for. */
+  requiresReason: boolean;
+};
+
+/**
+ * What a family may ask for, for one of their children.
+ *
+ * Keyed on the child rather than on the parent, because a parent with children
+ * in two schools of the same groupe has two different catalogues — what one
+ * school issues the other may not.
+ *
+ * Empty for a child that is not theirs, which is the same answer a child that
+ * does not exist gives.
+ */
+export async function listRequestTypesFor(
+  userId: string,
+  studentId: string,
+): Promise<PortalRequestType[]> {
+  const student = await resolveOwnStudent(userId, studentId);
+  if (!student) return [];
+
+  return db.documentRequestType.findMany({
+    where: { schoolId: student.schoolId, isActive: true },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      description: true,
+      descriptionAr: true,
+      usualDelayDays: true,
+      requiresReason: true,
+    },
+  });
+}
+
+export type PortalRequest = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  typeName: string;
+  typeNameAr: string | null;
+  copies: number;
+  reason: string | null;
+  status: string;
+  /** ISO — formatted on the phone, in the phone's locale. */
+  requestedAt: string;
+  readyAt: string | null;
+  collectedAt: string | null;
+  /** The office's answer, in the words the school wrote for them. */
+  officeNote: string | null;
+  /** Whether the family may still withdraw it — see `isCancellable`. */
+  canCancel: boolean;
+};
+
+/**
+ * Every request this household has filed, newest first.
+ *
+ * All of them, closed ones included and never paged: a family files a handful a
+ * year, and the refused one from October is exactly what they open the screen
+ * to re-read. Scoped on the household through the pupil, so one guardian sees
+ * what the other asked for — they are the same dossier familial, and a mother
+ * ringing about the paper the father requested is the ordinary case.
+ */
+export async function listMyRequests(userId: string): Promise<PortalRequest[]> {
+  const requests = await db.documentRequest.findMany({
+    where: { student: householdScope(userId) },
+    orderBy: [{ createdAt: "desc" }],
+    select: {
+      id: true,
+      status: true,
+      copies: true,
+      reason: true,
+      readyAt: true,
+      collectedAt: true,
+      officeNote: true,
+      createdAt: true,
+      student: { select: { id: true, firstName: true, lastName: true } },
+      type: { select: { name: true, nameAr: true } },
+    },
+  });
+
+  return requests.map((request) => ({
+    id: request.id,
+    studentId: request.student.id,
+    studentName:
+      `${request.student.firstName} ${request.student.lastName}`.trim(),
+    typeName: request.type.name,
+    typeNameAr: request.type.nameAr,
+    copies: request.copies,
+    reason: request.reason,
+    status: request.status,
+    requestedAt: request.createdAt.toISOString(),
+    readyAt: request.readyAt?.toISOString() ?? null,
+    collectedAt: request.collectedAt?.toISOString() ?? null,
+    officeNote: request.officeNote,
+    canCancel: isRequestCancellable(request.status),
+  }));
+}
+
+/**
+ * Whether this user may file a request about this child.
+ *
+ * The one check the route needs before calling `fileRequest`, which then
+ * re-derives the school from the pupil. Answers the pupil's own id back rather
+ * than a boolean so the caller cannot accidentally pass on the unchecked one.
+ */
+export async function resolveRequestSubject(
+  userId: string,
+  studentId: string,
+): Promise<{ studentId: string } | null> {
+  const student = await resolveOwnStudent(userId, studentId);
+  return student ? { studentId: student.id } : null;
 }

@@ -56,6 +56,46 @@ const en = {
     signOut: "Sign out",
   },
 
+  requests: {
+    title: "Document requests",
+    spaceHint: "Ask the school for an attestation, a certificate, a transcript.",
+    newRequest: "Ask for a document",
+    none: "You have not asked for anything yet.",
+    loadError: "Your requests could not be loaded.",
+    askedOn: "Asked on",
+    copiesCount: "{count} copies",
+
+    // Filing one
+    forWhom: "For which child?",
+    whichDocument: "Which document?",
+    noTypes: "This school does not list any document to ask for.",
+    copies: "How many copies?",
+    reason: "What is it for? (optional)",
+    reasonRequired: "What is it for?",
+    reasonHint: "The office words the paper from this, so say who it is for.",
+    reasonPlaceholder: "For my employer, for the bank…",
+    usualDelay: "Usually ready in {count} days",
+    usualDelayOne: "Usually ready the next day",
+    send: "Send the request",
+    refusedTitle: "Request not sent",
+    refusedDuplicate: "You have already asked for this document. Look for it in your list.",
+    refusedReason: "Say what this document is for.",
+    refusedUnknown: "This document cannot be asked for.",
+    saveFailed: "The request could not be sent.",
+
+    // The school's answer
+    comeOn: "Come for it on {date}.",
+    readySince: "Ready since {date} — you may come for it.",
+    readyNow: "It is ready. You may come for it.",
+
+    // Withdrawing one
+    cancel: "Withdraw the request",
+    cancelTitle: "Withdraw this request?",
+    cancelBody: "The school will no longer prepare this document.",
+    cancelConfirm: "Withdraw",
+    cancelTooLate: "The school has already started on it. Talk to the office.",
+    cancelFailed: "The request could not be withdrawn.",
+  },
   family: {
     loadError: "Could not load the household file.",
     noChildren: "No child linked to this account. Contact the school office.",
@@ -567,6 +607,14 @@ const en = {
       "5": "Friday",
       "6": "Saturday",
       "7": "Sunday",
+    },
+    requestStatus: {
+      PENDING: "Awaiting an answer",
+      ACCEPTED: "Accepted",
+      READY: "Ready",
+      COLLECTED: "Collected",
+      REJECTED: "Refused",
+      CANCELLED: "Withdrawn",
     },
     documentStatus: {
       MISSING: "Missing",

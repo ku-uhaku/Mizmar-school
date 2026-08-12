@@ -95,6 +95,11 @@ model User {
   /// both: a register outlives the account that took it.
   pupilAttendance     StudentAttendance[]     @relation("AttendanceRecordedByTeacher")
   pupilRemarks        StudentRemark[]         @relation("RemarkAuthor")
+  /// Papers asked for from the phone, and papers dealt with at the desk.
+  /// SetNull on both: a request already handled is a fact about the school's
+  /// work and must survive the account that filed or answered it.
+  documentRequests    DocumentRequest[]       @relation("DocumentRequestAuthor")
+  requestsHandled     DocumentRequest[]       @relation("DocumentRequestHandler")
 
   /// Portal accounts opened for parents. Almost always empty — a guardian is a
   /// row in the dossier familial, and only becomes a User if a school chooses

@@ -210,6 +210,10 @@ model Student {
   /// for. Identity rather than a year's business — see StudentDocument.
   documents StudentDocument[]
 
+  /// Papers the family has asked the school to issue about this child. The
+  /// other direction entirely from the dossier above — see DocumentRequest.
+  documentRequests DocumentRequest[]
+
   @@unique([schoolId, code])
   /// No two pupils may map to the same MASSAR code. Many may be unmapped.
   @@unique([schoolId, massarCode])

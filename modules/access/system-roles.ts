@@ -181,6 +181,11 @@ export const SYSTEM_ROLES: {
       // school accepted and for waiving a pièce a family cannot produce.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // Papers families ask the school to issue — the other direction. A head
+      // holds both codes because refusing a certificat de radiation, and
+      // signing one, are their decision.
+      PERMISSIONS.REQUEST_VIEW,
+      PERMISSIONS.REQUEST_HANDLE,
       // Loading the year's list from a spreadsheet. Held with STUDENT_CREATE
       // and FAMILY_CREATE above, which the import action asserts alongside it.
       PERMISSIONS.IMPORT_STUDENTS,
@@ -256,6 +261,11 @@ export const SYSTEM_ROLES: {
       // proceed yet.
       PERMISSIONS.DOCUMENT_VIEW,
       PERMISSIONS.DOCUMENT_MANAGE,
+      // And the queue of papers families have asked for, which is this desk's
+      // work end to end: it takes the request, names the day, writes the paper
+      // and hands it over.
+      PERMISSIONS.REQUEST_VIEW,
+      PERMISSIONS.REQUEST_HANDLE,
       // Rentrée is a spreadsheet from the previous school or from MASSAR, and
       // typing four hundred pupils by hand is this desk's worst week.
       PERMISSIONS.IMPORT_STUDENTS,

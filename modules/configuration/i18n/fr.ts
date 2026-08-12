@@ -50,6 +50,7 @@ const fr = {
       transportSchedules: "Horaires de transport",
       supplyArticles: "Catalogue de fournitures",
       documentTypes: "Pi\u00e8ces du dossier",
+      requestTypes: "Documents demandables",
       suppliers: "Fournisseurs",
       banks: "Banques",
       operationCategories: "Rubriques",
@@ -128,6 +129,10 @@ const fr = {
       isRequiredDocument: "Obligatoire",
       copies: "Exemplaires",
       documentNotes: "Pr\u00e9cision",
+      requestDescription: "À quoi il sert",
+      requestDescriptionAr: "À quoi il sert (arabe)",
+      usualDelayDays: "Délai habituel (jours)",
+      requiresReason: "Demander le motif",
       colorHex: "Couleur",
       isLanguage: "Matière de langue",
       requiresLab: "Nécessite un laboratoire",
@@ -194,6 +199,12 @@ const fr = {
         "Combien en apporter \u2014 \u00ab 2 photos d'identit\u00e9 \u00bb. \u00c0 laisser vide lorsqu\u2019un seul exemplaire suffit.",
       documentNotes:
         "O\u00f9 l\u2019obtenir, de quand elle doit dater \u2014 ce que le nom ne dit pas.",
+      requestDescription:
+        "Affiché à la famille sous le nom, là où elle choisit entre quatre documents qu'elle connaît mal.",
+      usualDelayDays:
+        "Propose la date lorsque le secrétariat accepte une demande. Laissez vide pour ne rien promettre.",
+      requiresReason:
+        "Pour les documents que vous ne rédigez pas sans savoir — la formulation dépend du destinataire.",
       supplyCategory:
         "Le rayon de papeterie o\u00f9 l\u2019article se trouve. Le s\u00e9lecteur des listes s\u2019y regroupe.",
       defaultQuantity:

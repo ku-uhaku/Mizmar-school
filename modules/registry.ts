@@ -39,6 +39,8 @@ import { profileModule } from "@/modules/profile/module";
 import { chatModule } from "@/modules/chat/module";
 import { CHAT_PERMISSIONS } from "@/modules/chat/permissions";
 import { eventsModule } from "@/modules/events/module";
+import { requestsModule } from "@/modules/requests/module";
+import { REQUEST_PERMISSIONS } from "@/modules/requests/permissions";
 import { EVENT_PERMISSIONS } from "@/modules/events/permissions";
 import { schoolLifeModule } from "@/modules/school-life/module";
 import { SCHOOL_LIFE_PERMISSIONS } from "@/modules/school-life/permissions";
@@ -116,6 +118,7 @@ export const MODULES: readonly AppModule[] = [
   // always reached through the pupil or the class it belongs to.
   schoolLifeModule,
   eventsModule,
+  requestsModule,
   chatModule,
   familiesModule,
   studentsModule,
@@ -176,6 +179,7 @@ export const PERMISSIONS = {
   ...HR_PERMISSIONS,
   ...SCHOOL_LIFE_PERMISSIONS,
   ...EVENT_PERMISSIONS,
+  ...REQUEST_PERMISSIONS,
   ...CHAT_PERMISSIONS,
   ...FAMILY_PERMISSIONS,
   ...STUDENT_PERMISSIONS,

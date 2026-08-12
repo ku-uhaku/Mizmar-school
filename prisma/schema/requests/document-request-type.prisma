@@ -1,0 +1,61 @@
+/// One paper a family may ask the school for: "Attestation de scolarité",
+/// "Certificat de scolarité", "Relevé de notes", "Attestation de paiement".
+///
+/// ── Not the same catalogue as DocumentType ──────────────────────────────────
+/// `DocumentType` is what the school asks the *family* to bring for a dossier
+/// d'inscription; this is what the family asks the *school* to issue. They
+/// point in opposite directions, they are handled by different people, and no
+/// row belongs on both lists — an acte de naissance is never something the
+/// school produces, and an attestation de scolarité is never something a parent
+/// hands in. One table for both would be a list where half the rows are wrong
+/// for whichever screen is reading it.
+///
+/// A table rather than an enum because what a school will issue is its own
+/// decision: some write an attestation de réussite, some do not, and a school
+/// that starts should not need a migration to say so.
+model DocumentRequestType {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short stable code, e.g. "ATTEST-SCO". What the catalogue is keyed on.
+  code String
+
+  name   String
+  nameAr String?
+
+  /// What the paper is for, in the family's words. Shown under the name on the
+  /// phone, where a parent is choosing between four things they half know.
+  description   String?
+  descriptionAr String?
+
+  /// How long the office ordinarily takes, in days. Used to *suggest* the date
+  /// a request will be ready when it is accepted — never to decide it. The
+  /// secretary picks the day; this only saves them counting.
+  ///
+  /// Null when the school makes no promise, which is honest for anything that
+  /// depends on a signature.
+  usualDelayDays Int?
+
+  /// Whether the family must say what they need it for. True for the papers a
+  /// school will not write blind — an attestation destined for a consulate is
+  /// worded differently from one for a bank.
+  requiresReason Boolean @default(false)
+
+  position Int     @default(0)
+  /// A paper the school has stopped issuing. Kept rather than deleted so the
+  /// requests already filed against it still read correctly — see the Restrict
+  /// on DocumentRequest.typeId.
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requests DocumentRequest[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  /// The phone's own query: this school's live catalogue, in order.
+  @@index([schoolId, isActive])
+  @@map("document_request_types")
+}

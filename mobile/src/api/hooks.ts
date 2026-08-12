@@ -17,6 +17,7 @@ import type {
   Child,
   ChildDetail,
   DirectorDashboard,
+  DocumentRequest,
   Dossier,
   DriverDay,
   Identity,
@@ -25,6 +26,7 @@ import type {
   PupilOption,
   Timetable,
   Remark,
+  RequestType,
   RunItinerary,
   RunRegister,
   RunRider,
@@ -649,5 +651,86 @@ export function useChildSupplies(
     enabled: Boolean(studentId),
     // A list is agreed at the rentrée and rarely touched after.
     staleTime: 10 * 60_000,
+  });
+}
+
+// ── Les demandes de documents ────────────────────────────────────────────────
+
+/** Every request this household has filed, newest first. */
+export function useMyRequests(): UseQueryResult<DocumentRequest[]> {
+  return useQuery({
+    queryKey: ["requests"],
+    queryFn: () => api<DocumentRequest[]>("/family/requests"),
+  });
+}
+
+/**
+ * What one child's school will issue.
+ *
+ * Keyed on the child, because the catalogue belongs to a school: a parent with
+ * children in two schools of the same groupe has two different lists.
+ */
+export function useRequestTypes(
+  studentId: string,
+): UseQueryResult<RequestType[]> {
+  return useQuery({
+    queryKey: ["child", studentId, "request-types"],
+    queryFn: () =>
+      api<RequestType[]>(`/family/children/${studentId}/request-types`),
+    enabled: Boolean(studentId),
+    // A school's catalogue changes once a year, if that.
+    staleTime: 10 * 60_000,
+  });
+}
+
+/**
+ * Filing one.
+ *
+ * The refusals come back as data rather than as errors — every one of them is
+ * something the parent can act on (say what it is for, or open the request they
+ * already have), and none is a failure of the request itself.
+ */
+export function useFileRequest(): UseMutationResult<
+  { ok: boolean; reason?: string; requestId?: string },
+  Error,
+  {
+    studentId: string;
+    typeId: string;
+    copies: number;
+    reason: string | null;
+  }
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input) =>
+      api<{ ok: boolean; reason?: string; requestId?: string }>(
+        "/family/requests",
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+    onSuccess: (result) => {
+      if (!result.ok) return;
+      void client.invalidateQueries({ queryKey: ["requests"] });
+    },
+  });
+}
+
+/** Withdrawing one, while the office has not started on it. */
+export function useCancelRequest(): UseMutationResult<
+  { ok: boolean; reason?: string },
+  Error,
+  string
+> {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: (requestId: string) =>
+      api<{ ok: boolean; reason?: string }>(
+        `/family/requests/${requestId}/cancel`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["requests"] });
+    },
   });
 }

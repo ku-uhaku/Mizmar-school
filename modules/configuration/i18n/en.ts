@@ -60,6 +60,7 @@ const en = {
       transportSchedules: "Transport timetables",
       supplyArticles: "Supply catalogue",
       documentTypes: "Dossier documents",
+      requestTypes: "Documents families may request",
       suppliers: "Suppliers",
       banks: "Banks",
       operationCategories: "Rubrics",
@@ -138,6 +139,10 @@ const en = {
       isRequiredDocument: "Required",
       copies: "Copies",
       documentNotes: "Note",
+      requestDescription: "What it is for",
+      requestDescriptionAr: "What it is for (Arabic)",
+      usualDelayDays: "Usual delay (days)",
+      requiresReason: "Ask what it is for",
       colorHex: "Colour",
       isLanguage: "Language subject",
       requiresLab: "Needs a lab",
@@ -204,6 +209,12 @@ const en = {
         "How many to bring \u2014 \"2 photos d'identit\u00e9\". Leave blank when one is meant.",
       documentNotes:
         "Where to get it, how recent it must be \u2014 anything the name cannot say.",
+      requestDescription:
+        "Shown to the family under the name, where they are choosing between four things they half know.",
+      usualDelayDays:
+        "Suggests the day when the office accepts one. Leave blank to promise nothing.",
+      requiresReason:
+        "For papers you will not write blind — the wording depends on who it is for.",
       supplyCategory:
         "Which shelf of the papeterie it sits on. The list editor groups its picker by this.",
       defaultQuantity:

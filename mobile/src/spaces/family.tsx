@@ -43,6 +43,18 @@ export function FamilySpace() {
         nothing at all when the school has not opened it — see `useChannels`. */}
       <ParentSpaceLink />
 
+      {/* Asking the school for a paper is about the household, not about one
+          child — a parent picks the child inside the form — so it sits beside
+          the parents' space rather than in a child's menu. */}
+      <Link href="/requests" asChild>
+        <Pressable>
+          <Card>
+            <Heading>{t.requests.title}</Heading>
+            <Caption>{t.requests.spaceHint}</Caption>
+          </Card>
+        </Pressable>
+      </Link>
+
       <Heading>{t.family.myChildren}</Heading>
 
       {children.data.map((child) => (

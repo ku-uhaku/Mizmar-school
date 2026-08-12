@@ -70,6 +70,10 @@ import chat, {
   nav as chatNav,
   permissions as chatPermissions,
 } from "@/modules/chat/i18n/fr";
+import requests, {
+  nav as requestsNav,
+  permissions as requestsPermissions,
+} from "@/modules/requests/i18n/fr";
 import events, {
   nav as eventsNav,
   permissions as eventsPermissions,
@@ -134,6 +138,7 @@ const fr: Dictionary = {
   // Vie scolaire.
   ...schoolLife,
   ...events,
+  ...requests,
   ...chat,
   ...families,
   ...students,
@@ -170,6 +175,7 @@ const fr: Dictionary = {
     ...auditNav,
     ...schoolLifeNav,
     ...eventsNav,
+    ...requestsNav,
     ...chatNav,
     ...familiesNav,
     ...studentsNav,
@@ -196,6 +202,7 @@ const fr: Dictionary = {
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...eventsPermissions.groups,
+      ...requestsPermissions.groups,
       ...chatPermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
@@ -224,6 +231,7 @@ const fr: Dictionary = {
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...eventsPermissions.codes,
+      ...requestsPermissions.codes,
       ...chatPermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,

@@ -128,6 +128,11 @@ model School {
   /// The parents' conversations — see modules/chat.
   chatChannels ChatChannel[]
 
+  /// What families may ask this school to issue, and every request filed —
+  /// see modules/requests.
+  documentRequestTypes DocumentRequestType[]
+  documentRequests     DocumentRequest[]
+
   @@unique([organizationId, code])
   /// No two schools may map to the same establishment. Many may be unmapped.
   @@unique([organizationId, massarCode])

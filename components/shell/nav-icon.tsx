@@ -1,5 +1,6 @@
 import {
   FileBarChartIcon,
+  FileTextIcon,
   ArrowLeftRightIcon,
   BackpackIcon,
   BanknoteArrowDownIcon,
@@ -65,6 +66,7 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   hr: BriefcaseIcon,
   schoolLife: HeartHandshakeIcon,
   events: CalendarHeartIcon,
+  requests: FileTextIcon,
   chat: MessagesSquareIcon,
   students: GraduationCapIcon,
   families: HomeIcon,

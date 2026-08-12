@@ -222,6 +222,17 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ position: "asc" }, { name: "asc" }],
   },
 
+  "request-types": {
+    table: () => db.documentRequestType as unknown as Delegate,
+    model: "DocumentRequestType",
+    where: bySchool,
+    createData: (context) => ({
+      school: { connect: { id: context.currentSchool?.id } },
+    }),
+    // The order the catalogue is offered in on a parent's phone.
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
   "supply-articles": {
     table: () => db.supplyArticle as unknown as Delegate,
     model: "SupplyArticle",

@@ -7,6 +7,7 @@ import {
 import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
 import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedDocumentTypes } from "@/modules/documents/seed";
+import { seedRequestTypes } from "@/modules/requests/seed";
 import { seedRooms } from "@/modules/facilities/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import {
@@ -115,6 +116,9 @@ export async function configureSchool(
   await seedAppreciationBands(db, school.id);
   await seedSupplyArticles(db, school.id);
   await seedDocumentTypes(db, school.id);
+  // What families may ask the school to issue — the other direction from the
+  // dossier above. See modules/requests.
+  await seedRequestTypes(db, school.id);
 
   /*
     The week the school declares, made to agree with the bell schedule laid

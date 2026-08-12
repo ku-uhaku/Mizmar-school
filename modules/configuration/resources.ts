@@ -1536,6 +1536,67 @@ export const RESOURCES: ResourceDef[] = [
       IS_ACTIVE,
     ],
   },
+
+  {
+    // What the school issues *for* families — the mirror of the dossier above,
+    // and deliberately a separate list: no row belongs on both. See
+    // prisma/schema/requests/document-request-type.prisma.
+    id: "request-types",
+    section: "school",
+    labelKey: "requestTypes",
+    scope: "SCHOOL",
+    labelFields: ["code", "name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 40,
+        dir: "ltr",
+        placeholder: "ATTEST-SCO",
+        inTable: true,
+      },
+      { name: "name", type: "text", labelKey: "name", required: true, maxLength: 160, inTable: true },
+      NAME_AR,
+      {
+        name: "description",
+        type: "textarea",
+        labelKey: "requestDescription",
+        hintKey: "requestDescription",
+        maxLength: 300,
+        wide: true,
+      },
+      {
+        name: "descriptionAr",
+        type: "textarea",
+        labelKey: "requestDescriptionAr",
+        maxLength: 300,
+        dir: "ltr",
+        wide: true,
+      },
+      {
+        name: "usualDelayDays",
+        type: "number",
+        labelKey: "usualDelayDays",
+        hintKey: "usualDelayDays",
+        min: 0,
+        max: 90,
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "requiresReason",
+        type: "boolean",
+        labelKey: "requiresReason",
+        hintKey: "requiresReason",
+        defaultValue: false,
+        inTable: true,
+      },
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
 ];
 
 export function findResource(id: string): ResourceDef | undefined {

@@ -68,6 +68,10 @@ import chat, {
   nav as chatNav,
   permissions as chatPermissions,
 } from "@/modules/chat/i18n/en";
+import requests, {
+  nav as requestsNav,
+  permissions as requestsPermissions,
+} from "@/modules/requests/i18n/en";
 import events, {
   nav as eventsNav,
   permissions as eventsPermissions,
@@ -146,6 +150,7 @@ const en = {
   // Vie scolaire.
   ...schoolLife,
   ...events,
+  ...requests,
   ...chat,
   ...families,
   ...students,
@@ -183,6 +188,7 @@ const en = {
     ...auditNav,
     ...schoolLifeNav,
     ...eventsNav,
+    ...requestsNav,
     ...chatNav,
     ...familiesNav,
     ...studentsNav,
@@ -209,6 +215,7 @@ const en = {
       ...hrPermissions.groups,
       ...schoolLifePermissions.groups,
       ...eventsPermissions.groups,
+      ...requestsPermissions.groups,
       ...chatPermissions.groups,
       ...familiesPermissions.groups,
       ...studentsPermissions.groups,
@@ -237,6 +244,7 @@ const en = {
       ...hrPermissions.codes,
       ...schoolLifePermissions.codes,
       ...eventsPermissions.codes,
+      ...requestsPermissions.codes,
       ...chatPermissions.codes,
       ...familiesPermissions.codes,
       ...studentsPermissions.codes,
