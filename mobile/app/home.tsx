@@ -5,7 +5,12 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-import { useBadges, useChannels, useIdentity } from "../src/api/hooks";
+import {
+  useBadges,
+  useChannels,
+  useIdentity,
+  useNotifications,
+} from "../src/api/hooks";
 import type { MobileSpace } from "../src/api/types";
 import { interpolate, useT } from "../src/i18n";
 import { DirectorSpace } from "../src/spaces/director";
@@ -78,10 +83,15 @@ export default function HomeScreen() {
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
-          {/* Only the family space has anything to be notified about — the
-            other three are read from the school's side, where "what is new"
-            is the screen itself. */}
-          {space === "family" ? <NotificationBell /> : null}
+          {/* Every account has an inbox, whichever space it is in — the scope
+            is the account and not the space. See app/notifications.tsx. */}
+          <InboxBell />
+
+          {/* Messages are their own control and keep their own count. A parent
+            reading "you have three notifications" and finding a conversation
+            is not the same affordance as a bell that opens the conversation,
+            and the other three spaces have no parents' channel at all. */}
+          {space === "family" ? <MessagesBell /> : null}
 
           <Pressable
             onPress={() => router.push("/profile")}
@@ -162,7 +172,78 @@ export default function HomeScreen() {
 
 
 /**
- * The bell: unread messages, and one tap to them.
+ * The inbox: how many unread notifications, and one tap to read them.
+ *
+ * ── Why this can be a summary when the messages bell could not ──────────────
+ * The note below explains why a bell over the *badge counts* was wrong: it
+ * opened a screen of tiles that repeated the number and put the actual thing
+ * two taps away, because a count is not an item. This one is different in
+ * exactly that respect — behind it is a list of things that happened, each a
+ * sentence you can read and press, so the number and the screen are the same
+ * fact rather than one describing the other.
+ *
+ * Silent at zero, for the same reason as its neighbour.
+ */
+function InboxBell() {
+  const theme = useTheme();
+  const router = useRouter();
+  const t = useT();
+  const inbox = useNotifications();
+  const unread = inbox.data?.unread ?? 0;
+
+  return (
+    <Pressable
+      onPress={() => router.push("/notifications")}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={
+        unread > 0
+          ? interpolate(t.notifications.bellUnreadA11y, { count: unread })
+          : t.notifications.bellA11y
+      }
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.card,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: theme.border,
+      }}
+    >
+      <MaterialCommunityIcons
+        name={unread > 0 ? "bell-badge-outline" : "bell-outline"}
+        size={20}
+        color={unread > 0 ? theme.primary : theme.text}
+      />
+
+      {unread > 0 ? (
+        <View
+          style={{
+            position: "absolute",
+            top: 2,
+            right: 2,
+            minWidth: 17,
+            height: 17,
+            paddingHorizontal: 4,
+            borderRadius: 9,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: theme.danger,
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>
+            {unread > 99 ? "99+" : unread}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+/**
+ * The messages bell: unread messages, and one tap to them.
  *
  * ── It used to open a summary, and that was wrong ───────────────────────────
  * The first version counted four things — events, marks, remarks, messages —
@@ -179,7 +260,7 @@ export default function HomeScreen() {
  *
  * Silent at zero: a bell with a nought on it teaches you to stop reading bells.
  */
-function NotificationBell() {
+function MessagesBell() {
   const theme = useTheme();
   const router = useRouter();
   const t = useT();

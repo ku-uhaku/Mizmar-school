@@ -3,6 +3,11 @@ import "server-only";
 import { isDuplicateKey, withCodeRetry } from "@/lib/allocation";
 import { db } from "@/lib/db";
 import {
+  dispatch,
+  guardiansOfFamily,
+  notify,
+} from "@/modules/notifications/service";
+import {
   canMoveCheque,
   cashImpactOf,
   chequeUndoesReceipt,
@@ -445,9 +450,49 @@ export async function recordPayment(
     ([enrollmentFeeId, amountCentimes]) => ({ enrollmentFeeId, amountCentimes }),
   );
 
-  return withReceiptCodeRetry(() =>
+  const result = await withReceiptCodeRetry(() =>
     recordPaymentOnce({ ...input, allocations }, tenderTotal),
   );
+
+  /*
+    The receipt, to the family that paid it.
+
+    Outside the transaction and after it, on purpose. The transaction above is
+    the one place in this app where a partial write is genuinely dangerous —
+    money taken with no allocation against it — and adding a fan-out over a
+    family's guardians inside it would hold the write lock open across reads
+    that have nothing to do with the ledger. If the notification fails the
+    receipt still stands, which is the right way round: `notify` swallows its
+    own errors for exactly this reason.
+
+    Carried in centimes and worded by whichever client shows it, so a parent
+    reading in Arabic does not get the cashier's formatting.
+  */
+  const familyId = input.familyId;
+  if (result.ok && familyId) {
+    await dispatch("PAYMENT_RECORDED", async () => {
+      // The tenant is read rather than taken from the caller:
+      // `RecordPaymentInput` is what a cashier's form produces, and adding an
+      // org id to it would be one more thing a request could get wrong about a
+      // scope it does not choose.
+      const school = await db.school.findUnique({
+        where: { id: input.schoolId },
+        select: { organizationId: true },
+      });
+      if (!school) return;
+
+      await notify({
+        organizationId: school.organizationId,
+        schoolId: input.schoolId,
+        kind: "PAYMENT_RECORDED",
+        subjectId: result.paymentId,
+        params: { amountCentimes: result.totalCentimes, code: result.code },
+        targets: await guardiansOfFamily(familyId),
+      });
+    });
+  }
+
+  return result;
 }
 
 async function recordPaymentOnce(

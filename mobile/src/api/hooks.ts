@@ -21,6 +21,7 @@ import type {
   Dossier,
   DriverDay,
   Identity,
+  Inbox,
   MarkSheet,
   MyRemark,
   PupilOption,
@@ -732,5 +733,47 @@ export function useCancelRequest(): UseMutationResult<
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["requests"] });
     },
+  });
+}
+
+// ── Les notifications ────────────────────────────────────────────────────────
+
+/**
+ * The inbox, for whichever space the account is in.
+ *
+ * ── Polled, and slowly ──────────────────────────────────────────────────────
+ * The same reasoning as the badges above and the web bell: nothing here is
+ * urgent to the minute, and a socket per phone is not worth running for a
+ * school. React Query stops the interval when the app is backgrounded, so this
+ * costs nothing while the phone is in a pocket.
+ */
+export function useNotifications(): UseQueryResult<Inbox> {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api<Inbox>("/notifications"),
+    refetchInterval: 60_000,
+  });
+}
+
+/**
+ * Marks one read, or the lot.
+ *
+ * Answers with the whole refreshed inbox rather than an acknowledgement, so the
+ * count on the bell and the dots in the list come from one server answer and
+ * cannot end up disagreeing with each other.
+ */
+export function useMarkNotificationsRead(): UseMutationResult<
+  Inbox,
+  Error,
+  { id: string } | { all: true }
+> {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input) =>
+      api<Inbox>("/notifications", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (inbox) => client.setQueryData(["notifications"], inbox),
   });
 }

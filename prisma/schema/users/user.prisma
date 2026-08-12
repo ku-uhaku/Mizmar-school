@@ -149,6 +149,10 @@ model User {
 
   portalSeen PortalSeen[] @relation("PortalSeen")
 
+  /// The inbox — see modules/notifications. Cascade on the other side: nobody
+  /// else may read them, so they have no meaning once the account is gone.
+  notifications Notification[] @relation("NotificationRecipient")
+
   @@index([organizationId])
   @@map("users")
 }

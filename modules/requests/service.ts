@@ -1,7 +1,14 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import {
+  dispatch,
+  guardiansOfStudent,
+  notify,
+  staffHolding,
+} from "@/modules/notifications/service";
 import { canMove, isCancellable } from "@/modules/requests/enums";
+import { REQUEST_PERMISSIONS } from "@/modules/requests/permissions";
 
 /**
  * Writes and invariants for the requests module.
@@ -48,13 +55,19 @@ export async function fileRequest(
 ): Promise<FileRequestResult> {
   const student = await db.student.findUnique({
     where: { id: input.studentId },
-    select: { id: true, schoolId: true },
+    select: {
+      id: true,
+      schoolId: true,
+      firstName: true,
+      lastName: true,
+      school: { select: { organizationId: true } },
+    },
   });
   if (!student) return { ok: false, reason: "not-found" };
 
   const type = await db.documentRequestType.findFirst({
     where: { id: input.typeId, schoolId: student.schoolId, isActive: true },
-    select: { id: true, requiresReason: true },
+    select: { id: true, name: true, requiresReason: true },
   });
   if (!type) return { ok: false, reason: "not-found" };
 
@@ -87,6 +100,34 @@ export async function fileRequest(
     },
     select: { id: true },
   });
+
+  /*
+    Somebody has to know a paper is waiting.
+
+    This is the one notification in the app that exists because the *absence*
+    of one is a real failure: a request filed from a phone lands on a list
+    nobody has a reason to open, and a school that answers in a week when it
+    meant to answer in a day has no way of telling that is what happened. The
+    desk is whoever holds REQUEST_HANDLE in this school — resolved the same way
+    the DAL resolves it, so a director with an org-wide role is told too.
+  */
+  await dispatch("REQUEST_FILED", async () =>
+    notify({
+      organizationId: student.school.organizationId,
+      schoolId: student.schoolId,
+      kind: "REQUEST_FILED",
+      subjectId: created.id,
+      params: {
+        document: type.name,
+        child: `${student.firstName} ${student.lastName}`,
+      },
+      targets: await staffHolding(
+        student.school.organizationId,
+        student.schoolId,
+        REQUEST_PERMISSIONS.REQUEST_HANDLE,
+      ),
+    }),
+  );
 
   return { ok: true, requestId: created.id };
 }
@@ -134,7 +175,14 @@ export async function handleRequest(
   // rather than reaching another school's desk.
   const request = await db.documentRequest.findFirst({
     where: { id: requestId, schoolId },
-    select: { id: true, status: true, readyAt: true },
+    select: {
+      id: true,
+      status: true,
+      readyAt: true,
+      studentId: true,
+      type: { select: { name: true } },
+      school: { select: { organizationId: true } },
+    },
   });
   if (!request) return { ok: false, reason: "not-found" };
 
@@ -170,6 +218,29 @@ export async function handleRequest(
       collectedAt: input.status === "COLLECTED" ? now : null,
     },
   });
+
+  /*
+    And the family hears the answer.
+
+    Keyed on the status as well as the request, so each move is its own line: a
+    parent is told the paper was accepted, and told again when it is ready to
+    collect. Keyed on the id alone — which is the default — only the first of
+    those would ever have been delivered.
+
+    The status travels as its code and is worded by whichever client is showing
+    it. See modules/notifications/describe.ts.
+  */
+  await dispatch("REQUEST_HANDLED", async () =>
+    notify({
+      organizationId: request.school.organizationId,
+      schoolId,
+      kind: "REQUEST_HANDLED",
+      subjectId: request.id,
+      dedupeOn: input.status,
+      params: { document: request.type.name, status: input.status },
+      targets: await guardiansOfStudent(request.studentId),
+    }),
+  );
 
   return { ok: true };
 }

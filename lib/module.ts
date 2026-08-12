@@ -32,6 +32,7 @@ export type NavIcon =
   | "roles"
   | "profile"
   | "appearance"
+  | "notifications"
   | "configuration"
   | "hr"
   | "schoolLife"

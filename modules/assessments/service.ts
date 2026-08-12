@@ -10,6 +10,11 @@ import {
   pointsToQuarters,
   roundScore,
 } from "@/modules/assessments/enums";
+import {
+  dispatch,
+  guardiansOfClass,
+  notify,
+} from "@/modules/notifications/service";
 
 /**
  * Writes and invariants for the assessments module.
@@ -665,7 +670,65 @@ export async function setAssessmentStatus(
     where: { id: assessmentId },
     data: { status },
   });
+
+  if (status === "GRADED") {
+    await dispatch("MARKS_PUBLISHED", () => tellAboutValidation(assessmentId));
+  }
   return { ok: true };
+}
+
+/**
+ * Validation is the moment two different people need telling.
+ *
+ * The families, because GRADED is precisely what makes a mark visible to them —
+ * `FAMILY_VISIBLE_STATUSES` is the one status in that list, so this event and
+ * "the marks appeared on the phone" are the same event. And the teacher, whose
+ * paper has just been accepted and who otherwise finds out by going back to
+ * look at a list.
+ *
+ * Every guardian of the class is resolved through the enrolments rather than
+ * the grade rows: a pupil sitting in the class with no mark yet is still one
+ * whose family will see the sheet, and dedupe on the assessment id means the
+ * whole thing is one line per reader however many marks it carries.
+ */
+async function tellAboutValidation(assessmentId: string): Promise<void> {
+  const assessment = await db.assessment.findUnique({
+    where: { id: assessmentId },
+    select: {
+      id: true,
+      title: true,
+      schoolId: true,
+      schoolClassId: true,
+      teacherId: true,
+      subject: { select: { name: true } },
+      school: { select: { organizationId: true } },
+    },
+  });
+  if (!assessment) return;
+
+  const organizationId = assessment.school.organizationId;
+
+  await notify({
+    organizationId,
+    schoolId: assessment.schoolId,
+    kind: "MARKS_PUBLISHED",
+    subjectId: assessment.id,
+    params: { subject: assessment.subject.name },
+    targets: await guardiansOfClass(assessment.schoolClassId),
+  });
+
+  // A paper with no teacher on it is one whose account has since been removed —
+  // `Assessment.teacherId` is SetNull. Nobody to tell, and not an error.
+  if (assessment.teacherId) {
+    await notify({
+      organizationId,
+      schoolId: assessment.schoolId,
+      kind: "ASSESSMENT_VALIDATED",
+      subjectId: assessment.id,
+      params: { assessment: assessment.title },
+      targets: [{ userId: assessment.teacherId }],
+    });
+  }
 }
 
 export type BandInput = {

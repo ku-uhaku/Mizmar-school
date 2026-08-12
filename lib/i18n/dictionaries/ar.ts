@@ -25,6 +25,9 @@ import organization, {
   nav as organizationNav,
   permissions as organizationPermissions,
 } from "@/modules/organization/i18n/ar";
+import notifications, {
+  nav as notificationsNav,
+} from "@/modules/notifications/i18n/ar";
 import profile, { nav as profileNav } from "@/modules/profile/i18n/ar";
 import schoolYears, {
   nav as schoolYearsNav,
@@ -136,6 +139,7 @@ const ar: Dictionary = {
   ...hr,
   ...profile,
   ...appearance,
+  ...notifications,
   ...audit,
 
   // Vie scolaire.
@@ -175,6 +179,7 @@ const ar: Dictionary = {
     ...hrNav,
     ...profileNav,
     ...appearanceNav,
+    ...notificationsNav,
     ...auditNav,
     ...schoolLifeNav,
     ...eventsNav,

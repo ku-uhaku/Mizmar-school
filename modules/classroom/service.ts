@@ -6,6 +6,11 @@ import {
   MAX_MINUTES_LATE,
   startOfDay,
 } from "@/modules/classroom/enums";
+import {
+  dispatch,
+  guardiansOfStudent,
+  notify,
+} from "@/modules/notifications/service";
 
 /**
  * Writes and invariants for the espace enseignant.
@@ -240,7 +245,52 @@ export async function setRemarkVisibility(
     data: { isVisibleToFamily },
   });
 
-  return { ok: updated.count > 0 };
+  if (updated.count === 0) return { ok: false };
+
+  // Only on release. Taking an observation back is the office reconsidering,
+  // and a family who never saw it has nothing to be told about — while one who
+  // did is not helped by a second line drawing attention to it.
+  if (isVisibleToFamily) {
+    await dispatch("REMARK_SHARED", () => tellTheFamily(remarkId, schoolId));
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Tells the household an observation has been released to them.
+ *
+ * Deliberately wordless about *what* it says. The remark is a teacher's account
+ * of something that happened at school, sometimes an unhappy one, and a
+ * notification is read on a lock screen in front of whoever is standing there.
+ * The line names the child and nothing else; the words are on the screen behind
+ * it, which is where a parent chooses to read them.
+ */
+async function tellTheFamily(
+  remarkId: string,
+  schoolId: string,
+): Promise<void> {
+  const remark = await db.studentRemark.findFirst({
+    where: { id: remarkId, enrollment: { student: { schoolId } } },
+    select: {
+      id: true,
+      enrollment: {
+        select: {
+          studentId: true,
+          student: { select: { school: { select: { organizationId: true } } } },
+        },
+      },
+    },
+  });
+  if (!remark) return;
+
+  await notify({
+    organizationId: remark.enrollment.student.school.organizationId,
+    schoolId,
+    kind: "REMARK_SHARED",
+    subjectId: remark.id,
+    targets: await guardiansOfStudent(remark.enrollment.studentId),
+  });
 }
 
 /**

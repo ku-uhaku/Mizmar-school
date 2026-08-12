@@ -32,6 +32,7 @@ import { IMPORT_PERMISSIONS } from "@/modules/imports/permissions";
 import { HR_PERMISSIONS } from "@/modules/hr/permissions";
 import { familiesModule } from "@/modules/families/module";
 import { FAMILY_PERMISSIONS } from "@/modules/families/permissions";
+import { notificationsModule } from "@/modules/notifications/module";
 import { organizationModule } from "@/modules/organization/module";
 import { ORGANIZATION_PERMISSIONS } from "@/modules/organization/permissions";
 import { portalModule } from "@/modules/portal/module";
@@ -106,6 +107,9 @@ export const MODULES: readonly AppModule[] = [
   hrModule,
   profileModule,
   appearanceModule,
+  // Owns a table but declares no permission: an inbox is scoped to the account
+  // reading it, so there is nothing to be granted. See its module.ts.
+  notificationsModule,
   // The trail of everything the modules below do. Registered here rather than
   // beside them because it is a reading of the whole app, not a domain of it.
   auditModule,

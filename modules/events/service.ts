@@ -6,6 +6,11 @@ import {
   isPublishable,
   startOfDay,
 } from "@/modules/events/enums";
+import {
+  dispatch,
+  guardiansOfEventAudience,
+  notify,
+} from "@/modules/notifications/service";
 
 /**
  * Writes and data invariants for the events module.
@@ -216,6 +221,14 @@ export async function publishEvent(
       status: true,
       isSchoolWide: true,
       _count: { select: { audiences: true } },
+      // Read here rather than again after the claim: the announcement's
+      // audience is the same set this function has already checked, and a
+      // second `findFirst` would be a second answer to a question already
+      // asked — one that could differ from the one the decision was made on.
+      title: true,
+      schoolYearId: true,
+      school: { select: { organizationId: true } },
+      audiences: { select: { levelId: true, schoolClassId: true } },
     },
   });
 
@@ -252,7 +265,57 @@ export async function publishEvent(
   });
 
   if (claimed.count === 0) return { ok: false, reason: "ALREADY_PUBLISHED" };
+
+  await dispatch("EVENT_PUBLISHED", () => tellTheFamilies(schoolId, event));
   return { ok: true };
+}
+
+/** What `tellTheFamilies` needs, as `publishEvent` has already read it. */
+type PublishedEvent = {
+  id: string;
+  title: string;
+  schoolYearId: string;
+  isSchoolWide: boolean;
+  school: { organizationId: string };
+  audiences: { levelId: string | null; schoolClassId: string | null }[];
+};
+
+/**
+ * Puts the announcement in the inbox of every family it was aimed at.
+ *
+ * Here rather than in the action because this is where publishing actually
+ * happens, and a second caller — a scheduled release, an import — must not be
+ * able to announce something silently. The audience is the one `publishEvent`
+ * has just checked, so a family is told exactly when the event would appear on
+ * their phone and never otherwise.
+ *
+ * Deduplicated on the event id inside `notify`, which is what makes publish →
+ * unpublish → publish tell a family once rather than three times.
+ */
+async function tellTheFamilies(
+  schoolId: string,
+  event: PublishedEvent,
+): Promise<void> {
+  const targets = await guardiansOfEventAudience({
+    schoolId,
+    schoolYearId: event.schoolYearId,
+    isSchoolWide: event.isSchoolWide,
+    levelIds: event.audiences
+      .map((row) => row.levelId)
+      .filter((id): id is string => id !== null),
+    classIds: event.audiences
+      .map((row) => row.schoolClassId)
+      .filter((id): id is string => id !== null),
+  });
+
+  await notify({
+    organizationId: event.school.organizationId,
+    schoolId,
+    kind: "EVENT_PUBLISHED",
+    subjectId: event.id,
+    params: { title: event.title },
+    targets,
+  });
 }
 
 /**

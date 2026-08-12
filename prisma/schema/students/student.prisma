@@ -214,6 +214,9 @@ model Student {
   /// other direction entirely from the dossier above — see DocumentRequest.
   documentRequests DocumentRequest[]
 
+  /// What the family has been told about this child — see modules/notifications.
+  notifications Notification[] @relation("NotificationSubject")
+
   @@unique([schoolId, code])
   /// No two pupils may map to the same MASSAR code. Many may be unmapped.
   @@unique([schoolId, massarCode])

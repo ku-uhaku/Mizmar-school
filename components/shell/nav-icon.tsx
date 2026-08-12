@@ -1,4 +1,5 @@
 import {
+  BellIcon,
   FileBarChartIcon,
   FileTextIcon,
   ArrowLeftRightIcon,
@@ -61,6 +62,7 @@ export const NAV_ICONS: Record<NavIcon, typeof LayoutDashboardIcon> = {
   roles: ShieldCheckIcon,
   profile: UserIcon,
   appearance: PaletteIcon,
+  notifications: BellIcon,
   configuration: SettingsIcon,
   audit: ScrollTextIcon,
   hr: BriefcaseIcon,

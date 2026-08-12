@@ -558,6 +558,27 @@ const ar: Dictionary = {
     none: "لا يوجد أي درس مبرمَج لهذا التوقيت.",
   },
 
+  notifications: {
+    title: "الإشعارات",
+    none: "لا جديد.",
+    noneHint: "سنُعلمك هنا بكل ما يخصّك.",
+    loadError: "تعذّر تحميل الإشعارات.",
+    markAllRead: "تعليم الكل كمقروء",
+    bellA11y: "الإشعارات",
+    bellUnreadA11y: "الإشعارات، {count} غير مقروءة",
+
+    kinds: {
+      EVENT_PUBLISHED: "حدث جديد: {title}",
+      REQUEST_HANDLED: "{document}: {status}",
+      MARKS_PUBLISHED: "نقط جديدة لـ {child} في {subject}",
+      BULLETIN_PUBLISHED: "نقطة {child} للفترة {term} متوفّرة",
+      REMARK_SHARED: "ملاحظة بخصوص {child}",
+      PAYMENT_RECORDED: "تمّ تسجيل أداء {amount} — وصل {code}",
+      REQUEST_FILED: "{document} مطلوب من طرف عائلة {child}",
+      ASSESSMENT_VALIDATED: "تمّ اعتماد «{assessment}»",
+    },
+  },
+
   labels: {
     attendance: {
       PRESENT: "حاضر",

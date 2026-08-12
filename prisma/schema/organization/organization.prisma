@@ -28,5 +28,8 @@ model Organization {
   users   User[]
   roles   Role[]
 
+  /// What its people are waiting to be told — see modules/notifications.
+  notifications Notification[]
+
   @@map("organizations")
 }

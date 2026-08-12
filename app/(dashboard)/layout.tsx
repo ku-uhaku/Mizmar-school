@@ -13,6 +13,8 @@ import { ContextSwitcher } from "@/modules/context/components/context-switcher";
 import { GlobalSearch } from "@/modules/school-life/components/global-search";
 import { QuickActions } from "@/modules/dashboard/components/quick-actions";
 import { LocaleSwitcher } from "@/components/shell/locale-switcher";
+import { NotificationBell } from "@/modules/notifications/components/notification-bell";
+import { loadInbox } from "@/modules/notifications/queries";
 import { SectionScope } from "@/components/shell/section-scope";
 import { getDictionary } from "@/lib/i18n/server";
 import { visibleSections } from "@/lib/nav";
@@ -47,6 +49,10 @@ export default async function DashboardLayout({
 
   const sections = visibleSections(context.canOrg, context.can);
   const name = displayName(context.user);
+
+  // Read here rather than in the bell so the badge is right in the first paint
+  // — see the note in notification-bell.tsx. The bell polls from then on.
+  const inbox = await loadInbox(context, { limit: 8 });
 
   // The box searches pupils, dossiers and classes, and each kind is filtered by
   // its own permission inside the action. A reader holding none of the three
@@ -147,6 +153,9 @@ export default async function DashboardLayout({
               {/* The four or five jobs the school runs on, reachable from every
                 screen rather than only from the dashboard. */}
               <QuickActions actions={quickActions} />
+              {/* Everyone has an inbox and nobody needs a code to read their
+                own — see modules/notifications/module.ts. */}
+              <NotificationBell initial={inbox} />
               <FullscreenToggle />
               <LocaleSwitcher />
               <ThemeModeToggle />

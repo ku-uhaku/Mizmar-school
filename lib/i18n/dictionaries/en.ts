@@ -23,6 +23,9 @@ import organization, {
   nav as organizationNav,
   permissions as organizationPermissions,
 } from "@/modules/organization/i18n/en";
+import notifications, {
+  nav as notificationsNav,
+} from "@/modules/notifications/i18n/en";
 import profile, { nav as profileNav } from "@/modules/profile/i18n/en";
 import schoolYears, {
   nav as schoolYearsNav,
@@ -145,6 +148,7 @@ const en = {
   ...hr,
   ...profile,
   ...appearance,
+  ...notifications,
   ...audit,
 
   // Vie scolaire.
@@ -185,6 +189,7 @@ const en = {
     ...hrNav,
     ...profileNav,
     ...appearanceNav,
+    ...notificationsNav,
     ...auditNav,
     ...schoolLifeNav,
     ...eventsNav,

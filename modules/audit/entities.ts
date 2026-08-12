@@ -188,8 +188,11 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Event: "vieScolaire",
   ChatChannel: "vieScolaire",
   ChatMessage: "vieScolaire",
-  // A read watermark is the account's own bookkeeping, not the school's.
+  // A read watermark is the account's own bookkeeping, not the school's. So is
+  // an inbox: a notification is addressed to one account and belongs to its
+  // history rather than to the domain of whatever happening produced it.
   PortalSeen: "access",
+  Notification: "access",
   EventAudience: "vieScolaire",
 };
 

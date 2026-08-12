@@ -14,6 +14,11 @@ import {
   weightedAverage,
   type WeightedEntry,
 } from "@/modules/bulletins/enums";
+import {
+  dispatch,
+  guardiansOfStudent,
+  notify,
+} from "@/modules/notifications/service";
 
 /**
  * Writes and invariants for the bulletins module.
@@ -450,7 +455,54 @@ export async function setClassPublication(
       : { status: "DRAFT", publishedAt: null, publishedById: null },
   });
 
+  if (publish && result.count > 0) {
+    await dispatch("BULLETIN_PUBLISHED", () =>
+      tellTheFamilies(context, schoolClass.id, termId),
+    );
+  }
+
   return { ok: true, changed: result.count };
+}
+
+/**
+ * One line per family whose child's bulletin has just been released.
+ *
+ * Written per bulletin rather than per class, so `subjectId` names the document
+ * this reader may actually open and the dedupe key is that document's id — a
+ * class republished after a correction tells only the families whose bulletin
+ * was in DRAFT at the time, which is exactly who the `updateMany` above moved.
+ *
+ * Only on publish. Taking a bulletin back is not news a family should be sent:
+ * it is the school admitting a mistake to itself, and the document simply stops
+ * being there.
+ */
+async function tellTheFamilies(
+  context: AuthContext,
+  schoolClassId: string,
+  termId: string,
+): Promise<void> {
+  const bulletins = await db.bulletin.findMany({
+    where: { schoolClassId, termId, status: "PUBLISHED" },
+    select: {
+      id: true,
+      schoolId: true,
+      enrollment: { select: { studentId: true } },
+      term: { select: { name: true } },
+    },
+  });
+
+  await Promise.all(
+    bulletins.map(async (bulletin) =>
+      notify({
+        organizationId: context.organization.id,
+        schoolId: bulletin.schoolId,
+        kind: "BULLETIN_PUBLISHED",
+        subjectId: bulletin.id,
+        params: { term: bulletin.term.name },
+        targets: await guardiansOfStudent(bulletin.enrollment.studentId),
+      }),
+    ),
+  );
 }
 
 // ── What people write ────────────────────────────────────────────────────────

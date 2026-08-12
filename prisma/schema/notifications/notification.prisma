@@ -1,0 +1,92 @@
+/// One thing this account is told about, waiting to be read.
+///
+/// ── Why a row per recipient, when PortalSeen argues the opposite ────────────
+/// `PortalSeen` counts instead of storing, and for a badge over the family
+/// space that is still the better design — see the note on that model. It buys
+/// nothing here, for two reasons it cannot cover:
+///
+///   * a badge can say *three*, never *what*. This carries a message — which
+///     paper was accepted, which échéance was settled — and a count derived
+///     from another table's timestamps has nowhere to put one.
+///   * half of what staff need telling about is not a row a family may read.
+///     "A dossier was filed at your desk" is a fact about work, addressed to
+///     whoever holds the code to do it; there is no household to scope it on
+///     and no screen whose contents it mirrors.
+///
+/// So the two live side by side on purpose: the watermark stays the family
+/// space's badge, and this is the inbox. Neither is derived from the other.
+///
+/// ── Nothing user-facing is stored here ──────────────────────────────────────
+/// Not the title, not the body. `kind` names a phrase in the dictionary and
+/// `params` carries the proper nouns to drop into it, so the same row reads in
+/// French on the desk and in Arabic on the phone. A notification written as
+/// text would be frozen in whatever locale the *writer* happened to hold.
+model Notification {
+  id String @id @default(cuid())
+
+  /// The tenant. Every read is scoped on it as well as on `userId`, so a row is
+  /// unreachable from another organisation even if an id leaked.
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Which school it arose in. Null for the few that are not about one — an
+  /// org-wide notice. Kept so a director who works across two schools can tell
+  /// where a thing happened, and so closing a school takes its noise with it.
+  schoolId String?
+  school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Who is being told. One row per person: an event announced to a class is a
+  /// fan-out over its guardians, which is the cost this design pays for being
+  /// able to say what each of them has read.
+  userId String
+  user   User   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// What happened — "EVENT_PUBLISHED", "REQUEST_HANDLED", … The label, the
+  /// icon and the route all derive from it. See modules/notifications/enums.ts.
+  kind String
+
+  /// JSON object of substitution values for the label: `{"title":"Réunion"}`.
+  /// A string column because SQLite has no JSON type; read through `readParams`
+  /// in the module's enums, which tolerates anything that is not an object.
+  params String @default("{}")
+
+  /// The row this is about — the event, the dossier, the bulletin. Whose table
+  /// it is in is decided by `kind`, so the pair is one fact rather than two.
+  /// Null for a notification that opens nothing.
+  subjectId String?
+
+  /// Which child it concerns, for the ones that concern one. Null for the rest.
+  ///
+  /// Not derivable from `subjectId`: a family with three pupils needs the line
+  /// to say *whose* mark it is, and every family screen on the phone is reached
+  /// through the child, so this is also what the deep link opens on. Cascade —
+  /// a notification about a pupil no longer on the roll opens nothing.
+  studentId String?
+  student   Student? @relation("NotificationSubject", fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// What makes writing one twice a no-op — typically "<kind>:<subjectId>".
+  ///
+  /// Null when repetition is meaningful, and SQLite's "NULLs are distinct"
+  /// behaviour then exempts the row from the unique index below. That is the
+  /// same trick lib/db-keys.ts uses, and here it is the wanted behaviour rather
+  /// than the bug: an event published, unpublished and published again should
+  /// tell a family once, while two payments on one day are two receipts.
+  dedupeKey String?
+
+  /// When the recipient read it. Null while it is still unread.
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Idempotency, per recipient. See `dedupeKey`.
+  @@unique([userId, dedupeKey])
+  /// What the inbox reads on: one account's notifications, newest first.
+  @@index([userId, createdAt])
+  /// And what the bell reads on: the unread count alone.
+  @@index([userId, readAt])
+  @@index([organizationId])
+  @@index([schoolId])
+  @@index([studentId])
+  @@map("notifications")
+}

@@ -569,6 +569,35 @@ const en = {
     none: "No lesson placed for this schedule.",
   },
 
+  notifications: {
+    title: "Notifications",
+    none: "Nothing to read.",
+    noneHint: "You will be told here when something concerns you.",
+    loadError: "Your notifications could not be loaded.",
+    markAllRead: "Mark all as read",
+    bellA11y: "Notifications",
+    bellUnreadA11y: "Notifications, {count} unread",
+
+    /*
+      One phrase per kind, mirroring `notification.kinds` on the server.
+
+      Deliberately a second translation rather than one shipped from the API:
+      the server would have to word it in *somebody's* language at write time,
+      and the whole point of storing a code is that the reader picks. A parent
+      who sets the app to Arabic reads Arabic whoever pressed publish.
+    */
+    kinds: {
+      EVENT_PUBLISHED: "New event: {title}",
+      REQUEST_HANDLED: "{document}: {status}",
+      MARKS_PUBLISHED: "New marks for {child} in {subject}",
+      BULLETIN_PUBLISHED: "{child}'s report for {term} is out",
+      REMARK_SHARED: "A note about {child}",
+      PAYMENT_RECORDED: "Payment of {amount} recorded — receipt {code}",
+      REQUEST_FILED: "{document} asked for by {child}'s family",
+      ASSESSMENT_VALIDATED: "\u201C{assessment}\u201D was accepted",
+    },
+  },
+
   labels: {
     attendance: {
       PRESENT: "Present",

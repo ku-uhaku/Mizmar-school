@@ -133,6 +133,10 @@ model School {
   documentRequestTypes DocumentRequestType[]
   documentRequests     DocumentRequest[]
 
+  /// What happened here that somebody is waiting to read — see
+  /// modules/notifications.
+  notifications Notification[]
+
   @@unique([organizationId, code])
   /// No two schools may map to the same establishment. Many may be unmapped.
   @@unique([organizationId, massarCode])

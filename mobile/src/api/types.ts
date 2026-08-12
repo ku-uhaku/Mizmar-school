@@ -858,3 +858,49 @@ export type DocumentRequest = {
   officeNote: string | null;
   canCancel: boolean;
 };
+
+// ── Les notifications ────────────────────────────────────────────────────────
+
+/**
+ * What a notification can be about. Mirrors `NOTIFICATION_KINDS` in
+ * modules/notifications/enums.ts.
+ *
+ * A kind the phone has never heard of is dropped by the screen rather than
+ * rendered blank — an app store update always lags a server deployment, so a
+ * new kind reaching an old phone is the normal case and not a fault.
+ */
+export type NotificationKind =
+  | "EVENT_PUBLISHED"
+  | "REQUEST_HANDLED"
+  | "MARKS_PUBLISHED"
+  | "BULLETIN_PUBLISHED"
+  | "REMARK_SHARED"
+  | "PAYMENT_RECORDED"
+  | "REQUEST_FILED"
+  | "ASSESSMENT_VALIDATED";
+
+/**
+ * One line of the inbox. Mirrors `NotificationItem`.
+ *
+ * `params` and not a sentence, for the reason given on the `Notification`
+ * model: the wording is this app's, in this reader's language, so a parent who
+ * has set the app to Arabic reads Arabic whoever pressed publish.
+ */
+export type AppNotification = {
+  id: string;
+  kind: NotificationKind;
+  params: Record<string, string>;
+  subjectId: string | null;
+  studentId: string | null;
+  tone: "info" | "good" | "warn";
+  /** The web dashboard's route. Always null for the kinds a parent gets. */
+  href: string | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
+/** The inbox and its unread count in one answer. Mirrors `Inbox`. */
+export type Inbox = {
+  items: AppNotification[];
+  unread: number;
+};

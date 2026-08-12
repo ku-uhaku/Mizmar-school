@@ -563,6 +563,27 @@ const fr: Dictionary = {
     none: "Aucun cours placé pour cet horaire.",
   },
 
+  notifications: {
+    title: "Notifications",
+    none: "Rien à lire.",
+    noneHint: "Vous serez prévenu ici dès qu'il se passe quelque chose qui vous concerne.",
+    loadError: "Vos notifications n'ont pas pu être chargées.",
+    markAllRead: "Tout marquer comme lu",
+    bellA11y: "Notifications",
+    bellUnreadA11y: "Notifications, {count} non lues",
+
+    kinds: {
+      EVENT_PUBLISHED: "Nouvel événement : {title}",
+      REQUEST_HANDLED: "{document} : {status}",
+      MARKS_PUBLISHED: "Nouvelles notes de {child} en {subject}",
+      BULLETIN_PUBLISHED: "Le bulletin de {child} du {term} est disponible",
+      REMARK_SHARED: "Une remarque au sujet de {child}",
+      PAYMENT_RECORDED: "Règlement de {amount} enregistré — reçu {code}",
+      REQUEST_FILED: "{document} demandé par la famille de {child}",
+      ASSESSMENT_VALIDATED: "« {assessment} » a été validé",
+    },
+  },
+
   labels: {
     attendance: {
       PRESENT: "Présent",
