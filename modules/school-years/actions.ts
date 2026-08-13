@@ -21,6 +21,7 @@ import {
   copyYearConfiguration,
   makeDefaultYear,
 } from "@/modules/school-years/service";
+import { refreshSchoolPortalAccess } from "@/modules/families/service";
 import {
   YEAR_COPY_PARTS,
   type YearCopyPart,
@@ -75,6 +76,15 @@ export async function createSchoolYearAction(
       data: { ...parsed.data, schoolId },
       select: { id: true },
     });
+
+    /*
+      A year created as the default is the year turning over, and it starts with
+      nobody enrolled in it — so every household's access has to be re-answered
+      now rather than at whatever enrolment happens to move first. This is the
+      case the rule exists for: the families come back, re-enrol, and get their
+      old login working again. See `refreshSchoolPortalAccess`.
+    */
+    if (parsed.data.isDefault) await refreshSchoolPortalAccess(schoolId);
 
     /*
       Starting the year from a previous one.
@@ -156,6 +166,12 @@ export async function updateSchoolYearAction(
     }
 
     await db.schoolYear.update({ where: { id: yearId }, data: parsed.data });
+
+    // Promoting a year re-answers "may this household sign in" for every
+    // dossier at once — see `refreshSchoolPortalAccess`.
+    if (parsed.data.isDefault) {
+      await refreshSchoolPortalAccess(existing.schoolId);
+    }
 
     refresh();
     return success(t.schoolYear.updated);

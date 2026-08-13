@@ -56,9 +56,9 @@ export function PrintDocument({
   /** Who signs it. Omitted on documents nobody signs, like a class list. */
   signature?: string;
   /**
-   * Landscape for documents wider than they are tall — a timetable week. Sets
-   * the named `@page landscape` (see globals.css) rather than a second global
-   * `@page`, which would turn every other document sideways with it.
+   * Landscape for documents wider than they are tall — a timetable week.
+   * Emits its own `@page` rule; see the note in globals.css for why a *named*
+   * page was wrong here.
    */
   orientation?: "portrait" | "landscape";
   children: React.ReactNode;
@@ -74,6 +74,13 @@ export function PrintDocument({
 
   return (
     <div className={orientation === "landscape" ? "print-landscape" : undefined}>
+      {/* Declared here rather than as a named `@page` in globals.css — see the
+        note there. A print route renders one document and nothing else, so a
+        global rule on this page is global over exactly that document. */}
+      {orientation === "landscape" ? (
+        <style>{"@page { size: A4 landscape; margin: 12mm; }"}</style>
+      ) : null}
+
       {/* Screen only — never printed. See `.print-toolbar` in globals.css. */}
       <div className="print-toolbar">
         <Button asChild variant="ghost" size="sm">

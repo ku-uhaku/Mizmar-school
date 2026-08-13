@@ -85,8 +85,8 @@ export function PrintableWeekTable({
                       key={line + lineIndex}
                       className={
                         lineIndex === 0
-                          ? "block font-medium"
-                          : "block text-[8pt]"
+                          ? "print-week-subject"
+                          : "print-week-meta"
                       }
                     >
                       {line}

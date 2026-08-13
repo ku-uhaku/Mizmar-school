@@ -1,5 +1,6 @@
 import "server-only";
 
+import { generatePassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   codePrefixOf,
@@ -8,6 +9,13 @@ import {
 } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { isSingularRelationship } from "@/modules/families/enums";
+import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
+import {
+  allocateAccountEmail,
+  allocateUsername,
+  createLoginAccount,
+} from "@/modules/users/service";
+import { suggestUsername } from "@/modules/users/enums";
 
 /**
  * Writes and invariants for the families module.
@@ -201,4 +209,231 @@ export async function ensurePrimaryContact(familyId: string): Promise<void> {
     where: { id: candidate.id },
     data: { isPrimaryContact: true },
   });
+}
+
+
+/**
+ * Opens the household's portal access, if it has none.
+ *
+ * ── Why this is a service and not only an action ─────────────────────────────
+ * A family's access is opened from three places now — the guichet's "open
+ * access" button, the enrolment wizard, and the moment a dossier gets its first
+ * guardian — and every one of them owes the same rules: one access per family,
+ * a username derived from the guardian or falling back to the dossier number, a
+ * placeholder address because the column is unique and required, and no role,
+ * because a parent is not staff.
+ *
+ * Returns the credentials when it opened one, and `null` when the dossier
+ * already had access or when there was nothing to hang it on. The plaintext
+ * password is returned and never stored: it exists for as long as the caller
+ * holds it, and once the office navigates away the only way back is a reset,
+ * which is the same guarantee the school gets for a member of staff.
+ */
+export async function openPortalAccessFor(
+  guardianId: string,
+): Promise<{ username: string; password: string } | null> {
+  const guardian = await db.guardian.findUnique({
+    where: { id: guardianId },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      familyId: true,
+      userId: true,
+      family: {
+        select: { code: true, schoolId: true, school: { select: { organizationId: true } } },
+      },
+    },
+  });
+  if (!guardian || guardian.userId) return null;
+
+  // One access per family — see `findPortalHolder` for why the rule looks at
+  // the whole dossier rather than at this guardian.
+  if (await findPortalHolder(guardian.familyId)) return null;
+
+  /*
+    The dossier number is the fallback, not the surname: `suggestUsername`
+    returns "" for a name written in Arabic script, and a family recorded that
+    way must still be reachable. A code like `f-2025-0142` satisfies
+    USERNAME_PATTERN as it stands — see modules/users/enums.ts.
+  */
+  const base =
+    suggestUsername(guardian.firstName, guardian.lastName) ||
+    guardian.family.code;
+  const username = await allocateUsername("", "", base);
+  if (!username) return null;
+
+  const email = await allocateAccountEmail(
+    `parent.${guardian.family.code.toLowerCase()}@famille.ma`,
+  );
+  const password = generatePassword();
+
+  const account = await createLoginAccount({
+    organizationId: guardian.family.school.organizationId,
+    schoolId: guardian.family.schoolId,
+    // No role and therefore no membership: a parent is not staff, and
+    // everything they may read is scoped by the household instead.
+    roleId: null,
+    firstName: guardian.firstName,
+    lastName: guardian.lastName,
+    email,
+    username,
+    password,
+    phone: guardian.phone,
+    jobTitle: null,
+  });
+  if (!account.ok) return null;
+
+  await db.guardian.update({
+    where: { id: guardian.id },
+    data: { userId: account.userId },
+  });
+
+  // Born switched off unless a child of the dossier is actually enrolled — see
+  // `refreshPortalAccess`.
+  await refreshPortalAccess(guardian.familyId);
+
+  return { username: account.username, password };
+}
+
+/**
+ * Recomputes whether a household's portal access may sign in.
+ *
+ * ── The rule ────────────────────────────────────────────────────────────────
+ * A family reaches the parents' app because it has a child at the school *this
+ * year*. When the last live enrolment of the active year goes — the child
+ * leaves, the year turns over, the enrolment is deleted — the login stops
+ * working, and it starts working again by itself the day another child is
+ * enrolled. Nothing is deleted: the dossier keeps its username and its history,
+ * and a family returning after a year away is one enrolment away from access
+ * rather than a new account and a new password.
+ *
+ * Derived, never typed in — the same shape as `refreshStudentStatus`, and for
+ * the same reason: a flag a human maintains is a flag that goes stale, and this
+ * one decides whether somebody can sign in.
+ *
+ * "This year" is the school's *default* year rather than whichever year the
+ * operator happens to be looking at. A secretary reviewing last year's roll
+ * must not switch off every parent in the school by opening a screen.
+ */
+export async function refreshPortalAccess(familyId: string): Promise<void> {
+  const family = await db.family.findUnique({
+    where: { id: familyId },
+    select: { schoolId: true },
+  });
+  if (!family) return;
+
+  const userIds = (
+    await db.guardian.findMany({
+      where: { familyId, userId: { not: null } },
+      select: { userId: true },
+    })
+  )
+    .map((guardian) => guardian.userId)
+    .filter((userId): userId is string => userId !== null);
+
+  if (userIds.length === 0) return;
+
+  const year = await db.schoolYear.findFirst({
+    where: { schoolId: family.schoolId, isDefault: true },
+    select: { id: true },
+  });
+
+  const live = year
+    ? await db.enrollment.count({
+        where: {
+          schoolYearId: year.id,
+          status: { in: [...LIVE_ENROLMENT_STATUSES] },
+          student: { familyId },
+        },
+      })
+    : 0;
+
+  await db.user.updateMany({
+    where: { id: { in: userIds } },
+    data: { isActive: live > 0 },
+  });
+}
+
+/**
+ * The same rule, reached from a pupil rather than from the dossier.
+ *
+ * Every place that moves an enrolment already refreshes the pupil's own status;
+ * this is its sibling for the household's login, and it sits beside those calls
+ * rather than inside them so the second effect is visible at the call site
+ * instead of hidden in the first.
+ */
+export async function refreshHouseholdAccess(studentId: string): Promise<void> {
+  const student = await db.student.findUnique({
+    where: { id: studentId },
+    select: { familyId: true },
+  });
+  if (!student?.familyId) return;
+  await refreshPortalAccess(student.familyId);
+}
+
+/**
+ * The same rule, applied to every household of a school at once.
+ *
+ * ── Why the year turning over needs its own pass ────────────────────────────
+ * `refreshPortalAccess` is called when an enrolment moves, which covers every
+ * change a family makes. It does not cover the change the *school* makes: on
+ * the day the new year becomes the default, every dossier's answer changes at
+ * once and not one enrolment has moved. Without this, a family whose children
+ * are not yet re-enrolled would keep signing in until something happened to
+ * touch one of their enrolments — which might be never.
+ *
+ * Two `updateMany` calls rather than one per dossier: a school has hundreds of
+ * families and this runs inside the click that promotes the year.
+ */
+export async function refreshSchoolPortalAccess(
+  schoolId: string,
+): Promise<void> {
+  const holders = await db.guardian.findMany({
+    where: { userId: { not: null }, family: { schoolId } },
+    select: { userId: true, familyId: true },
+  });
+  if (holders.length === 0) return;
+
+  const year = await db.schoolYear.findFirst({
+    where: { schoolId, isDefault: true },
+    select: { id: true },
+  });
+
+  // The dossiers with somebody on the roll. No default year means no roll, and
+  // therefore nobody signs in — which is the honest answer for a school that
+  // has not said which year it is running.
+  const enrolled = new Set(
+    year
+      ? (
+          await db.enrollment.findMany({
+            where: {
+              schoolYearId: year.id,
+              status: { in: [...LIVE_ENROLMENT_STATUSES] },
+            },
+            select: { student: { select: { familyId: true } } },
+          })
+        )
+          .map((enrolment) => enrolment.student.familyId)
+          .filter((familyId): familyId is string => familyId !== null)
+      : [],
+  );
+
+  const on: string[] = [];
+  const off: string[] = [];
+  for (const holder of holders) {
+    const bucket = enrolled.has(holder.familyId) ? on : off;
+    bucket.push(holder.userId as string);
+  }
+
+  if (on.length > 0) {
+    await db.user.updateMany({ where: { id: { in: on } }, data: { isActive: true } });
+  }
+  if (off.length > 0) {
+    await db.user.updateMany({
+      where: { id: { in: off } },
+      data: { isActive: false },
+    });
+  }
 }

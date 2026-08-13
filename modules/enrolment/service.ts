@@ -14,6 +14,7 @@ import {
   isSubscribable,
   type ScheduleLine,
 } from "@/modules/enrolment/schedule";
+import { refreshHouseholdAccess } from "@/modules/families/service";
 import { refreshStudentStatus } from "@/modules/students/service";
 
 /**
@@ -724,6 +725,9 @@ export async function setEnrolmentStatus(
   });
 
   await refreshStudentStatus(enrolment.studentId);
+  // Withdrawing the last enrolled child closes the parents' app to the
+  // household; re-admitting one opens it again. See `refreshPortalAccess`.
+  await refreshHouseholdAccess(enrolment.studentId);
 }
 
 // ── Changing the level after the fact ────────────────────────────────────────

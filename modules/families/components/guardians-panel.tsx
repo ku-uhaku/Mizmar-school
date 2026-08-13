@@ -45,6 +45,8 @@ import {
   useGuardianDialog,
 } from "@/modules/families/components/guardian-dialog";
 import { PortalAccessCard } from "@/modules/families/components/portal-access-card";
+import { PortalAccountDialog } from "@/modules/families/components/portal-account-dialog";
+import type { IssuedPortalCredentials } from "@/modules/families/service";
 import type { GuardianRow } from "@/modules/families/queries";
 
 /**
@@ -67,6 +69,13 @@ export function GuardiansPanel({
   const t = useT();
   const dialog = useGuardianDialog();
   const [deleting, setDeleting] = React.useState<GuardianRow | null>(null);
+  /**
+   * Set when adding a guardian opened the dossier's access. Held here rather
+   * than inside the form, which closes on success — the password is readable
+   * for this one moment and must outlive the dialog that produced it.
+   */
+  const [credentials, setCredentials] =
+    React.useState<IssuedPortalCredentials | null>(null);
   const [, startTransition] = React.useTransition();
 
   function promote(guardian: GuardianRow) {
@@ -251,8 +260,19 @@ export function GuardiansPanel({
           onOpenChange={dialog.setOpen}
           familyId={familyId}
           guardian={dialog.editing}
+          // The first guardian opens the dossier's access, and this is the one
+          // moment its password can be read — into the same dialog the manual
+          // flow uses, which is where printing the slip lives.
+          onCredentials={setCredentials}
         />
       ) : null}
+
+      {/* The same "shown once" dialog the manual flow uses — see it for why
+        printing lives there and nowhere else. */}
+      <PortalAccountDialog
+        credentials={credentials}
+        onOpenChange={(open) => !open && setCredentials(null)}
+      />
 
       {deleting ? (
         <ConfirmDelete

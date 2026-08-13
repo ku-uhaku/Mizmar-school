@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { refreshSchoolPortalAccess } from "@/modules/families/service";
 import { copyFeeConfiguration } from "@/modules/billing/service";
 import { copyClassStructure } from "@/modules/classes/service";
 import {
@@ -54,6 +55,15 @@ export async function makeDefaultYear(
     where: { id: yearId },
     data: { isDefault: true },
   });
+
+  /*
+    Which year is the school's own decides who may open the parents' app: a
+    household reaches it while one of its children is enrolled *for that year*.
+    Turning the year over therefore re-answers the question for every dossier
+    at once, and it is the one change no enrolment moves to announce. See
+    `refreshSchoolPortalAccess`.
+  */
+  await refreshSchoolPortalAccess(schoolId);
 }
 
 // ── Starting a year from the last one ────────────────────────────────────────

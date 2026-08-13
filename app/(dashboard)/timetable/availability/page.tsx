@@ -9,9 +9,12 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { TeacherAvailability } from "@/modules/timetable/components/teacher-availability";
 import { TeacherPicker } from "@/modules/timetable/components/teacher-picker";
+import { TeacherWeek } from "@/modules/timetable/components/teacher-week";
 import {
   listTeacherOptions,
   loadTeacherAvailability,
+  loadTeacherTimetable,
+  loadWeekContext,
 } from "@/modules/timetable/queries";
 
 export const metadata: Metadata = { title: "Horaires des enseignants" };
@@ -27,7 +30,11 @@ export const metadata: Metadata = { title: "Horaires des enseignants" };
 export default async function TeacherAvailabilityPage({
   searchParams,
 }: {
-  searchParams: Promise<{ teacherId?: string; schedule?: string }>;
+  searchParams: Promise<{
+    teacherId?: string;
+    schedule?: string;
+    week?: string;
+  }>;
 }) {
   const context = await requireAuth();
   const t = await getDictionary();
@@ -36,7 +43,7 @@ export default async function TeacherAvailabilityPage({
     return <ForbiddenState />;
   }
 
-  const { teacherId, schedule } = await searchParams;
+  const { teacherId, schedule, week: weekParam } = await searchParams;
   const scheduleKind = schedule === "RAMADAN" ? "RAMADAN" : "STANDARD";
 
   const teachers = await listTeacherOptions(context, scheduleKind);
@@ -64,11 +71,19 @@ export default async function TeacherAvailabilityPage({
   // than showing another school's staff.
   const selected =
     teachers.find((teacher) => teacher.id === teacherId) ?? teachers[0];
-  const grid = await loadTeacherAvailability(
-    context,
-    selected.id,
-    scheduleKind,
-  );
+  /*
+    Both halves of the same question, read together.
+
+    The availability grid is the *constraint* — when this teacher may be booked
+    — and the week below it is the *result*. A head of studies freeing a Tuesday
+    morning needs to see that it already has a lesson in it, and reading one
+    screen and remembering the other is how that gets missed.
+  */
+  const [grid, week, weekContext] = await Promise.all([
+    loadTeacherAvailability(context, selected.id, scheduleKind),
+    loadTeacherTimetable(context, selected.id, scheduleKind),
+    loadWeekContext(context, weekParam),
+  ]);
 
   return (
     <>
@@ -85,27 +100,39 @@ export default async function TeacherAvailabilityPage({
         scheduleKind={scheduleKind}
       />
 
-      {grid && grid.totalPeriods > 0 ? (
-        <TeacherAvailability
-          // Remounts when either changes, so the grid's state is rebuilt from
-          // the new week rather than resynchronised in an effect.
-          key={`${selected.id}:${scheduleKind}`}
+      <div className="grid gap-4">
+        {grid && grid.totalPeriods > 0 ? (
+          <TeacherAvailability
+            // Remounts when either changes, so the grid's state is rebuilt from
+            // the new week rather than resynchronised in an effect.
+            key={`${selected.id}:${scheduleKind}`}
+            teacherId={selected.id}
+            teacherName={selected.label}
+            scheduleKind={scheduleKind}
+            grid={grid}
+            canManage={context.can(PERMISSIONS.TIMETABLE_MANAGE)}
+          />
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <EmptyState
+                title={t.timetable.noSlots}
+                description={t.timetable.noSlotsHint}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        <TeacherWeek
+          key={`week:${selected.id}:${scheduleKind}`}
+          week={week}
           teacherId={selected.id}
           teacherName={selected.label}
           scheduleKind={scheduleKind}
-          grid={grid}
-          canManage={context.can(PERMISSIONS.TIMETABLE_MANAGE)}
+          weekNumber={weekContext.current?.index}
+          days={t.timetable.days as Record<string, string>}
         />
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <EmptyState
-              title={t.timetable.noSlots}
-              description={t.timetable.noSlotsHint}
-            />
-          </CardContent>
-        </Card>
-      )}
+      </div>
     </>
   );
 }

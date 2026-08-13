@@ -30,6 +30,8 @@ import { Switch } from "@/components/ui/switch";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import { saveGuardianAction } from "@/modules/families/actions";
+import type { ActionStateWith } from "@/lib/action-state";
+import type { IssuedPortalCredentials } from "@/modules/families/service";
 import { GUARDIAN_RELATIONSHIPS } from "@/modules/families/enums";
 import type { GuardianRow } from "@/modules/families/queries";
 
@@ -43,15 +45,31 @@ export function GuardianDialog({
   onOpenChange,
   familyId,
   guardian,
+  onCredentials,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   familyId: string;
   guardian?: GuardianRow;
+  /**
+   * Handed the household's credentials when saving this guardian opened the
+   * dossier's access — which happens on the *first* one, automatically. The
+   * password exists in readable form for this one moment, so it is passed up
+   * to be shown rather than dropped when the dialog closes.
+   */
+  onCredentials?: (credentials: IssuedPortalCredentials) => void;
 }) {
   const t = useT();
-  const [state, formAction] = useActionState(saveGuardianAction, IDLE);
-  useActionFeedback(state, { onSuccess: () => onOpenChange(false) });
+  const [state, formAction] = useActionState<
+    ActionStateWith<IssuedPortalCredentials>,
+    FormData
+  >(saveGuardianAction, IDLE);
+  useActionFeedback(state, {
+    onSuccess: () => {
+      if (state.data) onCredentials?.(state.data);
+      onOpenChange(false);
+    },
+  });
 
   const errors = state.fieldErrors ?? {};
 

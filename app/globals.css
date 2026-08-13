@@ -819,18 +819,22 @@ html.dark[data-accent="teal"] {
 /*
   Landscape, for the documents that are wider than they are tall — a week has
   six days across and a dozen periods, and portrait squeezes it to the point of
-  being unreadable. A *named* page rather than a second `@page` rule, because
-  `@page` is global: without the name, opting one document into landscape would
-  turn every receipt sideways too.
-*/
-@page landscape {
-  size: A4 landscape;
-  margin: 12mm;
-}
+  being unreadable.
 
-.print-landscape {
-  page: landscape;
-}
+  ── Why this is not a named `@page` ─────────────────────────────────────────
+  It was one, for the obvious reason: `@page` is global, and opting one document
+  into landscape must not turn every receipt sideways. But a named page is
+  applied by putting `page: landscape` on a box, and *changing page name forces
+  a page break* — so entering the wrapper broke, and leaving it broke again,
+  and every timetable and class list in the app came out of the printer with a
+  blank sheet after it. Chrome also declined to honour a second named page
+  (`@page receipt`) at all, so the mechanism was buying nothing either.
+
+  The size is declared by the landscape document itself instead — see
+  `PrintDocument`, which renders the `@page` rule only when it is landscape.
+  Each of these routes is its own page load with one document on it, so a global
+  rule there is global over exactly the right thing.
+*/
 
 /* The on-screen preview has to match the paper it claims to be. */
 .print-landscape .print-page {
@@ -864,21 +868,59 @@ html.dark[data-accent="teal"] {
   width: 22mm;
 }
 
+/* ── The week, on the wall ──────────────────────────────────────────────────
+   A timetable is read by looking *along* a row and *down* a column, so the one
+   thing it cannot afford is cells of different sizes. Left to itself the table
+   sizes each row to its tallest cell — one "Éducation Physique et Sportive"
+   and that row stands 40% taller than the four around it, which is enough to
+   lose your place scanning across.
+
+   So every row is given the same height and the type is set to fit inside it,
+   rather than the height being whatever the longest subject demands. The grid
+   stays square whatever the school calls its matières. */
 .print-week {
   table-layout: fixed;
-  font-size: 9pt;
+  font-size: 8.5pt;
 }
 
 .print-week th,
 .print-week td {
-  padding: 3px 4px;
+  padding: 2px 3px;
   vertical-align: middle;
+  /* A minimum, not a maximum — a cell needing more still takes it, and the
+     sizes below are chosen so that effectively never happens. */
+  height: 18mm;
+  /* A subject long enough to have no break in it wraps inside its column
+     instead of widening it and pushing the week off the sheet. */
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+/* The times, which need no room at all next to a lesson. */
+.print-week thead th {
+  height: auto;
+  padding: 3px;
 }
 
 /* The day column carries a word, the period columns share what is left. */
 .print-week-day {
   width: 22mm;
   font-weight: 600;
+}
+
+/* The matière leads; who teaches it and where sit under it, quieter and
+   tighter, because they are checked rather than scanned. */
+.print-week-subject {
+  display: block;
+  font-weight: 600;
+}
+
+.print-week-meta {
+  display: block;
+  margin-top: 0.6mm;
+  font-size: 6.5pt;
+  line-height: 1.15;
+  opacity: 0.75;
 }
 
 .print-week-break {
@@ -901,8 +943,16 @@ html.dark[data-accent="teal"] {
     margin: 0 !important;
     /* `.print-root` is a desk 100dvh tall on screen. Left standing in print it
        is taller than the sheet on it, and the engine pages out the difference —
-       which is how a two-slip receipt came out over four sheets. */
+       which is how a two-slip receipt came out over four sheets.
+
+       `height` goes with it, and for a subtler reason. The app's root carries
+       `h-full`/`min-h-full`, which in paged media resolve against the *page
+       box* — so the document measured exactly one page tall however little was
+       on it, and a sub-pixel rounding at that boundary spilled a blank sheet
+       out of every timetable. Sized to its content, there is no boundary to
+       round past. */
     min-height: 0 !important;
+    height: auto !important;
   }
 
   .print-page {

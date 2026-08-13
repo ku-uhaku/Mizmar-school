@@ -78,6 +78,9 @@ const en = {
 
     // The access card on the dossier
     portalAccess: "Family access",
+    portalDormant: "Switched off",
+    portalDormantHint:
+      "No child on this file is enrolled for the current school year, so the parents' app is closed to them. It reopens by itself at the next enrolment.",
     portalAccessHint:
       "Every family should have one login. It is how marks, absences, notices and bills reach the parents.",
     portalNoAccess: "This family has no access yet",

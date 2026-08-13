@@ -25,6 +25,8 @@ import {
   ensurePrimaryContact,
   findPortalHolder,
   makePrimaryContact,
+  openPortalAccessFor,
+  refreshPortalAccess,
   relationshipTaken,
   type IssuedPortalCredentials,
 } from "@/modules/families/service";
@@ -104,8 +106,15 @@ async function authorizeFamily(
 ) {
   const family = await db.family.findUnique({
     where: { id: familyId },
-    // The code comes back so an edit can keep it — see `updateFamilyAction`.
-    select: { id: true, schoolId: true, code: true },
+    // The code comes back so an edit can keep it — see `updateFamilyAction`;
+    // the name and the school's, so an access opened here can print its slip.
+    select: {
+      id: true,
+      schoolId: true,
+      code: true,
+      name: true,
+      school: { select: { name: true } },
+    },
   });
   if (!family) return null;
 
@@ -237,12 +246,14 @@ export async function deleteFamilyAction(
 export async function saveGuardianAction(
   _prevState: ActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<ActionStateWith<IssuedPortalCredentials>> {
   return withActionErrors(async () => {
     const t = await getDictionary();
 
     const familyId = field(formData, "familyId");
     const guardianId = field(formData, "id");
+    /** Set only when this call opened the household's access — see below. */
+    let issued: { username: string; password: string } | null = null;
 
     const family = await authorizeFamily(familyId, PERMISSIONS.FAMILY_UPDATE);
     if (!family) return failure(t.errors.notFound);
@@ -300,12 +311,39 @@ export async function saveGuardianAction(
       });
       if (updated.count === 0) return failure(t.errors.notFound);
     } else {
-      await db.guardian.create({ data: { ...parsed.data, familyId } });
+      const created = await db.guardian.create({
+        data: { ...parsed.data, familyId },
+      });
+      /*
+        The dossier's access, opened with its first guardian rather than waiting
+        for somebody to remember. It is born switched off — a family with no
+        child enrolled this year cannot sign in — and switches itself on at the
+        first enrolment. See `openPortalAccessFor`.
+
+        The credentials are returned so the office can hand them over now: this
+        is the only moment the password exists in readable form, and after it
+        the way back is a reset, exactly as for a member of staff.
+      */
+      issued = await openPortalAccessFor(created.id);
     }
 
     await ensurePrimaryContact(familyId);
 
     refresh();
+
+    if (issued) {
+      return successWith(
+        {
+          ...issued,
+          guardianName: `${parsed.data.firstName} ${parsed.data.lastName}`.trim(),
+          familyName: family.name,
+          familyCode: family.code,
+          schoolName: family.school?.name ?? "",
+        },
+        t.family.portalOpened,
+      );
+    }
+
     return success(
       guardianId ? t.family.guardianUpdated : t.family.guardianAdded,
     );
@@ -530,11 +568,20 @@ export async function resetPortalPasswordAction(
       data: {
         passwordHash: await hashPassword(password),
         credentialsChangedAt: new Date(),
-        // A reset is also how a school lets a parent back in after a withdrawal.
-        isActive: true,
       },
       select: { username: true },
     });
+
+    /*
+      A reset used to force `isActive: true`, on the reasoning that it is how a
+      school lets a parent back in after a withdrawal. It is not, any more:
+      whether the household may sign in is derived from its children's
+      enrolments, and a reset that overrode that would hand back a login to a
+      family with nobody at the school — and nothing would take it away again
+      until the next enrolment moved. So the password changes and the answer to
+      "may they sign in" is re-asked, not asserted.
+    */
+    await refreshPortalAccess(guardian.familyId);
 
     refresh();
     return successWith(

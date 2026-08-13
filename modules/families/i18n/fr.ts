@@ -74,6 +74,9 @@ const fr = {
     portalCopied: "Copié",
 
     portalAccess: "Accès famille",
+    portalDormant: "Désactivé",
+    portalDormantHint:
+      "Aucun enfant de ce dossier n'est inscrit pour l'année en cours : l'espace parents leur est fermé. Il se rouvre de lui-même à la prochaine inscription.",
     portalAccessHint:
       "Chaque famille devrait avoir un accès. C'est par là que les notes, les absences, les annonces et les factures parviennent aux parents.",
     portalNoAccess: "Cette famille n'a pas encore d'accès",

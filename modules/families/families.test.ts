@@ -54,6 +54,14 @@ const guardianWrites: { where: unknown; data: Record<string, unknown> }[] = [];
 const userWrites: { id: string; data: Record<string, unknown> }[] = [];
 const accountsCreated: Record<string, unknown>[] = [];
 const demotions: unknown[] = [];
+/** Every `isActive` the household-access rule wrote, in order. */
+const accessWrites: { ids: string[]; isActive: boolean }[] = [];
+/** Pupils, for the student → dossier hop `refreshHouseholdAccess` makes. */
+const students = new Map<string, { familyId: string | null }>();
+/** How many of this dossier's children are on the roll for the current year. */
+let liveEnrolments = 0;
+/** Which dossiers of the school have somebody on the roll, for the bulk pass. */
+let enrolledFamilyIds: string[] = [];
 
 const SCHOOL = "school-1";
 
@@ -218,6 +226,20 @@ vi.mock("@/lib/db", () => {
         [...guardians.values()].find((row) => matchesGuardian(row, where)) ?? null,
       create: async ({ data }: { data: Record<string, unknown> }) => {
         guardianWrites.push({ where: null, data });
+        // Kept in the map, not just recorded: opening the dossier's access
+        // reads the guardian straight back, so a create that vanishes makes
+        // the whole rule look like it did not run.
+        guardians.set("new-guardian", {
+          id: "new-guardian",
+          familyId: data["familyId"] as string,
+          relationship: data["relationship"] as string,
+          firstName: (data["firstName"] as string) ?? "",
+          lastName: (data["lastName"] as string) ?? "",
+          isPrimaryContact: Boolean(data["isPrimaryContact"]),
+          isActive: true,
+          phone: (data["phone"] as string | null) ?? null,
+          userId: null,
+        });
         return { id: "new-guardian" };
       },
       update: async ({
@@ -228,6 +250,11 @@ vi.mock("@/lib/db", () => {
         data: Record<string, unknown>;
       }) => {
         guardianWrites.push({ where, data });
+        // Applied to the map, not merely recorded: linking the account is what
+        // the access rule then reads to decide whether the dossier has one.
+        const id = (where as { id?: string }).id;
+        const row = id ? guardians.get(id) : undefined;
+        if (row) guardians.set(row.id, { ...row, ...data } as GuardianRow);
         return {};
       },
       updateMany: async ({
@@ -252,12 +279,28 @@ vi.mock("@/lib/db", () => {
         );
         return { count: hit.length };
       },
+      findMany: async ({ where }: { where: Record<string, unknown> }) =>
+        [...guardians.values()].filter((row) => matchesGuardian(row, where)),
       delete: async ({ where }: { where: { id: string } }) => {
         guardians.delete(where.id);
         return { id: where.id };
       },
     },
-    student: { count: async () => 0 },
+    student: {
+      count: async () => 0,
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        students.get(where.id) ?? null,
+    },
+    // What `refreshPortalAccess` asks: which year is the school's own, and is
+    // anybody on this dossier enrolled in it.
+    schoolYear: {
+      findFirst: async () => ({ id: "year-1" }),
+    },
+    enrollment: {
+      count: async () => liveEnrolments,
+      findMany: async () =>
+        enrolledFamilyIds.map((familyId) => ({ student: { familyId } })),
+    },
     user: {
       update: async ({
         where,
@@ -268,6 +311,16 @@ vi.mock("@/lib/db", () => {
       }) => {
         userWrites.push({ id: where.id, data });
         return { id: where.id, username: "k.benali" };
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { id: { in: string[] } };
+        data: Record<string, unknown>;
+      }) => {
+        accessWrites.push({ ids: where.id.in, isActive: data["isActive"] as boolean });
+        return { count: where.id.in.length };
       },
     },
     // The revoke path writes the account and the dossier together.
@@ -357,6 +410,12 @@ const {
   updateFamilyAction,
 } = await import("@/modules/families/actions");
 
+const {
+  refreshHouseholdAccess,
+  refreshPortalAccess,
+  refreshSchoolPortalAccess,
+} = await import("@/modules/families/service");
+
 const IDLE = { status: "idle" } as never;
 
 function familyForm(extra: Record<string, string> = {}) {
@@ -385,6 +444,11 @@ function guardianForm(extra: Record<string, string> = {}) {
 
 beforeEach(() => {
   seed();
+  accessWrites.length = 0;
+  students.clear();
+  students.set("student-1", { familyId: "family-1" });
+  liveEnrolments = 0;
+  enrolledFamilyIds = [];
   asked.length = 0;
   schoolInContext = SCHOOL;
   granted.clear();
@@ -576,6 +640,135 @@ describe("saveGuardianAction", () => {
   holding onto: it is its own authority, there is one account per family, and
   withdrawing it actually evicts whoever is already signed in.
 */
+// ── The household's access, opened and switched by itself ───────────────────
+
+describe("automatic family access", () => {
+  it("opens the dossier's access with its first guardian", async () => {
+    guardians.clear();
+
+    const state = await saveGuardianAction(IDLE, guardianForm());
+
+    expect(state.status).toBe("success");
+    expect(accountsCreated).toHaveLength(1);
+    // No role, and therefore no membership: a parent is not staff.
+    expect(accountsCreated[0]).toMatchObject({ roleId: null });
+    // The password is handed back, because this is the only moment it can be
+    // read — after it, the office resets.
+    expect(state.data?.password).toBeTruthy();
+    expect(state.data?.username).toBeTruthy();
+  });
+
+  it("does not open a second one when the dossier already has access", async () => {
+    guardians.set("father-1", {
+      ...guardians.get("father-1")!,
+      userId: "user-existing",
+    });
+
+    const state = await saveGuardianAction(IDLE, guardianForm());
+
+    expect(state.status).toBe("success");
+    expect(accountsCreated).toHaveLength(0);
+    expect(state.data).toBeUndefined();
+  });
+
+  it("opens it switched off while no child is enrolled", async () => {
+    guardians.clear();
+    liveEnrolments = 0;
+
+    await saveGuardianAction(IDLE, guardianForm());
+
+    expect(accessWrites.at(-1)?.isActive).toBe(false);
+  });
+
+  it("opens it switched on when a child is already on the roll", async () => {
+    guardians.clear();
+    liveEnrolments = 2;
+
+    await saveGuardianAction(IDLE, guardianForm());
+
+    expect(accessWrites.at(-1)?.isActive).toBe(true);
+  });
+});
+
+describe("refreshPortalAccess", () => {
+  /** The dossier only has access to switch once a guardian holds one. */
+  function withAccess() {
+    guardians.set("father-1", {
+      ...guardians.get("father-1")!,
+      userId: "user-existing",
+    });
+  }
+
+  it("switches the household on while a child is enrolled", async () => {
+    withAccess();
+    liveEnrolments = 1;
+    await refreshPortalAccess("family-1");
+    expect(accessWrites.at(-1)).toMatchObject({ isActive: true });
+  });
+
+  it("switches it off when the last enrolment goes", async () => {
+    withAccess();
+    liveEnrolments = 0;
+    await refreshPortalAccess("family-1");
+    expect(accessWrites.at(-1)).toMatchObject({ isActive: false });
+  });
+
+  it("writes nothing for a dossier with no access to switch", async () => {
+    guardians.clear();
+    await refreshPortalAccess("family-1");
+    expect(accessWrites).toEqual([]);
+  });
+
+  it("reaches the dossier from one of its pupils", async () => {
+    withAccess();
+    liveEnrolments = 1;
+    await refreshHouseholdAccess("student-1");
+    expect(accessWrites.at(-1)).toMatchObject({ isActive: true });
+  });
+
+  it("does nothing for a pupil on no dossier at all", async () => {
+    students.set("student-1", { familyId: null });
+    await refreshHouseholdAccess("student-1");
+    expect(accessWrites).toEqual([]);
+  });
+});
+
+describe("refreshSchoolPortalAccess", () => {
+  /*
+    The case the whole rule exists for: the year turns over, nobody is enrolled
+    in the new one yet, and not a single enrolment has moved to announce it.
+    Without this pass every family in the school keeps signing in.
+  */
+  it("switches a whole school off when the new year has nobody on the roll", async () => {
+    guardians.set("father-1", {
+      ...guardians.get("father-1")!,
+      userId: "user-a",
+    });
+    enrolledFamilyIds = [];
+
+    await refreshSchoolPortalAccess(SCHOOL);
+
+    expect(accessWrites).toEqual([{ ids: ["user-a"], isActive: false }]);
+  });
+
+  it("leaves the households that have re-enrolled signing in", async () => {
+    guardians.set("father-1", {
+      ...guardians.get("father-1")!,
+      userId: "user-a",
+    });
+    enrolledFamilyIds = ["family-1"];
+
+    await refreshSchoolPortalAccess(SCHOOL);
+
+    expect(accessWrites).toEqual([{ ids: ["user-a"], isActive: true }]);
+  });
+
+  it("writes nothing at all for a school whose dossiers hold no access", async () => {
+    await refreshSchoolPortalAccess(SCHOOL);
+    expect(accessWrites).toEqual([]);
+  });
+});
+
 describe("openPortalAccountAction", () => {
   it("authorizes through the guardian's own family", async () => {
     await openPortalAccountAction("father-1");

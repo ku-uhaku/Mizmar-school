@@ -17,6 +17,7 @@ import { withFamilyPrefix } from "@/modules/families/validation";
 // schedule comes from the price list and the status is derived, and the import
 // is bound by both exactly as the enrolment form is.
 import { generateFeeSchedule } from "@/modules/enrolment/service";
+import { refreshHouseholdAccess } from "@/modules/families/service";
 import { refreshStudentStatus } from "@/modules/students/service";
 import { subscriptionScopeKey } from "@/modules/transport/enums";
 import { IMPORT_COLUMNS, matchHeaders, type ImportColumn } from "@/modules/imports/columns";
@@ -802,6 +803,7 @@ export async function commitImport(
   // `Student.status` is derived, and this is the only thing allowed to set it.
   for (const studentId of studentsToRefresh) {
     await refreshStudentStatus(studentId);
+    await refreshHouseholdAccess(studentId);
   }
 
   return { created, families: familiesOpened, enrolled: enrolmentsToBill.length };

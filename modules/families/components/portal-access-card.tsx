@@ -101,14 +101,25 @@ export function PortalAccessCard({
                 >
                   {account.username ?? "—"}
                 </code>
+                {/* An account still linked to the dossier is never "revoked" —
+                  revoking unlinks it. Switched off here means the rule switched
+                  it off: nobody on this file is enrolled for the current year.
+                  Saying which is the difference between a secretary reaching
+                  for the reset button and understanding there is nothing to
+                  fix. */}
                 <Badge variant={account.isActive ? "secondary" : "outline"}>
-                  {account.isActive ? t.common.active : t.family.portalRevoked}
+                  {account.isActive ? t.common.active : t.family.portalDormant}
                 </Badge>
               </div>
               <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                 <UserIcon className="size-3" />
                 {t.family.portalHeldBy}: {holder.firstName} {holder.lastName}
               </p>
+              {!account.isActive ? (
+                <p className="text-muted-foreground text-xs">
+                  {t.family.portalDormantHint}
+                </p>
+              ) : null}
             </div>
 
             {canManagePortal ? (

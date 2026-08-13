@@ -28,6 +28,7 @@ import {
   setEnrolmentStatus,
 } from "@/modules/enrolment/service";
 import { enrolmentSchema, feeLineSchema } from "@/modules/enrolment/validation";
+import { refreshHouseholdAccess } from "@/modules/families/service";
 import { refreshStudentStatus } from "@/modules/students/service";
 
 /**
@@ -214,6 +215,8 @@ export async function enrolStudentAction(
 
     const lineCount = await generateFeeSchedule(enrolment.id);
     await refreshStudentStatus(student.id);
+    // A child on the roll is what switches the household's login on.
+    await refreshHouseholdAccess(student.id);
 
     refresh();
     return success(
@@ -377,6 +380,8 @@ export async function deleteEnrolmentAction(
     // entered in error, and the reason withdrawing is a status change instead.
     await db.enrollment.delete({ where: { id: enrollmentId } });
     await refreshStudentStatus(existing.studentId);
+    // And the last one leaving is what switches it off again.
+    await refreshHouseholdAccess(existing.studentId);
 
     refresh();
     return success(t.enrolment.deleted);
