@@ -3,6 +3,7 @@
 import { CheckIcon, PlusCircleIcon } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
 
+import { clusterByGroup } from "@/components/form/option-groups";
 import { useT } from "@/components/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,12 @@ export type FacetOption = {
   value: string;
   label: string;
   icon?: React.ReactNode;
+  /**
+   * The heading this option is listed under. Set it on every option of a facet
+   * or on none — the levels are the reason it exists, since a niveau means
+   * little without the cycle above it (modules/academics/labels.ts).
+   */
+  group?: string;
 };
 
 export type FacetDef = {
@@ -107,37 +114,45 @@ export function FacetFilter({
           <CommandInput placeholder={label} />
           <CommandList>
             <CommandEmpty>{t.common.noResults}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => {
-                const isSelected = chosen.has(option.value);
-                return (
-                  <CommandItem
-                    key={option.value}
-                    onSelect={() => onToggle(option.value)}
-                  >
-                    <span
-                      className={cn(
-                        "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
-                        isSelected
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "border-input",
-                      )}
+            {clusterByGroup(options).map((cluster, index) => (
+              <CommandGroup
+                key={cluster.heading ?? `ungrouped-${index}`}
+                heading={cluster.heading}
+              >
+                {cluster.options.map((option) => {
+                  const isSelected = chosen.has(option.value);
+                  return (
+                    <CommandItem
+                      key={option.value}
+                      // Searchable by its heading too: typing "primaire" should
+                      // narrow to that cycle's levels.
+                      value={`${option.label} ${option.group ?? ""}`}
+                      onSelect={() => onToggle(option.value)}
                     >
-                      <CheckIcon
-                        className={cn("size-3", !isSelected && "invisible")}
-                      />
-                    </span>
-                    {option.icon}
-                    <span className="truncate">{option.label}</span>
-                    {counts ? (
-                      <span className="text-muted-foreground ms-auto text-xs tabular-nums">
-                        {counts.get(option.value) ?? 0}
+                      <span
+                        className={cn(
+                          "flex size-4 shrink-0 items-center justify-center rounded-[4px] border",
+                          isSelected
+                            ? "bg-primary border-primary text-primary-foreground"
+                            : "border-input",
+                        )}
+                      >
+                        <CheckIcon
+                          className={cn("size-3", !isSelected && "invisible")}
+                        />
                       </span>
-                    ) : null}
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
+                      {option.icon}
+                      <span className="truncate">{option.label}</span>
+                      {counts ? (
+                        <span className="text-muted-foreground ms-auto text-xs tabular-nums">
+                          {counts.get(option.value) ?? 0}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            ))}
 
             {chosen.size > 0 ? (
               <>

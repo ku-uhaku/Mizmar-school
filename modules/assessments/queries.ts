@@ -6,6 +6,10 @@ import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+} from "@/modules/academics/labels";
+import {
   COUNTED_STATUSES,
   markStatistics,
   quartersToPoints,
@@ -94,7 +98,12 @@ export type ClassOption = {
   id: string;
   code: string;
   name: string | null;
+  /** The Ministry code alone — the badge beside a class in a list. */
   levelLabel: string;
+  /** Both names and the code, for the pickers that choose a niveau outright. */
+  levelOptionLabel: string;
+  /** The cycle the level hangs under, for those pickers' headings. */
+  cycleName: string;
   /** Which level offering it belongs to — what the "a level" scope groups on. */
   levelOfferingId: string;
 };
@@ -105,14 +114,31 @@ export async function listAssessableClasses(
 ): Promise<ClassOption[]> {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context), isActive: true },
-    orderBy: [{ code: "asc" }],
+    // Cycle first, then the class code: the levels the generator derives from
+    // this list are headed by their cycle, and a heading only holds if the
+    // rows under it are contiguous.
+    orderBy: [
+      { levelOffering: { level: { educationLevel: { position: "asc" } } } },
+      { levelOffering: { level: { gradeYear: "asc" } } },
+      { code: "asc" },
+    ],
     select: {
       id: true,
       code: true,
       name: true,
       levelOfferingId: true,
       levelOffering: {
-        select: { level: { select: { code: true, name: true } } },
+        select: {
+          level: {
+            select: {
+              code: true,
+              name: true,
+              nameAr: true,
+              educationLevel: { select: { name: true, nameAr: true } },
+            },
+          },
+          track: { select: { name: true, nameAr: true } },
+        },
       },
     },
   });
@@ -122,6 +148,11 @@ export async function listAssessableClasses(
     code: schoolClass.code,
     name: schoolClass.name,
     levelLabel: schoolClass.levelOffering.level.code,
+    levelOptionLabel: levelChoiceLabel(
+      schoolClass.levelOffering.level,
+      schoolClass.levelOffering.track,
+    ),
+    cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
     levelOfferingId: schoolClass.levelOfferingId,
   }));
 }

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter, Noto_Sans_Arabic } from "next/font/google";
 import { cookies } from "next/headers";
+import { Suspense } from "react";
 
 import { AppearanceProvider, AppearanceScript } from "@/modules/appearance/components/appearance-provider";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { DirectionProvider } from "@/components/ui/direction";
+import { RouteProgress } from "@/components/shell/route-progress";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { parseUiPrefsCookie, UI_PREFS_COOKIE, uiPrefsToDataAttributes } from "@/modules/appearance/prefs";
@@ -70,6 +72,11 @@ export default async function RootLayout({
               {/* Required by every Tooltip in the tree — the collapsed sidebar
                   labels and the users table both rely on it. */}
               <TooltipProvider>
+                {/* Suspense because it reads the query string: without it the
+                    whole tree below would opt out of static rendering. */}
+                <Suspense fallback={null}>
+                  <RouteProgress />
+                </Suspense>
                 {children}
                 <Toaster />
               </TooltipProvider>

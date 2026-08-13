@@ -27,10 +27,12 @@ const fr = {
       school: "Établissement",
       academics: "Structure pédagogique",
       facilities: "Locaux",
+      staff: "Personnel",
       year: "Année scolaire",
       classes: "Classes",
       billing: "Frais",
       treasury: "Caisse",
+      supplies: "Fournitures",
       logistique: "Transport",
     },
 

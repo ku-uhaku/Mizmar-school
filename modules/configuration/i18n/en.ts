@@ -30,10 +30,12 @@ const en = {
       school: "Establishment",
       academics: "Academic structure",
       facilities: "Facilities",
+      staff: "Staff",
       year: "School year",
       classes: "Classes",
       billing: "Fees",
       treasury: "Caisse",
+      supplies: "Supplies",
       logistique: "Transport",
     },
 

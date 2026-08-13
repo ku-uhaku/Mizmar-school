@@ -30,6 +30,7 @@ import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
 import { saveEventAction } from "@/modules/events/actions";
 import { EVENT_KINDS } from "@/modules/events/enums";
+import { clusterByGroup } from "@/components/form/option-groups";
 import type { AudienceChoice, EventRow } from "@/modules/events/queries";
 
 /**
@@ -340,29 +341,42 @@ function AudienceGroup({
   return (
     <div className="grid gap-2">
       <span className="text-muted-foreground text-xs font-medium">{label}</span>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {options.map((option) => {
-          const checked = ticked.has(option.id);
-          const id = `${fieldName}-${option.id}`;
-          return (
-            <label
-              key={option.id}
-              htmlFor={id}
-              className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-            >
-              <Checkbox
-                id={id}
-                checked={checked}
-                onCheckedChange={(value) => onToggle(option.id, value === true)}
-              />
-              <span className="min-w-0 truncate">{option.label}</span>
-              {checked ? (
-                <input type="hidden" name={fieldName} value={option.id} />
-              ) : null}
-            </label>
-          );
-        })}
-      </div>
+      {/* The niveaux arrive headed by their cycle; the classes carry no group
+        and fall into one nameless cluster, which renders as a plain grid. */}
+      {clusterByGroup(options).map((cluster, index) => (
+        <div key={cluster.heading ?? index} className="grid gap-2">
+          {cluster.heading ? (
+            <span className="text-muted-foreground px-0.5 text-[0.7rem] font-semibold tracking-wide uppercase">
+              {cluster.heading}
+            </span>
+          ) : null}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {cluster.options.map((option) => {
+              const checked = ticked.has(option.id);
+              const id = `${fieldName}-${option.id}`;
+              return (
+                <label
+                  key={option.id}
+                  htmlFor={id}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                >
+                  <Checkbox
+                    id={id}
+                    checked={checked}
+                    onCheckedChange={(value) =>
+                      onToggle(option.id, value === true)
+                    }
+                  />
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {checked ? (
+                    <input type="hidden" name={fieldName} value={option.id} />
+                  ) : null}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
 } from "@/modules/timetable/enums";
 import type {
   ResourceDef,
+  ResourceScope,
   ScopeGroupDef,
   SectionDef,
 } from "@/modules/configuration/types";
@@ -42,7 +43,13 @@ import type {
  * lives in `schema.server.ts`, keyed by the same `id`.
  */
 
-/** Top-level horizontal tabs, in order. */
+/**
+ * The headings resources are clustered under, in order.
+ *
+ * A section is a subject, not a tab: which of the two top-level groups it shows
+ * up in follows from the scope of the resources inside it, so a section holding
+ * both — the fees — appears under each with only that side's screens.
+ */
 export const SECTIONS: SectionDef[] = [
   // First, because it is the section that changes what the others mean: the
   // grading scale, the teaching week and the currency are read by every screen
@@ -50,41 +57,32 @@ export const SECTIONS: SectionDef[] = [
   { id: "school", labelKey: "school" },
   { id: "academics", labelKey: "academics" },
   { id: "facilities", labelKey: "facilities" },
+  { id: "staff", labelKey: "staff" },
   { id: "year", labelKey: "year" },
   { id: "classes", labelKey: "classes" },
+  // Under both groups: the catalogue and the school's policy are the
+  // establishment's, the rates and the discounts are the year's.
   { id: "billing", labelKey: "billing" },
   { id: "treasury", labelKey: "treasury" },
+  { id: "supplies", labelKey: "supplies" },
   // Last, and only the horaires: the quartiers stay under Établissement, where
   // an address belongs — see the note on the neighbourhoods resource below.
   { id: "logistique", labelKey: "logistique" },
 ];
 
 /**
- * The two tabs above `SECTIONS`. "École année" is the sections whose tables
- * are redrawn every September — the calendar and the classes; everything
- * else — the establishment, the academic structure, the price lists, the
- * caisse, the logistics catalogues — sits under "Configuration générale"
- * because it is set up once and rarely touched again, even where one table
- * inside it (a fee rate, say) happens to be year-scoped underneath.
+ * The two tabs above `SECTIONS`: what belongs to the establishment, and what is
+ * redrawn every September.
+ *
+ * Membership is not listed — it is read off each resource's `scope`, the same
+ * field `resource-schema.ts` builds its `where` from. So the tab a screen sits
+ * under and the rows it actually manages can never disagree: a fee rate is
+ * filed under the year because it is written against one, and an absence stays
+ * under the establishment because its year follows from its dates.
  */
 export const SCOPE_GROUPS: ScopeGroupDef[] = [
-  {
-    id: "general",
-    labelKey: "general",
-    sectionIds: [
-      "school",
-      "academics",
-      "facilities",
-      "billing",
-      "treasury",
-      "logistique",
-    ],
-  },
-  {
-    id: "year",
-    labelKey: "year",
-    sectionIds: ["year", "classes"],
-  },
+  { id: "general", labelKey: "general", scope: "SCHOOL" },
+  { id: "year", labelKey: "year", scope: "YEAR" },
 ];
 
 /** Shared trailing fields — every resource that has them wants them last. */
@@ -628,7 +626,7 @@ export const RESOURCES: ResourceDef[] = [
   */
   {
     id: "teacher-absences",
-    section: "year",
+    section: "staff",
     labelKey: "teacherAbsences",
     scope: "SCHOOL",
     labelFields: ["startDate"],
@@ -1374,7 +1372,7 @@ export const RESOURCES: ResourceDef[] = [
   */
   {
     id: "supply-articles",
-    section: "logistique",
+    section: "supplies",
     labelKey: "supplyArticles",
     scope: "SCHOOL",
     labelFields: ["code", "name"],
@@ -1603,26 +1601,35 @@ export function findResource(id: string): ResourceDef | undefined {
   return RESOURCES.find((resource) => resource.id === id);
 }
 
-export function resourcesInSection(sectionId: string): ResourceDef[] {
-  return RESOURCES.filter((resource) => resource.section === sectionId);
+/**
+ * A section's resources, narrowed to one scope when the caller is rendering
+ * inside a group — a section that spans both shows only that group's half.
+ */
+export function resourcesInSection(
+  sectionId: string,
+  scope?: ResourceScope,
+): ResourceDef[] {
+  return RESOURCES.filter(
+    (resource) =>
+      resource.section === sectionId &&
+      (scope === undefined || resource.scope === scope),
+  );
 }
 
 export function findSection(id: string): SectionDef | undefined {
   return SECTIONS.find((section) => section.id === id);
 }
 
-/** The scope group a section is clustered under — see `SCOPE_GROUPS`. */
-export function groupOfSection(sectionId: string): ScopeGroupDef {
-  return (
-    SCOPE_GROUPS.find((group) => group.sectionIds.includes(sectionId)) ??
-    SCOPE_GROUPS[0]
-  );
+/** The tab a screen is filed under, decided by what its rows belong to. */
+export function groupOfScope(scope: ResourceScope): ScopeGroupDef {
+  return SCOPE_GROUPS.find((group) => group.scope === scope) ?? SCOPE_GROUPS[0];
 }
 
+/** The sections with something to show in this group, in `SECTIONS` order. */
 export function sectionsInGroup(groupId: string): SectionDef[] {
   const group = SCOPE_GROUPS.find((candidate) => candidate.id === groupId);
   if (!group) return [];
-  return group.sectionIds
-    .map((sectionId) => findSection(sectionId))
-    .filter((section): section is SectionDef => Boolean(section));
+  return SECTIONS.filter(
+    (section) => resourcesInSection(section.id, group.scope).length > 0,
+  );
 }

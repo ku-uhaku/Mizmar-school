@@ -3,6 +3,10 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { currentSchoolYearId, schoolScope } from "@/lib/scope";
+import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+} from "@/modules/academics/labels";
 import { isUpcoming } from "@/modules/events/enums";
 
 /**
@@ -133,7 +137,8 @@ export async function findEvent(
   return event ? toRow(event, new Date()) : null;
 }
 
-export type AudienceChoice = { id: string; label: string };
+/** `group` is the cycle a level hangs under; classes carry none. */
+export type AudienceChoice = { id: string; label: string; group?: string };
 
 /**
  * The levels and classes an event may be aimed at.
@@ -151,8 +156,22 @@ export async function listAudienceChoices(context: AuthContext): Promise<{
   const [offerings, classes] = await Promise.all([
     db.levelOffering.findMany({
       where: { schoolYearId: yearId },
-      orderBy: [{ level: { gradeYear: "asc" } }],
-      select: { level: { select: { id: true, name: true, code: true } } },
+      // Cycle first, so the clusters below stay contiguous.
+      orderBy: [
+        { level: { educationLevel: { position: "asc" } } },
+        { level: { gradeYear: "asc" } },
+      ],
+      select: {
+        level: {
+          select: {
+            id: true,
+            name: true,
+            nameAr: true,
+            code: true,
+            educationLevel: { select: { name: true, nameAr: true } },
+          },
+        },
+      },
     }),
     db.schoolClass.findMany({
       where: { levelOffering: { schoolYearId: yearId } },
@@ -170,7 +189,8 @@ export async function listAudienceChoices(context: AuthContext): Promise<{
     seen.add(offering.level.id);
     levels.push({
       id: offering.level.id,
-      label: `${offering.level.name} (${offering.level.code})`,
+      label: levelChoiceLabel(offering.level),
+      group: cycleChoiceLabel(offering.level.educationLevel),
     });
   }
 

@@ -26,12 +26,15 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import { formatMonth, interpolate } from "@/lib/i18n/format";
@@ -55,7 +58,12 @@ export type StartMonthChoice = {
 
 export type OfferingChoice = {
   id: string;
+  /** The short form — "3AP", "2BAC — SM". What the row is referred to by. */
   label: string;
+  /** Both names and the code, as the picker lists it. */
+  optionLabel: string;
+  /** The cycle it is listed under. */
+  cycleName: string;
   levelName: string;
   trackName: string | null;
   classes: {
@@ -256,10 +264,20 @@ export function EnrolmentPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {offerings.map((entry) => (
-                      <SelectItem key={entry.id} value={entry.id}>
-                        {entry.label} — {entry.levelName}
-                      </SelectItem>
+                    {clusterByGroup(
+                      offerings.map((entry) => ({
+                        ...entry,
+                        group: entry.cycleName,
+                      })),
+                    ).map((cluster) => (
+                      <SelectGroup key={cluster.heading}>
+                        <SelectLabel>{cluster.heading}</SelectLabel>
+                        {cluster.options.map((entry) => (
+                          <SelectItem key={entry.id} value={entry.id}>
+                            {entry.optionLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

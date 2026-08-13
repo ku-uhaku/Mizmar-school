@@ -27,10 +27,12 @@ const ar = {
       school: "المؤسسة",
       academics: "البنية البيداغوجية",
       facilities: "المرافق",
+      staff: "الموارد البشرية",
       year: "السنة الدراسية",
       classes: "الأقسام",
       billing: "الرسوم",
       treasury: "الصندوق",
+      supplies: "اللوازم",
       logistique: "النقل",
     },
 

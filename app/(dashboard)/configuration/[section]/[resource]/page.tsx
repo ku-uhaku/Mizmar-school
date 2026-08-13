@@ -98,10 +98,14 @@ export default async function ConfigurationResourcePage(
       />
 
       <div className="space-y-4">
-        <GroupTabs activeSection={sectionId} />
+        <GroupTabs activeScope={resource.scope} />
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start">
-          <ResourceTabs sectionId={sectionId} activeResource={resource.id} />
+          <ResourceTabs
+            sectionId={sectionId}
+            activeResource={resource.id}
+            activeScope={resource.scope}
+          />
 
           <div className="min-w-0 flex-1 space-y-3">
             <div>

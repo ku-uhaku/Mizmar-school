@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 import { Combobox } from "@/components/form/combobox";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { FormField, controlProps } from "@/components/form/form-field";
 import { FormGrid } from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
@@ -21,7 +22,9 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -39,6 +42,10 @@ type Step = (typeof STEPS)[number];
 type Offering = {
   id: string;
   label: string;
+  /** Both names and the code — see modules/academics/labels.ts. */
+  optionLabel: string;
+  /** The cycle it is listed under. */
+  cycleName: string;
   levelName: string;
   trackName: string | null;
   classes: {
@@ -501,11 +508,20 @@ export function EnrolWizard({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {offerings.map((offering) => (
-                      <SelectItem key={offering.id} value={offering.id}>
-                        {offering.levelName}
-                        {offering.trackName ? ` — ${offering.trackName}` : ""}
-                      </SelectItem>
+                    {clusterByGroup(
+                      offerings.map((offering) => ({
+                        ...offering,
+                        group: offering.cycleName,
+                      })),
+                    ).map((cluster) => (
+                      <SelectGroup key={cluster.heading}>
+                        <SelectLabel>{cluster.heading}</SelectLabel>
+                        {cluster.options.map((offering) => (
+                          <SelectItem key={offering.id} value={offering.id}>
+                            {offering.optionLabel}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>

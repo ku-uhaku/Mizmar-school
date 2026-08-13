@@ -18,12 +18,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -122,15 +125,22 @@ export function GenerateDialog({
    */
   const [scope, setScope] = React.useState<GenerateScope>("LEVEL");
 
-  /** The levels, derived from the classes rather than fetched again. */
+  /**
+   * The levels, derived from the classes rather than fetched again. Headed by
+   * their cycle and named in both languages, like every other niveau picker —
+   * see modules/academics/labels.ts.
+   */
   const levels = React.useMemo(() => {
-    const seen = new Map<string, string>();
+    const seen = new Map<string, { id: string; label: string; group: string }>();
     for (const option of classes) {
-      if (!seen.has(option.levelOfferingId)) {
-        seen.set(option.levelOfferingId, option.levelLabel);
-      }
+      if (seen.has(option.levelOfferingId)) continue;
+      seen.set(option.levelOfferingId, {
+        id: option.levelOfferingId,
+        label: option.levelOptionLabel,
+        group: option.cycleName,
+      });
     }
-    return [...seen].map(([id, label]) => ({ id, label }));
+    return [...seen.values()];
   }, [classes]);
 
   const [levelOfferingId, setLevelOfferingId] = React.useState(
@@ -533,10 +543,15 @@ export function GenerateDialog({
                       <SelectValue placeholder={t.assessment.pickLevel} />
                     </SelectTrigger>
                     <SelectContent>
-                      {levels.map((level) => (
-                        <SelectItem key={level.id} value={level.id}>
-                          {level.label}
-                        </SelectItem>
+                      {clusterByGroup(levels).map((cluster) => (
+                        <SelectGroup key={cluster.heading}>
+                          <SelectLabel>{cluster.heading}</SelectLabel>
+                          {cluster.options.map((level) => (
+                            <SelectItem key={level.id} value={level.id}>
+                              {level.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>

@@ -3,6 +3,10 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+} from "@/modules/academics/labels";
+import {
   listSubscribableCharges,
   type SubscribableCharge,
 } from "@/modules/enrolment/service";
@@ -285,12 +289,27 @@ export async function loadEnrolmentChoices(context: AuthContext) {
   const [offerings, discounts, year, subscribableCharges] = await Promise.all([
     db.levelOffering.findMany({
       where: { schoolYearId: yearId, isActive: true },
-      orderBy: [{ level: { gradeYear: "asc" } }, { level: { code: "asc" } }],
+      // By cycle first: the picker below lists the niveaux under the cycle they
+      // belong to, and a group heading is only a heading if its rows are
+      // contiguous — see components/form/combobox.tsx.
+      orderBy: [
+        { level: { educationLevel: { position: "asc" } } },
+        { level: { gradeYear: "asc" } },
+        { level: { code: "asc" } },
+      ],
       select: {
         id: true,
         plannedCapacity: true,
-        level: { select: { code: true, name: true, gradeYear: true } },
-        track: { select: { code: true, name: true } },
+        level: {
+          select: {
+            code: true,
+            name: true,
+            nameAr: true,
+            gradeYear: true,
+            educationLevel: { select: { name: true, nameAr: true } },
+          },
+        },
+        track: { select: { code: true, name: true, nameAr: true } },
         classes: {
           where: { isActive: true },
           orderBy: { code: "asc" },
@@ -341,6 +360,10 @@ export async function loadEnrolmentChoices(context: AuthContext) {
         : offering.level.code,
       levelName: offering.level.name,
       trackName: offering.track?.name ?? null,
+      // What the picker shows and what it heads the row with. Kept beside the
+      // short `label`, which the import console still reports rows by.
+      optionLabel: levelChoiceLabel(offering.level, offering.track),
+      cycleName: cycleChoiceLabel(offering.level.educationLevel),
       plannedCapacity: offering.plannedCapacity,
       classes: offering.classes.map((schoolClass) => ({
         id: schoolClass.id,

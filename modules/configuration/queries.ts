@@ -4,6 +4,10 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { currentSchoolYearId } from "@/lib/scope";
+import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+} from "@/modules/academics/labels";
 import { findResource } from "@/modules/configuration/resources";
 import { resourceSchema } from "@/modules/configuration/resource-schema";
 import type {
@@ -133,26 +137,63 @@ export async function loadChoices(
 
     const offerings = await db.levelOffering.findMany({
       where: offeringSchema.where(context),
-      orderBy: [{ level: { gradeYear: "asc" } }, { track: { position: "asc" } }],
+      orderBy: [
+        { level: { educationLevel: { position: "asc" } } },
+        { level: { gradeYear: "asc" } },
+        { track: { position: "asc" } },
+      ],
       select: {
         id: true,
-        level: { select: { name: true, code: true } },
-        track: { select: { name: true } },
+        level: {
+          select: {
+            name: true,
+            nameAr: true,
+            code: true,
+            educationLevel: { select: { name: true, nameAr: true } },
+          },
+        },
+        track: { select: { name: true, nameAr: true } },
       },
     });
 
     return offerings.map((offering) => ({
       id: offering.id,
-      // The name leads, because that is what the reader is choosing between.
-      // The code follows in brackets: a school talks in codes ("3AP"), and two
-      // levels can share a name across cycles, so dropping it entirely would
-      // make some lists ambiguous.
-      label: [
-        offering.track
-          ? `${offering.level.name} — ${offering.track.name}`
-          : offering.level.name,
-        `(${offering.level.code})`,
-      ].join(" "),
+      label: levelChoiceLabel(offering.level, offering.track),
+      group: cycleChoiceLabel(offering.level.educationLevel),
+    }));
+  }
+
+  /*
+    The cursus itself, under the cycles it is organised by.
+
+    A loader rather than `labelFields` for the same reason as the two above: the
+    heading comes from a join, and both names have to be shown at once. See
+    modules/academics/labels.ts.
+  */
+  if (referenceTo === "levels") {
+    const levelSchema = resourceSchema("levels");
+    if (!levelSchema) return [];
+
+    const levels = await db.level.findMany({
+      where: levelSchema.where(context),
+      orderBy: [
+        { educationLevel: { position: "asc" } },
+        { gradeYear: "asc" },
+        { code: "asc" },
+      ],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        nameAr: true,
+        educationLevel: { select: { name: true, nameAr: true } },
+      },
+    });
+
+    return levels.map((level) => ({
+      id: level.id,
+      label: levelChoiceLabel(level),
+      group: cycleChoiceLabel(level.educationLevel),
     }));
   }
 

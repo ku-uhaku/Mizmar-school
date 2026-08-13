@@ -298,6 +298,7 @@ function FieldControl({
           options={choices.map((choice) => ({
             value: choice.id,
             label: choice.label,
+            group: choice.group,
           }))}
         />
       );

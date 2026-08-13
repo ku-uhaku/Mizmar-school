@@ -6,6 +6,10 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+} from "@/modules/academics/labels";
+import {
   siblingCountOf,
   workflowStateOf,
   type StudentWorkflowStep,
@@ -317,8 +321,16 @@ export async function listStudentsPage(
 }
 
 export type StudentFacetOptions = {
-  /** Level labels as the table shows them, over the whole roll. */
-  levels: string[];
+  /**
+   * The levels opened this year, headed by their cycle.
+   *
+   * `value` stays the code the filter matches on ("3AP", "1BAC SM") — the same
+   * string the URL carries and `listStudents` parses — while `label` is what
+   * the reader picks from. Splitting the two is what lets the option read in
+   * both languages without the filter breaking when the interface language
+   * changes.
+   */
+  levels: { value: string; label: string; group: string }[];
   /** Class codes opened this year. */
   classes: string[];
 };
@@ -347,9 +359,22 @@ export async function listStudentFacetOptions(
       // Through the year, which is where a cursus is scoped — and the year is
       // re-checked against the school rather than trusted from the context.
       where: { schoolYearId, schoolYear: { schoolId } },
+      // Cycle first, so the cluster headings the filter draws stay contiguous.
+      orderBy: [
+        { level: { educationLevel: { position: "asc" } } },
+        { level: { gradeYear: "asc" } },
+        { track: { position: "asc" } },
+      ],
       select: {
-        level: { select: { code: true } },
-        track: { select: { code: true } },
+        level: {
+          select: {
+            code: true,
+            name: true,
+            nameAr: true,
+            educationLevel: { select: { name: true, nameAr: true } },
+          },
+        },
+        track: { select: { code: true, name: true, nameAr: true } },
       },
     }),
     db.schoolClass.findMany({
@@ -359,17 +384,26 @@ export async function listStudentFacetOptions(
     }),
   ]);
 
-  const levels = [
-    ...new Set(
-      offerings.map((offering) =>
-        offering.track
-          ? `${offering.level.code} ${offering.track.code}`
-          : offering.level.code,
-      ),
-    ),
-  ].sort();
+  // Keyed by the value the filter matches on, so a level offered twice under
+  // the same filière code cannot list twice. Insertion order is the cursus
+  // order the query asked for, which is what the headings depend on.
+  const levels = new Map<string, { value: string; label: string; group: string }>();
+  for (const offering of offerings) {
+    const value = offering.track
+      ? `${offering.level.code} ${offering.track.code}`
+      : offering.level.code;
+    if (levels.has(value)) continue;
+    levels.set(value, {
+      value,
+      label: levelChoiceLabel(offering.level, offering.track),
+      group: cycleChoiceLabel(offering.level.educationLevel),
+    });
+  }
 
-  return { levels, classes: classes.map((schoolClass) => schoolClass.code) };
+  return {
+    levels: [...levels.values()],
+    classes: classes.map((schoolClass) => schoolClass.code),
+  };
 }
 
 /**

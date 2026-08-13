@@ -6,10 +6,11 @@ import { useT } from "@/components/providers/i18n-provider";
 import { cn } from "@/lib/utils";
 import {
   SCOPE_GROUPS,
-  groupOfSection,
+  groupOfScope,
   resourcesInSection,
   sectionsInGroup,
 } from "@/modules/configuration/resources";
+import type { ResourceScope } from "@/modules/configuration/types";
 
 /**
  * Group tabs across the top, section headings and resource links down the
@@ -26,11 +27,15 @@ import {
  * The two tabs above the section list — "Configuration générale" and "Année
  * scolaire". Each links to its own first section's first resource, so picking
  * one always lands on a real screen.
+ *
+ * Which tab is lit follows from the open screen's scope rather than its
+ * section: a section can appear under both, and it is the resource that says
+ * which side of it you are looking at.
  */
-export function GroupTabs({ activeSection }: { activeSection: string }) {
+export function GroupTabs({ activeScope }: { activeScope: ResourceScope }) {
   const t = useT();
   const labels = t.configuration.scopeGroups as Record<string, string>;
-  const activeGroup = groupOfSection(activeSection);
+  const activeGroup = groupOfScope(activeScope);
 
   return (
     <nav
@@ -40,7 +45,7 @@ export function GroupTabs({ activeSection }: { activeSection: string }) {
       {SCOPE_GROUPS.map((group) => {
         const firstSection = sectionsInGroup(group.id)[0];
         const firstResource = firstSection
-          ? resourcesInSection(firstSection.id)[0]
+          ? resourcesInSection(firstSection.id, group.scope)[0]
           : undefined;
         if (!firstSection || !firstResource) return null;
         const isActive = group.id === activeGroup.id;
@@ -74,14 +79,16 @@ export function GroupTabs({ activeSection }: { activeSection: string }) {
 export function ResourceTabs({
   sectionId,
   activeResource,
+  activeScope,
 }: {
   sectionId: string;
   activeResource: string;
+  activeScope: ResourceScope;
 }) {
   const t = useT();
   const sectionLabels = t.configuration.sections as Record<string, string>;
   const resourceLabels = t.configuration.resources as Record<string, string>;
-  const group = groupOfSection(sectionId);
+  const group = groupOfScope(activeScope);
   const sections = sectionsInGroup(group.id);
 
   return (
@@ -90,7 +97,7 @@ export function ResourceTabs({
       aria-label={t.configuration.subtitle}
     >
       {sections.map((section, index) => {
-        const resources = resourcesInSection(section.id);
+        const resources = resourcesInSection(section.id, group.scope);
         if (resources.length === 0) return null;
 
         return (

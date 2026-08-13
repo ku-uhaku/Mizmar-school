@@ -18,6 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { cn } from "@/lib/utils";
 
 export type ComboboxOption = {
@@ -27,6 +28,13 @@ export type ComboboxOption = {
   hint?: string;
   /** Searchable text beyond the label: a code somebody types instead of a name. */
   keywords?: string;
+  /**
+   * The heading this option is listed under. Set it on every option or on
+   * none: a list where some rows have a home and others float above it reads
+   * as a bug. The levels are the reason it exists — see
+   * modules/academics/labels.ts.
+   */
+  group?: string;
   disabled?: boolean;
 };
 
@@ -89,10 +97,14 @@ export function Combobox({
   // half the screens here drive their pickers and half do not.
   const current = value ?? uncontrolled;
 
-  const rows = React.useMemo(
+  const rows: ComboboxOption[] = React.useMemo(
     () => (emptyOption ? [{ ...emptyOption, hint: undefined }, ...options] : options),
     [emptyOption, options],
   );
+
+  // One nameless cluster is the ordinary case, and renders as it always did: a
+  // plain `CommandGroup` with no heading.
+  const clusters = React.useMemo(() => clusterByGroup(rows), [rows]);
 
   const selected = rows.find((option) => option.value === current) ?? null;
   const searchable = rows.length >= searchFrom;
@@ -150,33 +162,39 @@ export function Combobox({
             ) : null}
             <CommandList>
               <CommandEmpty>{t.common.noResults}</CommandEmpty>
-              <CommandGroup>
-                {rows.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    // What cmdk matches on: the label, plus whatever else
-                    // somebody might type — a matricule, a code.
-                    value={`${option.label} ${option.keywords ?? ""} ${option.hint ?? ""}`}
-                    disabled={option.disabled}
-                    onSelect={() => choose(option.value)}
-                  >
-                    <CheckIcon
-                      className={cn(
-                        "size-4",
-                        option.value === current ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{option.label}</span>
-                      {option.hint ? (
-                        <span className="text-muted-foreground block truncate text-xs">
-                          {option.hint}
-                        </span>
-                      ) : null}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {clusters.map((cluster, index) => (
+                <CommandGroup
+                  key={cluster.heading ?? `ungrouped-${index}`}
+                  heading={cluster.heading}
+                >
+                  {cluster.options.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      // What cmdk matches on: the label, plus whatever else
+                      // somebody might type — a matricule, a code, the cycle
+                      // the heading above it names.
+                      value={`${option.label} ${option.keywords ?? ""} ${option.hint ?? ""} ${option.group ?? ""}`}
+                      disabled={option.disabled}
+                      onSelect={() => choose(option.value)}
+                    >
+                      <CheckIcon
+                        className={cn(
+                          "size-4",
+                          option.value === current ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate">{option.label}</span>
+                        {option.hint ? (
+                          <span className="text-muted-foreground block truncate text-xs">
+                            {option.hint}
+                          </span>
+                        ) : null}
+                      </span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
             </CommandList>
           </Command>
         </PopoverContent>

@@ -12,6 +12,14 @@
  * (scoping, relation choices) lives in `schema.server.ts` instead.
  */
 
+/**
+ * What a row belongs to. The one fact the whole configuration screen turns on:
+ * it decides the `where` clause in resource-schema.ts, whether the year must be
+ * set before the screen will render, and which of the two top tabs the resource
+ * appears under.
+ */
+export type ResourceScope = "SCHOOL" | "YEAR";
+
 /** How a field is edited and rendered. */
 export type FieldType =
   | "text"
@@ -94,9 +102,9 @@ export type ResourceDef = {
    *
    * The generic query and the generic action both derive their `where` from
    * this, so a resource cannot accidentally read or write outside the context
-   * the user has selected.
+   * the user has selected. The nav derives from it too — see `ScopeGroupDef`.
    */
-  scope: "SCHOOL" | "YEAR";
+  scope: ResourceScope;
   /**
    * Whether this resource is a list of rows or a single one.
    *
@@ -118,16 +126,22 @@ export type SectionDef = {
 };
 
 /**
- * The two top-level tabs the section tabs are clustered under — "what changes
- * rarely" versus "what is redrawn every year". A section sits under whichever
- * one its resources are mostly about; a section with one outlier (an absence
- * log inside "École année", say) is not worth splitting over.
+ * The two top-level tabs the sections are clustered under — what belongs to the
+ * establishment versus what is redrawn every September.
+ *
+ * A group holds no list of sections: it names a `scope`, and a resource appears
+ * under it when `ResourceDef.scope` matches. That is the same field the `where`
+ * clause is built from, so a screen is filed under the year exactly when its
+ * rows really are the year's, and a new resource lands in the right tab without
+ * anyone remembering to add it here. A section whose resources are of both
+ * scopes — the fees, which are a catalogue on one side and a price list on the
+ * other — simply appears under both, showing only that side's screens.
  */
 export type ScopeGroupDef = {
   id: string;
   /** Key under `configuration.scopeGroups`. */
   labelKey: string;
-  sectionIds: string[];
+  scope: ResourceScope;
 };
 
 /** One row as the client sees it: primitives only, ready to serialise. */
@@ -136,5 +150,12 @@ export type ResourceRow = {
   [field: string]: string | number | boolean | null;
 };
 
-/** A choice in a reference dropdown. */
-export type Choice = { id: string; label: string };
+/**
+ * A choice in a reference dropdown.
+ *
+ * `group` is the heading it is listed under. Optional because most references
+ * are a flat list of a dozen rows; the levels are not — see
+ * modules/academics/labels.ts for why a niveau is unpickable without its cycle
+ * above it.
+ */
+export type Choice = { id: string; label: string; group?: string };

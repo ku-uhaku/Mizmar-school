@@ -123,11 +123,7 @@ export function StudentsFilters({
         })),
       )}
 
-      {facet(
-        "level",
-        t.enrolment.level,
-        facetOptions.levels.map((level) => ({ value: level, label: level })),
-      )}
+      {facet("level", t.enrolment.level, facetOptions.levels)}
 
       {facet("class", t.schoolClass.title, [
         ...facetOptions.classes.map((code) => ({ value: code, label: code })),
