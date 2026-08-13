@@ -59,12 +59,13 @@ const ar = {
     andMore: "و{count} أخرى",
 
     search: "بحث",
-    searchPlaceholder: "ابحث عن تلاميذ أو أسر أو أقسام…",
+    searchPlaceholder: "ابحث عن تلاميذ أو أسر أو أقسام أو موظفين…",
     searchHint: "اكتب حرفين على الأقل.",
     searchEmpty: "لا توجد نتائج.",
     searchStudents: "التلاميذ",
     searchFamilies: "الأسر",
     searchClasses: "الأقسام",
+    searchStaff: "الموظفون",
   },
 };
 

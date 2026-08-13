@@ -22,6 +22,14 @@ import {
   advanceTotalsByStaff,
   outstandingAdvancesFor,
 } from "@/modules/hr/service";
+import {
+  listTeacherDuties,
+  type TeacherDutyRow,
+} from "@/modules/classes/queries";
+import {
+  listStaffVehicles,
+  type StaffVehicleRow,
+} from "@/modules/transport/queries";
 
 /**
  * Reads for the RH module.
@@ -269,7 +277,98 @@ export type StaffDetail = StaffRow & {
   leaveDaysThisYear: number;
   /** Unjustified absences on record, all time — see `isChargeableAbsence`. */
   unjustifiedAbsences: number;
+  /**
+   * Their own weekly ceiling in minutes, null when they run on the week's —
+   * see the note on `Staff.maxWeeklyMinutes`. Shown beside the load so a head
+   * of studies can see at a glance who is at their limit.
+   */
+  maxWeeklyMinutes: number | null;
+  /**
+   * This year's teaching service. Empty for anybody with no account linked,
+   * since an assignment names a User and not a Staff row.
+   */
+  teaching: TeacherDutyRow[];
+  /** What the assignments add up to, in minutes a week. */
+  teachingMinutes: number;
+  /** The buses driven or accompanied, each with this year's lines. */
+  vehicles: StaffVehicleRow[];
+  /**
+   * Advances still to recover, in centimes. Zero without `HR_PAYROLL` — an
+   * outstanding balance is a salary fact like any other.
+   */
+  advanceOutstandingCentimes: number;
 };
+
+/**
+ * The header search, RH's half.
+ *
+ * Matches a name in either script, the matricule, the phone or the CIN — a
+ * secretary looking somebody up has one of those and rarely the spelling. Like
+ * every read here it is scoped to the school in context, so the box can only
+ * ever find this school's payroll, and the caller gates it on `HR_VIEW`.
+ *
+ * `mode: "insensitive"` is deliberately not passed, for the reason given in
+ * `searchStudents`: the SQLite connector does not support it, and its LIKE is
+ * already case-insensitive for ASCII.
+ */
+export async function searchStaff(
+  context: AuthContext,
+  term: string,
+  take = 5,
+): Promise<
+  {
+    id: string;
+    code: string;
+    fullName: string;
+    jobRole: string;
+    jobTitle: string | null;
+    status: string;
+    phone: string | null;
+  }[]
+> {
+  const trimmed = term.trim();
+  if (trimmed.length < 2) return [];
+
+  const staff = await db.staff.findMany({
+    where: {
+      ...schoolScope(context),
+      OR: [
+        { firstName: { contains: trimmed } },
+        { lastName: { contains: trimmed } },
+        { firstNameAr: { contains: trimmed } },
+        { lastNameAr: { contains: trimmed } },
+        { code: { contains: trimmed } },
+        { phone: { contains: trimmed } },
+        { nationalId: { contains: trimmed } },
+      ],
+    },
+    // Employed first: looking somebody up almost always means somebody who
+    // still works here, and a leaver with a similar name should not push them
+    // off a five-row list.
+    orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
+    take,
+    select: {
+      id: true,
+      code: true,
+      firstName: true,
+      lastName: true,
+      jobRole: true,
+      jobTitle: true,
+      status: true,
+      phone: true,
+    },
+  });
+
+  return staff.map((person) => ({
+    id: person.id,
+    code: person.code,
+    fullName: staffName(person),
+    jobRole: person.jobRole,
+    jobTitle: person.jobTitle,
+    status: person.status,
+    phone: person.phone,
+  }));
+}
 
 /**
  * One employee's whole file.
@@ -317,27 +416,43 @@ export async function findStaff(
 
   const year = new Date().getFullYear();
 
-  const [leaveDays, unjustified] = await Promise.all([
-    db.leaveRequest.aggregate({
-      where: {
-        staffId: person.id,
-        status: "APPROVED",
-        // Bounded at both ends. Without the upper one, leave already approved
-        // for next January counted against this year's entitlement.
-        startsOn: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
-      },
-      _sum: { dayCount: true },
-    }),
-    db.staffAttendance.count({
-      where: {
-        staffId: person.id,
-        isJustified: false,
-        status: { in: [...CHARGEABLE_ABSENCE_STATUSES] },
-      },
-    }),
-  ]);
+  const [leaveDays, unjustified, teaching, vehicles, advances] =
+    await Promise.all([
+      db.leaveRequest.aggregate({
+        where: {
+          staffId: person.id,
+          status: "APPROVED",
+          // Bounded at both ends. Without the upper one, leave already approved
+          // for next January counted against this year's entitlement.
+          startsOn: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) },
+        },
+        _sum: { dayCount: true },
+      }),
+      db.staffAttendance.count({
+        where: {
+          staffId: person.id,
+          isJustified: false,
+          status: { in: [...CHARGEABLE_ABSENCE_STATUSES] },
+        },
+      }),
+      /*
+        The service, through each owning module rather than by reaching into
+        their tables from here.
 
-  const live = person.contracts.find((contract) => contract.status === "ACTIVE");
+        Teaching is keyed on the *account*, not on this row — an assignment
+        names a User, so an employee with no login teaches nothing as far as the
+        timetable is concerned, and the file says so rather than inventing a
+        join. The fleet is keyed on the employment record, because a bus names
+        the person the school pays.
+      */
+      person.user ? listTeacherDuties(context, person.user.id) : [],
+      listStaffVehicles(context, person.id),
+      canSeePay ? outstandingAdvancesFor(db, { staffId: person.id }) : [],
+    ]);
+
+  const live = person.contracts.find(
+    (contract) => contract.status === "ACTIVE",
+  );
   const identity = {
     code: person.code,
     firstName: person.firstName,
@@ -415,6 +530,26 @@ export async function findStaff(
     })),
     leaveDaysThisYear: leaveDays._sum.dayCount ?? 0,
     unjustifiedAbsences: unjustified,
+    maxWeeklyMinutes: person.maxWeeklyMinutes,
+    teaching,
+    teachingMinutes: teaching.reduce(
+      (total, duty) => total + (duty.weeklyMinutes ?? 0),
+      0,
+    ),
+    vehicles,
+    advanceOutstandingCentimes: advances.reduce(
+      (total, advance) =>
+        total +
+        outstandingAdvance({
+          status: advance.status,
+          amountCentimes: advance.amountCentimes,
+          recoveredCentimes: advance.recoveries.reduce(
+            (sum, recovery) => sum + recovery.amountCentimes,
+            0,
+          ),
+        }),
+      0,
+    ),
   };
 }
 
@@ -907,10 +1042,19 @@ export async function listAdvances(
       cashOperationId: true,
       notes: true,
       staff: {
-        select: { id: true, code: true, firstName: true, lastName: true, jobRole: true },
+        select: {
+          id: true,
+          code: true,
+          firstName: true,
+          lastName: true,
+          jobRole: true,
+        },
       },
       approvedBy: {
-        select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
       },
       recoveries: { select: { amountCentimes: true } },
     },

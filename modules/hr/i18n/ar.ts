@@ -37,9 +37,11 @@ const ar = {
     noAccount: "بدون حساب",
     accountTaken: "هذا الحساب مرتبط بموظف آخر.",
     createAccount: "إنشاء ولوج لهذا الموظف",
-    createAccountHint: "سيلج باسم المستخدم أسفله. اتركه غير مفعَّل بالنسبة للمستخدَمين الذين لا يلجون أبدًا — سائق أو حارس.",
+    createAccountHint:
+      "سيلج باسم المستخدم أسفله. اتركه غير مفعَّل بالنسبة للمستخدَمين الذين لا يلجون أبدًا — سائق أو حارس.",
     accountRole: "الدور داخل هذه المدرسة",
-    accountRoleHint: "ما يمكنه القيام به بعد الولوج. اتركه فارغًا لولوج بدون أي صلاحية.",
+    accountRoleHint:
+      "ما يمكنه القيام به بعد الولوج. اتركه فارغًا لولوج بدون أي صلاحية.",
     accountPassword: "كلمة السر الأولى",
     accountPasswordHint: "سلّمها له مباشرة؛ بإمكانه تغييرها من ملفه الشخصي.",
     accountNeedsEmail: "لا بد من بريد إلكتروني لإنشاء ولوج.",
@@ -51,8 +53,7 @@ const ar = {
     staffCreated: "تمت إضافة الموظف.",
     staffUpdated: "تم تحديث الموظف.",
     staffDeleted: "تم حذف الموظف.",
-    staffHasPayslips:
-      "لهذا الموظف أوراق أجور — سجّل مغادرته بدل حذفه.",
+    staffHasPayslips: "لهذا الموظف أوراق أجور — سجّل مغادرته بدل حذفه.",
     deleteStaffTitle: "حذف هذا الموظف؟",
     deleteStaffBody: "سيُحذف «{name}» من قائمة الموظفين.",
     noStaff: "لا يوجد أي موظف بعد.",
@@ -86,7 +87,8 @@ const ar = {
     endsOnHint: "اتركه فارغًا للعقد غير محدد المدة — فليست له نهاية.",
     trialEndsOn: "نهاية الفترة التجريبية",
     baseSalary: "الأجر الأساسي الشهري",
-    baseSalaryHint: "إجمالي، بالدرهم. أما ما صُرف فعلًا في شهر ما فهو ورقة أجره.",
+    baseSalaryHint:
+      "إجمالي، بالدرهم. أما ما صُرف فعلًا في شهر ما فهو ورقة أجره.",
     weeklyHours: "ساعات في الأسبوع",
     contractStatus: "الحالة",
     contractSaved: "تم حفظ العقد.",
@@ -191,32 +193,86 @@ const ar = {
     leaveStatusNote:
       "الموافقة على عطلة تشمل اليوم تضع الموظف في عطلة، حتى لا يسجّله التتبع غائبًا.",
     // ── Avances sur salaire ────────────────────────────────────────────────
-    advances: "\u062a\u0633\u0628\u064a\u0642\u0627\u062a \u0639\u0644\u0649 \u0627\u0644\u0623\u062c\u0631",
-    advancesHint: "\u0627\u0644\u0645\u0628\u0627\u0644\u063a \u0627\u0644\u0645\u0642\u062f\u0651\u0645\u0629 \u0642\u0628\u0644 \u0627\u0644\u0623\u062f\u0627\u0621\u060c \u0648\u0645\u0627 \u062a\u0628\u0642\u0651\u0649 \u0645\u0646\u0647\u0627.",
+    advances:
+      "\u062a\u0633\u0628\u064a\u0642\u0627\u062a \u0639\u0644\u0649 \u0627\u0644\u0623\u062c\u0631",
+    advancesHint:
+      "\u0627\u0644\u0645\u0628\u0627\u0644\u063a \u0627\u0644\u0645\u0642\u062f\u0651\u0645\u0629 \u0642\u0628\u0644 \u0627\u0644\u0623\u062f\u0627\u0621\u060c \u0648\u0645\u0627 \u062a\u0628\u0642\u0651\u0649 \u0645\u0646\u0647\u0627.",
     newAdvance: "\u062a\u0633\u0628\u064a\u0642 \u062c\u062f\u064a\u062f",
-    editAdvance: "\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0637\u0644\u0628",
+    editAdvance:
+      "\u062a\u0639\u062f\u064a\u0644 \u0627\u0644\u0637\u0644\u0628",
     advanceAmount: "\u0627\u0644\u0645\u0628\u0644\u063a",
-    advanceInstalments: "\u064a\u064f\u0633\u062a\u0631\u062c\u0639 \u0639\u0644\u0649",
-    advanceInstalmentsHint: "\u0639\u062f\u062f \u0627\u0644\u0623\u0634\u0647\u0631 \u0644\u0627\u0642\u062a\u0637\u0627\u0639\u0647\u060c \u0648\u0627\u0644\u0642\u0633\u0637 \u0627\u0644\u0623\u062e\u064a\u0631 \u064a\u0633\u062f\u0651 \u0627\u0644\u0628\u0627\u0642\u064a.",
+    advanceInstalments:
+      "\u064a\u064f\u0633\u062a\u0631\u062c\u0639 \u0639\u0644\u0649",
+    advanceInstalmentsHint:
+      "\u0639\u062f\u062f \u0627\u0644\u0623\u0634\u0647\u0631 \u0644\u0627\u0642\u062a\u0637\u0627\u0639\u0647\u060c \u0648\u0627\u0644\u0642\u0633\u0637 \u0627\u0644\u0623\u062e\u064a\u0631 \u064a\u0633\u062f\u0651 \u0627\u0644\u0628\u0627\u0642\u064a.",
     advanceReason: "\u0627\u0644\u0633\u0628\u0628",
     advanceRecovered: "\u0627\u0644\u0645\u0633\u062a\u0631\u062c\u0639",
     advanceOutstanding: "\u0627\u0644\u0628\u0627\u0642\u064a",
-    advanceRequested: "\u062a\u0645\u0651 \u0637\u0644\u0628 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
-    advanceSaved: "\u062a\u0645\u0651 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u0637\u0644\u0628.",
-    advanceApproved: "\u062a\u0645\u0651 \u0645\u0646\u062d \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
-    advanceRefused: "\u062a\u0645\u0651 \u0631\u0641\u0636 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
-    advancePaid: "\u062a\u0645\u0651 \u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
-    advanceLocked: "\u0647\u0630\u0627 \u0627\u0644\u0637\u0644\u0628 \u062a\u0645\u0651 \u0627\u0644\u0628\u062a\u0651 \u0641\u064a\u0647 \u2014 \u0644\u0645 \u064a\u0639\u062f \u0642\u0627\u0628\u0644\u0627\u064b \u0644\u0644\u062a\u0639\u062f\u064a\u0644.",
-    advanceAlreadyDecided: "\u0647\u0630\u0627 \u0627\u0644\u0637\u0644\u0628 \u062a\u0645\u0651 \u0627\u0644\u0628\u062a\u0651 \u0641\u064a\u0647.",
-    advanceAlreadyPaid: "\u0647\u0630\u0627 \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0633\u064f\u0644\u0651\u0645 \u0645\u0646 \u0642\u0628\u0644.",
-    advanceNotApproved: "\u0627\u0645\u0646\u062d \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0642\u0628\u0644 \u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u0645\u0628\u0644\u063a.",
-    advanceOverRecovered: "\u0647\u0630\u0627 \u0623\u0643\u062b\u0631 \u0645\u0645\u0651\u0627 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0638\u0641 ({amount} \u0628\u0627\u0642\u064a\u0629).",
-    noAdvances: "\u0644\u0645 \u064a\u064f\u0637\u0644\u0628 \u0623\u064a \u062a\u0633\u0628\u064a\u0642.",
-    noAdvancesHint: "\u0623\u0646\u0634\u0626 \u0648\u0627\u062d\u062f\u0627\u064b \u0639\u0646\u062f \u062d\u0627\u062c\u0629 \u0645\u0648\u0638\u0641 \u0625\u0644\u0649 \u0645\u0627\u0644 \u0642\u0628\u0644 \u0627\u0644\u0623\u062f\u0627\u0621.",
+    advanceRequested:
+      "\u062a\u0645\u0651 \u0637\u0644\u0628 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
+    advanceSaved:
+      "\u062a\u0645\u0651 \u062a\u062d\u062f\u064a\u062b \u0627\u0644\u0637\u0644\u0628.",
+    advanceApproved:
+      "\u062a\u0645\u0651 \u0645\u0646\u062d \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
+    advanceRefused:
+      "\u062a\u0645\u0651 \u0631\u0641\u0636 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
+    advancePaid:
+      "\u062a\u0645\u0651 \u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u062a\u0633\u0628\u064a\u0642.",
+    advanceLocked:
+      "\u0647\u0630\u0627 \u0627\u0644\u0637\u0644\u0628 \u062a\u0645\u0651 \u0627\u0644\u0628\u062a\u0651 \u0641\u064a\u0647 \u2014 \u0644\u0645 \u064a\u0639\u062f \u0642\u0627\u0628\u0644\u0627\u064b \u0644\u0644\u062a\u0639\u062f\u064a\u0644.",
+    advanceAlreadyDecided:
+      "\u0647\u0630\u0627 \u0627\u0644\u0637\u0644\u0628 \u062a\u0645\u0651 \u0627\u0644\u0628\u062a\u0651 \u0641\u064a\u0647.",
+    advanceAlreadyPaid:
+      "\u0647\u0630\u0627 \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0633\u064f\u0644\u0651\u0645 \u0645\u0646 \u0642\u0628\u0644.",
+    advanceNotApproved:
+      "\u0627\u0645\u0646\u062d \u0627\u0644\u062a\u0633\u0628\u064a\u0642 \u0642\u0628\u0644 \u062a\u0633\u0644\u064a\u0645 \u0627\u0644\u0645\u0628\u0644\u063a.",
+    advanceOverRecovered:
+      "\u0647\u0630\u0627 \u0623\u0643\u062b\u0631 \u0645\u0645\u0651\u0627 \u0639\u0644\u0649 \u0647\u0630\u0627 \u0627\u0644\u0645\u0648\u0638\u0641 ({amount} \u0628\u0627\u0642\u064a\u0629).",
+    noAdvances:
+      "\u0644\u0645 \u064a\u064f\u0637\u0644\u0628 \u0623\u064a \u062a\u0633\u0628\u064a\u0642.",
+    noAdvancesHint:
+      "\u0623\u0646\u0634\u0626 \u0648\u0627\u062d\u062f\u0627\u064b \u0639\u0646\u062f \u062d\u0627\u062c\u0629 \u0645\u0648\u0638\u0641 \u0625\u0644\u0649 \u0645\u0627\u0644 \u0642\u0628\u0644 \u0627\u0644\u0623\u062f\u0627\u0621.",
     payAdvance: "\u062a\u0633\u0644\u064a\u0645",
     payAdvanceAmount: "\u062a\u0633\u0644\u064a\u0645 {amount}",
     refuse: "\u0631\u0641\u0636",
-    statutorySuggested: "\u0645\u0642\u062a\u0631\u062d \u0645\u0646 \u0646\u0633\u0628 \u0627\u0644\u0645\u0624\u0633\u0633\u0629",
+    statutorySuggested:
+      "\u0645\u0642\u062a\u0631\u062d \u0645\u0646 \u0646\u0633\u0628 \u0627\u0644\u0645\u0624\u0633\u0633\u0629",
+
+    // ── The employee file ────────────────────────────────────────────────
+    tabDossier: "الملف",
+    tabService: "المهام",
+    tabPay: "الأجر",
+    weeklyLoad: "الحصة الأسبوعية",
+    weeklyLoadCeiling: "من أصل {hours} ساعة متعاقد عليها",
+    weeklyLoadNoCeiling: "حسب سقف المؤسسة",
+    hoursShort: "س",
+    hoursPerWeek: "ساعات أسبوعياً",
+    pupilsTaught: "التلاميذ المدرَّسون",
+    pupils: "التلاميذ",
+    classCount: "في {count} أقسام",
+    classLabel: "القسم",
+    subject: "المادة",
+    group: "الفوج",
+    wholeClass: "القسم كاملاً",
+    coTeacher: "أستاذ مشارك",
+    teachingService: "الأقسام المدرَّسة",
+    transportService: "الحظيرة",
+    busesDriven: "الحافلات",
+    seatCount: "{count} مقعداً",
+    lineCount: "{count} خطوط هذه السنة",
+    lineLoad: "{riders} مشتركاً · {stops} محطة",
+    noLine: "هذه الحافلة لا تخدم أي خط هذه السنة.",
+    dutyDriver: "سائق",
+    dutyAttendant: "مرافق",
+    insuranceExpires: "التأمين",
+    inspectionExpires: "الفحص التقني",
+    noService: "لا توجد مهام",
+    noServiceHint: "هذا الموظف لا يدرّس أي قسم ولا يقود أي حافلة.",
+    noServiceNoAccount:
+      "الإسنادات التعليمية مرتبطة بحساب الدخول، وهذا الموظف لا يملك حساباً — أنشئ واحداً لعرض أقسامه هنا.",
+    lastNet: "آخر صافٍ",
+    noPayslipYet: "لم تُصدر أي ورقة أجر بعد.",
+    leaveDaysTaken: "{count} يوم عطلة هذه السنة",
   },
   hrOptions: {
     jobRoles: {
@@ -306,7 +362,8 @@ export const nav = {
   hrAttendance: "الحضور",
   hrPayroll: "الأجور",
   hrAdvances: "\u0627\u0644\u062a\u0633\u0628\u064a\u0642\u0627\u062a",
-  hrStaffPayments: "\u0623\u062f\u0627\u0621\u0627\u062a \u0627\u0644\u0645\u0648\u0638\u0641\u064a\u0646",
+  hrStaffPayments:
+    "\u0623\u062f\u0627\u0621\u0627\u062a \u0627\u0644\u0645\u0648\u0638\u0641\u064a\u0646",
   hrLeave: "الإجازات",
 } as const;
 

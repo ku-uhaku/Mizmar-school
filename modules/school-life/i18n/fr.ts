@@ -61,12 +61,13 @@ const fr = {
     andMore: "et {count} de plus",
 
     search: "Rechercher",
-    searchPlaceholder: "Rechercher élèves, familles, classes…",
+    searchPlaceholder: "Rechercher élèves, familles, classes, personnel…",
     searchHint: "Saisissez au moins deux caractères.",
     searchEmpty: "Aucun résultat.",
     searchStudents: "Élèves",
     searchFamilies: "Familles",
     searchClasses: "Classes",
+    searchStaff: "Personnel",
   },
 };
 

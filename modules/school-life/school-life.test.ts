@@ -75,6 +75,20 @@ vi.mock("@/modules/classes/queries", () => ({
   ]),
 }));
 
+vi.mock("@/modules/hr/queries", () => ({
+  searchStaff: record("searchStaff", [
+    {
+      id: "staff-1",
+      code: "P-2026-0007",
+      fullName: "Fatima Benali",
+      jobRole: "TEACHER",
+      jobTitle: "Professeure de mathématiques",
+      status: "ACTIVE",
+      phone: "0661234567",
+    },
+  ]),
+}));
+
 vi.mock("@/modules/enrolment/queries", () => ({
   loadEnrolmentStats: record("loadEnrolmentStats", {
     enrolled: 214,
@@ -120,9 +134,8 @@ vi.mock("@/lib/dal", () => ({
   },
 }));
 
-const { loadSchoolLifeStats, loadSchoolLifeSummary } = await import(
-  "@/modules/school-life/queries"
-);
+const { loadSchoolLifeStats, loadSchoolLifeSummary } =
+  await import("@/modules/school-life/queries");
 const { globalSearchAction } = await import("@/modules/school-life/actions");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -214,7 +227,9 @@ describe("loadSchoolLifeStats", () => {
     expect(secretary.billing).toBeNull();
 
     asked.length = 0;
-    const bursar = await loadSchoolLifeStats(reader(PERMISSIONS.ENROLMENT_FEES));
+    const bursar = await loadSchoolLifeStats(
+      reader(PERMISSIONS.ENROLMENT_FEES),
+    );
     expect(bursar.billing).not.toBeNull();
     expect(bursar.enrolment).toBeNull();
   });
@@ -224,9 +239,9 @@ describe("loadSchoolLifeStats", () => {
     await loadSchoolLifeStats(
       reader(PERMISSIONS.ENROLMENT_VIEW, PERMISSIONS.ENROLMENT_FEES),
     );
-    expect(asked.filter((call) => call.name === "loadEnrolmentStats")).toHaveLength(
-      1,
-    );
+    expect(
+      asked.filter((call) => call.name === "loadEnrolmentStats"),
+    ).toHaveLength(1);
   });
 
   it("lists the papers waiting on the office only for whoever accepts them", async () => {
@@ -319,7 +334,9 @@ describe("loadSchoolLifeSummary", () => {
     // the dashboard card as a statement about the school for a reader not
     // entitled to the figure — the very claim `loadSchoolLifeStats` refuses to
     // make one function above. A missing number reads as missing.
-    const summary = await loadSchoolLifeSummary(reader(PERMISSIONS.STUDENT_VIEW));
+    const summary = await loadSchoolLifeSummary(
+      reader(PERMISSIONS.STUDENT_VIEW),
+    );
     expect(summary).toEqual({ students: 234, enrolled: null, unplaced: null });
     expect(wasAsked("loadEnrolmentStats")).toBe(false);
   });
@@ -328,12 +345,13 @@ describe("loadSchoolLifeSummary", () => {
 // ── The header search ────────────────────────────────────────────────────────
 
 describe("globalSearchAction", () => {
-  it("searches the three kinds a reader may see", async () => {
+  it("searches every kind a reader may see", async () => {
     const results = await globalSearchAction("Benali");
 
     expect(results.students).toHaveLength(1);
     expect(results.families).toHaveLength(1);
     expect(results.classes).toHaveLength(1);
+    expect(results.staff).toHaveLength(1);
   });
 
   it("filters by permission per kind, not all or nothing", async () => {
@@ -348,11 +366,27 @@ describe("globalSearchAction", () => {
     expect(wasAsked("searchFamilies")).toBe(false);
   });
 
-  it("gives a reader with none of the three an empty box", async () => {
+  it("keeps the payroll behind HR_VIEW", async () => {
+    // The one kind that is not vie scolaire: a reader who may look up pupils
+    // has no business finding employees by their CIN.
+    currentContext = reader(PERMISSIONS.STUDENT_VIEW);
+    const results = await globalSearchAction("Benali");
+
+    expect(results.students).toHaveLength(1);
+    expect(results.staff).toEqual([]);
+    expect(wasAsked("searchStaff")).toBe(false);
+  });
+
+  it("gives a reader with none of the kinds an empty box", async () => {
     currentContext = reader(PERMISSIONS.SCHOOL_LIFE_VIEW);
     const results = await globalSearchAction("Benali");
 
-    expect(results).toEqual({ students: [], families: [], classes: [] });
+    expect(results).toEqual({
+      students: [],
+      families: [],
+      classes: [],
+      staff: [],
+    });
     expect(asked).toEqual([]);
   });
 
@@ -364,6 +398,7 @@ describe("globalSearchAction", () => {
         students: [],
         families: [],
         classes: [],
+        staff: [],
       });
       expect(asked, term).toEqual([]);
     }

@@ -8,8 +8,10 @@
 const en = {
   schoolLife: {
     assessmentsHint: "Papers set this year, and the marks against them.",
-    devoirsHint: "Homework the teaching staff has set, and what is to validate.",
-    remarksHint: "What teachers have written, and what is waiting on a decision.",
+    devoirsHint:
+      "Homework the teaching staff has set, and what is to validate.",
+    remarksHint:
+      "What teachers have written, and what is waiting on a decision.",
     attendanceHint: "Absences and lateness, on each pupil's file.",
     title: "School life",
     subtitle: "{school} — {year}, as it stands today.",
@@ -62,12 +64,13 @@ const en = {
     andMore: "and {count} more",
 
     search: "Search",
-    searchPlaceholder: "Search students, families, classes…",
+    searchPlaceholder: "Search students, families, classes, staff…",
     searchHint: "Type at least two characters.",
     searchEmpty: "Nothing found.",
     searchStudents: "Students",
     searchFamilies: "Families",
     searchClasses: "Classes",
+    searchStaff: "Staff",
   },
 } as const;
 

@@ -20,14 +20,16 @@ const fr = {
     birthPlace: "Lieu de naissance",
     nationalId: "CIN",
     cnssNumber: "Numéro CNSS",
-    cnssHint: "Vide tant que l'affiliation n'est pas revenue, ce qui prend des semaines.",
+    cnssHint:
+      "Vide tant que l'affiliation n'est pas revenue, ce qui prend des semaines.",
     bankRib: "RIB",
     phone: "Téléphone",
     email: "E-mail",
     address: "Adresse",
     jobRole: "Fonction",
     jobTitle: "Intitulé au contrat",
-    jobTitleHint: "Ce qu'imprime l'attestation, ex. « Professeur de mathématiques ».",
+    jobTitleHint:
+      "Ce qu'imprime l'attestation, ex. « Professeur de mathématiques ».",
     department: "Service",
     staffStatus: "Statut",
     hiredOn: "Entrée",
@@ -38,14 +40,20 @@ const fr = {
     noAccount: "Aucun compte",
     accountTaken: "Ce compte appartient déjà à un autre employé.",
     createAccount: "Créer un accès pour cet employé",
-    createAccountHint: "Il se connectera avec le nom d’utilisateur ci-dessous. À laisser décoché pour le personnel qui ne se connecte jamais — un chauffeur, un gardien.",
+    createAccountHint:
+      "Il se connectera avec le nom d’utilisateur ci-dessous. À laisser décoché pour le personnel qui ne se connecte jamais — un chauffeur, un gardien.",
     accountRole: "Rôle dans cette école",
-    accountRoleHint: "Ce qu’il pourra faire une fois connecté. Laissez vide pour un accès sans permission.",
+    accountRoleHint:
+      "Ce qu’il pourra faire une fois connecté. Laissez vide pour un accès sans permission.",
     accountPassword: "Mot de passe initial",
-    accountPasswordHint: "Remettez-le en main propre ; il pourra le changer depuis son profil.",
-    accountNeedsEmail: "Une adresse électronique est nécessaire pour créer un accès.",
-    accountNeedsPassword: "Définissez un mot de passe initial pour le nouvel accès.",
-    accountNeedsUsername: "Saisissez un nom d’utilisateur — impossible d’en construire un à partir de ce nom.",
+    accountPasswordHint:
+      "Remettez-le en main propre ; il pourra le changer depuis son profil.",
+    accountNeedsEmail:
+      "Une adresse électronique est nécessaire pour créer un accès.",
+    accountNeedsPassword:
+      "Définissez un mot de passe initial pour le nouvel accès.",
+    accountNeedsUsername:
+      "Saisissez un nom d’utilisateur — impossible d’en construire un à partir de ce nom.",
     accountCreated: "Employé enregistré, et son accès créé.",
     codeTaken: "Ce matricule est déjà utilisé.",
     notes: "Notes",
@@ -61,9 +69,11 @@ const fr = {
 
     // ── Tableau de bord de la section ───────────────────────────────────────
     staffHint: "Tous ceux que l'école paie, et le contrat de chacun.",
-    attendanceHint: "Qui est venu aujourd'hui, et qui n'a pas encore été pointé.",
+    attendanceHint:
+      "Qui est venu aujourd'hui, et qui n'a pas encore été pointé.",
     payrollHint: "Les bulletins du mois, et leur règlement par la caisse.",
-    leaveHint: "Les demandes en attente de décision, et les congés déjà accordés.",
+    leaveHint:
+      "Les demandes en attente de décision, et les congés déjà accordés.",
     unmarkedCount: "{count} non pointés",
     registerComplete: "Tout est pointé",
     unpaidCount: "{count} à régler",
@@ -85,7 +95,8 @@ const fr = {
     contractKind: "Type",
     startsOn: "Du",
     endsOn: "Au",
-    endsOnHint: "Laissez vide pour un CDI — un contrat à durée indéterminée n'a pas de fin.",
+    endsOnHint:
+      "Laissez vide pour un CDI — un contrat à durée indéterminée n'a pas de fin.",
     trialEndsOn: "Fin de la période d'essai",
     baseSalary: "Salaire de base mensuel",
     baseSalaryHint:
@@ -165,7 +176,8 @@ const fr = {
     chequeNumber: "Numéro de chèque",
     bankName: "Banque",
     expenseCategory: "Rubrique de dépense",
-    noOpenSession: "Aucune caisse ouverte — ouvrez-en une avant de payer en espèces.",
+    noOpenSession:
+      "Aucune caisse ouverte — ouvrez-en une avant de payer en espèces.",
     salaryPaid: "Bulletin payé.",
     ledgerNote:
       "Ce qui est dû vit ici ; ce qui est sorti vit dans la caisse. Ni l'un ni l'autre n'est calculé à partir de l'autre.",
@@ -197,12 +209,14 @@ const fr = {
       "Accorder un congé qui couvre aujourd'hui met l'employé en congé, pour que le pointage ne le note pas absent.",
     // ── Avances sur salaire ────────────────────────────────────────────────
     advances: "Avances sur salaire",
-    advancesHint: "L\u2019argent avanc\u00e9 avant la paie, et ce qu\u2019il en reste d\u00fb.",
+    advancesHint:
+      "L\u2019argent avanc\u00e9 avant la paie, et ce qu\u2019il en reste d\u00fb.",
     newAdvance: "Nouvelle avance",
     editAdvance: "Modifier la demande",
     advanceAmount: "Montant",
     advanceInstalments: "R\u00e9cup\u00e9r\u00e9e sur",
-    advanceInstalmentsHint: "Sur combien de mois la retenir. La derni\u00e8re \u00e9ch\u00e9ance solde le reste.",
+    advanceInstalmentsHint:
+      "Sur combien de mois la retenir. La derni\u00e8re \u00e9ch\u00e9ance solde le reste.",
     advanceReason: "Motif",
     advanceRecovered: "R\u00e9cup\u00e9r\u00e9",
     advanceOutstanding: "Reste d\u00fb",
@@ -211,17 +225,60 @@ const fr = {
     advanceApproved: "Avance accord\u00e9e.",
     advanceRefused: "Avance refus\u00e9e.",
     advancePaid: "Avance remise.",
-    advanceLocked: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e \u2014 elle n\u2019est plus modifiable.",
-    advanceAlreadyDecided: "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e.",
+    advanceLocked:
+      "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e \u2014 elle n\u2019est plus modifiable.",
+    advanceAlreadyDecided:
+      "Cette demande a d\u00e9j\u00e0 \u00e9t\u00e9 trait\u00e9e.",
     advanceAlreadyPaid: "Cette avance a d\u00e9j\u00e0 \u00e9t\u00e9 remise.",
-    advanceNotApproved: "Accordez l\u2019avance avant d\u2019en remettre le montant.",
-    advanceOverRecovered: "C\u2019est plus que ce que doit cet employ\u00e9 ({amount} restant d\u00fb).",
+    advanceNotApproved:
+      "Accordez l\u2019avance avant d\u2019en remettre le montant.",
+    advanceOverRecovered:
+      "C\u2019est plus que ce que doit cet employ\u00e9 ({amount} restant d\u00fb).",
     noAdvances: "Aucune avance n\u2019a \u00e9t\u00e9 demand\u00e9e.",
-    noAdvancesHint: "Cr\u00e9ez-en une lorsqu\u2019un salari\u00e9 a besoin d\u2019argent avant la paie.",
+    noAdvancesHint:
+      "Cr\u00e9ez-en une lorsqu\u2019un salari\u00e9 a besoin d\u2019argent avant la paie.",
     payAdvance: "Remettre",
     payAdvanceAmount: "Remettre {amount}",
     refuse: "Refuser",
-    statutorySuggested: "Sugg\u00e9r\u00e9 d\u2019apr\u00e8s les taux de l\u2019\u00e9cole",
+    statutorySuggested:
+      "Sugg\u00e9r\u00e9 d\u2019apr\u00e8s les taux de l\u2019\u00e9cole",
+
+    // ── Le dossier de l'employé ──────────────────────────────────────────
+    tabDossier: "Dossier",
+    tabService: "Service",
+    tabPay: "Paie",
+    weeklyLoad: "Charge hebdomadaire",
+    weeklyLoadCeiling: "sur {hours}h contractuelles",
+    weeklyLoadNoCeiling: "Au plafond de l’école",
+    hoursShort: "h",
+    hoursPerWeek: "Heures / semaine",
+    pupilsTaught: "Élèves enseignés",
+    pupils: "Élèves",
+    classCount: "dans {count} classes",
+    classLabel: "Classe",
+    subject: "Matière",
+    group: "Groupe",
+    wholeClass: "Classe entière",
+    coTeacher: "Co-enseignant",
+    teachingService: "Classes enseignées",
+    transportService: "Parc",
+    busesDriven: "Bus",
+    seatCount: "{count} places",
+    lineCount: "{count} lignes cette année",
+    lineLoad: "{riders} inscrits · {stops} arrêts",
+    noLine: "Ce bus ne dessert aucune ligne cette année.",
+    dutyDriver: "Chauffeur",
+    dutyAttendant: "Accompagnateur",
+    insuranceExpires: "Assurance",
+    inspectionExpires: "Visite technique",
+    noService: "Aucune affectation",
+    noServiceHint:
+      "Cet employé n’enseigne aucune classe et ne conduit aucun bus.",
+    noServiceNoAccount:
+      "Les affectations pédagogiques suivent le compte de connexion, et cet employé n’en a pas — créez-en un pour voir ses classes ici.",
+    lastNet: "Dernier net",
+    noPayslipYet: "Aucun bulletin émis.",
+    leaveDaysTaken: "{count} jours de congé cette année",
   },
   hrOptions: {
     jobRoles: {

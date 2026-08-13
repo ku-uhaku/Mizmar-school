@@ -20,6 +20,7 @@ import type { AuthContext } from "@/lib/dal";
 
 const staffRows: Record<string, unknown>[] = [];
 let staffRow: Record<string, unknown> | null = null;
+const advanceRows: Record<string, unknown>[] = [];
 
 const db = new Proxy(
   {},
@@ -31,6 +32,8 @@ const db = new Proxy(
           get: (_d, op: string) => async () => {
             if (model === "staff" && op === "findMany") return staffRows;
             if (model === "staff" && op === "findFirst") return staffRow;
+            if (model === "salaryAdvance" && op === "findMany")
+              return advanceRows;
             if (op === "aggregate") return { _sum: { dayCount: 0 } };
             if (op === "count") return 0;
             if (op === "findMany") return [];
@@ -58,10 +61,8 @@ function reader(...codes: string[]): AuthContext {
   } as unknown as AuthContext;
 }
 
-const SECRETARY = () =>
-  reader(PERMISSIONS.HR_VIEW, PERMISSIONS.HR_ATTENDANCE);
-const BURSAR = () =>
-  reader(PERMISSIONS.HR_VIEW, PERMISSIONS.HR_PAYROLL);
+const SECRETARY = () => reader(PERMISSIONS.HR_VIEW, PERMISSIONS.HR_ATTENDANCE);
+const BURSAR = () => reader(PERMISSIONS.HR_VIEW, PERMISSIONS.HR_PAYROLL);
 
 const CONTRACT = {
   id: "contract-1",
@@ -104,10 +105,22 @@ const PERSON = {
   attendance: [],
 };
 
+/** 3 000 DH handed over, 1 000 taken back — 2 000 still owed. */
+const ADVANCE = {
+  id: "advance-1",
+  staffId: "staff-1",
+  status: "PAID",
+  amountCentimes: 300_000,
+  instalmentCount: 3,
+  recoveries: [{ salaryPaymentId: "salary-1", amountCentimes: 100_000 }],
+};
+
 beforeEach(() => {
   staffRows.length = 0;
   staffRows.push({ ...PERSON, contracts: [CONTRACT] });
   staffRow = { ...PERSON, contracts: [CONTRACT] };
+  advanceRows.length = 0;
+  advanceRows.push(ADVANCE);
 });
 
 // ── The list ─────────────────────────────────────────────────────────────────
@@ -160,7 +173,9 @@ describe("findStaff", () => {
     // A staff id from another school must not resolve, which is why this is one
     // function rather than a page assembling its own reads.
     staffRow = null;
-    expect(await findStaff(SECRETARY(), "staff-from-another-school")).toBeNull();
+    expect(
+      await findStaff(SECRETARY(), "staff-from-another-school"),
+    ).toBeNull();
   });
 
   it("gives the whole file to a reader with hr.payroll", async () => {
@@ -205,6 +220,19 @@ describe("findStaff", () => {
     expect(detail!.status).toBe("ACTIVE");
     expect(detail!.contractKind).toBe("CDI");
     expect(detail!.hasLiveContract).toBe(true);
+  });
+
+  it("totals the advances still owed for a reader with hr.payroll", async () => {
+    const detail = await findStaff(BURSAR(), "staff-1");
+    expect(detail!.advanceOutstandingCentimes).toBe(200_000);
+  });
+
+  it("withholds the advance balance, which is a salary fact like any other", async () => {
+    // Not asked for at all rather than fetched and zeroed: what somebody still
+    // owes the school is exactly the kind of figure `hr.payroll` exists over.
+    const detail = await findStaff(SECRETARY(), "staff-1");
+    expect(detail!.advanceOutstandingCentimes).toBe(0);
+    expect(JSON.stringify(detail)).not.toContain("200000");
   });
 
   it("answers null for somebody who is not there", async () => {

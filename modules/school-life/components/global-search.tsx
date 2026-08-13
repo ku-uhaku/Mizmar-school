@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  BriefcaseIcon,
   GraduationCapIcon,
   HomeIcon,
   LayersIcon,
@@ -25,7 +26,12 @@ import {
   type SearchResults,
 } from "@/modules/school-life/actions";
 
-const EMPTY: SearchResults = { students: [], families: [], classes: [] };
+const EMPTY: SearchResults = {
+  students: [],
+  families: [],
+  classes: [],
+  staff: [],
+};
 
 /**
  * The header search: one box that finds a pupil, a dossier or a class and takes
@@ -125,7 +131,10 @@ export function GlobalSearch() {
   }
 
   const total =
-    results.students.length + results.families.length + results.classes.length;
+    results.students.length +
+    results.families.length +
+    results.classes.length +
+    results.staff.length;
   const searching = pending || answered !== term;
 
   return (
@@ -221,6 +230,26 @@ export function GlobalSearch() {
                     </span>
                     <span className="text-muted-foreground truncate text-xs">
                       {schoolClass.detail}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+
+            {results.staff.length > 0 ? (
+              <CommandGroup heading={t.schoolLife.searchStaff}>
+                {results.staff.map((person) => (
+                  <CommandItem
+                    key={person.id}
+                    value={`staff-${person.id}`}
+                    onSelect={() => go(`/hr/staff/${person.id}`)}
+                  >
+                    <BriefcaseIcon />
+                    <span className="min-w-0 flex-1 truncate">
+                      {person.label}
+                    </span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {person.detail}
                     </span>
                   </CommandItem>
                 ))}

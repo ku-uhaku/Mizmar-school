@@ -1346,7 +1346,12 @@ export async function listMyRuns(
 export async function findMyRun(
   context: AuthContext,
   runId: string,
-): Promise<{ id: string; status: string; scheduleId: string; date: Date } | null> {
+): Promise<{
+  id: string;
+  status: string;
+  scheduleId: string;
+  date: Date;
+} | null> {
   return db.tripRun.findFirst({
     where: {
       id: runId,
@@ -1742,4 +1747,102 @@ export async function loadRunRegister(
   });
 
   return { run: row, entries: entries ?? [] };
+}
+
+export type StaffVehicleRow = {
+  id: string;
+  registration: string;
+  label: string;
+  seatCount: number;
+  status: string;
+  /** "DRIVER" | "ATTENDANT" — how this employee rides on this bus. */
+  duty: string;
+  insuranceExpiresOn: string | null;
+  inspectionExpiresOn: string | null;
+  /** The lines the bus runs this year, in code order. */
+  routes: {
+    id: string;
+    code: string;
+    name: string;
+    direction: string;
+    isActive: boolean;
+    stopCount: number;
+    taken: number;
+  }[];
+};
+
+/**
+ * The fleet duty of one employee: the buses they drive or accompany, and the
+ * lines those buses run this year.
+ *
+ * Scoped by the school through the vehicle, so a staff id alone can never reach
+ * another school's fleet. The vehicles themselves are not year-shaped — a bus
+ * belongs to the school — but the lines are, so only this year's are attached:
+ * "which line does Hassan drive" has to mean the current one.
+ *
+ * A driver and an accompagnateur are one query rather than two because the
+ * employee file asks one question — what is this person's service on the bus —
+ * and a person can be both on different vehicles.
+ */
+export async function listStaffVehicles(
+  context: AuthContext,
+  staffId: string,
+): Promise<StaffVehicleRow[]> {
+  const vehicles = await db.vehicle.findMany({
+    where: {
+      ...schoolScope(context),
+      OR: [{ driverId: staffId }, { attendantId: staffId }],
+    },
+    orderBy: [{ registration: "asc" }],
+    select: {
+      id: true,
+      registration: true,
+      make: true,
+      model: true,
+      seatCount: true,
+      status: true,
+      driverId: true,
+      insuranceExpiresOn: true,
+      inspectionExpiresOn: true,
+      routes: {
+        where: { schoolYearId: currentSchoolYearId(context) },
+        orderBy: [{ code: "asc" }],
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          direction: true,
+          isActive: true,
+          _count: {
+            select: {
+              stops: true,
+              subscriptions: {
+                where: { status: { in: [...SEAT_HOLDING_STATUSES] } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return vehicles.map((vehicle) => ({
+    id: vehicle.id,
+    registration: vehicle.registration,
+    label: [vehicle.make, vehicle.model].filter(Boolean).join(" "),
+    seatCount: vehicle.seatCount,
+    status: vehicle.status,
+    duty: vehicle.driverId === staffId ? "DRIVER" : "ATTENDANT",
+    insuranceExpiresOn: vehicle.insuranceExpiresOn?.toISOString() ?? null,
+    inspectionExpiresOn: vehicle.inspectionExpiresOn?.toISOString() ?? null,
+    routes: vehicle.routes.map((route) => ({
+      id: route.id,
+      code: route.code,
+      name: route.name,
+      direction: route.direction,
+      isActive: route.isActive,
+      stopCount: route._count.stops,
+      taken: route._count.subscriptions,
+    })),
+  }));
 }

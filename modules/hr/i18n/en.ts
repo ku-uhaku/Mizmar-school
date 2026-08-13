@@ -8,7 +8,8 @@
 const en = {
   hr: {
     title: "Human resources",
-    subtitle: "Everybody the school pays, and what follows from employing them.",
+    subtitle:
+      "Everybody the school pays, and what follows from employing them.",
 
     // ── People ──────────────────────────────────────────────────────────────
     staff: "Staff",
@@ -33,24 +34,30 @@ const en = {
     address: "Address",
     jobRole: "Job",
     jobTitle: "Title on the contract",
-    jobTitleHint: "What the attestation prints, e.g. “Professeur de mathématiques”.",
+    jobTitleHint:
+      "What the attestation prints, e.g. “Professeur de mathématiques”.",
     department: "Service",
     staffStatus: "Status",
     hiredOn: "Started",
     leftOn: "Left",
     account: "Login account",
-    accountHint: "Only for employees who sign in. Most of the payroll does not.",
+    accountHint:
+      "Only for employees who sign in. Most of the payroll does not.",
     noAccount: "No account",
     accountTaken: "That account already belongs to another employee.",
     createAccount: "Create a login for this employee",
-    createAccountHint: "They will sign in with the username below. Leave it off for staff who never sign in — a driver, a caretaker.",
+    createAccountHint:
+      "They will sign in with the username below. Leave it off for staff who never sign in — a driver, a caretaker.",
     accountRole: "Role in this school",
-    accountRoleHint: "What they may do once signed in. Leave blank for a login with no permissions.",
+    accountRoleHint:
+      "What they may do once signed in. Leave blank for a login with no permissions.",
     accountPassword: "Initial password",
-    accountPasswordHint: "Give it to them in person; they can change it from their profile.",
+    accountPasswordHint:
+      "Give it to them in person; they can change it from their profile.",
     accountNeedsEmail: "An email address is required to create a login.",
     accountNeedsPassword: "Set an initial password for the new login.",
-    accountNeedsUsername: "Type a username — one cannot be built from this name.",
+    accountNeedsUsername:
+      "Type a username — one cannot be built from this name.",
     accountCreated: "Employee saved, and their login created.",
     codeTaken: "That staff number is already used.",
     notes: "Notes",
@@ -79,7 +86,8 @@ const en = {
     byRoleHint: "Active employees by the job they hold.",
     noPendingLeave: "No request is waiting on a decision.",
     withoutContract: "No live contract",
-    withoutContractHint: "Employed with nothing signed — the gap an inspection finds.",
+    withoutContractHint:
+      "Employed with nothing signed — the gap an inspection finds.",
     monthlyPayroll: "Monthly wage bill",
 
     // ── Contracts ───────────────────────────────────────────────────────────
@@ -89,10 +97,12 @@ const en = {
     contractKind: "Type",
     startsOn: "From",
     endsOn: "Until",
-    endsOnHint: "Leave blank for a CDI — an open-ended contract has no end date.",
+    endsOnHint:
+      "Leave blank for a CDI — an open-ended contract has no end date.",
     trialEndsOn: "Trial ends",
     baseSalary: "Monthly base salary",
-    baseSalaryHint: "Gross, in dirhams. What was actually paid in a month is its payslip.",
+    baseSalaryHint:
+      "Gross, in dirhams. What was actually paid in a month is its payslip.",
     weeklyHours: "Hours a week",
     contractStatus: "Status",
     contractSaved: "Contract saved.",
@@ -113,7 +123,8 @@ const en = {
     unmarkedToday: "Not marked today",
     attendanceStatus: "Status",
     justified: "Justified",
-    justifiedHint: "A certificate was produced. Only unjustified days are totalled.",
+    justifiedHint:
+      "A certificate was produced. Only unjustified days are totalled.",
     minutesLate: "Minutes late",
     recordedBy: "Marked by",
     attendanceSaved: "Register updated.",
@@ -200,12 +211,14 @@ const en = {
       "Approving leave that covers today puts the employee on leave, so the register does not mark them absent.",
     // ── Avances sur salaire ────────────────────────────────────────────────
     advances: "Salary advances",
-    advancesHint: "Money handed over before payday, and what is still owed on it.",
+    advancesHint:
+      "Money handed over before payday, and what is still owed on it.",
     newAdvance: "New advance",
     editAdvance: "Edit request",
     advanceAmount: "Amount",
     advanceInstalments: "Recovered over",
-    advanceInstalmentsHint: "How many months to take it back over. The last one is whatever is left.",
+    advanceInstalmentsHint:
+      "How many months to take it back over. The last one is whatever is left.",
     advanceReason: "Reason",
     advanceRecovered: "Recovered",
     advanceOutstanding: "Still owed",
@@ -214,17 +227,55 @@ const en = {
     advanceApproved: "Advance approved.",
     advanceRefused: "Advance refused.",
     advancePaid: "Advance handed over.",
-    advanceLocked: "This request has already been decided \u2014 it can no longer be edited.",
+    advanceLocked:
+      "This request has already been decided \u2014 it can no longer be edited.",
     advanceAlreadyDecided: "This request has already been decided.",
     advanceAlreadyPaid: "This advance has already been handed over.",
     advanceNotApproved: "Approve the advance before handing the money over.",
-    advanceOverRecovered: "That is more than is owed on this employee\u2019s advances ({amount} outstanding).",
+    advanceOverRecovered:
+      "That is more than is owed on this employee\u2019s advances ({amount} outstanding).",
     noAdvances: "No advance has been asked for.",
     noAdvancesHint: "Raise one when somebody needs money before payday.",
     payAdvance: "Hand over",
     payAdvanceAmount: "Hand over {amount}",
     refuse: "Refuse",
     statutorySuggested: "Suggested from the school\u2019s rates",
+
+    // ── The employee file ────────────────────────────────────────────────
+    tabDossier: "File",
+    tabService: "Duties",
+    tabPay: "Pay",
+    weeklyLoad: "Weekly load",
+    weeklyLoadCeiling: "of {hours}h contracted",
+    weeklyLoadNoCeiling: "On the school's own ceiling",
+    hoursShort: "h",
+    hoursPerWeek: "Hours a week",
+    pupilsTaught: "Pupils taught",
+    pupils: "Pupils",
+    classCount: "across {count} classes",
+    classLabel: "Class",
+    subject: "Subject",
+    group: "Group",
+    wholeClass: "Whole class",
+    coTeacher: "Co-teacher",
+    teachingService: "Classes taught",
+    transportService: "Fleet",
+    busesDriven: "Buses",
+    seatCount: "{count} seats",
+    lineCount: "{count} lines this year",
+    lineLoad: "{riders} riders · {stops} stops",
+    noLine: "This bus runs no line this year.",
+    dutyDriver: "Driver",
+    dutyAttendant: "Attendant",
+    insuranceExpires: "Insurance",
+    inspectionExpires: "Inspection",
+    noService: "Nothing assigned",
+    noServiceHint: "No class is taught and no bus is driven by this employee.",
+    noServiceNoAccount:
+      "Teaching assignments follow the login account, and this employee has none — create one to see their classes here.",
+    lastNet: "Last net pay",
+    noPayslipYet: "No payslip issued yet.",
+    leaveDaysTaken: "{count} leave days this year",
   },
   hrOptions: {
     jobRoles: {

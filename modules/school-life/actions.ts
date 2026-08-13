@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/dal";
 import { PERMISSIONS } from "@/lib/permissions";
 import { searchClasses } from "@/modules/classes/queries";
 import { searchFamilies } from "@/modules/families/queries";
+import { searchStaff } from "@/modules/hr/queries";
 import { searchStudents } from "@/modules/students/queries";
 
 /**
@@ -23,16 +24,22 @@ import { searchStudents } from "@/modules/students/queries";
  * list.
  */
 
-/** One row, whatever kind it is — the box renders all three the same way. */
+/** One row, whatever kind it is — the box renders every kind the same way. */
 export type SearchHit = { id: string; label: string; detail: string };
 
 export type SearchResults = {
   students: SearchHit[];
   families: SearchHit[];
   classes: SearchHit[];
+  staff: SearchHit[];
 };
 
-const EMPTY: SearchResults = { students: [], families: [], classes: [] };
+const EMPTY: SearchResults = {
+  students: [],
+  families: [],
+  classes: [],
+  staff: [],
+};
 
 export async function globalSearchAction(term: string): Promise<SearchResults> {
   const context = await requireAuth();
@@ -41,7 +48,7 @@ export async function globalSearchAction(term: string): Promise<SearchResults> {
   // Two characters is where a name search stops matching half the school.
   if (trimmed.length < 2) return EMPTY;
 
-  const [students, families, classes] = await Promise.all([
+  const [students, families, classes, staff] = await Promise.all([
     context.can(PERMISSIONS.STUDENT_VIEW)
       ? searchStudents(context, trimmed).catch(() => [])
       : [],
@@ -50,6 +57,9 @@ export async function globalSearchAction(term: string): Promise<SearchResults> {
       : [],
     context.can(PERMISSIONS.CLASS_VIEW)
       ? searchClasses(context, trimmed).catch(() => [])
+      : [],
+    context.can(PERMISSIONS.HR_VIEW)
+      ? searchStaff(context, trimmed).catch(() => [])
       : [],
   ]);
 
@@ -72,6 +82,19 @@ export async function globalSearchAction(term: string): Promise<SearchResults> {
       id: schoolClass.id,
       label: schoolClass.code,
       detail: `${schoolClass.levelLabel} · ${schoolClass.enrolled}`,
+    })),
+    /*
+      The job title, not the role code: the code is a translation key the box
+      would have to resolve, and the title is what the school calls the person.
+      Falls back to the matricule and the phone, which is what a desk actually
+      searched on to get here.
+    */
+    staff: staff.map((person) => ({
+      id: person.id,
+      label: person.fullName,
+      detail: [person.jobTitle ?? person.code, person.phone]
+        .filter(Boolean)
+        .join(" · "),
     })),
   };
 }

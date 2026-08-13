@@ -390,10 +390,7 @@ export async function listPupilTeachers(
         schoolId: currentSchoolId(context),
         levelOffering: yearScope(context),
       },
-      OR: [
-        { classGroupId: null },
-        ...(classGroupId ? [{ classGroupId }] : []),
-      ],
+      OR: [{ classGroupId: null }, ...(classGroupId ? [{ classGroupId }] : [])],
     },
     orderBy: [{ subject: { code: "asc" } }, { isPrimary: "desc" }],
     select: {
@@ -494,5 +491,82 @@ export async function searchClasses(
     code: schoolClass.code,
     levelLabel: levelLabelOf(schoolClass.levelOffering),
     enrolled: schoolClass._count.enrollments,
+  }));
+}
+
+export type TeacherDutyRow = {
+  id: string;
+  schoolClassId: string;
+  classCode: string;
+  levelLabel: string;
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  /** Null when the assignment covers the whole class rather than one group. */
+  groupLabel: string | null;
+  weeklyMinutes: number | null;
+  isPrimary: boolean;
+  /** Pupils seated in the class — the group's own count is not kept here. */
+  enrolled: number;
+};
+
+/**
+ * What one teacher teaches this year: the classes, the subjects and the load.
+ *
+ * Takes a **user** id rather than a staff id, because `TeachingAssignment`
+ * points at the account and not at the employment record — see the note on
+ * `TeachingAssignment.teacherId`. The employee file is what joins the two, so
+ * this stays a plain read over the classes module's own table and the RH module
+ * calls it with `Staff.userId`.
+ *
+ * Scoped by the year in context, like every other read here: last year's
+ * timetable is not this teacher's service.
+ */
+export async function listTeacherDuties(
+  context: AuthContext,
+  teacherUserId: string,
+): Promise<TeacherDutyRow[]> {
+  const assignments = await db.teachingAssignment.findMany({
+    where: {
+      teacherId: teacherUserId,
+      schoolClass: { levelOffering: yearScope(context) },
+    },
+    orderBy: [{ schoolClass: { code: "asc" } }, { subject: { code: "asc" } }],
+    select: {
+      id: true,
+      weeklyMinutes: true,
+      isPrimary: true,
+      subject: { select: { id: true, code: true, name: true } },
+      classGroup: { select: { code: true, name: true } },
+      schoolClass: {
+        select: {
+          id: true,
+          code: true,
+          levelOffering: {
+            select: {
+              level: { select: { code: true } },
+              track: { select: { code: true } },
+            },
+          },
+          _count: seated(),
+        },
+      },
+    },
+  });
+
+  return assignments.map((assignment) => ({
+    id: assignment.id,
+    schoolClassId: assignment.schoolClass.id,
+    classCode: assignment.schoolClass.code,
+    levelLabel: levelLabelOf(assignment.schoolClass.levelOffering),
+    subjectId: assignment.subject.id,
+    subjectCode: assignment.subject.code,
+    subjectName: assignment.subject.name,
+    groupLabel: assignment.classGroup
+      ? (assignment.classGroup.name ?? assignment.classGroup.code)
+      : null,
+    weeklyMinutes: assignment.weeklyMinutes,
+    isPrimary: assignment.isPrimary,
+    enrolled: assignment.schoolClass._count.enrollments,
   }));
 }
