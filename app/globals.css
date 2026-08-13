@@ -643,6 +643,174 @@ html.dark[data-accent="teal"] {
   break-inside: avoid;
 }
 
+/* ── A5 slips, two to a sheet ────────────────────────────────────────────────
+   A receipt is an A5 document, and a school needs two of every one: the family
+   walks out with theirs, the caisse keeps the souche. Rather than print two
+   sheets and staple them, both halves sit on one A4 portrait page with a cut
+   line down the middle — one press of the button, one sheet, scissors.
+
+   ── Why the sheet is 182×269 and not 210×297 ──────────────────────────────
+   It is sized to the *printable* area, not to the paper. `@page` is global and
+   already carries a 14mm margin for every other document in the app; a named
+   page to override it (`@page receipt { margin: 0 }`) is what this reached for
+   first, and Chrome ignored it — leaving a 210mm-wide sheet inside a 182mm box,
+   which overflows sideways as well as down and paginates two by two. One
+   receipt came out over four sheets.
+
+   So the sheet takes the margin as given and fills what is left. The cut line
+   then falls at the middle of the *printed area* rather than of the paper,
+   which is what somebody with scissors is following anyway. On screen the same
+   14mm is drawn as padding, so the preview is the sheet.
+
+   The half-height below is exactly (297 - 28) / 2. */
+/* On screen this is a sheet of paper on a desk; in print it *is* the sheet.
+
+   Block layout, deliberately not flex. A flex column taller than one page
+   fragments badly in every engine: Chrome laid the first slip's table on page
+   one and pushed its own total, tenders and signature to page two, turning one
+   sheet into four. Two block children that each refuse to break is something
+   pagination handles correctly. */
+.print-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  /* On screen the page margin has to be drawn, since there is no printer to
+     provide it. In print it is removed and `@page` supplies the same 14mm. */
+  padding: 14mm;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #111111;
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 12%),
+    0 8px 24px rgb(0 0 0 / 8%);
+}
+
+/* Half a sheet. `min-height` rather than a fixed one, and `break-inside: avoid`
+   rather than `overflow: hidden`: a receipt too large for A5 moves whole onto
+   the next sheet — the family's copy on page one, the office's on page two.
+   Worse than one sheet, and very much better than a financial document with
+   its total silently clipped off the bottom.
+
+   The bottom padding reserves the strip `.print-slip-foot` is pinned into. */
+.print-slip {
+  min-height: 134.5mm;
+  padding: 6mm 4mm;
+  /* Flex here but *not* on the sheet above. A flex box shorter than a page is
+     laid out and kept whole; a flex column taller than one is fragmented by
+     every engine, which is what turned this receipt into four sheets. The
+     footer needs `margin-top: auto` and nothing else does, so the flex stops
+     at the slip. */
+  display: flex;
+  flex-direction: column;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* The signature line sits at the foot of the slip whatever the table's height,
+   so both halves of the sheet sign in the same place.
+
+   `margin-top: auto` rather than `position: absolute`: an absolutely positioned
+   box in paged media is resolved against the *page*, not against the box it
+   looks nested in, so the foot of the first slip landed 8mm above the bottom of
+   the sheet and dragged the slip's height out with it. */
+.print-slip-foot {
+  margin-top: auto;
+  padding-top: 2mm;
+}
+
+.print-slip + .print-slip {
+  border-top: 1px dashed #8a8a8a;
+}
+
+/* Documents print on white paper whatever theme the session is in — the same
+   pinning `.print-page` does, and for the same reason. */
+.print-sheet,
+.print-sheet * {
+  color: #111111;
+  border-color: #cfcfcf;
+}
+
+/* Which copy this is. Quiet on purpose: it tells the cashier which half to
+   hand over and must never compete with the amount. */
+.print-copy-label {
+  border: 1px solid #111111;
+  border-radius: 2px;
+  padding: 0.5mm 2mm;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* The table an A5 half can carry.
+
+   Two sizes, chosen by the server from the number of lines. Most receipts
+   settle one charge or three, and set small enough to fit the worst case they
+   are a postage stamp of text adrift in half a sheet of paper. The worst case
+   is a family clearing a year for three children — fourteen lines — and set
+   at a comfortable size that runs onto a second sheet. So the type follows the
+   content: `is-dense` is the fallback for the long ones, not the default. */
+.print-slip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.print-slip-table th,
+.print-slip-table td {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 1.2mm 1.4mm;
+  line-height: 1.3;
+  text-align: start;
+  vertical-align: top;
+}
+
+.print-slip-table thead th {
+  border-bottom: 1px solid #111111;
+  font-weight: 600;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.print-slip-table.is-dense {
+  font-size: 7.5pt;
+}
+
+.print-slip-table.is-dense th,
+.print-slip-table.is-dense td {
+  padding: 0.5mm 1.2mm;
+  line-height: 1.2;
+}
+
+/* What the parent came to check, and the one thing on the slip that should be
+   readable across a desk. A rule above and below rather than a filled box: it
+   is the figure that carries the weight, not the decoration around it. */
+.print-slip-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4mm;
+  margin-top: 3mm;
+  padding: 2mm 1.4mm;
+  border-top: 1.5px solid #111111;
+  border-bottom: 1.5px solid #111111;
+}
+
+.print-slip-total dt {
+  font-size: 8pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.print-slip-total dd {
+  font-size: 14pt;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 @page {
   size: A4;
   margin: 14mm;
@@ -668,6 +836,32 @@ html.dark[data-accent="teal"] {
 .print-landscape .print-page {
   width: 297mm;
   min-height: 210mm;
+}
+
+/* The échéancier: a charge down the side, a column per month across.
+
+   The first column is given a width because it is the only one carrying words
+   — a charge named in two languages — and left to share evenly it wrapped to
+   three lines a row, which is what pushed the total onto a second sheet. The
+   month columns then divide what is left, and they only ever hold a figure. */
+.print-schedule {
+  table-layout: fixed;
+  font-size: 8.5pt;
+}
+
+.print-schedule th,
+.print-schedule td {
+  padding: 2px 4px;
+}
+
+.print-schedule th:first-child,
+.print-schedule td:first-child {
+  width: 42mm;
+}
+
+.print-schedule th:last-child,
+.print-schedule td:last-child {
+  width: 22mm;
 }
 
 .print-week {
@@ -705,6 +899,10 @@ html.dark[data-accent="teal"] {
     background: #ffffff !important;
     padding: 0 !important;
     margin: 0 !important;
+    /* `.print-root` is a desk 100dvh tall on screen. Left standing in print it
+       is taller than the sheet on it, and the engine pages out the difference —
+       which is how a two-slip receipt came out over four sheets. */
+    min-height: 0 !important;
   }
 
   .print-page {
@@ -712,6 +910,25 @@ html.dark[data-accent="teal"] {
     min-height: 0;
     margin: 0;
     padding: var(--print-header-height) 0 var(--print-footer-height);
+    box-shadow: none;
+  }
+
+  /* The preview draws a 297×210 sheet because on screen there is no paper to
+     look at. In print the paper is already landscape and `@page landscape`
+     owns the margin, so those fixed measurements are a box larger than the one
+     it is being printed into — which overflows sideways as well as down and
+     paginates two by two, the same way the receipt sheet did. */
+  .print-landscape .print-page {
+    width: auto;
+    min-height: 0;
+  }
+
+  /* The desk goes away and `@page` takes over the margin the preview drew. */
+  .print-sheet {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
     box-shadow: none;
   }
 

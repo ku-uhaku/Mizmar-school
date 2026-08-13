@@ -128,6 +128,24 @@ export function formatMonth(
   }).format(new Date(year, month - 1, 1));
 }
 
+/**
+ * "sept. 2026" — the same label as `formatMonth`, abbreviated.
+ *
+ * For a grid with a column per month: twelve of "septembre 2026" across a sheet
+ * wrap to two lines each and turn a schedule into a wall of text, and the month
+ * is being scanned rather than read.
+ */
+export function formatMonthShort(
+  year: number,
+  month: number,
+  locale: Locale,
+): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
 /** An amount of money, from centimes, without the currency symbol. */
 export function formatAmount(centimes: number, locale: Locale): string {
   return new Intl.NumberFormat(intlLocale(locale), {

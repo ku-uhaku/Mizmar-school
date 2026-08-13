@@ -88,10 +88,15 @@ const core = {
       "يشهد الموقع أسفله أن التلميذ(ة) المذكور(ة) أدناه مسجل(ة) بهذه المؤسسة برسم السنة الدراسية {year}، بالقسم المبين.",
     schedule: "جدول الأداءات",
     classList: "لائحة القسم",
-    timetable: "استعمال الزمن",    pupilCount: "{count} تلميذًا",
+    timetable: "استعمال الزمن",
+    pupilCount: "{count} تلميذًا",
     total: "المجموع",
     dueOn: "أجل الأداء",
     issuedOn: "حُرر في",
+    copyForFamily: "نسخة الأسرة",
+    copyForOffice: "نسخة الصندوق",
+    instalmentCount: "{count} أقساط",
+    amountsIn: "المبالغ بـ{currency}",
   },
   errors: {
     unexpected: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
@@ -116,7 +121,8 @@ export const nav = {
   vieScolaire: "الحياة المدرسية",
   finance: "المالية",
   logistique: "اللوجستيك",
-  rh: "الموارد البشرية",  administration: "الإدارة",
+  rh: "الموارد البشرية",
+  administration: "الإدارة",
   account: "الحساب",
 };
 

@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { PrintDocument } from "@/components/print/print-document";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { formatMonth, formatMoney } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatMonthShort,
+  formatMoney,
+  interpolate,
+} from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { letterheadFrom } from "@/lib/letterhead";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -53,24 +58,45 @@ export default async function SchedulePage({
   // printed from.
   const money = (centimes: number) =>
     formatMoney(centimes, locale, context.settings.currencyCode);
+  /*
+    Inside the grid, the amount alone. Sixty cells each carrying "MAD" is the
+    currency printed sixty times and the figures pushed onto two lines apiece —
+    the column is being scanned down, and it is all one currency. It is said
+    once, in the subtitle.
+  */
+  const amount = (centimes: number) => formatAmount(centimes, locale);
 
   return (
     <PrintDocument
       letterhead={letterheadFrom(context)}
       title={t.print.schedule}
-      subtitle={`${student.firstName} ${student.lastName} · ${enrolment.className ?? enrolment.levelName}`}
+      subtitle={`${student.firstName} ${student.lastName} · ${
+        enrolment.className ?? enrolment.levelName
+      } · ${interpolate(t.print.amountsIn, {
+        currency: context.settings.currencyCode,
+      })}`}
       reference={student.code}
       backHref={`/students/${student.id}`}
       locale={locale}
       t={t}
+      /*
+        Landscape, because the grid is a column per month: a dozen of them plus
+        the charge and the total is fourteen columns, and A4 portrait gives each
+        of them 13mm. The document is wider than it is tall, so the paper should
+        be too — see `@page landscape` in globals.css.
+      */
+      orientation="landscape"
     >
-      <table className="print-table">
+      <table className="print-table print-schedule">
         <thead>
           <tr>
             <th>{t.enrolment.feeType}</th>
             {grid.months.map((month) => (
-              <th key={month.key} className="text-end capitalize">
-                {formatMonth(month.year, month.month, locale)}
+              <th
+                key={month.key}
+                className="text-end whitespace-nowrap capitalize"
+              >
+                {formatMonthShort(month.year, month.month, locale)}
               </th>
             ))}
             <th className="text-end">{t.print.total}</th>
@@ -89,12 +115,12 @@ export default async function SchedulePage({
                 );
                 return (
                   <td key={month.key} className="text-end tabular-nums">
-                    {total === 0 ? "—" : money(total)}
+                    {total === 0 ? "—" : amount(total)}
                   </td>
                 );
               })}
               <td className="text-end font-medium tabular-nums">
-                {money(row.totalCentimes)}
+                {amount(row.totalCentimes)}
               </td>
             </tr>
           ))}
@@ -108,11 +134,11 @@ export default async function SchedulePage({
                 key={month.key}
                 className="text-end font-semibold tabular-nums"
               >
-                {money(grid.monthTotals[month.key] ?? 0)}
+                {amount(grid.monthTotals[month.key] ?? 0)}
               </td>
             ))}
             <td className="text-end font-semibold tabular-nums">
-              {money(grid.grandTotalCentimes)}
+              {amount(grid.grandTotalCentimes)}
             </td>
           </tr>
         </tfoot>

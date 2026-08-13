@@ -88,10 +88,15 @@ const core = {
       "Le soussigné atteste que l'élève désigné ci-dessous est inscrit dans cet établissement au titre de l'année scolaire {year}, dans la classe indiquée.",
     schedule: "Échéancier",
     classList: "Liste de classe",
-    timetable: "Emploi du temps",    pupilCount: "{count} élèves",
+    timetable: "Emploi du temps",
+    pupilCount: "{count} élèves",
     total: "Total",
     dueOn: "Échéance",
     issuedOn: "Établi le",
+    copyForFamily: "Exemplaire famille",
+    copyForOffice: "Exemplaire caisse",
+    instalmentCount: "{count} échéances",
+    amountsIn: "Montants en {currency}",
   },
   errors: {
     unexpected: "Une erreur est survenue. Veuillez réessayer.",
@@ -116,7 +121,8 @@ export const nav = {
   vieScolaire: "Vie scolaire",
   finance: "Finance",
   logistique: "Logistique",
-  rh: "Ressources humaines",  administration: "Administration",
+  rh: "Ressources humaines",
+  administration: "Administration",
   account: "Compte",
 };
 
