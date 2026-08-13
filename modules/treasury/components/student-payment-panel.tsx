@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, interpolate } from "@/lib/i18n/format";
+import { formatDateTime, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { PaymentConsole } from "@/modules/treasury/components/payment-console";
 import { ReceiptsTable } from "@/modules/treasury/components/operations-table";
@@ -210,7 +210,7 @@ export function StudentPaymentPanel({
               total: standing.totalLines,
             })}
             {standing.lastPaidAt
-              ? ` · ${t.treasury.lastPaid} ${formatDate(standing.lastPaidAt, locale)}`
+              ? ` · ${t.treasury.lastPaid} ${formatDateTime(standing.lastPaidAt, locale)}`
               : ""}
           </p>
 

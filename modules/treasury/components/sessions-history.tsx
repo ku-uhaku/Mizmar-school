@@ -11,7 +11,7 @@ import { useSettings } from "@/components/providers/settings-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shell/empty-state";
-import { formatDate, formatMoney } from "@/lib/i18n/format";
+import { formatDateTime, formatMoney } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { SessionRow } from "@/modules/treasury/queries";
 
@@ -40,7 +40,7 @@ export function SessionsHistory({ sessions }: { sessions: SessionRow[] }) {
         cell: ({ row }) => (
           <div className="text-sm">
             <div className="whitespace-nowrap">
-              {formatDate(row.original.openedAt, locale)}
+              {formatDateTime(row.original.openedAt, locale)}
             </div>
             <div className="text-muted-foreground text-xs">
               {row.original.openedByName}
@@ -55,7 +55,7 @@ export function SessionsHistory({ sessions }: { sessions: SessionRow[] }) {
           row.original.closedAt ? (
             <div className="text-sm">
               <div className="whitespace-nowrap">
-                {formatDate(row.original.closedAt, locale)}
+                {formatDateTime(row.original.closedAt, locale)}
               </div>
               <div className="text-muted-foreground text-xs">
                 {row.original.wasAutoClosed

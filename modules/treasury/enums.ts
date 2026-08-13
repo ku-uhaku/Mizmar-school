@@ -105,6 +105,47 @@ export function startOfDay(moment: Date): Date {
 }
 
 /**
+ * The moment a movement is recorded: the day the operator chose, carrying the
+ * clock time it was actually entered at.
+ *
+ * ── Why the two halves come from different places ────────────────────────────
+ * The forms offer a date, not a datetime, because the day is the only part a
+ * cashier ever means to choose — a receipt is back-dated to the day the money
+ * came in, never to a particular hour of it. But `<input type="date">` posts
+ * "2026-08-13", which parses to midnight, so every payment and every operation
+ * landed on 00h00 and the ledger could not say in which order a morning's
+ * receipts were taken.
+ *
+ * So the day is the operator's and the hour is the till's. For the ordinary
+ * case — a payment taken today — the result is simply now. For a back-dated
+ * one it is that day at the current hour, which is honest about the day and
+ * makes no claim about the hour it could not know.
+ *
+ * `null` means the form sent nothing at all, and the answer is plainly now.
+ */
+export function recordedAt(day: Date | null | undefined): Date {
+  const now = new Date();
+  if (!day) return now;
+
+  /*
+    The calendar day is read off the *UTC* components: `optionalDate` coerces
+    "2026-08-13" through `new Date(string)`, which the spec fixes at midnight
+    UTC. Reading the local components instead would name the previous day
+    anywhere west of Greenwich — right in Morocco by luck, wrong the first time
+    this runs on a server that is not.
+  */
+  return new Date(
+    day.getUTCFullYear(),
+    day.getUTCMonth(),
+    day.getUTCDate(),
+    now.getHours(),
+    now.getMinutes(),
+    now.getSeconds(),
+    now.getMilliseconds(),
+  );
+}
+
+/**
  * Whether a session belongs to a day that has ended.
  *
  * The one rule that makes a caisse's daily figures mean anything. A session

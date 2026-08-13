@@ -43,7 +43,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatDateTime,
+  interpolate,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   cancelOperationAction,
@@ -236,7 +240,7 @@ export function OperationsTable({
                       )}
                     >
                       <TableCell className="text-sm whitespace-nowrap">
-                        {formatDate(operation.occurredAt, locale)}
+                        {formatDateTime(operation.occurredAt, locale)}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -547,7 +551,7 @@ export function ReceiptsTable({
                                 <p className="text-xs opacity-80">
                                   {payment.cancelledByName ?? "—"}
                                   {payment.cancelledAt
-                                    ? ` · ${formatDate(payment.cancelledAt, locale)}`
+                                    ? ` · ${formatDateTime(payment.cancelledAt, locale)}`
                                     : ""}
                                 </p>
                               </TooltipContent>
@@ -560,7 +564,7 @@ export function ReceiptsTable({
                           {payment.familyName ?? "—"}
                         </TableCell>
                         <TableCell className="text-sm whitespace-nowrap">
-                          {formatDate(payment.paidAt, locale)}
+                          {formatDateTime(payment.paidAt, locale)}
                         </TableCell>
                         <TableCell className="hidden text-xs @2xl/table:table-cell">
                           {payment.methods

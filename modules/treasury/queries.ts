@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { currentSchoolYearId, schoolScope } from "@/lib/scope";
+import { bilingual } from "@/modules/academics/labels";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import {
   categoryKindsFor,
@@ -805,7 +806,7 @@ export async function findPayableFamily(
                   dueMonth: true,
                   dueYear: true,
                   amountCentimes: true,
-                  feeType: { select: { name: true } },
+                  feeType: { select: { name: true, nameAr: true } },
                   allocations: {
                     where: { payment: { status: "POSTED" } },
                     select: { amountCentimes: true },
@@ -830,7 +831,7 @@ export async function findPayableFamily(
       );
       return {
         id: fee.id,
-        feeTypeName: fee.feeType.name,
+        feeTypeName: bilingual(fee.feeType.name, fee.feeType.nameAr),
         periodIndex: fee.periodIndex,
         dueDate: fee.dueDate.toISOString(),
         dueMonth: fee.dueMonth,
@@ -952,7 +953,7 @@ export async function studentPaymentStanding(
       dueDate: true,
       // `position` is what orders the breakdown — the same column the fee grid
       // orders its rows by, so the two screens cannot disagree.
-      feeType: { select: { id: true, name: true, position: true } },
+      feeType: { select: { id: true, name: true, nameAr: true, position: true } },
       allocations: {
         where: { payment: { status: "POSTED" } },
         select: { amountCentimes: true, payment: { select: { paidAt: true } } },
@@ -994,7 +995,7 @@ export async function studentPaymentStanding(
 
     const service = services.get(line.feeType.id) ?? {
       feeTypeId: line.feeType.id,
-      feeTypeName: line.feeType.name,
+      feeTypeName: bilingual(line.feeType.name, line.feeType.nameAr),
       position: line.feeType.position,
       chargedCentimes: 0,
       paidCentimes: 0,
@@ -1588,7 +1589,7 @@ export async function findReceipt(
         include: {
           enrollmentFee: {
             include: {
-              feeType: { select: { name: true } },
+              feeType: { select: { name: true, nameAr: true } },
               enrollment: {
                 include: {
                   schoolClass: { select: { code: true } },
@@ -1629,7 +1630,10 @@ export async function findReceipt(
       studentName: `${allocation.enrollmentFee.enrollment.student.firstName} ${allocation.enrollmentFee.enrollment.student.lastName}`,
       studentCode: allocation.enrollmentFee.enrollment.student.code,
       className: allocation.enrollmentFee.enrollment.schoolClass?.code ?? null,
-      feeTypeName: allocation.enrollmentFee.feeType.name,
+      feeTypeName: bilingual(
+        allocation.enrollmentFee.feeType.name,
+        allocation.enrollmentFee.feeType.nameAr,
+      ),
       dueDate: allocation.enrollmentFee.dueDate.toISOString(),
       amountCentimes: allocation.amountCentimes,
     })),

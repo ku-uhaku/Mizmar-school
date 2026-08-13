@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { PrintDocument } from "@/components/print/print-document";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
-import { formatDate, formatMoney } from "@/lib/i18n/format";
+import { formatDateTime, formatMoney } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { letterheadFrom } from "@/lib/letterhead";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -54,7 +54,7 @@ export default async function CashSessionReceiptPage({
         <Row label={t.treasury.openedBy} value={session.openedByName} />
         <Row
           label={t.treasury.openedAt}
-          value={formatDate(session.openedAt, locale)}
+          value={formatDateTime(session.openedAt, locale)}
         />
         <Row
           label={t.treasury.closedBy}
@@ -66,7 +66,9 @@ export default async function CashSessionReceiptPage({
         />
         <Row
           label={t.treasury.closedAt}
-          value={session.closedAt ? formatDate(session.closedAt, locale) : "—"}
+          value={
+            session.closedAt ? formatDateTime(session.closedAt, locale) : "—"
+          }
         />
         <Row
           label={t.treasury.openingFloat}
@@ -114,7 +116,7 @@ export default async function CashSessionReceiptPage({
           {operations.map((operation) => (
             <tr key={operation.id}>
               <td className="tabular-nums whitespace-nowrap">
-                {formatDate(operation.occurredAt, locale)}
+                {formatDateTime(operation.occurredAt, locale)}
               </td>
               <td>
                 {operation.label}

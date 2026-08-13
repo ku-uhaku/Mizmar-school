@@ -20,6 +20,7 @@ import {
   expectedDrawerTotal,
   isChequeStatus,
   isStaleSession,
+  recordedAt,
   openSessionKey,
   outstandingOf,
   startOfDay,
@@ -209,6 +210,50 @@ describe("categoryKindsFor", () => {
 });
 
 // ── The shift ────────────────────────────────────────────────────────────────
+
+describe("recordedAt", () => {
+  it("is simply now when the form sent no day", () => {
+    const before = Date.now();
+    const moment = recordedAt(null).getTime();
+    expect(moment).toBeGreaterThanOrEqual(before);
+    expect(moment).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("keeps the chosen day and takes the clock time from now", () => {
+    // What a date input posts: "2026-08-13" coerced through `new Date`, which
+    // the spec fixes at midnight UTC. This is the exact value that used to
+    // reach the database and render as 01h00 in Morocco.
+    const chosen = new Date("2026-08-13");
+    const stamped = recordedAt(chosen);
+    const now = new Date();
+
+    expect(stamped.getFullYear()).toBe(2026);
+    expect(stamped.getMonth()).toBe(7);
+    expect(stamped.getDate()).toBe(13);
+    // Not midnight — the whole point.
+    expect(stamped.getHours()).toBe(now.getHours());
+    expect(stamped.getMinutes()).toBe(now.getMinutes());
+  });
+
+  it("names the day the operator picked, not the one UTC midnight lands on", () => {
+    // Reading the local components of a UTC-midnight value gives the previous
+    // day anywhere west of Greenwich. Asserting on the UTC components of the
+    // input is what makes this test mean the same thing in every zone.
+    const chosen = new Date("2026-01-01");
+    const stamped = recordedAt(chosen);
+
+    expect(stamped.getFullYear()).toBe(chosen.getUTCFullYear());
+    expect(stamped.getMonth()).toBe(chosen.getUTCMonth());
+    expect(stamped.getDate()).toBe(chosen.getUTCDate());
+  });
+
+  it("does not mutate its argument", () => {
+    const chosen = new Date("2026-08-13");
+    const before = chosen.getTime();
+    recordedAt(chosen);
+    expect(chosen.getTime()).toBe(before);
+  });
+});
 
 describe("startOfDay", () => {
   it("keeps the calendar day and drops the time", () => {

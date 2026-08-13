@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import {
+  bilingual,
   cycleChoiceLabel,
   levelChoiceLabel,
 } from "@/modules/academics/labels";
@@ -201,6 +202,7 @@ export async function loadFeeGrid(
               id: true,
               code: true,
               name: true,
+              nameAr: true,
               kind: true,
               billingCycle: true,
               position: true,
@@ -227,7 +229,9 @@ export async function loadFeeGrid(
     const row = rowsById.get(line.feeTypeId) ?? {
       feeTypeId: line.feeTypeId,
       code: line.feeType.code,
-      name: line.feeType.name,
+      // Both names: the grid is read back to a parent, and half of them read
+      // the frais in Arabic — see modules/academics/labels.ts.
+      name: bilingual(line.feeType.name, line.feeType.nameAr),
       kind: line.feeType.kind,
       billingCycle: line.feeType.billingCycle,
       cells: {},

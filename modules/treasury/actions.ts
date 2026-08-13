@@ -17,6 +17,7 @@ import {
   canMoveCheque,
   categoryKindsFor,
   chequeUndoesReceipt,
+  recordedAt,
 } from "@/modules/treasury/enums";
 import {
   availableIfShortOf,
@@ -391,7 +392,7 @@ export async function recordPaymentAction(
       familyId: family?.id ?? null,
       createdById: context.user.id,
       cashSessionId,
-      paidAt: parsed.data.paidAt ?? new Date(),
+      paidAt: recordedAt(parsed.data.paidAt),
       notes: parsed.data.notes,
       tenders: parsed.data.tenders.map((tender) => ({
         method: tender.method,
@@ -681,7 +682,7 @@ export async function recordDisbursementAction(
       reference: parsed.data.reference,
       chequeNumber: parsed.data.chequeNumber,
       bankName: parsed.data.bankName,
-      occurredAt: parsed.data.occurredAt ?? new Date(),
+      occurredAt: recordedAt(parsed.data.occurredAt),
       notes: parsed.data.notes,
     });
 
@@ -784,7 +785,7 @@ export async function recordTransferAction(
         parsed.data.target === "BANK" ? parsed.data.bankAccountLabel : null,
       amountCentimes: parsed.data.amountCentimes,
       reference: parsed.data.reference,
-      occurredAt: parsed.data.occurredAt ?? new Date(),
+      occurredAt: recordedAt(parsed.data.occurredAt),
       notes: parsed.data.notes,
       label:
         parsed.data.target === "BANK"
@@ -1272,7 +1273,7 @@ export async function payStaffDirectAction(
       reference: parsed.data.reference,
       chequeNumber: parsed.data.chequeNumber,
       bankName: parsed.data.bankName,
-      occurredAt: parsed.data.occurredAt ?? new Date(),
+      occurredAt: recordedAt(parsed.data.occurredAt),
       // `label` already falls back to the notes when the manager typed no
       // other description; keeping them on the row as well is what lets the
       // ledger show the sentence behind a one-word label.

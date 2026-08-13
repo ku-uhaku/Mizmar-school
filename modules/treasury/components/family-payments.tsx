@@ -11,7 +11,11 @@ import { useI18n } from "@/components/providers/i18n-provider";
 import { useSettings } from "@/components/providers/settings-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatMoney, interpolate } from "@/lib/i18n/format";
+import {
+  formatDateTime,
+  formatMoney,
+  interpolate,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { FamilyPaymentRow } from "@/modules/treasury/queries";
 
@@ -161,7 +165,7 @@ export function FamilyPayments({ families }: { families: FamilyPaymentRow[] }) {
         cell: ({ row }) =>
           row.original.lastPaidAt ? (
             <span className="text-muted-foreground text-xs" dir="ltr">
-              {formatDate(new Date(row.original.lastPaidAt), locale)}
+              {formatDateTime(new Date(row.original.lastPaidAt), locale)}
             </span>
           ) : (
             <span className="text-muted-foreground text-xs">—</span>

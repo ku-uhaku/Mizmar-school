@@ -53,6 +53,9 @@ export function formatDateTime(
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    // 24-hour, for the same reason `formatTime` is — a caisse sheet reading
+    // "5:03 PM" beside a horaire reading "17:00" is one document in two clocks.
+    hourCycle: "h23",
   }).format(date);
 }
 

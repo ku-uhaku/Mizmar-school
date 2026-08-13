@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAuth } from "@/lib/dal";
-import { formatDate, formatMoney } from "@/lib/i18n/format";
+import { formatDateTime, formatMoney } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { OperationsTable } from "@/modules/treasury/components/operations-table";
@@ -53,7 +53,7 @@ export default async function CashSessionPage({
     <>
       <PageHeader
         title={session.registerName}
-        description={formatDate(session.openedAt, locale)}
+        description={formatDateTime(session.openedAt, locale)}
         backHref="/caisse/registers"
         backLabel={t.treasury.registers}
         meta={
@@ -84,7 +84,7 @@ export default async function CashSessionPage({
               <Field label={t.treasury.openedBy} value={session.openedByName} />
               <Field
                 label={t.treasury.openedAt}
-                value={formatDate(session.openedAt, locale)}
+                value={formatDateTime(session.openedAt, locale)}
               />
               <Field
                 label={t.treasury.closedBy}
@@ -97,7 +97,9 @@ export default async function CashSessionPage({
               <Field
                 label={t.treasury.closedAt}
                 value={
-                  session.closedAt ? formatDate(session.closedAt, locale) : "—"
+                  session.closedAt
+                    ? formatDateTime(session.closedAt, locale)
+                    : "—"
                 }
               />
               <Field

@@ -50,7 +50,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
 import { valueOf } from "@/lib/form-values";
-import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
+import {
+  formatAmount,
+  formatDateTime,
+  interpolate,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import {
   deleteCashRegisterAction,
@@ -157,7 +161,7 @@ export function RegistersManager({
                 {t.treasury.statusOpen}
               </Badge>
               <p className="text-muted-foreground mt-1 truncate text-xs">
-                {session.openedByName} · {formatDate(session.openedAt, locale)}
+                {session.openedByName} · {formatDateTime(session.openedAt, locale)}
               </p>
             </div>
           );

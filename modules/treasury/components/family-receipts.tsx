@@ -11,7 +11,11 @@ import { useSettings } from "@/components/providers/settings-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate, formatMoney, interpolate } from "@/lib/i18n/format";
+import {
+  formatDateTime,
+  formatMoney,
+  interpolate,
+} from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import type { PaymentRow } from "@/modules/treasury/queries";
 
@@ -62,7 +66,7 @@ export function FamilyReceipts({ receipts }: { receipts: PaymentRow[] }) {
         header: t.treasury.paidAt,
         cell: ({ row }) => (
           <span className="text-sm" dir="ltr">
-            {formatDate(new Date(row.original.paidAt), locale)}
+            {formatDateTime(new Date(row.original.paidAt), locale)}
           </span>
         ),
       },

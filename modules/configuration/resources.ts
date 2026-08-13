@@ -110,6 +110,15 @@ const NAME_AR = {
   maxLength: 120,
 } as const;
 
+/**
+ * The same, shown as a column rather than only in the dialog.
+ *
+ * For the tables where the Arabic name is the row's second identity rather than
+ * a detail — the frais, which a secretary reads back to a parent in Arabic and
+ * which the receipt prints in both.
+ */
+const NAME_AR_IN_TABLE = { ...NAME_AR, inTable: true } as const;
+
 const MASSAR_CODE = {
   name: "massarCode",
   type: "text",
@@ -1037,7 +1046,7 @@ export const RESOURCES: ResourceDef[] = [
         inTable: true,
       },
       { name: "name", type: "text", labelKey: "name", required: true, maxLength: 120, inTable: true },
-      NAME_AR,
+      NAME_AR_IN_TABLE,
       {
         name: "kind",
         type: "select",
