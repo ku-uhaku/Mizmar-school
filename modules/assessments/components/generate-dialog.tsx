@@ -273,7 +273,7 @@ export function GenerateDialog({
           matiere: null,
           // Null for a matière with no components: it needs no heading, it *is*
           // the row.
-          title: entry.parentSubjectName,
+          title: entry.parentSubjectLabel,
           entries: [],
         });
       }
@@ -409,7 +409,7 @@ export function GenerateDialog({
             htmlFor={`subject-${entry.subjectId}`}
             className="min-w-0 flex-1 cursor-pointer text-sm font-normal"
           >
-            <span className="truncate">{entry.subjectName}</span>
+            <span className="truncate">{entry.subjectLabel}</span>
             <span className="text-muted-foreground ms-1.5 text-xs">
               ×{entry.coefficient}
             </span>
@@ -433,7 +433,7 @@ export function GenerateDialog({
             disabled={!checked}
             dir="ltr"
             className="h-8 w-36 text-xs"
-            aria-label={`${entry.subjectName} — ${t.assessment.scheduledOn}`}
+            aria-label={`${entry.subjectLabel} — ${t.assessment.scheduledOn}`}
           />
         </div>
 
@@ -453,7 +453,7 @@ export function GenerateDialog({
             maxLength={NOTES_MAX}
             placeholder={t.assessment.coversPlaceholder}
             className="h-8 text-xs"
-            aria-label={`${entry.subjectName} — ${t.assessment.covers}`}
+            aria-label={`${entry.subjectLabel} — ${t.assessment.covers}`}
           />
         ) : null}
       </div>
@@ -519,10 +519,20 @@ export function GenerateDialog({
                       <SelectValue placeholder={t.assessment.class} />
                     </SelectTrigger>
                     <SelectContent>
-                      {classes.map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.code} · {option.levelLabel}
-                        </SelectItem>
+                      {clusterByGroup(
+                        classes.map((option) => ({
+                          ...option,
+                          group: option.cycleName,
+                        })),
+                      ).map((cluster) => (
+                        <SelectGroup key={cluster.heading}>
+                          <SelectLabel>{cluster.heading}</SelectLabel>
+                          {cluster.options.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {option.code} · {option.levelNameLabel}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>
@@ -575,7 +585,7 @@ export function GenerateDialog({
                   <SelectContent>
                     {openTerms.map((term) => (
                       <SelectItem key={term.id} value={term.id}>
-                        {term.name}
+                        {term.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -594,7 +604,7 @@ export function GenerateDialog({
                   <SelectContent>
                     {types.map((type) => (
                       <SelectItem key={type.id} value={type.id}>
-                        {type.name} · /{type.defaultMaxScore} · ×
+                        {type.label} · /{type.defaultMaxScore} · ×
                         {type.defaultCoefficient}
                       </SelectItem>
                     ))}

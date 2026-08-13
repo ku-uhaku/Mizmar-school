@@ -12,12 +12,15 @@ import { useI18n } from "@/components/providers/i18n-provider";
 import { ConfirmDelete } from "@/components/shared/confirm-delete";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -88,7 +91,11 @@ export function AssessmentsManager({
     () => [
       {
         id: "paper",
-        accessorFn: (row) => `${row.title} ${row.subjectName} ${row.classCode}`,
+        // The box is one `includesString` pass over the accessor values, so
+        // everything a reader might type has to be in one of them — including
+        // the Arabic names, which is the half of the staff that reads them.
+        accessorFn: (row) =>
+          `${row.title} ${row.subjectLabel} ${row.classCode} ${row.typeLabel} ${row.termLabel}`,
         header: t.assessment.paper,
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-3">
@@ -110,7 +117,7 @@ export function AssessmentsManager({
                 {row.original.title}
               </Link>
               <p className="text-muted-foreground truncate text-xs">
-                {row.original.subjectName}
+                {row.original.subjectLabel}
                 {row.original.groupLabel ? ` · ${row.original.groupLabel}` : ""}
               </p>
             </div>
@@ -135,7 +142,7 @@ export function AssessmentsManager({
         accessorFn: (row) => row.subjectName,
         header: t.assessment.subject,
         cell: ({ row }) => (
-          <span className="text-sm">{row.original.subjectName}</span>
+          <span className="text-sm">{row.original.subjectLabel}</span>
         ),
       },
       {
@@ -278,7 +285,26 @@ export function AssessmentsManager({
   const facets = React.useMemo<FacetDef[]>(() => {
     // Built from the visible rows so a facet never offers a value that would
     // match nothing inside the stage the reader is looking at.
-    const subjects = [...new Set(visible.map((row) => row.subjectName))].sort();
+    /*
+      `value` is the raw name, because that is what the column holds and
+      therefore what the filter compares against; only the label reads in both
+      languages. Keyed by the raw name so a Map keeps one option per value.
+    */
+    const optionsBy = (
+      pick: (row: (typeof visible)[number]) => { value: string; label: string },
+    ) => {
+      const found = new Map<string, { value: string; label: string }>();
+      for (const row of visible) {
+        const option = pick(row);
+        if (!found.has(option.value)) found.set(option.value, option);
+      }
+      return [...found.values()].sort((a, b) => a.label.localeCompare(b.label));
+    };
+
+    const subjects = optionsBy((row) => ({
+      value: row.subjectName,
+      label: row.subjectLabel,
+    }));
 
     return [
       {
@@ -292,16 +318,17 @@ export function AssessmentsManager({
       {
         columnId: "typeName",
         label: t.assessment.kind,
-        options: [...new Set(visible.map((row) => row.typeName))]
-          .sort()
-          .map((name) => ({ value: name, label: name })),
+        options: optionsBy((row) => ({
+          value: row.typeName,
+          label: row.typeLabel,
+        })),
       },
       ...(subjects.length > 1
         ? [
             {
               columnId: "subjectName",
               label: t.assessment.subject,
-              options: subjects.map((name) => ({ value: name, label: name })),
+              options: subjects,
             },
           ]
         : []),
@@ -332,10 +359,20 @@ export function AssessmentsManager({
             <SelectValue placeholder={t.assessment.class} />
           </SelectTrigger>
           <SelectContent>
-            {classes.map((option) => (
-              <SelectItem key={option.id} value={option.id}>
-                {option.code} · {option.levelLabel}
-              </SelectItem>
+            {/* Headed by cycle and named in both languages, like every other
+              niveau picker — see modules/academics/labels.ts. The class code
+              leads, since that is what the reader is choosing between. */}
+            {clusterByGroup(
+              classes.map((option) => ({ ...option, group: option.cycleName })),
+            ).map((cluster) => (
+              <SelectGroup key={cluster.heading}>
+                <SelectLabel>{cluster.heading}</SelectLabel>
+                {cluster.options.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.code} · {option.levelNameLabel}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             ))}
           </SelectContent>
         </Select>
@@ -350,7 +387,7 @@ export function AssessmentsManager({
           <SelectContent>
             {terms.map((term) => (
               <SelectItem key={term.id} value={term.id}>
-                {term.name}
+                {term.label}
               </SelectItem>
             ))}
           </SelectContent>

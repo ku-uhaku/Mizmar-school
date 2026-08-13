@@ -11,12 +11,15 @@ import { EmptyState } from "@/components/shell/empty-state";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { Badge } from "@/components/ui/badge";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -115,10 +118,22 @@ export function BulletinsManager({
                 <SelectValue placeholder={t.bulletin.pickClass} />
               </SelectTrigger>
               <SelectContent>
-                {classes.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.code} · {option.levelLabel}
-                  </SelectItem>
+                {/* Same picker as the assessments screen, and it reads the same
+                  way: headed by cycle, both names. They share `ClassOption`. */}
+                {clusterByGroup(
+                  classes.map((option) => ({
+                    ...option,
+                    group: option.cycleName,
+                  })),
+                ).map((cluster) => (
+                  <SelectGroup key={cluster.heading}>
+                    <SelectLabel>{cluster.heading}</SelectLabel>
+                    {cluster.options.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.code} · {option.levelNameLabel}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 ))}
               </SelectContent>
             </Select>
@@ -138,7 +153,7 @@ export function BulletinsManager({
               <SelectContent>
                 {terms.map((term) => (
                   <SelectItem key={term.id} value={term.id}>
-                    {term.name}
+                    {term.label}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -183,7 +183,7 @@ export function TimetableCellDialog({
                 <SelectContent>
                   {choices.subjects.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name}
+                      {subject.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -314,7 +314,7 @@ export function TimetableCellDialog({
                     </SelectItem>
                     {choices.terms.map((term) => (
                       <SelectItem key={term.id} value={term.id}>
-                        {term.name}
+                        {term.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

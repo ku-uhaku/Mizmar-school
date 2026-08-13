@@ -10,9 +10,10 @@ const fr = {
     noClasses: "Aucune classe pour cette année.",
     noClassesHint:
       "Ouvrez un niveau dans la configuration, puis créez ses classes.",
-    searchPlaceholder: "Rechercher par code de classe ou niveau…",
+    searchPlaceholder: "Rechercher par code de classe, niveau ou cycle…",
     classColumn: "Classe",
     level: "Niveau",
+    cycle: "Cycle",
     mainTeacher: "Professeur principal",
     room: "Salle",
     capacity: "Capacité",

@@ -29,7 +29,12 @@ export function ClassesManager({ classes }: { classes: ClassRow[] }) {
     () => [
       {
         id: "class",
-        accessorFn: (row) => `${row.code} ${row.name ?? ""} ${row.levelLabel}`,
+        // Everything a reader might type: the code, the class's own name, the
+        // level in short form and in both languages, and the cycle. The box is
+        // a single `includesString` pass over the accessor values, so a name
+        // that is not in one of them is a name the search cannot find.
+        accessorFn: (row) =>
+          `${row.code} ${row.name ?? ""} ${row.levelLabel} ${row.levelOptionLabel} ${row.cycleName}`,
         header: t.schoolClass.classColumn,
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -48,8 +53,25 @@ export function ClassesManager({ classes }: { classes: ClassRow[] }) {
       {
         accessorKey: "levelLabel",
         header: t.schoolClass.level,
+        // The code stays the badge — it is what a school talks in and what the
+        // filter matches on — with both names under it, since half the staff
+        // read the niveau in Arabic and the code alone says nothing to a parent.
         cell: ({ row }) => (
-          <Badge variant="secondary">{row.original.levelLabel}</Badge>
+          <div className="min-w-0">
+            <Badge variant="secondary">{row.original.levelLabel}</Badge>
+            <p className="text-muted-foreground mt-1 truncate text-xs">
+              {row.original.levelNameLabel}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "cycleName",
+        header: t.schoolClass.cycle,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground truncate text-sm">
+            {row.original.cycleName}
+          </span>
         ),
       },
       {
@@ -120,19 +142,45 @@ export function ClassesManager({ classes }: { classes: ClassRow[] }) {
   );
 
   const facets = React.useMemo<FacetDef[]>(() => {
-    const levels = [
-      ...new Set(classes.map((schoolClass) => schoolClass.levelLabel)),
-    ].sort();
+    /*
+      One option per level, in the order the rows arrive — which the query
+      sorts by cycle then by year, so the headings the filter draws stay
+      contiguous. `value` remains the short code, because that is what the
+      column holds and therefore what the filter compares against; only the
+      label reads in both languages.
+    */
+    const levels = new Map<string, { value: string; label: string; group: string }>();
+    for (const schoolClass of classes) {
+      if (levels.has(schoolClass.levelLabel)) continue;
+      levels.set(schoolClass.levelLabel, {
+        value: schoolClass.levelLabel,
+        label: schoolClass.levelOptionLabel,
+        group: schoolClass.cycleName,
+      });
+    }
 
-    return levels.length > 1
-      ? [
-          {
-            columnId: "levelLabel",
-            label: t.schoolClass.level,
-            options: levels.map((level) => ({ value: level, label: level })),
-          },
-        ]
-      : [];
+    const cycles = [...new Set(classes.map((schoolClass) => schoolClass.cycleName))];
+
+    return [
+      ...(cycles.length > 1
+        ? [
+            {
+              columnId: "cycleName",
+              label: t.schoolClass.cycle,
+              options: cycles.map((cycle) => ({ value: cycle, label: cycle })),
+            },
+          ]
+        : []),
+      ...(levels.size > 1
+        ? [
+            {
+              columnId: "levelLabel",
+              label: t.schoolClass.level,
+              options: [...levels.values()],
+            },
+          ]
+        : []),
+    ];
   }, [classes, t]);
 
   const configureButton = (

@@ -44,12 +44,15 @@ export type TimetableChoices = {
     id: string;
     code: string;
     name: string;
+    /** Both names, for the picker — see modules/academics/labels.ts. */
+    label: string;
     shortName: string | null;
     colorHex: string | null;
   }[];
   teachers: { id: string; label: string }[];
   rooms: { id: string; code: string; name: string | null }[];
-  terms: { id: string; name: string; number: number }[];
+  /** `label` carries both names; `name` stays the raw one. */
+  terms: { id: string; name: string; label: string; number: number }[];
   groups: { id: string; label: string }[];
   teacherBySubject: Record<string, string>;
 };

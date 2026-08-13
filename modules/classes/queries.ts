@@ -4,6 +4,11 @@ import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, yearScope } from "@/lib/scope";
+import {
+  cycleChoiceLabel,
+  levelChoiceLabel,
+  levelNameLabel,
+} from "@/modules/academics/labels";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 
 /**
@@ -40,8 +45,17 @@ export type ClassRow = {
   code: string;
   name: string | null;
   section: string | null;
+  /** The Ministry short form — "3AP", "1BAC SM". The badge, and what the
+   *  level filter matches on, so it must not change with the language. */
   levelLabel: string;
   levelName: string;
+  /** Both names and the code, as every niveau is written — see
+   *  modules/academics/labels.ts. The filter's label, and searchable. */
+  levelOptionLabel: string;
+  /** Both names without the code, for the cell that already badges the code. */
+  levelNameLabel: string;
+  /** The cycle the level belongs to, in both languages. */
+  cycleName: string;
   capacity: number | null;
   enrolled: number;
   mainTeacherName: string | null;
@@ -101,18 +115,42 @@ const levelLabelOf = (offering: {
     ? `${offering.level.code} ${offering.track.code}`
     : offering.level.code;
 
+/** What the level column and the level filter need beyond the short code. */
+const levelNamingOf = (offering: {
+  level: {
+    code: string;
+    name: string;
+    nameAr: string | null;
+    educationLevel: { name: string; nameAr: string | null };
+  };
+  track: { name: string; nameAr: string | null } | null;
+}) => ({
+  levelOptionLabel: levelChoiceLabel(offering.level, offering.track),
+  levelNameLabel: levelNameLabel(offering.level, offering.track),
+  cycleName: cycleChoiceLabel(offering.level.educationLevel),
+});
+
 export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context) },
+    // Cycle before year, so the levels the filter groups stay contiguous.
     orderBy: [
+      { levelOffering: { level: { educationLevel: { position: "asc" } } } },
       { levelOffering: { level: { gradeYear: "asc" } } },
       { code: "asc" },
     ],
     include: {
       levelOffering: {
         select: {
-          level: { select: { code: true, name: true } },
-          track: { select: { code: true } },
+          level: {
+            select: {
+              code: true,
+              name: true,
+              nameAr: true,
+              educationLevel: { select: { name: true, nameAr: true } },
+            },
+          },
+          track: { select: { code: true, name: true, nameAr: true } },
         },
       },
       mainTeacher: {
@@ -140,6 +178,7 @@ export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
     section: schoolClass.section,
     levelLabel: levelLabelOf(schoolClass.levelOffering),
     levelName: schoolClass.levelOffering.level.name,
+    ...levelNamingOf(schoolClass.levelOffering),
     capacity: schoolClass.capacity,
     enrolled: schoolClass._count.enrollments,
     mainTeacherName: schoolClass.mainTeacher
@@ -171,8 +210,15 @@ export async function findClass(
       levelOffering: {
         select: {
           id: true,
-          level: { select: { code: true, name: true } },
-          track: { select: { code: true } },
+          level: {
+            select: {
+              code: true,
+              name: true,
+              nameAr: true,
+              educationLevel: { select: { name: true, nameAr: true } },
+            },
+          },
+          track: { select: { code: true, name: true, nameAr: true } },
         },
       },
       mainTeacher: {
@@ -250,6 +296,7 @@ export async function findClass(
     levelOfferingId: schoolClass.levelOffering.id,
     levelLabel: levelLabelOf(schoolClass.levelOffering),
     levelName: schoolClass.levelOffering.level.name,
+    ...levelNamingOf(schoolClass.levelOffering),
     capacity: schoolClass.capacity,
     enrolled: schoolClass._count.enrollments,
     mainTeacherName: schoolClass.mainTeacher

@@ -75,7 +75,7 @@ export function AssessmentsAwaiting({
                 <span className="text-muted-foreground text-xs">
                   {[
                     assessment.classCode,
-                    assessment.subjectName,
+                    assessment.subjectLabel,
                     assessment.teacherName,
                     assessment.scheduledOn
                       ? formatDate(assessment.scheduledOn, locale)

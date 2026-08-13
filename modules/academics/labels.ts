@@ -58,12 +58,24 @@ export function levelChoiceLabel(
   level: LevelNaming,
   track?: TrackNaming | null,
 ): string {
+  return `${levelNameLabel(level, track)} (${level.code})`;
+}
+
+/**
+ * The same, without the code — for the places that already show the code
+ * beside it, such as the badge in the classes table. Repeating it reads as a
+ * mistake rather than as emphasis.
+ */
+export function levelNameLabel(
+  level: Omit<LevelNaming, "code">,
+  track?: TrackNaming | null,
+): string {
   const latin = track ? `${level.name} — ${track.name}` : level.name;
   const arabic = track
     ? joinArabic(level.nameAr, track.nameAr ?? track.name)
     : level.nameAr;
 
-  return `${bilingual(latin, arabic)} (${level.code})`;
+  return bilingual(latin, arabic);
 }
 
 /** The heading the levels of one cycle are listed under. */

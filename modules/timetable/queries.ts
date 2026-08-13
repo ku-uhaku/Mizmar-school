@@ -6,6 +6,11 @@ import { displayName } from "@/lib/dal";
 import { teachingDaysOf } from "@/lib/school-settings";
 import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
 import {
+  bilingual,
+  cycleChoiceLabel,
+  levelNameLabel,
+} from "@/modules/academics/labels";
+import {
   addDays,
   isWithin,
   resolveWeek,
@@ -389,6 +394,7 @@ export async function loadTimetableChoices(
             id: true,
             code: true,
             name: true,
+            nameAr: true,
             shortName: true,
             colorHex: true,
             parentId: true,
@@ -419,7 +425,7 @@ export async function loadTimetableChoices(
     db.term.findMany({
       where: yearScope(context),
       orderBy: { number: "asc" },
-      select: { id: true, name: true, number: true },
+      select: { id: true, name: true, nameAr: true, number: true },
     }),
   ]);
 
@@ -439,13 +445,21 @@ export async function loadTimetableChoices(
   }
 
   return {
-    subjects,
+    // Both names on each, since the dialog reads them rather than matches on
+    // them — see modules/academics/labels.ts.
+    subjects: subjects.map(({ nameAr, ...subject }) => ({
+      ...subject,
+      label: bilingual(subject.name, nameAr),
+    })),
     teachers: teachers.map((teacher) => ({
       id: teacher.id,
       label: displayName(teacher),
     })),
     rooms,
-    terms,
+    terms: terms.map(({ nameAr, ...term }) => ({
+      ...term,
+      label: bilingual(term.name, nameAr),
+    })),
     groups: schoolClass.groups.map((group) => ({
       id: group.id,
       label: group.name ?? group.code,
@@ -461,21 +475,38 @@ export async function listTimetableClasses(context: AuthContext): Promise<
     code: string;
     name: string | null;
     levelLabel: string;
+    /** The niveau in both languages, without the code — the picker already
+     *  shows the class code beside it. See modules/academics/labels.ts. */
+    levelNameLabel: string;
+    /** The cycle it is listed under. */
+    cycleName: string;
     entryCount: number;
     studentCount: number;
   }[]
 > {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context), isActive: true },
-    orderBy: [{ levelOffering: { level: { gradeYear: "asc" } } }, { code: "asc" }],
+    // Cycle first, so the picker's headings stay contiguous.
+    orderBy: [
+      { levelOffering: { level: { educationLevel: { position: "asc" } } } },
+      { levelOffering: { level: { gradeYear: "asc" } } },
+      { code: "asc" },
+    ],
     select: {
       id: true,
       code: true,
       name: true,
       levelOffering: {
         select: {
-          level: { select: { code: true } },
-          track: { select: { code: true } },
+          level: {
+            select: {
+              code: true,
+              name: true,
+              nameAr: true,
+              educationLevel: { select: { name: true, nameAr: true } },
+            },
+          },
+          track: { select: { code: true, name: true, nameAr: true } },
         },
       },
       _count: { select: { timetableEntries: true, enrollments: true } },
@@ -489,6 +520,11 @@ export async function listTimetableClasses(context: AuthContext): Promise<
     levelLabel: schoolClass.levelOffering.track
       ? `${schoolClass.levelOffering.level.code} ${schoolClass.levelOffering.track.code}`
       : schoolClass.levelOffering.level.code,
+    levelNameLabel: levelNameLabel(
+      schoolClass.levelOffering.level,
+      schoolClass.levelOffering.track,
+    ),
+    cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
     entryCount: schoolClass._count.timetableEntries,
     studentCount: schoolClass._count.enrollments,
   }));

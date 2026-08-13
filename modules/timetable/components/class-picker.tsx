@@ -2,12 +2,15 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { clusterByGroup } from "@/components/form/option-groups";
 import { useT } from "@/components/providers/i18n-provider";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -29,6 +32,10 @@ export function ClassPicker({
     id: string;
     code: string;
     levelLabel: string;
+    /** The niveau in both languages — the code is already on the class. */
+    levelNameLabel: string;
+    /** The cycle the option is listed under. */
+    cycleName: string;
     entryCount: number;
   }[];
   classId: string;
@@ -56,10 +63,22 @@ export function ClassPicker({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {classes.map((schoolClass) => (
-              <SelectItem key={schoolClass.id} value={schoolClass.id}>
-                {schoolClass.code} — {schoolClass.levelLabel}
-              </SelectItem>
+            {/* Headed by cycle and named in both languages, like every other
+              niveau picker — see modules/academics/labels.ts. */}
+            {clusterByGroup(
+              classes.map((schoolClass) => ({
+                ...schoolClass,
+                group: schoolClass.cycleName,
+              })),
+            ).map((cluster) => (
+              <SelectGroup key={cluster.heading}>
+                <SelectLabel>{cluster.heading}</SelectLabel>
+                {cluster.options.map((schoolClass) => (
+                  <SelectItem key={schoolClass.id} value={schoolClass.id}>
+                    {schoolClass.code} — {schoolClass.levelNameLabel}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             ))}
           </SelectContent>
         </Select>

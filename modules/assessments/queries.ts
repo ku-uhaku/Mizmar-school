@@ -6,8 +6,10 @@ import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
+  bilingual,
   cycleChoiceLabel,
   levelChoiceLabel,
+  levelNameLabel,
 } from "@/modules/academics/labels";
 import {
   COUNTED_STATUSES,
@@ -32,6 +34,9 @@ export type AssessmentTypeOption = {
   id: string;
   code: string;
   name: string;
+  /** The name in both languages, for anywhere the kind is read rather than
+   *  matched — see modules/academics/labels.ts. */
+  label: string;
   defaultCoefficient: number;
   defaultMaxScore: number;
   countsTowardAverage: boolean;
@@ -67,6 +72,7 @@ export async function listAssessmentTypes(
       id: true,
       code: true,
       name: true,
+      nameAr: true,
       defaultCoefficient: true,
       defaultMaxScore: true,
       countsTowardAverage: true,
@@ -74,13 +80,19 @@ export async function listAssessmentTypes(
       colorHex: true,
     },
   });
-  return types;
+
+  return types.map(({ nameAr, ...type }) => ({
+    ...type,
+    label: bilingual(type.name, nameAr),
+  }));
 }
 
 export type TermOption = {
   id: string;
   number: number;
   name: string;
+  /** The name in both languages. */
+  label: string;
   status: string;
 };
 
@@ -89,9 +101,13 @@ export async function listTerms(context: AuthContext): Promise<TermOption[]> {
   const terms = await db.term.findMany({
     where: yearScope(context),
     orderBy: [{ number: "asc" }],
-    select: { id: true, number: true, name: true, status: true },
+    select: { id: true, number: true, name: true, nameAr: true, status: true },
   });
-  return terms;
+
+  return terms.map(({ nameAr, ...term }) => ({
+    ...term,
+    label: bilingual(term.name, nameAr),
+  }));
 }
 
 export type ClassOption = {
@@ -102,6 +118,9 @@ export type ClassOption = {
   levelLabel: string;
   /** Both names and the code, for the pickers that choose a niveau outright. */
   levelOptionLabel: string;
+  /** Both names without the code, for a picker that already shows the class
+   *  code beside it — "1AP-A · 1ère année primaire (1AP)" repeats itself. */
+  levelNameLabel: string;
   /** The cycle the level hangs under, for those pickers' headings. */
   cycleName: string;
   /** Which level offering it belongs to — what the "a level" scope groups on. */
@@ -152,6 +171,10 @@ export async function listAssessableClasses(
       schoolClass.levelOffering.level,
       schoolClass.levelOffering.track,
     ),
+    levelNameLabel: levelNameLabel(
+      schoolClass.levelOffering.level,
+      schoolClass.levelOffering.track,
+    ),
     cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
     levelOfferingId: schoolClass.levelOfferingId,
   }));
@@ -161,6 +184,8 @@ export type ProgrammeEntry = {
   subjectId: string;
   subjectCode: string;
   subjectName: string;
+  /** The matière in both languages, for the picker to print. */
+  subjectLabel: string;
   coefficient: number;
   /**
    * The matière this row is a component of — القراءة under اللغة العربية — or
@@ -173,6 +198,8 @@ export type ProgrammeEntry = {
    */
   parentSubjectId: string | null;
   parentSubjectName: string | null;
+  /** The parent matière in both languages. */
+  parentSubjectLabel: string | null;
   /**
    * How many components of this matière are on the same programme — 0 for a
    * component, and for a matière marked as one paper.
@@ -260,7 +287,9 @@ export async function loadProgrammesByClass(
       levelId: true,
       trackId: true,
       coefficient: true,
-      subject: { select: { id: true, code: true, name: true, parentId: true } },
+      subject: {
+        select: { id: true, code: true, name: true, nameAr: true, parentId: true },
+      },
     },
   });
 
@@ -302,6 +331,12 @@ export async function loadProgrammesByClass(
     const nameById = new Map(
       forClass.map((row) => [row.subject.id, row.subject.name]),
     );
+    const labelById = new Map(
+      forClass.map((row) => [
+        row.subject.id,
+        bilingual(row.subject.name, row.subject.nameAr),
+      ]),
+    );
 
     result[schoolClass.id] = forClass.map((row) => {
       const parentId = row.subject.parentId;
@@ -309,9 +344,11 @@ export async function loadProgrammesByClass(
         subjectId: row.subject.id,
         subjectCode: row.subject.code,
         subjectName: row.subject.name,
+        subjectLabel: bilingual(row.subject.name, row.subject.nameAr),
         coefficient: row.coefficient,
         parentSubjectId: parentId,
         parentSubjectName: parentId ? (nameById.get(parentId) ?? null) : null,
+        parentSubjectLabel: parentId ? (labelById.get(parentId) ?? null) : null,
         componentCount: componentCounts.get(row.subject.id) ?? 0,
         // Same fallback as the generator's `teacherFor`: assignments are made
         // against the matière as taught, while the papers are per component.
@@ -338,11 +375,15 @@ export type AssessmentRow = {
   maxScore: number;
   coefficient: number;
   subjectId: string;
+  /** The raw name — what the subject facet matches on, so it must not change
+   *  with the language. `subjectLabel` is what a reader sees. */
   subjectName: string;
+  subjectLabel: string;
   subjectCode: string;
   subjectColorHex: string | null;
   typeId: string;
   typeName: string;
+  typeLabel: string;
   typeCode: string;
   typeColorHex: string | null;
   classId: string;
@@ -350,6 +391,7 @@ export type AssessmentRow = {
   groupLabel: string | null;
   termId: string;
   termName: string;
+  termLabel: string;
   teacherName: string | null;
   /** Roster size for this paper — the whole class, or the group that sits it. */
   rosterCount: number;
@@ -449,7 +491,8 @@ export async function countAssessments(
 
 export type AssessmentFilterChoices = {
   teachers: { id: string; label: string }[];
-  classes: { id: string; label: string }[];
+  /** `group` is the cycle the class's niveau belongs to. */
+  classes: { id: string; label: string; group: string }[];
   subjects: { id: string; label: string }[];
   /** How many are handed in and waiting, before any filter is applied. */
   awaitingCount: number;
@@ -501,12 +544,32 @@ export async function listAssessmentFilterChoices(
     db.assessment.findMany({
       where: inScope,
       distinct: ["subjectId"],
-      select: { subject: { select: { id: true, name: true } } },
+      select: { subject: { select: { id: true, name: true, nameAr: true } } },
     }),
     db.schoolClass.findMany({
       where: { levelOffering: yearScope(context), ...schoolScope(context) },
-      orderBy: [{ code: "asc" }],
-      select: { id: true, code: true },
+      // Cycle first, so the picker's headings stay contiguous.
+      orderBy: [
+        { levelOffering: { level: { educationLevel: { position: "asc" } } } },
+        { levelOffering: { level: { gradeYear: "asc" } } },
+        { code: "asc" },
+      ],
+      select: {
+        id: true,
+        code: true,
+        levelOffering: {
+          select: {
+            level: {
+              select: {
+                name: true,
+                nameAr: true,
+                educationLevel: { select: { name: true, nameAr: true } },
+              },
+            },
+            track: { select: { name: true, nameAr: true } },
+          },
+        },
+      },
     }),
     db.assessment.count({ where: { ...inScope, status: "SUBMITTED" } }),
   ]);
@@ -520,9 +583,16 @@ export async function listAssessmentFilterChoices(
       }))
       .sort((a, b) => a.label.localeCompare(b.label)),
     subjects: taught
-      .map((row) => ({ id: row.subject.id, label: row.subject.name }))
+      .map((row) => ({
+        id: row.subject.id,
+        label: bilingual(row.subject.name, row.subject.nameAr),
+      }))
       .sort((a, b) => a.label.localeCompare(b.label)),
-    classes: classes.map((row) => ({ id: row.id, label: row.code })),
+    classes: classes.map((row) => ({
+      id: row.id,
+      label: `${row.code} · ${levelNameLabel(row.levelOffering.level, row.levelOffering.track)}`,
+      group: cycleChoiceLabel(row.levelOffering.level.educationLevel),
+    })),
     awaitingCount,
   };
 }
@@ -558,13 +628,15 @@ export async function listAssessments(
       maxScore: true,
       coefficient: true,
       classGroupId: true,
-      subject: { select: { id: true, code: true, name: true, colorHex: true } },
+      subject: {
+        select: { id: true, code: true, name: true, nameAr: true, colorHex: true },
+      },
       assessmentType: {
-        select: { id: true, code: true, name: true, colorHex: true },
+        select: { id: true, code: true, name: true, nameAr: true, colorHex: true },
       },
       schoolClass: { select: { id: true, code: true } },
       classGroup: { select: { code: true, name: true } },
-      term: { select: { id: true, name: true } },
+      term: { select: { id: true, name: true, nameAr: true } },
       teacher: {
         select: {
           email: true,
@@ -606,10 +678,15 @@ export async function listAssessments(
       coefficient: assessment.coefficient,
       subjectId: assessment.subject.id,
       subjectName: assessment.subject.name,
+      subjectLabel: bilingual(assessment.subject.name, assessment.subject.nameAr),
       subjectCode: assessment.subject.code,
       subjectColorHex: assessment.subject.colorHex,
       typeId: assessment.assessmentType.id,
       typeName: assessment.assessmentType.name,
+      typeLabel: bilingual(
+        assessment.assessmentType.name,
+        assessment.assessmentType.nameAr,
+      ),
       typeCode: assessment.assessmentType.code,
       typeColorHex: assessment.assessmentType.colorHex,
       classId: assessment.schoolClass.id,
@@ -617,6 +694,7 @@ export async function listAssessments(
       groupLabel: groupLabel(assessment.classGroup),
       termId: assessment.term.id,
       termName: assessment.term.name,
+      termLabel: bilingual(assessment.term.name, assessment.term.nameAr),
       teacherName: assessment.teacher ? displayName(assessment.teacher) : null,
       rosterCount:
         rosterCounts.get(
@@ -821,19 +899,22 @@ export async function findMarkSheet(
       notes: true,
       classGroupId: true,
       teacherId: true,
-      subject: { select: { id: true, code: true, name: true, colorHex: true } },
+      subject: {
+        select: { id: true, code: true, name: true, nameAr: true, colorHex: true },
+      },
       assessmentType: {
         select: {
           id: true,
           code: true,
           name: true,
+          nameAr: true,
           colorHex: true,
           allowTeacherCreate: true,
         },
       },
       schoolClass: { select: { id: true, code: true } },
       classGroup: { select: { code: true, name: true } },
-      term: { select: { id: true, name: true } },
+      term: { select: { id: true, name: true, nameAr: true } },
       questions: {
         orderBy: { position: "asc" },
         select: { id: true, position: true, text: true, pointsQuarters: true },
@@ -924,10 +1005,15 @@ export async function findMarkSheet(
       notes: assessment.notes,
       subjectId: assessment.subject.id,
       subjectName: assessment.subject.name,
+      subjectLabel: bilingual(assessment.subject.name, assessment.subject.nameAr),
       subjectCode: assessment.subject.code,
       subjectColorHex: assessment.subject.colorHex,
       typeId: assessment.assessmentType.id,
       typeName: assessment.assessmentType.name,
+      typeLabel: bilingual(
+        assessment.assessmentType.name,
+        assessment.assessmentType.nameAr,
+      ),
       typeCode: assessment.assessmentType.code,
       typeColorHex: assessment.assessmentType.colorHex,
       classId: assessment.schoolClass.id,
@@ -935,6 +1021,7 @@ export async function findMarkSheet(
       groupLabel: groupLabel(assessment.classGroup),
       termId: assessment.term.id,
       termName: assessment.term.name,
+      termLabel: bilingual(assessment.term.name, assessment.term.nameAr),
       teacherName: assessment.teacher ? displayName(assessment.teacher) : null,
       rosterCount: rows.length,
       markedCount: statistics.markedCount,
@@ -1025,6 +1112,7 @@ export async function assessmentSummary(
 export type PupilMark = {
   id: string;
   title: string;
+  /** Both names — the panel reads these, nothing matches on them. */
   typeName: string;
   termName: string;
   scheduledOn: string | null;
@@ -1098,9 +1186,11 @@ export async function loadPupilMarks(
     include: {
       assessment: {
         include: {
-          subject: { select: { id: true, name: true } },
-          assessmentType: { select: { name: true, countsTowardAverage: true } },
-          term: { select: { name: true, number: true } },
+          subject: { select: { id: true, name: true, nameAr: true } },
+          assessmentType: {
+            select: { name: true, nameAr: true, countsTowardAverage: true },
+          },
+          term: { select: { name: true, nameAr: true, number: true } },
         },
       },
     },
@@ -1150,7 +1240,10 @@ export async function loadPupilMarks(
     if (!bucket) {
       bucket = {
         subjectId: key,
-        subjectName: assessment.subject.name,
+        subjectName: bilingual(
+          assessment.subject.name,
+          assessment.subject.nameAr,
+        ),
         coefficient: weightOf.get(key) ?? 1,
         marks: [],
         average: null,
@@ -1161,8 +1254,11 @@ export async function loadPupilMarks(
     bucket.marks.push({
       id: grade.id,
       title: assessment.title,
-      typeName: assessment.assessmentType.name,
-      termName: assessment.term.name,
+      typeName: bilingual(
+        assessment.assessmentType.name,
+        assessment.assessmentType.nameAr,
+      ),
+      termName: bilingual(assessment.term.name, assessment.term.nameAr),
       scheduledOn: assessment.scheduledOn?.toISOString() ?? null,
       score: grade.score,
       maxScore: assessment.maxScore,

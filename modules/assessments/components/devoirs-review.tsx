@@ -12,10 +12,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { clusterByGroup } from "@/components/form/option-groups";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -169,7 +172,7 @@ export function DevoirsReview({
           value={filters.termId || ALL}
           onChange={(value) => setFilter("term", value)}
           placeholder={t.assessment.term}
-          options={terms.map((term) => ({ id: term.id, label: term.name }))}
+          options={terms.map((term) => ({ id: term.id, label: term.label }))}
           allLabel={t.assessmentOptions.stages.ALL}
         />
 
@@ -288,8 +291,8 @@ function DevoirCard({
           {assessment.groupLabel ? (
             <Badge variant="outline">{assessment.groupLabel}</Badge>
           ) : null}
-          <Badge variant="outline">{assessment.subjectName}</Badge>
-          <Badge variant="outline">{assessment.typeName}</Badge>
+          <Badge variant="outline">{assessment.subjectLabel}</Badge>
+          <Badge variant="outline">{assessment.typeLabel}</Badge>
 
           <span className="text-muted-foreground ms-auto text-xs whitespace-nowrap">
             {assessment.scheduledOn
@@ -299,7 +302,7 @@ function DevoirCard({
         </div>
 
         <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          <span>{assessment.termName}</span>
+          <span>{assessment.termLabel}</span>
           {assessment.teacherName ? <span>{assessment.teacherName}</span> : null}
           <span className="tabular-nums">
             {interpolate(t.assessment.markedOf, {
@@ -371,7 +374,8 @@ function FilterSelect({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  options: { id: string; label: string }[];
+  /** `group` heads the option; set it on all of them or on none. */
+  options: { id: string; label: string; group?: string }[];
   allLabel: string;
 }) {
   if (options.length === 0) return null;
@@ -383,10 +387,19 @@ function FilterSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.label}
-          </SelectItem>
+        {/* One nameless cluster is the ordinary case and renders as a plain
+          run of items; the classes arrive headed by their cycle. */}
+        {clusterByGroup(options).map((cluster, index) => (
+          <SelectGroup key={cluster.heading ?? index}>
+            {cluster.heading ? (
+              <SelectLabel>{cluster.heading}</SelectLabel>
+            ) : null}
+            {cluster.options.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         ))}
       </SelectContent>
     </Select>

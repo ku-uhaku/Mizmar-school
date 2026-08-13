@@ -56,14 +56,14 @@ export default async function AssessmentPage({
     <>
       <PageHeader
         title={assessment.title}
-        description={`${assessment.subjectName} · ${assessment.classCode}${
+        description={`${assessment.subjectLabel} · ${assessment.classCode}${
           assessment.groupLabel ? ` · ${assessment.groupLabel}` : ""
         }`}
         backHref={`/assessments?class=${assessment.classId}&term=${assessment.termId}`}
         backLabel={t.assessment.title}
       >
         <StatusBadge status={assessment.status} />
-        <Badge variant="secondary">{assessment.typeName}</Badge>
+        <Badge variant="secondary">{assessment.typeLabel}</Badge>
         <Badge variant="outline">
           /{assessment.maxScore} · ×{assessment.coefficient}
         </Badge>
