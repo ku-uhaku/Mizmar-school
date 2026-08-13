@@ -51,6 +51,19 @@ const fr: Dictionary = {
     access: "Accès",
     language: "Langue",
     signOut: "Déconnexion",
+
+    password: "Mot de passe",
+    changePassword: "Changer le mot de passe",
+    passwordHint:
+      "L'école vous a remis votre premier mot de passe. Choisissez-en un dont vous vous souviendrez — en cas d'oubli, demandez-en un nouveau au secrétariat.",
+    currentPassword: "Mot de passe actuel",
+    newPassword: "Nouveau mot de passe",
+    confirmPassword: "Confirmer le nouveau mot de passe",
+    passwordRule: "Au moins 8 caractères.",
+    passwordMismatch: "Les deux mots de passe ne sont pas identiques.",
+    wrongCurrentPassword: "Ce n'est pas votre mot de passe actuel.",
+    passwordChanged:
+      "Mot de passe modifié. Vos autres appareils ont été déconnectés.",
   },
 
   requests: {

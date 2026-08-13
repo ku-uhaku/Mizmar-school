@@ -152,6 +152,29 @@ export async function api<T>(
   return (await response.json()) as T;
 }
 
+/**
+ * Changes the signed-in account's password and keeps the seat.
+ *
+ * The server evicts every credential issued before the change — this phone's
+ * included — and answers with a fresh pair, so storing it here is not an
+ * optimisation but the thing that stops the next call 401-ing. Any other device
+ * still gets signed out, which is the point of changing a password.
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const tokens = await api<{ accessToken: string; refreshToken: string }>(
+    "/me/password",
+    {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    },
+  );
+
+  await saveTokens(tokens);
+}
+
 /** Sign-in. The only call that carries no token. */
 export async function login(
   email: string,

@@ -44,7 +44,10 @@ type GuardianRow = {
   userId: string | null;
 };
 
-const families = new Map<string, { id: string; schoolId: string; code: string }>();
+const families = new Map<
+  string,
+  { id: string; schoolId: string; code: string; name: string }
+>();
 const guardians = new Map<string, GuardianRow>();
 const familyWrites: { id: string; data: Record<string, unknown> }[] = [];
 const guardianWrites: { where: unknown; data: Record<string, unknown> }[] = [];
@@ -63,10 +66,25 @@ function seed() {
   accountsCreated.length = 0;
   demotions.length = 0;
 
-  families.set("family-1", { id: "family-1", schoolId: SCHOOL, code: "F-2026-0042" });
-  families.set("family-2", { id: "family-2", schoolId: SCHOOL, code: "F-2026-0043" });
+  families.set("family-1", {
+    id: "family-1",
+    schoolId: SCHOOL,
+    code: "F-2026-0042",
+    name: "Famille Benali",
+  });
+  families.set("family-2", {
+    id: "family-2",
+    schoolId: SCHOOL,
+    code: "F-2026-0043",
+    name: "Famille Idrissi",
+  });
   // Another school's dossier, so a crafted id has something to reach.
-  families.set("foreign", { id: "foreign", schoolId: "school-2", code: "F-X" });
+  families.set("foreign", {
+    id: "foreign",
+    schoolId: "school-2",
+    code: "F-X",
+    name: "Famille Ailleurs",
+  });
 
   guardians.set("mother-1", {
     id: "mother-1",
@@ -187,7 +205,13 @@ vi.mock("@/lib/db", () => {
         const family = families.get(row.familyId)!;
         return {
           ...row,
-          family: { schoolId: family.schoolId, code: family.code },
+          family: {
+            schoolId: family.schoolId,
+            code: family.code,
+            name: family.name,
+            // What the printed slip is headed with — see `slip` in actions.ts.
+            school: { name: "Groupe scolaire Al Manar" },
+          },
         };
       },
       findFirst: async ({ where }: { where: Record<string, unknown> }) =>
@@ -593,15 +617,36 @@ describe("openPortalAccountAction", () => {
   it("hands back the password once, and never stores it", async () => {
     const state = await openPortalAccountAction("father-1");
 
+    // Everything the slip is printed from travels with it: by the time the
+    // secretary presses print there is nothing left to fetch the password from.
     expect(state.data).toEqual({
       username: "k.benali",
       password: "Passw0rdXyz",
+      guardianName: "Karim Benali",
+      familyName: "Famille Benali",
+      familyCode: "F-2026-0042",
+      schoolName: "Groupe scolaire Al Manar",
     });
     // Nothing writes the plaintext to the dossier — the account row is the
     // users module's to make, and it stores only the hash.
     expect(guardianWrites.every((write) => !("password" in write.data))).toBe(
       true,
     );
+  });
+
+  it("opens with the password the office typed", async () => {
+    const state = await openPortalAccountAction("father-1", "soleil2026");
+
+    expect(state.status).toBe("success");
+    expect(state.data).toMatchObject({ password: "soleil2026" });
+    expect(accountsCreated[0]).toMatchObject({ password: "soleil2026" });
+  });
+
+  it("refuses to open one on a password too short to be a password", async () => {
+    const state = await openPortalAccountAction("father-1", "1234");
+
+    expect(state.status).toBe("error");
+    expect(accountsCreated).toEqual([]);
   });
 
   it("refuses a second account on a dossier that already has one", async () => {
@@ -668,6 +713,23 @@ describe("resetPortalPasswordAction", () => {
   it("hands back the new password once", async () => {
     const state = await resetPortalPasswordAction("father-1");
     expect(state.data).toMatchObject({ password: "Passw0rdXyz" });
+  });
+
+  it("takes the password the office typed, rather than generating one", async () => {
+    const state = await resetPortalPasswordAction("father-1", "soleil2026");
+
+    expect(state.status).toBe("success");
+    expect(state.data).toMatchObject({ password: "soleil2026" });
+    expect(userWrites[0]!.data.passwordHash).toBe("hashed:soleil2026");
+  });
+
+  it("holds a typed password to the same floor as any other", async () => {
+    const state = await resetPortalPasswordAction("father-1", "1234");
+
+    expect(state.status).toBe("error");
+    // Nothing written: a school that types four characters keeps the password
+    // the family already has.
+    expect(userWrites).toEqual([]);
   });
 
   it("is refused without the portal code", async () => {

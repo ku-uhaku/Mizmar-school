@@ -75,6 +75,36 @@ const en = {
       "The password is shown once and cannot be recovered. Write it down or copy it before closing this window.",
     portalCopy: "Copy",
     portalCopied: "Copied",
+
+    // The access card on the dossier
+    portalAccess: "Family access",
+    portalAccessHint:
+      "Every family should have one login. It is how marks, absences, notices and bills reach the parents.",
+    portalNoAccess: "This family has no access yet",
+    portalHeldBy: "Held by",
+    portalOpenAccess: "Open the access",
+    portalChangePassword: "Change the password",
+    portalGeneratePassword: "Issue a random password",
+    portalWhichGuardian: "Which parent signs in?",
+
+    // Choosing the password rather than generating one
+    portalChooseTitle: "Choose the family's password",
+    portalChooseBody:
+      "Type the password you are going to hand over, or leave it empty for a random one. It must be at least 8 characters.",
+    portalChooseReset:
+      "This replaces the current password and signs the family out of the app everywhere.",
+    portalPasswordPlaceholder: "Leave empty to generate one",
+    portalShowPassword: "Show the password",
+    portalHidePassword: "Hide the password",
+
+    // The printed slip
+    portalPrint: "Print",
+    portalSlipTitle: "Parents' app — your access",
+    portalSlipIntro:
+      "Install the {app} app on your telephone and sign in with these.",
+    portalSlipChange:
+      "Change this password in the app: Profile → Change password. If you forget it, the school office will issue a new one.",
+    portalSlipWarning: "Keep this slip. Do not pass it on.",
     revokePortalTitle: "Withdraw portal access?",
     revokePortalBody:
       "“{name}” will be signed out of the parents' app immediately and will not be able to sign in again.",

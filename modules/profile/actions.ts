@@ -3,13 +3,13 @@
 import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
-import { hashPassword, verifyPassword } from "@/lib/auth";
 import { requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
+import { changeOwnPassword } from "@/modules/profile/service";
 import {
   passwordChangeSchema,
   profileSchema,
@@ -75,29 +75,19 @@ export async function changeOwnPasswordAction(
       return failure(undefined, fieldErrors(parsed.error));
     }
 
-    // Re-read the hash rather than trusting anything from the session payload.
-    const user = await db.user.findUnique({
-      where: { id: context.user.id },
-      select: { passwordHash: true },
+    const result = await changeOwnPassword(context.user.id, {
+      currentPassword: parsed.data.currentPassword,
+      newPassword: parsed.data.newPassword,
     });
-    if (!user) return failure(t.errors.notFound);
 
-    const correct = await verifyPassword(
-      parsed.data.currentPassword,
-      user.passwordHash,
-    );
-    if (!correct) {
+    if (!result.ok) {
+      if (result.reason === "not-found") return failure(t.errors.notFound);
       return failure(undefined, {
         currentPassword: t.profile.wrongCurrentPassword,
       });
     }
 
     /*
-      Stamped alongside the hash, never separately: lib/dal.ts refuses every
-      credential older than this, which is what signs the user's other devices
-      out. Changing your password is the one action whose whole point is that
-      whoever else had it stops being you.
-
       ── It signs this device out too, and the message says so ────────────────
       The cookie in the browser that just made the change was minted before it,
       so it is one of the credentials now refused — the next navigation lands on
@@ -112,15 +102,10 @@ export async function changeOwnPasswordAction(
       jwt callback. Worth doing when that API stops being unstable; until then
       a failure there would leave the password changed and the user told
       otherwise, which is the worse trade.
-    */
-    await db.user.update({
-      where: { id: context.user.id },
-      data: {
-        passwordHash: await hashPassword(parsed.data.newPassword),
-        credentialsChangedAt: new Date(),
-      },
-    });
 
+      The native app has no such problem: it re-issues its tokens from the new
+      stamp in the same response (app/api/mobile/v1/me/password).
+    */
     return success(t.profile.passwordChanged);
   });
 }

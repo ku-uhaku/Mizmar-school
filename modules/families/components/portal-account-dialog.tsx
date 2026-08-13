@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { CheckIcon, CopyIcon, KeyRoundIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, KeyRoundIcon, PrinterIcon } from "lucide-react";
 
-import { useT } from "@/components/providers/i18n-provider";
+import { useI18n, useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,8 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-
-export type PortalCredentials = { username: string; password: string };
+import { printPortalSlip } from "@/modules/families/components/portal-slip";
+import type { IssuedPortalCredentials } from "@/modules/families/service";
 
 /**
  * The credentials a school hands a parent, shown once.
@@ -24,15 +24,19 @@ export type PortalCredentials = { username: string; password: string };
  * reissue this password — a school that loses it resets and hands over a new
  * one. The dialog therefore says so plainly rather than letting a secretary
  * assume they can come back for it.
+ *
+ * Which is why printing lives here and nowhere else: this is the only moment
+ * the password exists outside the parent's head, so the slip has to be taken
+ * now or reissued later.
  */
 export function PortalAccountDialog({
   credentials,
   onOpenChange,
 }: {
-  credentials: PortalCredentials | null;
+  credentials: IssuedPortalCredentials | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const t = useT();
+  const { t, locale } = useI18n();
 
   return (
     <Dialog open={Boolean(credentials)} onOpenChange={onOpenChange}>
@@ -49,6 +53,9 @@ export function PortalAccountDialog({
 
         {credentials ? (
           <div className="grid gap-3">
+            <p className="text-muted-foreground text-sm">
+              {credentials.familyName} · {credentials.guardianName}
+            </p>
             <CredentialRow
               label={t.family.portalUsername}
               value={credentials.username}
@@ -61,6 +68,16 @@ export function PortalAccountDialog({
         ) : null}
 
         <DialogFooter>
+          {credentials ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => printPortalSlip(credentials, t, locale)}
+            >
+              <PrinterIcon className="size-4" />
+              {t.family.portalPrint}
+            </Button>
+          ) : null}
           <Button type="button" onClick={() => onOpenChange(false)}>
             {t.common.close}
           </Button>

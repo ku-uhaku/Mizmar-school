@@ -54,6 +54,20 @@ const en = {
     access: "Access",
     language: "Language",
     signOut: "Sign out",
+
+    // Changing the password the office handed out
+    password: "Password",
+    changePassword: "Change password",
+    passwordHint:
+      "The office gave you your first password. Choose one you will remember — if you forget it, ask them for a new one.",
+    currentPassword: "Current password",
+    newPassword: "New password",
+    confirmPassword: "Confirm new password",
+    passwordRule: "At least 8 characters.",
+    passwordMismatch: "The two passwords are not the same.",
+    wrongCurrentPassword: "That is not your current password.",
+    passwordChanged:
+      "Password changed. Your other devices have been signed out.",
   },
 
   requests: {

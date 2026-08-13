@@ -72,6 +72,33 @@ const fr = {
       "Le mot de passe n'est affiché qu'une fois et ne peut pas être retrouvé. Notez-le ou copiez-le avant de fermer cette fenêtre.",
     portalCopy: "Copier",
     portalCopied: "Copié",
+
+    portalAccess: "Accès famille",
+    portalAccessHint:
+      "Chaque famille devrait avoir un accès. C'est par là que les notes, les absences, les annonces et les factures parviennent aux parents.",
+    portalNoAccess: "Cette famille n'a pas encore d'accès",
+    portalHeldBy: "Au nom de",
+    portalOpenAccess: "Ouvrir l'accès",
+    portalChangePassword: "Changer le mot de passe",
+    portalGeneratePassword: "Générer un mot de passe",
+    portalWhichGuardian: "Quel parent se connecte ?",
+
+    portalChooseTitle: "Choisir le mot de passe de la famille",
+    portalChooseBody:
+      "Saisissez le mot de passe que vous allez remettre, ou laissez vide pour en générer un. Au moins 8 caractères.",
+    portalChooseReset:
+      "Remplace le mot de passe actuel et déconnecte la famille de l'application sur tous ses appareils.",
+    portalPasswordPlaceholder: "Laissez vide pour en générer un",
+    portalShowPassword: "Afficher le mot de passe",
+    portalHidePassword: "Masquer le mot de passe",
+
+    portalPrint: "Imprimer",
+    portalSlipTitle: "Application des parents — votre accès",
+    portalSlipIntro:
+      "Installez l'application {app} sur votre téléphone et connectez-vous avec ces identifiants.",
+    portalSlipChange:
+      "Changez ce mot de passe dans l'application : Profil → Changer le mot de passe. En cas d'oubli, le secrétariat vous en remettra un nouveau.",
+    portalSlipWarning: "Conservez ce document. Ne le transmettez à personne.",
     revokePortalTitle: "Retirer l'accès à l'application ?",
     revokePortalBody:
       "« {name} » sera déconnecté immédiatement de l'application des parents et ne pourra plus s'y connecter.",

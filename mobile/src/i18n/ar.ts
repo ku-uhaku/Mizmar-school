@@ -51,6 +51,18 @@ const ar: Dictionary = {
     access: "الفضاءات المتاحة",
     language: "اللغة",
     signOut: "تسجيل الخروج",
+
+    password: "كلمة المرور",
+    changePassword: "تغيير كلمة المرور",
+    passwordHint:
+      "سلّمتكم الإدارة كلمة المرور الأولى. اختاروا كلمة تتذكرونها — وإن نسيتموها فاطلبوا من الإدارة كلمة جديدة.",
+    currentPassword: "كلمة المرور الحالية",
+    newPassword: "كلمة المرور الجديدة",
+    confirmPassword: "تأكيد كلمة المرور الجديدة",
+    passwordRule: "8 أحرف على الأقل.",
+    passwordMismatch: "كلمتا المرور غير متطابقتين.",
+    wrongCurrentPassword: "هذه ليست كلمة المرور الحالية.",
+    passwordChanged: "تم تغيير كلمة المرور. تم تسجيل الخروج من أجهزتكم الأخرى.",
   },
 
   requests: {

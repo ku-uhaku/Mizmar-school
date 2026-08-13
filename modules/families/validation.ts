@@ -6,6 +6,7 @@ import {
   enumField,
   optionalEmail,
   optionalText,
+  password,
   requiredText,
 } from "@/lib/validation";
 import {
@@ -85,6 +86,20 @@ export function familySchema(t: Dictionary) {
     notes: optionalText(1000),
     isActive: z.boolean(),
   });
+}
+
+/**
+ * The password a secretary types for a family's access, rather than the one the
+ * app generates.
+ *
+ * Same rule as every other password in the app — a school that chooses "the
+ * dossier number" for every family should be stopped by the same floor a member
+ * of staff is. It is deliberately only a length: what a parent can be told over
+ * a counter and remember is not what a complexity rule optimises for, and the
+ * defence that matters here is that the parent changes it in the app.
+ */
+export function portalPasswordSchema(t: Dictionary) {
+  return z.object({ password: password(t.validation) });
 }
 
 export function guardianSchema(t: Dictionary) {

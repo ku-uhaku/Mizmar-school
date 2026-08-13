@@ -26,8 +26,13 @@ import {
   findPortalHolder,
   makePrimaryContact,
   relationshipTaken,
+  type IssuedPortalCredentials,
 } from "@/modules/families/service";
-import { familySchema, guardianSchema } from "@/modules/families/validation";
+import {
+  familySchema,
+  guardianSchema,
+  portalPasswordSchema,
+} from "@/modules/families/validation";
 import { suggestUsername } from "@/modules/users/enums";
 import {
   allocateAccountEmail,
@@ -355,7 +360,14 @@ async function authorizeGuardianPortal(guardianId: string) {
       lastName: true,
       phone: true,
       userId: true,
-      family: { select: { schoolId: true, code: true } },
+      family: {
+        select: {
+          schoolId: true,
+          code: true,
+          name: true,
+          school: { select: { name: true } },
+        },
+      },
     },
   });
   if (!guardian) return null;
@@ -364,9 +376,50 @@ async function authorizeGuardianPortal(guardianId: string) {
   return guardian;
 }
 
+function slip(
+  guardian: NonNullable<Awaited<ReturnType<typeof authorizeGuardianPortal>>>,
+  username: string,
+  password: string,
+): IssuedPortalCredentials {
+  return {
+    username,
+    password,
+    guardianName: `${guardian.firstName} ${guardian.lastName}`.trim(),
+    familyName: guardian.family.name,
+    familyCode: guardian.family.code,
+    schoolName: guardian.family.school.name,
+  };
+}
+
+/**
+ * A password typed by the office, or one generated when the field was left
+ * empty.
+ *
+ * Returns the failure message rather than throwing, because "too short" is an
+ * expected answer to a form and belongs in the dialog beside the field.
+ */
+function resolveChosenPassword(
+  chosen: string | undefined,
+  t: Awaited<ReturnType<typeof getDictionary>>,
+): { ok: true; password: string } | { ok: false; message: string } {
+  if (!chosen) return { ok: true, password: generatePassword() };
+
+  const parsed = portalPasswordSchema(t).safeParse({ password: chosen });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? t.errors.invalid,
+    };
+  }
+
+  return { ok: true, password: parsed.data.password };
+}
+
 export async function openPortalAccountAction(
   guardianId: string,
-): Promise<ActionStateWith<{ username: string; password: string }>> {
+  /** Typed by the office; generated when omitted. */
+  chosenPassword?: string,
+): Promise<ActionStateWith<IssuedPortalCredentials>> {
   return withActionErrors(async () => {
     const t = await getDictionary();
     const context = await requireAuth();
@@ -389,6 +442,12 @@ export async function openPortalAccountAction(
       );
     }
 
+    // Before any name or address is claimed: a password too short to be one is
+    // a typing mistake, and it should cost the dossier nothing.
+    const chosen = resolveChosenPassword(chosenPassword, t);
+    if (!chosen.ok) return failure(chosen.message);
+    const password = chosen.password;
+
     /*
       The dossier number is the fallback, not the surname: `suggestUsername`
       returns "" for a name written in Arabic script, and a family recorded that
@@ -406,7 +465,6 @@ export async function openPortalAccountAction(
     const email = await allocateAccountEmail(
       `parent.${guardian.family.code.toLowerCase()}@famille.ma`,
     );
-    const password = generatePassword();
 
     const account = await createLoginAccount({
       organizationId: context.organization.id,
@@ -438,7 +496,7 @@ export async function openPortalAccountAction(
 
     refresh();
     return successWith(
-      { username: account.username, password },
+      slip(guardian, account.username, password),
       t.family.portalOpened,
     );
   });
@@ -446,7 +504,9 @@ export async function openPortalAccountAction(
 
 export async function resetPortalPasswordAction(
   guardianId: string,
-): Promise<ActionStateWith<{ username: string; password: string }>> {
+  /** Typed by the office; generated when omitted. */
+  chosenPassword?: string,
+): Promise<ActionStateWith<IssuedPortalCredentials>> {
   return withActionErrors(async () => {
     const t = await getDictionary();
 
@@ -454,7 +514,9 @@ export async function resetPortalPasswordAction(
     if (!guardian) return failure(t.errors.notFound);
     if (!guardian.userId) return failure(t.family.portalNoAccount);
 
-    const password = generatePassword();
+    const chosen = resolveChosenPassword(chosenPassword, t);
+    if (!chosen.ok) return failure(chosen.message);
+    const password = chosen.password;
 
     /*
       `credentialsChangedAt` is what makes this a reset rather than a gesture.
@@ -476,7 +538,7 @@ export async function resetPortalPasswordAction(
 
     refresh();
     return successWith(
-      { username: account.username ?? "", password },
+      slip(guardian, account.username ?? "", password),
       t.family.portalPasswordReset,
     );
   });

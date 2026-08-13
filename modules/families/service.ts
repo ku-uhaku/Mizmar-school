@@ -135,6 +135,25 @@ export async function makePrimaryContact(
 }
 
 /**
+ * What a school hands over when it opens or resets a family's access, and what
+ * the printed slip is made from.
+ *
+ * The plaintext password exists only in this value, on its way to the screen
+ * that shows it once — nothing stores it. The dossier's name and the school's
+ * travel with it for the same reason: by the time somebody presses print there
+ * is nothing left to fetch the password from, so the slip must already hold
+ * everything it prints.
+ */
+export type IssuedPortalCredentials = {
+  username: string;
+  password: string;
+  guardianName: string;
+  familyName: string;
+  familyCode: string;
+  schoolName: string;
+};
+
+/**
  * The guardian on this dossier who already holds a portal account, if any.
  *
  * Enforces "one access per family". The rule is worth stating because the schema

@@ -1,21 +1,35 @@
 import { Stack, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { clearTokens } from "../src/api/client";
+import { ApiError, changePassword, clearTokens } from "../src/api/client";
 import { useIdentity } from "../src/api/hooks";
 import { LOCALES, LOCALE_META, useLocale, useT } from "../src/i18n";
 import {
   Badge,
+  Body,
   Button,
   Card,
+  Caption,
   Divider,
+  ErrorNote,
   Heading,
   Loading,
   Row,
 } from "../src/ui/components";
 import { radius, spacing, useTheme } from "../src/ui/theme";
+
+/** Matches PASSWORD_MIN_LENGTH server-side; the API refuses anything shorter. */
+const PASSWORD_MIN_LENGTH = 8;
 
 /**
  * The account, and the way out of it.
@@ -149,10 +163,175 @@ export default function ProfileScreen() {
               </View>
             </Card>
 
+            <PasswordCard />
+
             <Button label={t.profile.signOut} onPress={signOut} variant="ghost" />
           </>
         ) : null}
       </ScrollView>
     </>
+  );
+}
+
+/**
+ * Choosing your own password, folded away until asked for.
+ *
+ * A parent signs in with what the secretary wrote on a slip of paper, which is
+ * generated and unmemorable — so the first thing many of them want is to
+ * replace it. It stays behind a button because it is a once-ever action on a
+ * screen whose everyday job is "which account am I", and three password boxes
+ * sitting open would make that screen look like a form.
+ *
+ * The hint says where a forgotten password comes from, and the answer is the
+ * office: there is no self-service recovery, the school reissues one from the
+ * dossier (`family.portal`). Saying so here is what stops a parent locking
+ * themselves out and assuming the app has abandoned them.
+ */
+function PasswordCard() {
+  const theme = useTheme();
+  const t = useT();
+
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const inputStyle = {
+    backgroundColor: theme.background,
+    borderColor: theme.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    color: theme.text,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+  } as const;
+
+  const submit = async () => {
+    setError(null);
+
+    // Checked here as well as on the server because the server never sees the
+    // confirmation field — it is a question about what the user typed twice.
+    if (next !== confirm) {
+      setError(t.profile.passwordMismatch);
+      return;
+    }
+    if (next.length < PASSWORD_MIN_LENGTH) {
+      setError(t.profile.passwordRule);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await changePassword(current, next);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setOpen(false);
+      setDone(true);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === "wrong_password") {
+        setError(t.profile.wrongCurrentPassword);
+      } else if (caught instanceof ApiError) {
+        setError(caught.message);
+      } else {
+        setError(t.common.serverUnreachable);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card>
+      <Heading>{t.profile.password}</Heading>
+
+      {done ? <Body muted>{t.profile.passwordChanged}</Body> : null}
+
+      {open ? (
+        <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
+          <Caption>{t.profile.passwordHint}</Caption>
+
+          {error ? <ErrorNote message={error} /> : null}
+
+          <View style={{ gap: spacing.xs }}>
+            <Text style={{ color: theme.muted, fontSize: 13 }}>
+              {t.profile.currentPassword}
+            </Text>
+            <TextInput
+              value={current}
+              onChangeText={setCurrent}
+              style={inputStyle}
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="password"
+            />
+          </View>
+
+          <View style={{ gap: spacing.xs }}>
+            <Text style={{ color: theme.muted, fontSize: 13 }}>
+              {t.profile.newPassword}
+            </Text>
+            <TextInput
+              value={next}
+              onChangeText={setNext}
+              style={inputStyle}
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="newPassword"
+            />
+            <Caption>{t.profile.passwordRule}</Caption>
+          </View>
+
+          <View style={{ gap: spacing.xs }}>
+            <Text style={{ color: theme.muted, fontSize: 13 }}>
+              {t.profile.confirmPassword}
+            </Text>
+            <TextInput
+              value={confirm}
+              onChangeText={setConfirm}
+              style={inputStyle}
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="newPassword"
+              returnKeyType="go"
+              onSubmitEditing={submit}
+            />
+          </View>
+
+          <Button
+            label={t.profile.changePassword}
+            onPress={submit}
+            busy={busy}
+            disabled={!current || !next || !confirm}
+          />
+          <Button
+            label={t.common.cancel}
+            onPress={() => {
+              setOpen(false);
+              setError(null);
+              setCurrent("");
+              setNext("");
+              setConfirm("");
+            }}
+            variant="ghost"
+          />
+        </View>
+      ) : (
+        <View style={{ marginTop: spacing.sm }}>
+          <Button
+            label={t.profile.changePassword}
+            onPress={() => {
+              setDone(false);
+              setOpen(true);
+            }}
+            variant="ghost"
+          />
+        </View>
+      )}
+    </Card>
   );
 }

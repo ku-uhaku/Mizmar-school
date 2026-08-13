@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   BriefcaseIcon,
   IdCardIcon,
-  KeyRoundIcon,
   MailIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -39,19 +38,13 @@ import {
 import { interpolate } from "@/lib/i18n/format";
 import {
   deleteGuardianAction,
-  openPortalAccountAction,
-  resetPortalPasswordAction,
-  revokePortalAccountAction,
   setPrimaryContactAction,
 } from "@/modules/families/actions";
 import {
   GuardianDialog,
   useGuardianDialog,
 } from "@/modules/families/components/guardian-dialog";
-import {
-  PortalAccountDialog,
-  type PortalCredentials,
-} from "@/modules/families/components/portal-account-dialog";
+import { PortalAccessCard } from "@/modules/families/components/portal-access-card";
 import type { GuardianRow } from "@/modules/families/queries";
 
 /**
@@ -74,14 +67,7 @@ export function GuardiansPanel({
   const t = useT();
   const dialog = useGuardianDialog();
   const [deleting, setDeleting] = React.useState<GuardianRow | null>(null);
-  const [revoking, setRevoking] = React.useState<GuardianRow | null>(null);
-  const [credentials, setCredentials] =
-    React.useState<PortalCredentials | null>(null);
   const [, startTransition] = React.useTransition();
-
-  // One access per family: the action refuses a second, so the menu should not
-  // offer one either.
-  const portalHolder = guardians.find((guardian) => guardian.portalAccount);
 
   function promote(guardian: GuardianRow) {
     startTransition(async () => {
@@ -94,24 +80,19 @@ export function GuardiansPanel({
     });
   }
 
-  function issueCredentials(
-    guardian: GuardianRow,
-    action: typeof openPortalAccountAction,
-  ) {
-    startTransition(async () => {
-      const result = await action(guardian.id);
-      if (result.status === "success" && result.data) {
-        toast.success(result.message ?? t.family.portalOpened);
-        // Shown once — there is nothing to come back for.
-        setCredentials(result.data);
-      } else {
-        toast.error(result.message ?? t.errors.unexpected);
-      }
-    });
-  }
-
   return (
-    <Card>
+    <div className="space-y-4">
+      {/*
+        The household's login, above the adults on it: it belongs to the
+        dossier rather than to any one of them, and "has this family got the
+        app" is asked far more often than anything in the list below.
+      */}
+      <PortalAccessCard
+        guardians={guardians}
+        canManagePortal={canManagePortal}
+      />
+
+      <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-2 border-b">
         <div className="min-w-0">
           <CardTitle>{t.family.guardians}</CardTitle>
@@ -243,46 +224,6 @@ export function GuardiansPanel({
                         </>
                       ) : null}
 
-                      {canManagePortal ? (
-                        <>
-                          <DropdownMenuSeparator />
-                          {guardian.portalAccount ? (
-                            <>
-                              <DropdownMenuItem
-                                onSelect={() =>
-                                  issueCredentials(
-                                    guardian,
-                                    resetPortalPasswordAction,
-                                  )
-                                }
-                              >
-                                <KeyRoundIcon />
-                                {t.family.resetPortalPassword}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onSelect={() => setRevoking(guardian)}
-                              >
-                                <SmartphoneIcon />
-                                {t.family.revokePortalAccount}
-                              </DropdownMenuItem>
-                            </>
-                          ) : portalHolder ? null : (
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                issueCredentials(
-                                  guardian,
-                                  openPortalAccountAction,
-                                )
-                              }
-                            >
-                              <SmartphoneIcon />
-                              {t.family.openPortalAccount}
-                            </DropdownMenuItem>
-                          )}
-                        </>
-                      ) : null}
-
                       {canManage ? (
                         <>
                           <DropdownMenuSeparator />
@@ -325,25 +266,8 @@ export function GuardiansPanel({
           onDeleted={() => setDeleting(null)}
         />
       ) : null}
-
-      {revoking ? (
-        <ConfirmDelete
-          open={Boolean(revoking)}
-          onOpenChange={(open) => !open && setRevoking(null)}
-          title={t.family.revokePortalTitle}
-          description={interpolate(t.family.revokePortalBody, {
-            name: `${revoking.firstName} ${revoking.lastName}`,
-          })}
-          action={() => revokePortalAccountAction(revoking.id)}
-          onDeleted={() => setRevoking(null)}
-        />
-      ) : null}
-
-      <PortalAccountDialog
-        credentials={credentials}
-        onOpenChange={(open) => !open && setCredentials(null)}
-      />
-    </Card>
+      </Card>
+    </div>
   );
 }
 

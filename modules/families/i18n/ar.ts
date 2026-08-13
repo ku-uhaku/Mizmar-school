@@ -72,6 +72,32 @@ const ar = {
       "تظهر كلمة المرور مرة واحدة ولا يمكن استرجاعها. دوّنها أو انسخها قبل إغلاق هذه النافذة.",
     portalCopy: "نسخ",
     portalCopied: "تم النسخ",
+
+    portalAccess: "ولوج الأسرة",
+    portalAccessHint:
+      "ينبغي أن يكون لكل أسرة ولوج واحد. عبره تصل النقط والغيابات والإعلانات والفواتير إلى الآباء.",
+    portalNoAccess: "لا تتوفر هذه الأسرة على ولوج بعد",
+    portalHeldBy: "باسم",
+    portalOpenAccess: "فتح الولوج",
+    portalChangePassword: "تغيير كلمة المرور",
+    portalGeneratePassword: "توليد كلمة مرور",
+    portalWhichGuardian: "من هو الوليّ الذي سيلج؟",
+
+    portalChooseTitle: "اختيار كلمة مرور الأسرة",
+    portalChooseBody:
+      "اكتبوا كلمة المرور التي ستسلمونها، أو اتركوا الحقل فارغًا لتوليد واحدة. 8 أحرف على الأقل.",
+    portalChooseReset:
+      "تعوّض كلمة المرور الحالية وتُخرج الأسرة من التطبيق في جميع أجهزتها.",
+    portalPasswordPlaceholder: "اتركوه فارغًا للتوليد",
+    portalShowPassword: "إظهار كلمة المرور",
+    portalHidePassword: "إخفاء كلمة المرور",
+
+    portalPrint: "طباعة",
+    portalSlipTitle: "تطبيق الآباء — ولوجكم",
+    portalSlipIntro: "ثبّتوا تطبيق {app} في هاتفكم وادخلوا بهذه المعطيات.",
+    portalSlipChange:
+      "غيّروا كلمة المرور داخل التطبيق: الملف الشخصي ← تغيير كلمة المرور. وإن نسيتموها فالإدارة تسلّمكم واحدة جديدة.",
+    portalSlipWarning: "احتفظوا بهذه الورقة ولا تسلموها لأحد.",
     revokePortalTitle: "سحب الدخول إلى التطبيق؟",
     revokePortalBody:
       "سيتم تسجيل خروج «{name}» من تطبيق أولياء الأمور فوراً ولن يتمكن من الدخول مرة أخرى.",
