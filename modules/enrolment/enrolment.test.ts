@@ -796,7 +796,7 @@ describe("assignClass", () => {
 
   it("seats a pupil in a class of their own level", async () => {
     enrolled();
-    expect(await assignClass("enrol-1", "class-1")).toBe(true);
+    expect(await assignClass("enrol-1", "class-1")).toMatchObject({ ok: true });
     expect(only("enrollment", "update").args).toMatchObject({
       data: { schoolClassId: "class-1", classGroupId: null },
     });
@@ -829,13 +829,15 @@ describe("assignClass", () => {
         levelOfferingId: "offering-1",
       },
     };
-    expect(await assignClass("enrol-1", "class-from-2bac")).toBe(false);
+    expect(await assignClass("enrol-1", "class-from-2bac")).toMatchObject({
+      ok: false,
+    });
     expect(of("enrollment", "update")).toEqual([]);
   });
 
   it("takes a pupil out of a class without looking one up", async () => {
     enrolled();
-    expect(await assignClass("enrol-1", null)).toBe(true);
+    expect(await assignClass("enrol-1", null)).toMatchObject({ ok: true });
     expect(of("schoolClass", "findFirst")).toEqual([]);
     expect(only("enrollment", "update").args).toMatchObject({
       data: { schoolClassId: null, classGroupId: null },
@@ -865,6 +867,50 @@ describe("assignClass", () => {
     });
   });
 
+  it("carries the pupil's marks over whenever they are seated", async () => {
+    // Everything else a pupil holds is read live through this column and
+    // follows the moment it is written — the timetable, the register, the
+    // carnet, the class channel. Their marks do not: a mark is keyed on the
+    // enrolment but the contrôle is keyed on the class, so seating without
+    // carrying leaves the child with an empty term in their new class.
+    enrolled();
+    await assignClass("enrol-1", "class-1");
+
+    expect(only("assessmentGrade", "findMany").args).toMatchObject({
+      where: {
+        enrollmentId: "enrol-1",
+        // Anything of theirs *not* already on this class is stranded.
+        assessment: { schoolClassId: { not: "class-1" } },
+      },
+    });
+  });
+
+  it("carries marks for a pupil seated after being taken out of a class", async () => {
+    // The regression. The class roster offers only unseated pupils, so moving
+    // a child from 3AP-A to 3AP-B is two steps and the seating step sees
+    // `schoolClassId: null` behind it. A carry gated on "came from a class"
+    // read that null and did nothing — on the very move it exists for.
+    answers = {
+      "enrollment.findUnique": {
+        schoolYearId: "year-1",
+        schoolClassId: null,
+        levelOfferingId: "offering-1",
+      },
+      "schoolClass.findFirst": { id: "class-1" },
+    };
+    await assignClass("enrol-1", "class-1");
+
+    expect(of("assessmentGrade", "findMany")).toHaveLength(1);
+  });
+
+  it("carries nothing when taking a pupil out of a class", async () => {
+    // Their marks stay on the papers they sat, and there is no class to carry
+    // them to. They come back with them when the pupil is seated again.
+    enrolled();
+    await assignClass("enrol-1", null);
+    expect(of("assessmentGrade", "findMany")).toEqual([]);
+  });
+
   it("drops a group belonging to another class", async () => {
     enrolled();
     await assignClass("enrol-1", "class-1", "group-from-elsewhere");
@@ -874,7 +920,9 @@ describe("assignClass", () => {
   });
 
   it("refuses an enrolment that does not exist", async () => {
-    expect(await assignClass("nowhere", "class-1")).toBe(false);
+    expect(await assignClass("nowhere", "class-1")).toMatchObject({
+      ok: false,
+    });
     expect(of("enrollment", "update")).toEqual([]);
   });
 });

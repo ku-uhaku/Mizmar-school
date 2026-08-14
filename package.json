@@ -16,6 +16,7 @@
     "db:seed:config": "tsx prisma/seed-config.ts",
     "db:seed:empty": "tsx prisma/seed-empty.ts",
     "db:reset": "prisma migrate reset",
+    "db:carry-marks": "tsx scripts/carry-stranded-marks.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest"

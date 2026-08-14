@@ -93,8 +93,13 @@ const db = new Proxy(
 
 vi.mock("@/lib/db", () => ({ db, auditClient: {} }));
 
-const { generateAssessments, resolveProgramme, saveMarks, setAssessmentStatus } =
-  await import("@/modules/assessments/service");
+const {
+  carryGradesToClass,
+  generateAssessments,
+  resolveProgramme,
+  saveMarks,
+  setAssessmentStatus,
+} = await import("@/modules/assessments/service");
 type GenerateTarget = import("@/modules/assessments/service").GenerateTarget;
 
 const of = (model: string, op: string) =>
@@ -928,6 +933,155 @@ describe("saveMarks", () => {
 
 // ── Moving a paper's status ──────────────────────────────────────────────────
 
+// ── Following a pupil who changes class ──────────────────────────────────────
+
+describe("carryGradesToClass", () => {
+  /** A mark held on the old class's paper, and the paper's identity. */
+  const heldGrade = (
+    id: string,
+    subjectId: string,
+    sequence = 1,
+  ): Record<string, unknown> => ({
+    id,
+    assessment: {
+      subjectId,
+      termId: "term-1",
+      assessmentTypeId: "type-1",
+      sequence,
+    },
+  });
+
+  /** A paper in the new class, with whatever the pupil already holds on it. */
+  const paper = (
+    id: string,
+    subjectId: string,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> => ({
+    id,
+    subjectId,
+    termId: "term-1",
+    assessmentTypeId: "type-1",
+    sequence: 1,
+    classGroupId: null,
+    grades: [],
+    ...extra,
+  });
+
+  const seatingIn = (to: string) =>
+    carryGradesToClass({
+      enrollmentId: "enrol-1",
+      toClassId: to,
+      toClassGroupId: null,
+    });
+
+  it("re-points a mark at the same paper in the new class", async () => {
+    // The regression this whole function exists for. A mark is keyed on the
+    // enrolment but the contrôle it is a mark *on* is keyed on the class, so a
+    // pupil who moves in March arrives in 3AP-B with an empty term and a report
+    // card computed from the day they walked in.
+    answers = {
+      "assessmentGrade.findMany": [heldGrade("grade-1", "maths")],
+      "assessment.findMany": [paper("paper-b", "maths")],
+    };
+
+    expect(await seatingIn("class-b")).toEqual({ moved: 1, left: 0 });
+    expect(only("assessmentGrade", "update").args).toMatchObject({
+      where: { id: "grade-1" },
+      data: { assessmentId: "paper-b" },
+    });
+  });
+
+  it("matches on the paper's identity, not on its title", async () => {
+    // Two schools' contrôles n°1 are the same paper when they are the same
+    // subject, term, kind and sequence. Nothing else may decide it — a class
+    // that renamed "Contrôle n°1" to "Les fonctions" still holds it.
+    answers = {
+      "assessmentGrade.findMany": [heldGrade("grade-1", "maths", 2)],
+      "assessment.findMany": [paper("paper-b", "maths", { sequence: 1 })],
+    };
+
+    // Sequence 2 against a class that has only set n°1: no equivalent yet.
+    expect(await seatingIn("class-b")).toEqual({ moved: 0, left: 1 });
+    expect(of("assessmentGrade", "update")).toEqual([]);
+  });
+
+  it("leaves a mark whose paper the new class never set", async () => {
+    // Generating the missing paper would put a contrôle nobody set on the new
+    // class's calendar and show every other pupil in it as unmarked. The mark
+    // stays where it was earned and goes on counting — see loadClassTermMarks.
+    answers = {
+      "assessmentGrade.findMany": [
+        heldGrade("grade-1", "maths"),
+        heldGrade("grade-2", "arabic"),
+      ],
+      "assessment.findMany": [paper("paper-b", "maths")],
+    };
+
+    expect(await seatingIn("class-b")).toEqual({ moved: 1, left: 1 });
+    expect(of("assessmentGrade", "update")).toHaveLength(1);
+  });
+
+  it("does not overwrite a mark the pupil already holds in the new class", async () => {
+    // A pupil coming back to a class they once sat in. The row already on the
+    // paper is one somebody entered against it, so nothing is overwritten and
+    // nothing is deleted.
+    answers = {
+      "assessmentGrade.findMany": [heldGrade("grade-1", "maths")],
+      "assessment.findMany": [
+        paper("paper-b", "maths", { grades: [{ id: "grade-already" }] }),
+      ],
+    };
+
+    expect(await seatingIn("class-b")).toEqual({ moved: 0, left: 1 });
+    expect(of("assessmentGrade", "update")).toEqual([]);
+  });
+
+  it("prefers the pupil's own group's paper over the whole-class one", async () => {
+    // A subject taught in halves has a paper per group. The pupil sat their
+    // group's, not the class-wide one.
+    answers = {
+      "assessmentGrade.findMany": [heldGrade("grade-1", "french")],
+      "assessment.findMany": [
+        paper("paper-whole", "french"),
+        paper("paper-group", "french", { classGroupId: "group-b1" }),
+      ],
+    };
+
+    await carryGradesToClass({
+      enrollmentId: "enrol-1",
+      toClassId: "class-b",
+      toClassGroupId: "group-b1",
+    });
+
+    expect(only("assessmentGrade", "update").args).toMatchObject({
+      data: { assessmentId: "paper-group" },
+    });
+  });
+
+  it("only ever offers papers of the pupil's own group", async () => {
+    // A paper set for a group the pupil is not in is not their paper.
+    answers = { "assessmentGrade.findMany": [heldGrade("grade-1", "french")] };
+    await carryGradesToClass({
+      enrollmentId: "enrol-1",
+      toClassId: "class-b",
+      toClassGroupId: "group-b1",
+    });
+
+    expect(only("assessment", "findMany").args).toMatchObject({
+      where: {
+        schoolClassId: "class-b",
+        OR: [{ classGroupId: null }, { classGroupId: "group-b1" }],
+      },
+    });
+  });
+
+  it("looks nothing up for a pupil with no marks", async () => {
+    answers = {};
+    expect(await seatingIn("class-b")).toEqual({ moved: 0, left: 0 });
+    expect(of("assessment", "findMany")).toEqual([]);
+  });
+});
+
 describe("setAssessmentStatus", () => {
   it("refuses to validate a sheet that is not finished", async () => {
     // Accepting a paper is the office agreeing the marking is done.
@@ -938,7 +1092,11 @@ describe("setAssessmentStatus", () => {
         term: { schoolYearId: "year-1" },
         grades: [{ enrollmentId: "enrol-1" }],
       },
-      "enrollment.count": 3,
+      "enrollment.findMany": [
+        { id: "enrol-1" },
+        { id: "enrol-2" },
+        { id: "enrol-3" },
+      ],
     };
 
     expect(await setAssessmentStatus("paper-1", "GRADED")).toEqual({
@@ -956,7 +1114,7 @@ describe("setAssessmentStatus", () => {
         term: { schoolYearId: "year-1" },
         grades: [{ enrollmentId: "a" }, { enrollmentId: "b" }],
       },
-      "enrollment.count": 2,
+      "enrollment.findMany": [{ id: "a" }, { id: "b" }],
     };
 
     expect(await setAssessmentStatus("paper-1", "GRADED")).toEqual({ ok: true });
@@ -977,7 +1135,7 @@ describe("setAssessmentStatus", () => {
         // The query filters on score-or-absent; both rows come back.
         grades: [{ enrollmentId: "a" }, { enrollmentId: "b" }],
       },
-      "enrollment.count": 2,
+      "enrollment.findMany": [{ id: "a" }, { id: "b" }],
     };
     expect(await setAssessmentStatus("paper-1", "GRADED")).toEqual({ ok: true });
   });
@@ -992,7 +1150,7 @@ describe("setAssessmentStatus", () => {
         term: { schoolYearId: "year-1" },
         grades: [{ enrollmentId: "a" }],
       },
-      "enrollment.count": 2,
+      "enrollment.findMany": [{ id: "a" }, { id: "b" }],
     };
     expect(await setAssessmentStatus("paper-1", "GRADED")).toEqual({
       ok: false,

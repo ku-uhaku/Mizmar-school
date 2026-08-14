@@ -348,11 +348,14 @@ describe("handing the marking back and forth", () => {
 
   it("refuses to accept a sheet that is not finished", async () => {
     const { db } = await import("@/lib/db");
-    const enrollmentCount = db.enrollment.count;
+    const rosterOf = db.enrollment.findMany;
     // A roster of two against the one marked pupil on the row — so one child has
     // neither a mark nor an absence, which is what "unfinished" means here.
     // @ts-expect-error — replacing a fake's method for one case.
-    db.enrollment.count = async () => 2;
+    db.enrollment.findMany = async () => [
+      { id: "enrolment-1" },
+      { id: "enrolment-2" },
+    ];
 
     const result = await setAssessmentStatus("devoir-1", "GRADED");
     expect(result).toEqual({ ok: false, reason: "incomplete" });
@@ -361,7 +364,7 @@ describe("handing the marking back and forth", () => {
     expect(written).toHaveLength(0);
     expect(updates).toHaveLength(0);
 
-    db.enrollment.count = enrollmentCount;
+    db.enrollment.findMany = rosterOf;
   });
 });
 

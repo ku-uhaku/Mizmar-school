@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { dueDayOf } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
+  carryGradesToClass,
+  type CarriedGrades,
+} from "@/modules/assessments/service";
+import {
   monthKeyFromString,
   monthOrdinal,
   netAmount,
@@ -406,6 +410,11 @@ export async function resyncOptionalCharges(
   });
 }
 
+/** Whether the pupil was seated, and what moving them did to their marks. */
+export type SeatingResult =
+  | { ok: false }
+  | { ok: true; carried: CarriedGrades };
+
 /**
  * Seats a pupil in a class, or takes them out of one.
  *
@@ -414,28 +423,37 @@ export async function resyncOptionalCharges(
  * across the tenant boundary. The group is cleared whenever the class changes —
  * a group of a class the pupil is not in would put them in two rooms at once on
  * the timetable.
+ *
+ * Most of what a pupil carries needs no help: the timetable, the register, the
+ * carnet, the class channel and the supply list are all read live through this
+ * column, so they follow the moment it is written. Their marks do not — a mark
+ * is keyed on the enrolment but the contrôle it is a mark on is keyed on the
+ * class — which is why moving between two classes hands off to the assessments
+ * module. See `carryGradesToClass` for what moves and what is deliberately
+ * left.
+ *
+ * Bulletins already issued do not move, by design. See Bulletin.schoolClassId.
  */
 export async function assignClass(
   enrollmentId: string,
   schoolClassId: string | null,
   classGroupId: string | null = null,
-): Promise<boolean> {
+): Promise<SeatingResult> {
   const enrolment = await db.enrollment.findUnique({
     where: { id: enrollmentId },
-    select: {
-      schoolYearId: true,
-      schoolClassId: true,
-      levelOfferingId: true,
-    },
+    select: { schoolYearId: true, levelOfferingId: true },
   });
-  if (!enrolment) return false;
+  if (!enrolment) return { ok: false };
 
   if (schoolClassId === null) {
+    // Taking a pupil out of a class carries nothing: their marks stay on the
+    // papers they sat, and there is no class to carry them to. They come back
+    // with them when the pupil is seated again.
     await db.enrollment.update({
       where: { id: enrollmentId },
       data: { schoolClassId: null, classGroupId: null },
     });
-    return true;
+    return { ok: true, carried: { moved: 0, left: 0 } };
   }
 
   const schoolClass = await db.schoolClass.findFirst({
@@ -461,7 +479,7 @@ export async function assignClass(
     },
     select: { id: true },
   });
-  if (!schoolClass) return false;
+  if (!schoolClass) return { ok: false };
 
   // A group is only kept when it belongs to the class being assigned.
   const group =
@@ -477,7 +495,28 @@ export async function assignClass(
     data: { schoolClassId, classGroupId: group?.id ?? null },
   });
 
-  return true;
+  /*
+    Every seating carries, and it is not conditional on the column having
+    changed.
+
+    It is tempting to skip the work unless `schoolClassId` moved from one class
+    to another, and it was wrong: the class roster takes a pupil out of 3AP-A
+    before offering them to 3AP-B — its picker lists only unseated children — so
+    on the step that actually seats them the previous value is `null`, and a
+    carry gated on "came from a class" never ran on the very move it exists for.
+
+    So the question asked is "is anything of theirs on another class's paper",
+    which is one indexed read and answers `no` for every pupil who has not
+    moved. Done after the write, so a carry that throws leaves the pupil seated
+    where the office put them rather than half-moved.
+  */
+  const carried = await carryGradesToClass({
+    enrollmentId,
+    toClassId: schoolClassId,
+    toClassGroupId: group?.id ?? null,
+  });
+
+  return { ok: true, carried };
 }
 
 /**

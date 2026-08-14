@@ -53,6 +53,10 @@ const fr = {
     classUnavailable: "Cette classe n'appartient pas à cette année.",
     classAssigned: "Classe affectée.",
     classCleared: "Élève retiré de la classe.",
+    classAssignedCarried:
+      "Classe affectée. {moved} notes reportées sur la nouvelle classe.",
+    classAssignedLeftBehind:
+      "Classe affectée. {moved} notes reportées ; {left} restent sur des contrôles que la nouvelle classe n'a pas programmés.",
     deleteTitle: "Supprimer cette inscription ?",
     deleteBody: "Tout l'échéancier de l'année sera supprimé avec elle.",
 

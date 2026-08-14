@@ -55,6 +55,10 @@ const en = {
     classUnavailable: "That class does not belong to this year.",
     classAssigned: "Class assigned.",
     classCleared: "Pupil taken out of the class.",
+    classAssignedCarried:
+      "Class assigned. {moved} marks carried over to the new class.",
+    classAssignedLeftBehind:
+      "Class assigned. {moved} marks carried over; {left} stayed on papers the new class has not set.",
     deleteTitle: "Delete this enrolment?",
     deleteBody: "The whole year's fee schedule will go with it.",
 

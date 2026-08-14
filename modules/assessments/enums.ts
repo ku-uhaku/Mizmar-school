@@ -435,3 +435,87 @@ export function sortBands<T extends { minPercentBps: number }>(
 ): T[] {
   return [...bands].sort((a, b) => b.minPercentBps - a.minPercentBps);
 }
+
+// ── Following a pupil who changes class ──────────────────────────────────────
+
+/** What makes two papers, set in two different classes, the same paper. */
+export type PaperIdentity = {
+  subjectId: string;
+  termId: string;
+  assessmentTypeId: string;
+  sequence: number;
+};
+
+/**
+ * The identity a mark is carried by when its pupil changes class.
+ *
+ * Not the title: two classes' "Contrôle n°1" are the same paper even when one
+ * of them has been renamed "Les fonctions", and a school that renames a paper
+ * between two moves must not thereby strand a mark.
+ */
+export function paperIdentity(paper: PaperIdentity): string {
+  return `${paper.subjectId}:${paper.termId}:${paper.assessmentTypeId}:${paper.sequence}`;
+}
+
+/** A mark to be carried, and the paper it currently sits on. */
+export type HeldGrade = { id: string; assessment: PaperIdentity };
+
+/** A paper in the class being moved to, and whether the pupil is already on it. */
+export type CandidatePaper = PaperIdentity & {
+  id: string;
+  classGroupId: string | null;
+  /** Non-empty when the pupil already holds a mark on this paper. */
+  grades: readonly unknown[];
+};
+
+/** Where each mark lands, and how many could not be placed. */
+export type CarryPlan = {
+  moves: { id: string; assessmentId: string }[];
+  left: number;
+};
+
+/**
+ * Works out which of the new class's papers each of a pupil's marks belongs on.
+ *
+ * Pure, and deliberately so: the same rule has to run inside the app when a
+ * secretary moves a child and inside a one-shot script over the pupils who were
+ * moved before the app knew to carry anything. A second copy of "which paper is
+ * the same paper" is exactly the kind of thing that would drift and put a mark
+ * on the wrong contrôle.
+ *
+ * Two marks of one pupil can never land on one paper — see the unique index on
+ * AssessmentGrade — so a paper is claimed at most once per run.
+ */
+export function planGradeCarry(
+  held: readonly HeldGrade[],
+  candidates: readonly CandidatePaper[],
+): CarryPlan {
+  const equivalent = new Map<string, CandidatePaper>();
+  for (const paper of candidates) {
+    const identity = paperIdentity(paper);
+    // A class may hold both a whole-class paper and a per-group one for the
+    // same slot. The pupil's own group wins; the whole-class paper is the
+    // fallback, which is also the only match when they have no group yet.
+    if (paper.classGroupId !== null || !equivalent.has(identity)) {
+      equivalent.set(identity, paper);
+    }
+  }
+
+  // Nothing is overwritten and nothing is deleted on a collision: the mark
+  // already on the paper is one somebody entered against it, and the mark that
+  // could not move stays where it was earned and goes on counting.
+  const taken = new Set(
+    candidates.filter((paper) => paper.grades.length > 0).map((paper) => paper.id),
+  );
+
+  const moves: { id: string; assessmentId: string }[] = [];
+  for (const grade of held) {
+    const target = equivalent.get(paperIdentity(grade.assessment));
+    if (target === undefined || taken.has(target.id)) continue;
+
+    moves.push({ id: grade.id, assessmentId: target.id });
+    taken.add(target.id);
+  }
+
+  return { moves, left: held.length - moves.length };
+}

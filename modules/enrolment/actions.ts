@@ -350,16 +350,22 @@ export async function assignClassAction(
     );
     if (!existing) return failure(t.errors.notFound);
 
-    const assigned = await assignClass(
-      enrollmentId,
-      schoolClassId,
-      classGroupId,
-    );
-    if (!assigned) return failure(t.enrolment.classUnavailable);
+    const seated = await assignClass(enrollmentId, schoolClassId, classGroupId);
+    if (!seated.ok) return failure(t.enrolment.classUnavailable);
 
     refresh();
+    if (!schoolClassId) return success(t.enrolment.classCleared);
+
+    // Moving a pupil moves their marks with them, which is a change to their
+    // record and not a detail — so it is said, and a mark that could not be
+    // carried is said too rather than being discovered at bulletin time.
+    const { moved, left } = seated.carried;
+    if (moved === 0 && left === 0) return success(t.enrolment.classAssigned);
+
     return success(
-      schoolClassId ? t.enrolment.classAssigned : t.enrolment.classCleared,
+      left > 0
+        ? interpolate(t.enrolment.classAssignedLeftBehind, { moved, left })
+        : interpolate(t.enrolment.classAssignedCarried, { moved }),
     );
   });
 }

@@ -50,6 +50,9 @@ const ar = {
     classUnavailable: "هذا القسم لا ينتمي إلى هذه السنة.",
     classAssigned: "تم إسناد القسم.",
     classCleared: "تم سحب التلميذ من القسم.",
+    classAssignedCarried: "تم إسناد القسم. تم نقل {moved} نقطة إلى القسم الجديد.",
+    classAssignedLeftBehind:
+      "تم إسناد القسم. تم نقل {moved} نقطة؛ وبقيت {left} على فروض لم يبرمجها القسم الجديد.",
     deleteTitle: "حذف هذا التسجيل؟",
     deleteBody: "سيُحذف معه جدول رسوم السنة كاملة.",
 

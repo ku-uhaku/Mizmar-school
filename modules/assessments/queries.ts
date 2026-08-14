@@ -1362,34 +1362,77 @@ export async function loadClassTermMarks(
     where: {
       isAbsent: false,
       score: { not: null },
-      // The class and term ids come from the request; the school does not.
+      // The term id comes from the request; the school does not.
       assessment: {
         ...schoolScope(context),
-        schoolClassId,
         termId,
         status: { in: [...COUNTED_STATUSES] },
         assessmentType: { countsTowardAverage: true },
       },
-      // A pupil moved out of the class keeps the marks they earned in it, which
-      // is right: they sat those papers. The roster is what decides whose
-      // bulletin gets computed, and that is read separately.
-      enrollment: { schoolYear: schoolScope(context) },
+      /*
+        Scoped by the *roster*, not by whose class the paper belongs to.
+
+        The two are the same thing for every pupil who has not moved. For one
+        who has, they are not: `carryGradesToClass` re-points what it can onto
+        the new class's equivalent papers, but a mark whose paper the new class
+        never set stays behind, and reading by `assessment.schoolClassId` would
+        drop it — the pupil would be ranked, and their report card computed, on
+        a term that begins the day they arrived.
+
+        The other direction falls out of the same rule: a pupil who has left
+        stops counting toward this class's spread. Their bulletin is computed
+        where they now sit, so counting them here as well would rank them
+        twice, against two different cohorts.
+      */
+      enrollment: { schoolYear: schoolScope(context), schoolClassId },
     },
     select: {
       enrollmentId: true,
       score: true,
       assessment: {
-        select: { subjectId: true, maxScore: true, coefficient: true },
+        select: {
+          subjectId: true,
+          maxScore: true,
+          coefficient: true,
+          // Only to recognise one paper sat twice — see below.
+          schoolClassId: true,
+          assessmentTypeId: true,
+          sequence: true,
+        },
       },
     },
   });
 
-  return grades
-    .filter((grade) => grade.assessment.maxScore > 0)
-    .map((grade) => ({
-      enrollmentId: grade.enrollmentId,
-      subjectId: grade.assessment.subjectId,
-      value: ((grade.score as number) / grade.assessment.maxScore) * outOf,
-      coefficient: grade.assessment.coefficient,
-    }));
+  /*
+    One mark per paper per pupil.
+
+    Reading by the roster is what lets a mark left behind by a move still
+    count, and it is also what lets the same paper be counted twice: a pupil
+    whose Contrôle n°1 de maths could not be carried — because they already
+    held the new class's row for it — holds both, and averaging both would
+    weigh that one contrôle double against every subject beside it.
+
+    The mark on the class being computed wins, since that is the paper this
+    class's teacher set and marked. `carryGradesToClass` makes this rare by
+    moving what it can; it does not make it impossible, and a report card is
+    not the place to find that out.
+  */
+  const oneEach = new Map<string, (typeof grades)[number]>();
+  for (const grade of grades) {
+    if (grade.assessment.maxScore <= 0) continue;
+
+    const { subjectId, assessmentTypeId, sequence } = grade.assessment;
+    const paper = `${grade.enrollmentId}:${subjectId}:${assessmentTypeId}:${sequence}`;
+    const held = oneEach.get(paper);
+    if (held === undefined || grade.assessment.schoolClassId === schoolClassId) {
+      oneEach.set(paper, grade);
+    }
+  }
+
+  return [...oneEach.values()].map((grade) => ({
+    enrollmentId: grade.enrollmentId,
+    subjectId: grade.assessment.subjectId,
+    value: ((grade.score as number) / grade.assessment.maxScore) * outOf,
+    coefficient: grade.assessment.coefficient,
+  }));
 }

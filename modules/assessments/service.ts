@@ -8,6 +8,7 @@ import {
   assessmentScopeKey,
   defaultAssessmentTitle,
   MAX_APPRECIATION_BANDS,
+  planGradeCarry,
   pointsToQuarters,
   roundScore,
 } from "@/modules/assessments/enums";
@@ -627,12 +628,133 @@ export async function saveMarks(
   return { ok: true, saved: writable.length };
 }
 
+/** What moving a pupil did to their marks. */
+export type CarriedGrades = {
+  /** Re-pointed at the new class's equivalent paper. */
+  moved: number;
+  /** Left on the old class's paper because the new class has no equivalent. */
+  left: number;
+};
+
+/**
+ * Carries a pupil's marks over to their new class when they change class.
+ *
+ * ── Why the marks have to move at all ────────────────────────────────────────
+ * A mark is keyed on the enrolment but the paper it is a mark *on* is keyed on
+ * the class, so a pupil who moves in March leaves every mark they have earned
+ * behind on papers their new class will never read. Left alone that is not a
+ * tidiness problem, it is a wrong report card: `computeClassBulletins` reads
+ * the term's marks for the class it is computing, and the child arrives in
+ * 3AP-B with an empty term and a general average built out of whatever they
+ * have sat since the move.
+ *
+ * So each mark is re-pointed at the paper in the new class that is *the same
+ * paper*: same subject, same term, same kind, same sequence. Both classes sit
+ * under one level offering — `assignClass` refuses a class of another level —
+ * so they share a programme and the equivalent paper almost always exists.
+ *
+ * ── Why it asks the marks where they are, and not the enrolment ──────────────
+ * There is no `fromClassId` parameter on purpose. The class roster moves a
+ * pupil in two steps — the picker offers only unseated children, so 3AP-A ends
+ * with `schoolClassId: null` and 3AP-B seats them from there — and a carry that
+ * read the previous value of that column saw `null` on the step that matters
+ * and did nothing. The marks themselves are the honest answer to "where has
+ * this child been": anything of theirs sitting on another class's paper is
+ * stranded, however they got there and however many steps it took.
+ *
+ * ── What is deliberately not moved ───────────────────────────────────────────
+ * A mark with no equivalent in the new class stays where it is rather than
+ * causing a paper to be created. Generating one would put a contrôle on the new
+ * class's calendar that nobody set and show every other pupil in it as
+ * unmarked. Those marks keep counting instead: `loadClassTermMarks` and
+ * `loadPupilMarks` both read a pupil's marks by enrolment, wherever the paper
+ * sits.
+ *
+ * Bulletins do not move and are not touched. A bulletin freezes its own class
+ * and its own figures precisely so that a mark corrected — or carried — later
+ * cannot rewrite the document a family was handed. See Bulletin.schoolClassId.
+ */
+export async function carryGradesToClass(input: {
+  enrollmentId: string;
+  toClassId: string;
+  toClassGroupId: string | null;
+}): Promise<CarriedGrades> {
+  const held = await db.assessmentGrade.findMany({
+    where: {
+      enrollmentId: input.enrollmentId,
+      // Everything of theirs that is not already on the class they now sit in.
+      // A pupil who has never moved matches nothing and this costs one index
+      // read, which is why seating may call it unconditionally.
+      assessment: { schoolClassId: { not: input.toClassId } },
+    },
+    select: {
+      id: true,
+      assessment: {
+        select: {
+          subjectId: true,
+          termId: true,
+          assessmentTypeId: true,
+          sequence: true,
+        },
+      },
+    },
+  });
+  if (held.length === 0) return { moved: 0, left: 0 };
+
+  const candidates = await db.assessment.findMany({
+    where: {
+      schoolClassId: input.toClassId,
+      termId: { in: [...new Set(held.map((grade) => grade.assessment.termId))] },
+      // A paper of a group the pupil is not in is not their paper. Whole-class
+      // papers apply to everyone; the group's own only once they are in it.
+      OR: [{ classGroupId: null }, { classGroupId: input.toClassGroupId }],
+    },
+    select: {
+      id: true,
+      subjectId: true,
+      termId: true,
+      assessmentTypeId: true,
+      sequence: true,
+      classGroupId: true,
+      // A pupil returning to a class they once sat in may already hold the row
+      // a mark would land on. Read here rather than as a second query so the
+      // collision is known before anything is written.
+      grades: {
+        where: { enrollmentId: input.enrollmentId },
+        select: { id: true },
+      },
+    },
+  });
+
+  const { moves, left } = planGradeCarry(held, candidates);
+
+  if (moves.length > 0) {
+    await db.$transaction(
+      moves.map((move) =>
+        db.assessmentGrade.update({
+          where: { id: move.id },
+          data: { assessmentId: move.assessmentId },
+        }),
+      ),
+    );
+  }
+
+  return { moved: moves.length, left };
+}
+
 /**
  * Pupils on the roster with neither a mark nor an absence against them.
  *
  * Counted from the roster rather than from the grades, because a pupil enrolled
  * after the paper was set has no grade row at all and is exactly the kind of
  * gap "is this finished?" has to catch.
+ *
+ * Only grades belonging to pupils *still on the roster* are counted as
+ * accounted for. A pupil who moved to another class since the paper was set
+ * leaves the roster but may leave a mark behind on it — see
+ * `carryGradesToClass` — and counting that mark against the smaller roster hid
+ * a pupil who had genuinely not been marked, so the sheet reported itself
+ * finished and could be accepted as GRADED with a hole in it.
  */
 async function countPendingMarks(assessmentId: string): Promise<number> {
   const assessment = await db.assessment.findUnique({
@@ -649,7 +771,7 @@ async function countPendingMarks(assessmentId: string): Promise<number> {
   });
   if (!assessment) return 0;
 
-  const roster = await db.enrollment.count({
+  const roster = await db.enrollment.findMany({
     where: {
       schoolYearId: assessment.term.schoolYearId,
       schoolClassId: assessment.schoolClassId,
@@ -657,9 +779,15 @@ async function countPendingMarks(assessmentId: string): Promise<number> {
         ? { classGroupId: assessment.classGroupId }
         : {}),
     },
+    select: { id: true },
   });
+  const seated = new Set(roster.map((enrollment) => enrollment.id));
 
-  return Math.max(0, roster - assessment.grades.length);
+  const accounted = assessment.grades.filter((grade) =>
+    seated.has(grade.enrollmentId),
+  ).length;
+
+  return Math.max(0, roster.length - accounted);
 }
 
 /**
