@@ -47,6 +47,11 @@ const ar = {
     setGroup: "تغيير الفوج",
 
     teaching: "الإسنادات التربوية",
+    subjectColumn: "الوحدة الدراسية",
+    teacherColumn: "الأستاذ(ة)",
+    pickTeacher: "اختر أستاذًا",
+    unstaffedSubjects: "{count} مواد بلا أستاذ بعد.",
+    teacherCleared: "تم سحب الأستاذ.",
     teachingHint: "من هو المسؤول عن كل مادة في هذا القسم.",
     emptyTeaching: "لا توجد مواد مسندة.",
     emptyTeachingHint: "أسند أستاذًا لكل مادة في البرنامج.",

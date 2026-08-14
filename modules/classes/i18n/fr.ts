@@ -50,6 +50,11 @@ const fr = {
     setGroup: "Changer de groupe",
 
     teaching: "Affectations pédagogiques",
+    subjectColumn: "Unité scolaire",
+    teacherColumn: "Enseignant(e)",
+    pickTeacher: "Choisir un enseignant",
+    unstaffedSubjects: "{count} matières n'ont pas encore d'enseignant.",
+    teacherCleared: "Enseignant retiré.",
     teachingHint: "Qui est responsable de chaque matière dans cette classe.",
     emptyTeaching: "Aucune matière affectée.",
     emptyTeachingHint:

@@ -50,6 +50,11 @@ const en = {
     setGroup: "Move to group",
 
     teaching: "Teaching assignments",
+    subjectColumn: "School unit",
+    teacherColumn: "Teacher",
+    pickTeacher: "Choose a teacher",
+    unstaffedSubjects: "{count} subjects have no teacher yet.",
+    teacherCleared: "Teacher removed.",
     teachingHint: "Who is answerable for each subject in this class.",
     emptyTeaching: "No subjects assigned yet.",
     emptyTeachingHint: "Assign a teacher to each subject on the programme.",

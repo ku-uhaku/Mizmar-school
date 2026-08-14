@@ -4,7 +4,9 @@ import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, yearScope } from "@/lib/scope";
+import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
+  bilingual,
   cycleChoiceLabel,
   levelChoiceLabel,
   levelNameLabel,
@@ -569,4 +571,169 @@ export async function listTeacherDuties(
     isPrimary: assignment.isPrimary,
     enrolled: assignment.schoolClass._count.enrollments,
   }));
+}
+
+// ── Who teaches what, read off the programme ─────────────────────────────────
+
+export type TeachingGridRow = {
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+  /** The matière in both languages — what the grid prints. */
+  subjectLabel: string;
+  /** What the programme says the class owes this subject each week. */
+  weeklyMinutes: number | null;
+  /**
+   * The components this matière is marked in — القراءة, الإملاء and the rest.
+   *
+   * Shown under the row for context and given no picker of their own: they are
+   * taught by whoever teaches the matière. Empty for a subject with no
+   * components, which is most of them.
+   */
+  components: { id: string; code: string; label: string }[];
+  /** Null when the post is vacant, which is the whole point of the grid. */
+  teacherId: string | null;
+  teacherName: string | null;
+  /** The row being edited, when one exists — what a clear deletes. */
+  assignmentId: string | null;
+};
+
+/**
+ * The class's programme, with whoever currently answers for each subject.
+ *
+ * ── Why this is driven by the programme and not by the assignments ──────────
+ * The list of assignments answers "who has been given something", which is the
+ * question nobody is asking. A head of studies opening this screen in September
+ * wants the opposite: *what is still unstaffed*. A subject with no teacher is
+ * invisible on a list of assignments and is exactly the hole that surfaces
+ * three weeks later as a contrôle that could not be generated — see the
+ * `unstaffed` refusal in `generateAssessments`, which exists because the paper
+ * would otherwise be written with a null teacher and never marked.
+ *
+ * So every marked subject of the level gets a row whether or not anybody holds
+ * it, and a vacancy is a visible blank rather than an absence.
+ *
+ * ── One picker per matière, not per component ───────────────────────────────
+ * A row is a subject *as taught*: "Karim teaches Arabic to 1AP-A". The
+ * components it is marked in — القراءة, الإملاء, التعبير الكتابي — are the same
+ * lesson by the same teacher, and `generateAssessments` already says so, since
+ * it resolves a component's teacher by falling back to its parent's assignment.
+ * Offering a picker per component would invite four answers to a question with
+ * one, and three of them would be the ones the fallback then ignores.
+ *
+ * So components are listed under their matière and hold no picker.
+ *
+ * Only the primary whole-class holder is resolved here. A co-taught subject or
+ * one split across groups keeps its extra rows, which the dialog still manages —
+ * this grid is the one answer per subject that mark entry and report cards read.
+ */
+export async function loadTeachingGrid(
+  context: AuthContext,
+  schoolClassId: string,
+): Promise<TeachingGridRow[]> {
+  const schoolClass = await db.schoolClass.findFirst({
+    // The id comes from the URL; the school and year come from the session.
+    where: {
+      id: schoolClassId,
+      schoolId: currentSchoolId(context),
+      levelOffering: yearScope(context),
+    },
+    select: {
+      id: true,
+      levelOffering: {
+        select: {
+          trackId: true,
+          level: {
+            select: {
+              subjects: {
+                select: {
+                  subjectId: true,
+                  trackId: true,
+                  weeklyMinutes: true,
+                  position: true,
+                  subject: {
+                    select: {
+                      id: true,
+                      code: true,
+                      name: true,
+                      nameAr: true,
+                      parentId: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!schoolClass) return [];
+
+  // A track-specific row wins over the level-wide one, through the same
+  // resolver the programme screen and the mark sheet use — done by hand here it
+  // would be a last-write-wins loop over an unordered query.
+  const programme = resolveProgrammeRows(
+    schoolClass.levelOffering.level.subjects,
+    schoolClass.levelOffering.trackId,
+  );
+
+  const assignments = await db.teachingAssignment.findMany({
+    where: {
+      schoolClassId: schoolClass.id,
+      isPrimary: true,
+      // The whole class's holder, not a group's — see the note above.
+      classGroupId: null,
+    },
+    select: {
+      id: true,
+      subjectId: true,
+      teacherId: true,
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  const holderOf = new Map(
+    assignments.map((assignment) => [assignment.subjectId, assignment]),
+  );
+
+  // The components, grouped under whichever matière they belong to, so each
+  // assignable row can carry its own without a second pass per row.
+  const componentsOf = new Map<string, { id: string; code: string; label: string }[]>();
+  for (const row of programme) {
+    const parentId = row.subject.parentId;
+    if (parentId === null) continue;
+
+    componentsOf.set(parentId, [
+      ...(componentsOf.get(parentId) ?? []),
+      {
+        id: row.subject.id,
+        code: row.subject.code,
+        label: bilingual(row.subject.name, row.subject.nameAr),
+      },
+    ]);
+  }
+
+  return programme
+    .filter((row) => row.subject.parentId === null)
+    .sort((a, b) => a.position - b.position)
+    .map((row) => {
+      const held = holderOf.get(row.subjectId);
+      return {
+        subjectId: row.subject.id,
+        subjectCode: row.subject.code,
+        subjectName: row.subject.name,
+        subjectLabel: bilingual(row.subject.name, row.subject.nameAr),
+        weeklyMinutes: row.weeklyMinutes,
+        components: componentsOf.get(row.subject.id) ?? [],
+        teacherId: held?.teacherId ?? null,
+        teacherName: held?.teacher ? displayName(held.teacher) : null,
+        assignmentId: held?.id ?? null,
+      };
+    });
 }

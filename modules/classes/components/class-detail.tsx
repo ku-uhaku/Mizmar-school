@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClassRoster } from "@/modules/classes/components/class-roster";
 import { TeachingPanel } from "@/modules/classes/components/teaching-panel";
-import type { ClassDetail as ClassDetailData } from "@/modules/classes/queries";
+import type {
+  ClassDetail as ClassDetailData,
+  TeachingGridRow,
+} from "@/modules/classes/queries";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableChoices } from "@/modules/timetable/components/timetable-grid";
 import type { TimetableGrid as TimetableGridData } from "@/modules/timetable/queries";
@@ -21,11 +24,14 @@ import type { TimetableGrid as TimetableGridData } from "@/modules/timetable/que
 export function ClassDetail({
   schoolClass,
   candidates,
+  teachingGrid,
   timetable,
   timetableChoices,
   permissions,
 }: {
   schoolClass: ClassDetailData;
+  /** The class's programme with its current holders — see `loadTeachingGrid`. */
+  teachingGrid: TeachingGridRow[];
   candidates: { id: string; enrollmentId: string; label: string }[];
   timetable: TimetableGridData | null;
   timetableChoices: TimetableChoices | null;
@@ -71,6 +77,7 @@ export function ClassDetail({
       <TabsContent value="teaching">
         <TeachingPanel
           schoolClass={schoolClass}
+          grid={teachingGrid}
           choices={{
             subjects: timetableChoices?.subjects ?? [],
             teachers: timetableChoices?.teachers ?? [],

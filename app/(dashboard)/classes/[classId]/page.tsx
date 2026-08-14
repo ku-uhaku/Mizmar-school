@@ -12,7 +12,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ClassDetail } from "@/modules/classes/components/class-detail";
-import { findClass } from "@/modules/classes/queries";
+import { findClass, loadTeachingGrid } from "@/modules/classes/queries";
 import { listUnassignedStudents } from "@/modules/students/queries";
 import {
   loadClassTimetable,
@@ -41,8 +41,10 @@ export default async function ClassPage({
 
   // Each module answers for its own half of the screen: who may be seated comes
   // from students, the week from timetable.
-  const [candidates, timetable, timetableChoices] = await Promise.all([
+  const [candidates, teachingGrid, timetable, timetableChoices] = await Promise.all([
     listUnassignedStudents(context, schoolClass.levelOfferingId),
+    // The class's programme with whoever answers for each subject.
+    loadTeachingGrid(context, classId),
     loadClassTimetable(context, schoolClass.id),
     loadTimetableChoices(context, schoolClass.id),
   ]);
@@ -79,6 +81,7 @@ export default async function ClassPage({
       <ClassDetail
         schoolClass={schoolClass}
         candidates={candidates}
+        teachingGrid={teachingGrid}
         timetable={timetable}
         timetableChoices={timetableChoices}
         permissions={{

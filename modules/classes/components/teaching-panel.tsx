@@ -58,7 +58,12 @@ import {
   deleteTeachingAssignmentAction,
   saveTeachingAssignmentAction,
 } from "@/modules/classes/actions";
-import type { AssignmentRow, ClassDetail } from "@/modules/classes/queries";
+import { TeachingGrid } from "@/modules/classes/components/teaching-grid";
+import type {
+  AssignmentRow,
+  ClassDetail,
+  TeachingGridRow,
+} from "@/modules/classes/queries";
 
 type Choices = {
   subjects: { id: string; code: string; name: string }[];
@@ -76,10 +81,13 @@ type Choices = {
  */
 export function TeachingPanel({
   schoolClass,
+  grid,
   choices,
   canManage,
 }: {
   schoolClass: ClassDetail;
+  /** The class's programme with its current holders — see `loadTeachingGrid`. */
+  grid: TeachingGridRow[];
   choices: Choices;
   canManage: boolean;
 }) {
@@ -108,7 +116,23 @@ export function TeachingPanel({
         ) : null}
       </CardHeader>
 
-      <CardContent className="p-0">
+      <CardContent className="grid gap-6">
+        {/*
+          The programme first, because it is the question this screen is opened
+          with: not "who has been given something" but "what is still
+          unstaffed". The list below it is the rest of the truth — a co-taught
+          subject, or one split across groups, which one row per subject cannot
+          express.
+        */}
+        {grid.length > 0 ? (
+          <TeachingGrid
+            schoolClassId={schoolClass.id}
+            rows={grid}
+            teachers={choices.teachers}
+            canManage={canManage}
+          />
+        ) : null}
+
         {schoolClass.assignments.length === 0 ? (
           <EmptyState
             icon={<BookOpenIcon className="size-5" />}
