@@ -5,6 +5,10 @@ import type { TxClient } from "@/modules/treasury/service";
 import { teachingDaysOf } from "@/lib/school-settings";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import { LAB_ROOM_KINDS } from "@/modules/facilities/enums";
+import {
+  qualifiedTeachers,
+  type Qualification,
+} from "@/modules/hr/qualifications";
 import { layPeriodBlock } from "@/modules/timetable/presets";
 import { assignmentScopeKey } from "@/modules/classes/enums";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
@@ -762,29 +766,56 @@ export async function buildTimetableDraft(
   }
 
   /*
-    Who could take each subject, when the school has not said.
+    Who could take each subject, at which niveau, when the school has not said.
 
     Two sources, and the second is what makes this work on day one. An explicit
-    `TeacherSubject` row is the school's declaration and always wins. Where a
-    subject has none, the pool is inferred from who already teaches it *anywhere
-    in this school*: a teacher taking 4AP maths can take 5AP maths, and a school
-    with a year of assignments behind it should not have to retype all of them
-    into a new table before the generator is of any use.
+    `TeacherSubject` row is the school's declaration for *this year* and always
+    wins. Where a subject has none, the pool is inferred from who already
+    teaches it in the same cycle: a teacher taking 4AP maths can take 5AP
+    maths, and a school with a year of assignments behind it should not have to
+    retype all of them into a new table before the generator is of any use.
 
     Inference never overrides a declaration. The moment a school declares even
     one qualified teacher for a subject, that list is the list — otherwise
-    declaring a specialist would silently *widen* the pool rather than narrow it.
+    declaring a specialist would silently *widen* the pool rather than narrow
+    it. The same holds level by level: a declaration naming only 2AP means the
+    school has said nothing about who takes the subject at 2BAC, and the honest
+    answer there is nobody rather than whoever the assignments happen to imply.
+
+    Both are read against the year. A staff list is redrawn every September, and
+    reading last year's would staff this year's grid with people who have left.
   */
-  const [declared, inferred, rooms, staffCaps, sizes] = await Promise.all([
+  const [declared, inferred, levelCycles, rooms, staffCaps, sizes] = await Promise.all([
     db.teacherSubject.findMany({
-      where: { schoolId, isActive: true, teacher: { isActive: true } },
+      where: {
+        schoolId,
+        schoolYearId,
+        isActive: true,
+        teacher: { isActive: true },
+      },
       orderBy: [{ preferenceRank: "asc" }],
-      select: { subjectId: true, teacherId: true },
+      select: {
+        subjectId: true,
+        teacherId: true,
+        educationLevelId: true,
+        levels: { select: { levelId: true } },
+      },
     }),
+    // Scoped through the offering, which is what carries the year — a class
+    // belongs to a year only by way of the niveau it was opened under.
     db.teachingAssignment.findMany({
-      where: { schoolClass: { schoolId } },
-      select: { subjectId: true, teacherId: true },
-      distinct: ["subjectId", "teacherId"],
+      where: { schoolClass: { schoolId, levelOffering: { schoolYearId } } },
+      select: {
+        subjectId: true,
+        teacherId: true,
+        schoolClass: { select: { levelOffering: { select: { levelId: true } } } },
+      },
+    }),
+    // Which cycle each niveau sits in, so a row scoped to "le collège" can be
+    // resolved to the niveaux a class is actually at.
+    db.level.findMany({
+      where: { schoolId },
+      select: { id: true, educationLevelId: true },
     }),
     db.room.findMany({
       where: { schoolId, isActive: true },
@@ -805,22 +836,57 @@ export async function buildTimetableDraft(
     }),
   ]);
 
-  const declaredBySubject = new Map<string, string[]>();
+  const cycleOfLevel = new Map(
+    levelCycles.map((level) => [level.id, level.educationLevelId] as const),
+  );
+
+  /**
+   * Every declaration for a subject, in preference order, with where it applies.
+   *
+   * Kept as a list rather than flattened per niveau: the same teacher may cover
+   * a subject at three niveaux, and duplicating them would have the placer
+   * count one person as three candidates. Resolving the scope is
+   * `qualifiedTeachers`, which is where the rule is written down.
+   */
+  const declaredBySubject = new Map<string, Qualification[]>();
   for (const row of declared) {
     declaredBySubject.set(row.subjectId, [
       ...(declaredBySubject.get(row.subjectId) ?? []),
-      row.teacherId,
+      {
+        teacherId: row.teacherId,
+        educationLevelId: row.educationLevelId,
+        levelIds: row.levels.map((level) => level.levelId),
+      },
     ]);
   }
-  const inferredBySubject = new Map<string, string[]>();
+
+  // Inference, keyed by subject *and cycle*. School-wide would put the
+  // primaire's maths teacher in front of a 2BAC class, which is the one thing
+  // the level scope above exists to prevent — and letting the fallback do it
+  // would undo the rule for every subject nobody has got round to declaring.
+  const inferredBySubjectCycle = new Map<string, Set<string>>();
   for (const row of inferred) {
-    inferredBySubject.set(row.subjectId, [
-      ...(inferredBySubject.get(row.subjectId) ?? []),
-      row.teacherId,
-    ]);
+    const cycleId = cycleOfLevel.get(row.schoolClass.levelOffering.levelId);
+    if (!cycleId) continue;
+    const key = `${row.subjectId}:${cycleId}`;
+    const held = inferredBySubjectCycle.get(key) ?? new Set<string>();
+    held.add(row.teacherId);
+    inferredBySubjectCycle.set(key, held);
   }
-  const qualifiedFor = (subjectId: string): string[] =>
-    declaredBySubject.get(subjectId) ?? inferredBySubject.get(subjectId) ?? [];
+
+  /** Who may take this subject at this niveau, best first. */
+  const qualifiedFor = (subjectId: string, levelId: string): string[] => {
+    const rows = declaredBySubject.get(subjectId);
+    // Declared *for the subject* is what closes the door, not declared for the
+    // subject here: a school that has named a 2AP maths teacher and nobody for
+    // 2BAC has said something about 2BAC, and it is "nobody yet".
+    if (rows) return qualifiedTeachers(rows, levelId, levelCycles);
+
+    const cycleId = cycleOfLevel.get(levelId);
+    return cycleId
+      ? [...(inferredBySubjectCycle.get(`${subjectId}:${cycleId}`) ?? [])]
+      : [];
+  };
 
   const classSizes = new Map(
     sizes.map((row) => [row.schoolClassId as string, row._count] as const),
@@ -900,7 +966,7 @@ export async function buildTimetableDraft(
       // qualified pool, and the placer picks.
       const candidateTeachers = assignment
         ? [assignment.teacherId]
-        : qualifiedFor(subject.id);
+        : qualifiedFor(subject.id, levelId);
 
       if (candidateTeachers.length === 0) {
         // Placed anyway, with nobody in front of it — see SkippedSubject.

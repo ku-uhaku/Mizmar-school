@@ -43,6 +43,17 @@ export type FieldType =
   | "multiselect"
   /** A row from another resource, picked from a dropdown. */
   | "reference"
+  /**
+   * Several rows from another resource, held in a join table of their own.
+   *
+   * Not `multiselect` with ids in it: the values are foreign keys, and a niveau
+   * that is renamed or deleted has to take its references with it, which a
+   * comma-joined string of cuids cannot be made to do. The field's value
+   * crosses to the client as the joined ids all the same — `ResourceRow` holds
+   * primitives — but what is stored is rows. The join table is declared beside
+   * the resource in resource-schema.ts.
+   */
+  | "multireference"
   | "color"
   /** Wall-clock "HH:MM". */
   | "time"
@@ -67,8 +78,8 @@ export type FieldDef = {
   /** Dictionary path under `configuration.options`, e.g. "roomKinds". */
   optionsKey?: string;
   /**
-   * `reference` only: what to pick from. Either a resource id, or one of the
-   * `@`-prefixed loaders in schema.server.ts (`@teachers`).
+   * `reference` and `multireference` only: what to pick from. Either a resource
+   * id, or one of the `@`-prefixed loaders in schema.server.ts (`@teachers`).
    */
   referenceTo?: string;
   /** Whether a blank value is accepted. Defaults to `!required`. */

@@ -123,6 +123,7 @@ const en = {
       cycle: "Cycle",
       educationLevel: "Cycle",
       level: "Level",
+      levels: "Levels",
       track: "Track",
       subject: "Subject",
       parentSubject: "Parent subject",
@@ -245,6 +246,10 @@ const en = {
       subcategoryParent:
         "The rubric this sits under. A sub-rubric is never chosen on its own.",
       motifCategory: "Leave empty to offer it under every rubric.",
+      qualificationCycle:
+        "Leave empty for a teacher who takes the subject in any cycle. Ignored as soon as niveaux are ticked below.",
+      qualificationLevels:
+        "The niveaux this teacher may be given the subject at. Tick none to fall back to the cycle above, or to the whole school when that is empty too.",
       preferenceRank:
         "Lower goes first when several teachers could take a subject. 0 for a specialist, higher for somebody covering.",
       payrollWorkingDays:

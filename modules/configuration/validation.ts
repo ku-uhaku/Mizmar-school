@@ -154,6 +154,23 @@ function fieldSchema(field: FieldDef, t: Dictionary): z.ZodTypeAny {
               value === "" || value === "none" ? null : value,
             )
             .nullable();
+
+    case "multireference":
+      /*
+        Arrives already joined by `readResourceForm`, like a multiselect — but
+        there is no `options` list to check the parts against, because the
+        choices are rows and not constants. Reachability is what stands in for
+        that check, and it is done against the database in
+        `findUnreachableReference`. Normalised here so a field left untouched
+        and a field emptied are the same empty string.
+      */
+      return z.string().transform((value) =>
+        value
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .join(","),
+      );
   }
 }
 
@@ -226,7 +243,7 @@ export function readResourceForm(
 
     // A group of checkboxes posts one entry per ticked box under the same
     // name; joining here keeps the zod schema working on the stored shape.
-    if (field.type === "multiselect") {
+    if (field.type === "multiselect" || field.type === "multireference") {
       values[field.name] = formData
         .getAll(field.name)
         .filter((entry): entry is string => typeof entry === "string")

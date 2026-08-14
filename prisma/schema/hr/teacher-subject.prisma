@@ -1,4 +1,4 @@
-/// What a teacher is qualified — and willing — to teach.
+/// What a teacher is qualified — and willing — to teach, in one school year.
 ///
 /// ── Why this is not TeachingAssignment ──────────────────────────────────────
 /// `TeachingAssignment` says *who teaches what to which class this year*. This
@@ -11,6 +11,31 @@
 /// So the generator reads this to *make* the assignments, and writes the
 /// `TeachingAssignment` rows it settles on. This is the input; that is the
 /// decision.
+///
+/// ── Why it is the year's and not the school's ───────────────────────────────
+/// A staff list is redrawn every September. Who takes maths at collège this
+/// year is a fact about *this* year: a teacher leaves, a vacataire is taken on
+/// for one year of Tamazight, a professeur de physique is asked to cover maths
+/// only while a colleague is on leave. Held against the school, all of that
+/// silently rewrote last year — and last year's grid is what a register, a
+/// remplacement and an inspection are read against.
+///
+/// It also makes the September routine honest: the qualifications are declared
+/// for the new year alongside the cursus and the bell schedule, rather than
+/// inherited by default from a list nobody has looked at since.
+///
+/// ── The level scope ─────────────────────────────────────────────────────────
+/// A qualification is rarely school-wide. The same subject at 2AP and at 2BAC
+/// is not the same job, and a school that lets the primaire teacher be offered
+/// a baccalauréat class will get a grid it has to unpick by hand. So a row
+/// carries where it applies, from the narrowest declaration to the widest:
+///
+///   `levels` non-empty   → exactly those niveaux (Ahmad: maths at 2AP and 3AP)
+///   `educationLevel` set → every niveau of that cycle (maths across le collège)
+///   neither              → every niveau the school runs
+///
+/// Read in that order by `qualifiedFor` in modules/timetable/service.ts, which
+/// is the only place that resolves it.
 ///
 /// ── Why it hangs off User and not Staff ─────────────────────────────────────
 /// Everything that books a teacher — TeachingAssignment, TimetableEntry,
@@ -30,6 +55,15 @@ model TeacherSubject {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
+  /// The year this declaration is made for. Cascade: a year that is deleted
+  /// takes its staffing plan with it, exactly as it takes its bell schedule.
+  ///
+  /// Denormalised alongside `schoolId`, which the year already implies, because
+  /// every read here is "this school, this year" and the pair is what the
+  /// composite index below is built on.
+  schoolYearId String
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
   /// Cascade: the qualification is a fact about the account, and means nothing
   /// once it is gone.
   teacherId String
@@ -39,6 +73,20 @@ model TeacherSubject {
   /// qualified teachers, it has no lessons.
   subjectId String
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  /// Widest of the two level scopes: the whole cycle. Null = no cycle
+  /// restriction, which with no `levels` either means the whole school.
+  ///
+  /// Cascade rather than SetNull: a cycle the school has stopped running has no
+  /// qualifications *scoped to it* left to keep, and silently widening the row
+  /// to school-wide would offer a primaire teacher to a lycée class.
+  educationLevelId String?
+  educationLevel   EducationLevel? @relation(fields: [educationLevelId], references: [id], onDelete: Cascade)
+
+  /// The niveaux this row applies to, when the school names them. Empty is the
+  /// ordinary case and means "whatever `educationLevel` says" — see the note
+  /// above. One row per niveau, in TeacherSubjectLevel.
+  levels TeacherSubjectLevel[]
 
   /// Which subject this teacher should be given first when several will do.
   ///
@@ -59,11 +107,15 @@ model TeacherSubject {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// One row per teacher per subject. Said twice is said once.
-  @@unique([teacherId, subjectId])
+  /// One row per teacher per subject per year. Several niveaux go on `levels`,
+  /// not on a second row — otherwise "Ahmad, maths, 2AP" and "Ahmad, maths,
+  /// 3AP" would carry two preference ranks for one judgement.
+  @@unique([schoolYearId, teacherId, subjectId])
   @@index([schoolId])
+  @@index([schoolYearId])
   @@index([teacherId])
   @@index([subjectId])
-  @@index([schoolId, subjectId])
+  @@index([educationLevelId])
+  @@index([schoolYearId, subjectId])
   @@map("teacher_subjects")
 }

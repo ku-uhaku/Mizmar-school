@@ -282,28 +282,69 @@ function subjectDemand(): Map<string, number> {
 }
 
 /**
- * How many teachers of each subject a school needs.
+ * How many teachers of each subject a school gets: two, or three for a subject
+ * one teacher could not cover on their own.
  *
- * Demand divided by what a teacher can actually be expected to give, rounded
- * up, plus a quarter.
+ * ── This is a small staff on purpose ────────────────────────────────────────
+ * A flat two or three per subject, **not** a roster sized to the programme.
+ * That is a deliberate choice about what the demo is for: a staff list you can
+ * read on one screen and reason about, where "who else could take this?" has an
+ * answer you can hold in your head. It is what makes the qualifications screen
+ * and the generator's affectations legible.
  *
- * ── The headroom is not padding ─────────────────────────────────────────────
- * A staff sized exactly to its programme has no slack at all: every teacher
- * would have to be free in precisely the periods their classes are, which no
- * timetable can arrange, and one standing Wednesday-afternoon commitment makes
- * the week unsolvable. A quarter is roughly what a real school carries.
+ * The cost is real and is not hidden. Twenty-four classes of arabe want roughly
+ * ten services and three teachers cannot give them, so a full generation run
+ * reports shortfalls on the big subjects — see the note under `PLANS_PER_SCHOOL`
+ * for the class count that drives them. That is a true statement about an
+ * understaffed school, which is a case the generator has to handle and the
+ * screen has to show; it is not the generator failing.
+ *
+ * A school wanting a fully coverable week raises `CLASSES_PER_LEVEL` down or
+ * these two numbers up. They are here, together, so that is one edit.
  *
  * ── Why the service is not the nominal one ──────────────────────────────────
  * A fifth of the staff is put on a reduced contract further down (see
  * `PART_TIME_SHARE`), so the average teacher gives less than a full service.
- * Sizing against the nominal figure and *then* cutting contracts produced
- * schools understaffed by exactly the hours the seed had just taken away — and
- * it bit hardest on the small subjects, where physique-chimie was sized at two
- * teachers and one of them turned out to be a vacataire.
- *
- * Both figures come from shared constants, so the two steps cannot drift apart
- * again.
+ * The threshold below is measured against that effective figure rather than the
+ * nominal one — otherwise a subject needing 1.1 services would be given two
+ * teachers, one of whom then turned out to be a vacataire.
  */
+
+/** A subject any one teacher could cover alone. */
+const TEACHERS_PER_SUBJECT = 2;
+/** A subject that needs more than one service, and so a third pair of hands. */
+const TEACHERS_PER_BUSY_SUBJECT = 3;
+/**
+ * The second subject a teacher of each subject may cover, best first.
+ *
+ * The doublings a Moroccan private school actually makes, not every pair that
+ * is arithmetically possible: a professeur de maths covers physique-chimie and
+ * l'informatique, an enseignant d'arabe takes l'éducation islamique and, in the
+ * qualifying cycle, la philosophie — which is taught in Arabic. Nobody covers
+ * l'EPS, which is why it has no entry.
+ *
+ * It is read in both directions on purpose. The small subjects — histoire-géo,
+ * informatique, philosophie — are sized at one teacher by `teacherPlan`, and
+ * appearing in a bigger subject's list is what gives them a second qualified
+ * person without inventing a post the programme does not pay for.
+ *
+ * Only the teachers `seedUsers` picks out actually get one; this says what they
+ * would take, not that they all do.
+ */
+const SECOND_SUBJECTS: Record<string, string[]> = {
+  AR: ["ISL", "PHILO"],
+  FR: ["EN", "HG"],
+  MATH: ["PC", "INFO"],
+  PC: ["MATH"],
+  SVT: ["PC"],
+  ISL: ["AR"],
+  EN: ["FR"],
+  HG: ["ISL"],
+  AMZ: ["AR"],
+  INFO: ["MATH"],
+  PHILO: ["HG"],
+};
+
 function teacherPlan(): TeacherRequirement[] {
   const labels = new Map(
     MOROCCAN_CURSUS.subjects.map((subject) => [
@@ -316,12 +357,23 @@ function teacherPlan(): TeacherRequirement[] {
   const effectiveService =
     FULL_SERVICE_MINUTES * (1 - PART_TIME_SHARE * (1 - PART_TIME_FACTOR));
 
-  return [...subjectDemand()]
+  const demand = subjectDemand();
+
+  return [...demand]
     .sort((a, b) => b[1] - a[1])
     .map(([subjectCode, minutes]) => ({
       subjectCode,
       subjectLabel: labels.get(subjectCode) ?? subjectCode,
-      count: Math.max(1, Math.ceil((minutes * 1.25) / effectiveService)),
+      count:
+        minutes > effectiveService
+          ? TEACHERS_PER_BUSY_SUBJECT
+          : TEACHERS_PER_SUBJECT,
+      // Filtered against the programme rather than trusted: a school running
+      // only the primaire has no philosophie to cover, and a qualification for
+      // a subject it does not teach is a row nothing will ever read.
+      coversAlso: (SECOND_SUBJECTS[subjectCode] ?? []).filter((code) =>
+        demand.has(code),
+      ),
     }));
 }
 
@@ -430,6 +482,23 @@ async function main() {
       console.log(`  ── ${year.name} (${year.status.toLowerCase()})`);
 
       const slots = slotsByYear[year.id];
+
+      /*
+        Who may take what, this year — before the classes, which is the order
+        the generator needs it in.
+
+        A staffing plan per year rather than one for the school: `TeacherSubject`
+        is the year's now, and a grid drawn for 2024-2025 reads the people who
+        were there in 2024-2025. Each year gets the same demo staff, which is
+        what a school with no turnover looks like; the interesting cases —
+        somebody leaving, a vacataire for one year — are made in the screen.
+      */
+      await seedTeacherSubjects(db, {
+        schoolId: school.id,
+        schoolYearId: year.id,
+        teachers,
+        subjectIdByCode,
+      });
 
       // What the school announces to its families. Dated off the year's own
       // start, so the rentrée lands on the rentrée whatever shape the year is.
@@ -568,13 +637,9 @@ async function main() {
       });
     }
 
-    // Who may teach what, and who is on a reduced service. Both are facts about
-    // the school rather than any one year, so they sit after the year loop.
-    await seedTeacherSubjects(db, {
-      schoolId: school.id,
-      teachers,
-      subjectIdByCode,
-    });
+    // Who is on a reduced service — a term of employment, and so the school's
+    // rather than any one year's. Who may teach what is the year's now, and is
+    // written inside the loop above.
     await seedPartTimeContracts(db, {
       schoolId: school.id,
       teachers,

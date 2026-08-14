@@ -113,6 +113,7 @@ const fr = {
       cycle: "Cycle",
       educationLevel: "Cycle",
       level: "Niveau",
+      levels: "Niveaux",
       track: "Filière",
       subject: "Matière",
       parentSubject: "Matière parente",
@@ -236,6 +237,10 @@ const fr = {
       subcategoryParent:
         "La rubrique dont elle dépend. Une sous-rubrique ne se choisit jamais seule.",
       motifCategory: "Laissez vide pour le proposer sous toutes les rubriques.",
+      qualificationCycle:
+        "Laisser vide pour un enseignant qui prend la matière dans tous les cycles. Ignoré dès que des niveaux sont cochés ci-dessous.",
+      qualificationLevels:
+        "Les niveaux auxquels cet enseignant peut se voir confier la matière. N'en cocher aucun pour s'en remettre au cycle ci-dessus, ou à toute l'école s'il est vide lui aussi.",
       preferenceRank:
         "Le plus bas passe en premier quand plusieurs enseignants peuvent prendre la matière. 0 pour un spécialiste, plus haut pour un remplaçant.",
       payrollWorkingDays:

@@ -404,10 +404,22 @@ export const RESOURCES: ResourceDef[] = [
     and live on their contract; see Staff.maxWeeklyMinutes.
   */
   {
+    /*
+      Who may take what, this year — the input the timetable generator makes its
+      affectations from.
+
+      Under the year and not the establishment: a staff list is redrawn every
+      September, and held against the school one departure silently rewrote what
+      last year's grid is read against. See TeacherSubject.
+
+      The two level fields are a scope, widest last: tick the niveaux when the
+      school knows them, name a cycle when it only knows that much, leave both
+      blank for a teacher who takes the subject wherever it is taught.
+    */
     id: "teacher-subjects",
     section: "academics",
     labelKey: "teacherSubjects",
-    scope: "SCHOOL",
+    scope: "YEAR",
     labelFields: ["subjectId"],
     fields: [
       {
@@ -424,6 +436,23 @@ export const RESOURCES: ResourceDef[] = [
         labelKey: "subject",
         referenceTo: "subjects",
         required: true,
+        inTable: true,
+      },
+      {
+        name: "educationLevelId",
+        type: "reference",
+        labelKey: "educationLevel",
+        hintKey: "qualificationCycle",
+        referenceTo: "education-levels",
+        inTable: true,
+      },
+      {
+        name: "levelIds",
+        type: "multireference",
+        labelKey: "levels",
+        hintKey: "qualificationLevels",
+        referenceTo: "levels",
+        wide: true,
         inTable: true,
       },
       {

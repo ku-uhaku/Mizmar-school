@@ -36,8 +36,29 @@ type Delegate = {
   findFirst: (args: unknown) => Promise<Record<string, unknown> | null>;
   count: (args: unknown) => Promise<number>;
   create: (args: unknown) => Promise<Record<string, unknown>>;
+  createMany: (args: unknown) => Promise<{ count: number }>;
   updateMany: (args: unknown) => Promise<{ count: number }>;
   deleteMany: (args: unknown) => Promise<{ count: number }>;
+};
+
+/**
+ * The join table behind one `multireference` field.
+ *
+ * A `reference` is a column and needs nothing here — the generic write already
+ * knows how to `connect` it. A `multireference` is rows in a table of their own,
+ * and the generic write has no way to guess which table, or which of its two
+ * foreign keys points back. So the resource says, once, and both the read (an
+ * `include`) and the write (a wholesale replace) are driven from it.
+ */
+export type ChildCollection = {
+  /** The relation field on the parent, for the read's `include`. */
+  relation: string;
+  /** The join table's own delegate, for replacing the set on update. */
+  table: () => Delegate;
+  /** The join table's foreign key back to the parent. */
+  parentColumn: string;
+  /** The join table's foreign key to the referenced row — what is stored. */
+  column: string;
 };
 
 type Values = Record<string, unknown>;
@@ -54,6 +75,11 @@ export type ResourceSchema = {
   model: string;
   /** Rows this working context may read and write. */
   where: (context: AuthContext) => Record<string, unknown>;
+  /**
+   * The join tables behind this resource's `multireference` fields, keyed by
+   * field name. Absent for the resources that have none, which is most of them.
+   */
+  children?: Record<string, ChildCollection>;
   /** Columns injected on create — the scope ids the form never sends. */
   createData?: (context: AuthContext, values: Values) => Values;
   /**
@@ -155,12 +181,29 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ position: "asc" }],
   },
 
+  /*
+    Who may take what, this year.
+
+    Scoped by both the school and the year although the year already implies the
+    school: the pair is what the table is indexed on, and stating it here means a
+    header still showing last year's context cannot reach this year's plan
+    through a stale `schoolId` alone.
+  */
   "teacher-subjects": {
     table: () => db.teacherSubject as unknown as Delegate,
     model: "TeacherSubject",
-    where: bySchool,
+    where: (context) => ({ ...bySchool(context), ...byYear(context) }),
+    children: {
+      levelIds: {
+        relation: "levels",
+        table: () => db.teacherSubjectLevel as unknown as Delegate,
+        parentColumn: "teacherSubjectId",
+        column: "levelId",
+      },
+    },
     createData: (context) => ({
       school: { connect: { id: context.currentSchool?.id } },
+      schoolYear: { connect: { id: context.currentSchoolYear?.id } },
     }),
     orderBy: [{ preferenceRank: "asc" }],
   },

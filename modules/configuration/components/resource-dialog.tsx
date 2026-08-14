@@ -303,6 +303,62 @@ function FieldControl({
         />
       );
 
+    /*
+      Several rows out of another table, as a checkbox each.
+
+      A group of checkboxes rather than a multi-select combobox because the list
+      is the school's own cursus — a couple of dozen niveaux at the very most,
+      under the four cycle headings they are read by. Seeing them all at once is
+      the point: "which niveaux does Ahmad take maths at" is answered by
+      scanning, not by opening a dropdown and remembering what was ticked.
+
+      Nothing ticked is a real answer and the ordinary one — it means the field
+      above decides. See TeacherSubject's level scope.
+    */
+    case "multireference": {
+      const selected = new Set(
+        String(current ?? "")
+          .split(",")
+          .map((part) => part.trim())
+          .filter(Boolean),
+      );
+
+      const groups = new Map<string, Choice[]>();
+      for (const choice of choices) {
+        const key = choice.group ?? "";
+        groups.set(key, [...(groups.get(key) ?? []), choice]);
+      }
+
+      return (
+        <div className="flex flex-col gap-3 rounded-lg border px-4 py-3">
+          {[...groups].map(([group, entries]) => (
+            <div key={group} className="flex flex-col gap-2">
+              {group ? (
+                <span className="text-muted-foreground text-xs font-medium">
+                  {group}
+                </span>
+              ) : null}
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {entries.map((choice) => (
+                  <label
+                    key={choice.id}
+                    className="flex items-center gap-2 text-sm font-normal"
+                  >
+                    <Checkbox
+                      name={field.name}
+                      value={choice.id}
+                      defaultChecked={selected.has(choice.id)}
+                    />
+                    {choice.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     case "multiselect": {
       // A checkbox per option, all posting under the same name — FormData
       // collects them with `getAll`, and the value stored is the join.

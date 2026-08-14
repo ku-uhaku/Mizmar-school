@@ -1,0 +1,32 @@
+/// One niveau a qualification applies to — see TeacherSubject's level scope.
+///
+/// A join table rather than a comma-joined column, for the reason every other
+/// list of ids in this schema is one: a niveau that is renamed, deleted or
+/// merged has to take its references with it, and a string of cuids cannot be
+/// made to. The rows are also what the generator filters on, so they want an
+/// index.
+///
+/// No rows at all is the ordinary case and is *not* "qualified for nothing" —
+/// it means the row's `educationLevel` decides, or the whole school does. The
+/// only place that reads it is `qualifiedFor` in modules/timetable/service.ts.
+model TeacherSubjectLevel {
+  id String @id @default(cuid())
+
+  /// Cascade: these rows are the parent's own list and have no meaning apart
+  /// from it.
+  teacherSubjectId String
+  teacherSubject   TeacherSubject @relation(fields: [teacherSubjectId], references: [id], onDelete: Cascade)
+
+  /// Cascade: a niveau the school no longer runs cannot be scoped to. Widening
+  /// the parent instead — which is what SetNull would do here, since there is
+  /// no null to hold — would quietly offer the teacher every other niveau.
+  levelId String
+  level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teacherSubjectId, levelId])
+  @@index([teacherSubjectId])
+  @@index([levelId])
+  @@map("teacher_subject_levels")
+}

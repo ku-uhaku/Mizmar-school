@@ -44,6 +44,9 @@ model Level {
   tracks         Track[]
   subjects       LevelSubject[]
   offerings      LevelOffering[]
+  /// Qualifications narrowed to this niveau — see
+  /// prisma/schema/hr/teacher-subject-level.prisma.
+  teacherSubjects TeacherSubjectLevel[]
   /// Per-level pricing, e.g. scolarité is dearer at 2BAC than at 1AP.
   feeRates       FeeRate[]
   /// Events aimed at this level rather than at the whole school.

@@ -42,6 +42,10 @@ model SchoolYear {
   /// prisma/schema/timetable/school-week.prisma.
   schoolWeeks SchoolWeek[]
 
+  /// Who may take what this year — the staffing plan the timetable generator
+  /// reads. See prisma/schema/hr/teacher-subject.prisma.
+  teacherSubjects TeacherSubject[]
+
   /// This year's bus lines and the runs they make.
   transportRoutes    TransportRoute[]
   transportSchedules TransportSchedule[]

@@ -16,6 +16,7 @@ import { findResource } from "@/modules/configuration/resources";
 import {
   findBlockingReference,
   resourceSchema,
+  type ChildCollection,
 } from "@/modules/configuration/resource-schema";
 import type { ResourceDef } from "@/modules/configuration/types";
 import {
@@ -62,6 +63,73 @@ function toRelationData(
     data[field.name.replace(/Id$/, "")] = { connect: { id } };
   }
   return data;
+}
+
+/**
+ * Splits the `multireference` fields out of the parsed values.
+ *
+ * They are not columns — they are rows in a join table — so they must not reach
+ * a `create` or an `updateMany` as data, where Prisma would reject them as
+ * unknown arguments. Both writes deal with the two halves separately: the
+ * scalars go to the row, the id lists go to `writeChildren`.
+ */
+function splitChildren(
+  children: Record<string, ChildCollection> | undefined,
+  values: Record<string, unknown>,
+): { scalars: Record<string, unknown>; sets: Record<string, string[]> } {
+  const scalars = { ...values };
+  const sets: Record<string, string[]> = {};
+
+  for (const name of Object.keys(children ?? {})) {
+    if (!(name in scalars)) continue;
+    sets[name] = String(scalars[name] ?? "")
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    delete scalars[name];
+  }
+
+  return { scalars, sets };
+}
+
+/**
+ * Replaces each join table's rows with what the form submitted.
+ *
+ * Wholesale rather than diffed, and in one transaction, for the same reason
+ * `updateRoleAction` replaces a role's permissions that way: the form submits
+ * the full desired state, so working out which rows changed would only add a
+ * chance to get it wrong — and a delete that lands without its insert would
+ * silently widen a qualification from "2AP and 3AP" to "every niveau".
+ *
+ * The parent row is looked up through the scoped `where` before this is called,
+ * so `parentId` is already known to be reachable.
+ */
+async function writeChildren(
+  children: Record<string, ChildCollection> | undefined,
+  sets: Record<string, string[]>,
+  parentId: string,
+): Promise<void> {
+  const operations = Object.entries(sets).flatMap(([name, ids]) => {
+    const child = children?.[name];
+    if (!child) return [];
+
+    return [
+      child.table().deleteMany({ where: { [child.parentColumn]: parentId } }),
+      ...(ids.length > 0
+        ? [
+            child.table().createMany({
+              data: ids.map((id) => ({
+                [child.parentColumn]: parentId,
+                [child.column]: id,
+              })),
+            }),
+          ]
+        : []),
+    ];
+  });
+
+  if (operations.length === 0) return;
+  await db.$transaction(operations as never);
 }
 
 /**
@@ -146,11 +214,25 @@ export async function createConfigItemAction(
       });
     }
 
+    const { scalars, sets } = splitChildren(schema.children, values);
+
+    // Nested rather than a second write: the parent's id is not known until it
+    // exists, and a create that half-succeeded would leave a qualification
+    // claiming every niveau in the school.
+    const nested = Object.entries(sets).flatMap(([name, ids]) => {
+      const child = schema.children?.[name];
+      if (!child || ids.length === 0) return [];
+      return [
+        [child.relation, { create: ids.map((id) => ({ [child.column]: id })) }],
+      ] as const;
+    });
+
     await schema.table().create({
       data: {
-        ...toRelationData(resource, values),
-        ...(schema.createData?.(context, values) ?? {}),
-        ...(schema.derive?.(values) ?? {}),
+        ...toRelationData(resource, scalars),
+        ...(schema.createData?.(context, scalars) ?? {}),
+        ...(schema.derive?.(scalars) ?? {}),
+        ...Object.fromEntries(nested),
       },
     });
 
@@ -208,11 +290,18 @@ export async function updateConfigItemAction(
     // is flat scalars only (it has no per-record nested writes to hang a
     // relation `connect` off), so the plain `cityId`-shaped value it already
     // has is exactly what it wants — unlike `create`, see `toRelationData`.
+    const { scalars, sets } = splitChildren(schema.children, values);
+
     const updated = await schema.table().updateMany({
       where: { ...schema.where(context), id },
-      data: { ...values, ...(schema.derive?.(values) ?? {}) },
+      data: { ...scalars, ...(schema.derive?.(scalars) ?? {}) },
     });
     if (updated.count === 0) return failure(t.errors.notFound);
+
+    // Only after the scoped update matched: `updateMany` returning 0 is how a
+    // row outside this school or year reads, and the join tables are keyed by
+    // bare id, so rewriting them first would reach past the scope clause.
+    await writeChildren(schema.children, sets, id);
 
     refresh();
     return success(t.configuration.updated);

@@ -257,12 +257,54 @@ describe("field descriptors", () => {
     const loaders = new Set(["@teachers", "@slots"]);
     for (const resource of RESOURCES) {
       for (const field of resource.fields) {
-        if (field.type !== "reference" || !field.referenceTo) continue;
+        if (
+          (field.type !== "reference" && field.type !== "multireference") ||
+          !field.referenceTo
+        ) {
+          continue;
+        }
         const target = field.referenceTo;
         expect(
           loaders.has(target) || Boolean(resourceSchema(target)),
           `${resource.id}.${field.name} points at ${target}`,
         ).toBe(true);
+      }
+    }
+  });
+
+  it("give every multireference a join table to write into", () => {
+    /*
+      A `multireference` is rows in a table of its own, and the generic write
+      has no way to guess which. Undeclared, `splitChildren` would leave the
+      joined ids in the scalar data and Prisma would reject the whole save as an
+      unknown argument — on every create, with a message about a column that
+      does not exist. Cheaper to catch here than in the dialog.
+    */
+    for (const resource of RESOURCES) {
+      const schema = resourceSchema(resource.id);
+      for (const field of resource.fields) {
+        if (field.type !== "multireference") continue;
+        expect(
+          schema?.children?.[field.name],
+          `${resource.id}.${field.name} has no child collection declared`,
+        ).toBeTruthy();
+        expect(
+          field.referenceTo,
+          `${resource.id}.${field.name} has nothing to pick from`,
+        ).toBeTruthy();
+      }
+    }
+  });
+
+  it("declare a child collection only for a field that is one", () => {
+    // The other way round: a `children` entry keyed on a field that is not a
+    // multireference would never be read, and the field it names would be
+    // written as a column that does not exist.
+    for (const resource of RESOURCES) {
+      const schema = resourceSchema(resource.id);
+      for (const name of Object.keys(schema?.children ?? {})) {
+        const field = resource.fields.find((entry) => entry.name === name);
+        expect(field?.type, `${resource.id}.${name}`).toBe("multireference");
       }
     }
   });

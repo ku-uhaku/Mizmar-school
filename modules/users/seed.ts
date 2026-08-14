@@ -56,12 +56,32 @@ export type TeacherRequirement = {
   /** For the job title, which is prose and not a key. */
   subjectLabel: string;
   count: number;
+  /**
+   * Subjects a teacher of this one may also be given, best first.
+   *
+   * Not everybody teaches one subject and nothing else — a professeur de
+   * physique covers maths, an enseignant d'arabe takes l'éducation islamique.
+   * The doublings a Moroccan school actually makes are decided by the caller,
+   * which is where the cursus is known; see `SECOND_SUBJECTS` in
+   * prisma/seed.ts.
+   *
+   * Only some of the teachers of a requirement get one — see the minting loop.
+   */
+  coversAlso: string[];
 };
 
 /** A teacher account, and what they are qualified to take. */
 export type SeededTeacher = {
   id: string;
   email: string;
+  /**
+   * Their subjects, main one first.
+   *
+   * The order is the preference: index 0 is what they were recruited for, and
+   * anything after it is a subject they can cover. `seedTeacherSubjects` turns
+   * that into `preferenceRank`, so the generator exhausts the specialists
+   * before reaching for somebody merely covering.
+   */
   subjectCodes: string[];
 };
 
@@ -351,10 +371,28 @@ export async function seedUsers(
           memberships: [{ schoolId: school.id, role: "Enseignant" }],
         });
 
+        /*
+          Every third teacher of a subject also covers a second one.
+
+          By position rather than at random, so a re-seed mints the same staff
+          and the same timetable. `n % 3 === 1` and not `=== 0` on purpose: it
+          leaves the first teacher of each subject a pure specialist, and skips
+          the subjects with a single teacher — philosophie, informatique — where
+          the one person the school has is exactly that. Those subjects gain
+          their second qualified teacher from the other direction instead, by
+          being somebody else's `coversAlso`.
+        */
+        const secondary =
+          n % 3 === 1 && requirement.coversAlso.length > 0
+            ? [requirement.coversAlso[
+                Math.floor(n / 3) % requirement.coversAlso.length
+              ]]
+            : [];
+
         teacherRows[school.id].push({
           id: user.id,
           email: user.email,
-          subjectCodes: [requirement.subjectCode],
+          subjectCodes: [requirement.subjectCode, ...secondary],
         });
         teacherCount += 1;
       }

@@ -251,6 +251,19 @@ function Cell({
     case "reference":
       return <span>{labelFor(field, String(value))}</span>;
 
+    case "multireference":
+      // Named rather than counted: "2AP, 3AP" is what the head of studies is
+      // scanning the column for, and "2 niveaux" would send them into the
+      // dialog to find out which.
+      return (
+        <span>
+          {String(value)
+            .split(",")
+            .map((id) => labelFor(field, id))
+            .join(", ")}
+        </span>
+      );
+
     case "money":
       // Stored in centimes; shown as dirhams.
       return (

@@ -306,7 +306,7 @@ export async function seedHr(
 }
 
 /**
- * Records what each teacher is qualified to take.
+ * Records what each teacher is qualified to take, for one school year.
  *
  * Read from the specialty the account was minted with, not inferred from the
  * assignments it happens to hold. The two used to be the same thing and both
@@ -314,33 +314,99 @@ export async function seedHr(
  * qualifications from it said every teacher could teach everything, and a
  * timetable generator trusting that would staff Arabic with the sports teacher.
  *
- * Idempotent on (teacherId, subjectId).
+ * ── Why it is written per year ──────────────────────────────────────────────
+ * Because that is what the table now holds — see TeacherSubject. A demo school
+ * with three years has three staffing plans, and a grid generated for 2024-2025
+ * has to read the people who were there in 2024-2025.
+ *
+ * ── The level scope this writes, and the one it does not ────────────────────
+ * The cycle, derived from where each subject is actually taught: a subject on
+ * the programme of exactly one cycle gives its teachers a qualification scoped
+ * to that cycle, and one taught across several — français, arabe, maths in a
+ * groupe scolaire — leaves them school-wide. That is the shape a school really
+ * enters, because a teacher is recruited for the primaire or for the collège
+ * and not for a list of niveaux.
+ *
+ * Narrowing further, to named niveaux, is deliberately left to the screen. The
+ * seed has nothing true to say about which two niveaux of the collège a given
+ * maths teacher takes, and inventing it would put a fact in the database that
+ * nobody at the school decided.
+ *
+ * Idempotent on (schoolYearId, teacherId, subjectId).
  */
 export async function seedTeacherSubjects(
   db: SeedDb,
   {
     schoolId,
+    schoolYearId,
     teachers,
     subjectIdByCode,
   }: {
     schoolId: string;
+    schoolYearId: string;
     teachers: { id: string; subjectCodes: string[] }[];
     subjectIdByCode: Record<string, string>;
   },
 ): Promise<number> {
+  // Which cycles each subject is on the programme of. Read back from what
+  // `configureSchool` wrote rather than from the constants it wrote it from,
+  // so a school that has since edited its cursus is described as it now is.
+  const programme = await db.levelSubject.findMany({
+    where: { level: { schoolId } },
+    select: { subjectId: true, level: { select: { educationLevelId: true } } },
+  });
+
+  const cyclesBySubject = new Map<string, Set<string>>();
+  for (const row of programme) {
+    const held = cyclesBySubject.get(row.subjectId) ?? new Set<string>();
+    held.add(row.level.educationLevelId);
+    cyclesBySubject.set(row.subjectId, held);
+  }
+
   let written = 0;
 
   for (const teacher of teachers) {
-    for (const code of teacher.subjectCodes) {
+    for (const [index, code] of teacher.subjectCodes.entries()) {
       const subjectId = subjectIdByCode[code];
       if (!subjectId) continue;
 
+      const cycles = cyclesBySubject.get(subjectId);
+      const educationLevelId =
+        cycles && cycles.size === 1 ? [...cycles][0] : null;
+
+      /*
+        Main subject first, then whatever they cover.
+
+        `subjectCodes` is ordered by what the account was recruited for, so the
+        index *is* the preference: 0 for the specialist, 2 for somebody covering.
+        Two rather than one, so the gap is visible in the screen and a school
+        editing it has a rank between them to put a third case in.
+
+        This is what stops the generator handing physique to the maths teacher
+        while a professeur de physique sits idle — it exhausts rank 0 first.
+      */
+      const preferenceRank = index === 0 ? 0 : 2;
+
       await db.teacherSubject.upsert({
         where: {
-          teacherId_subjectId: { teacherId: teacher.id, subjectId },
+          schoolYearId_teacherId_subjectId: {
+            schoolYearId,
+            teacherId: teacher.id,
+            subjectId,
+          },
         },
-        update: {},
-        create: { schoolId, teacherId: teacher.id, subjectId },
+        // Re-stated rather than left alone: the cycle follows the cursus, and a
+        // school that has opened a new cycle since the last run should see the
+        // scope narrow or widen with it instead of keeping a stale answer.
+        update: { educationLevelId, preferenceRank },
+        create: {
+          schoolId,
+          schoolYearId,
+          teacherId: teacher.id,
+          subjectId,
+          educationLevelId,
+          preferenceRank,
+        },
       });
       written += 1;
     }

@@ -9,7 +9,10 @@ import {
   levelChoiceLabel,
 } from "@/modules/academics/labels";
 import { findResource } from "@/modules/configuration/resources";
-import { resourceSchema } from "@/modules/configuration/resource-schema";
+import {
+  resourceSchema,
+  type ChildCollection,
+} from "@/modules/configuration/resource-schema";
 import type {
   Choice,
   FieldDef,
@@ -24,10 +27,31 @@ import type {
  */
 
 /** Serialises one database row down to the primitives the client needs. */
-function toRow(record: Record<string, unknown>, fields: FieldDef[]): ResourceRow {
+function toRow(
+  record: Record<string, unknown>,
+  fields: FieldDef[],
+  children: Record<string, ChildCollection> = {},
+): ResourceRow {
   const row: ResourceRow = { id: String(record.id) };
 
   for (const field of fields) {
+    /*
+      A multireference is not a column: it came back under the *relation's*
+      name as rows, and goes to the client joined, the same shape a
+      multiselect uses. `ResourceRow` holds primitives — an array would not
+      survive the crossing — and the dialog splits it again to tick the boxes.
+    */
+    const child = children[field.name];
+    if (child) {
+      const rows = record[child.relation];
+      row[field.name] = Array.isArray(rows)
+        ? rows
+            .map((entry) => String((entry as Record<string, unknown>)[child.column]))
+            .join(",")
+        : "";
+      continue;
+    }
+
     const value = record[field.name];
 
     if (value === null || value === undefined) {
@@ -218,7 +242,9 @@ export async function loadAllChoices(
   resource: ResourceDef,
 ): Promise<Record<string, Choice[]>> {
   const references = resource.fields.filter(
-    (field) => field.type === "reference" && field.referenceTo,
+    (field) =>
+      (field.type === "reference" || field.type === "multireference") &&
+      field.referenceTo,
   );
 
   const loaded = await Promise.all(
@@ -239,16 +265,27 @@ export async function listResource(
   const schema = resourceSchema(resource.id);
   if (!schema) return { rows: [], choices: {} };
 
+  // The join tables come back with the row rather than in a query per field:
+  // a screen of forty qualifications would otherwise be forty round trips to
+  // find out which niveaux each one names.
+  const include = Object.fromEntries(
+    Object.values(schema.children ?? {}).map((child) => [
+      child.relation,
+      { select: { [child.column]: true } },
+    ]),
+  );
+
   const [records, choices] = await Promise.all([
     schema.table().findMany({
       where: schema.where(context),
       orderBy: schema.orderBy,
+      ...(Object.keys(include).length > 0 ? { include } : {}),
     }),
     loadAllChoices(context, resource),
   ]);
 
   return {
-    rows: records.map((record) => toRow(record, resource.fields)),
+    rows: records.map((record) => toRow(record, resource.fields, schema.children)),
     choices,
   };
 }
@@ -288,52 +325,76 @@ export async function findUnreachableReference(
   values: Record<string, unknown>,
 ): Promise<string | null> {
   for (const field of resource.fields) {
+    /*
+      A multireference is checked id by id against the very same clause a single
+      reference is. Nothing about "several of them" changes the question — a
+      crafted `levelIds` naming another school's niveau has to be refused as
+      firmly as a crafted `levelId` would be, and one bad id in the list spoils
+      the field.
+    */
+    if (field.type === "multireference" && field.referenceTo) {
+      const ids = String(values[field.name] ?? "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      for (const id of ids) {
+        if (await isUnreachable(context, field.referenceTo, id)) return field.name;
+      }
+      continue;
+    }
+
     if (field.type !== "reference" || !field.referenceTo) continue;
 
     const value = values[field.name];
     if (value === null || value === undefined || value === "") continue;
 
-    if (field.referenceTo === "@teachers") {
-      const user = await db.user.findFirst({
-        where: { id: String(value), organizationId: context.organization.id },
-        select: { id: true },
-      });
-      if (!user) return field.name;
-      continue;
+    if (await isUnreachable(context, field.referenceTo, String(value))) {
+      return field.name;
     }
-
-    /*
-      The bell schedule.
-
-      `@slots` is a loader id, not a resource id, so `resourceSchema` has nothing
-      under it and the fall-through below treated the field as unreachable — on
-      every save. That made `teacher-unavailability`, whose `timeSlotId` points
-      here, impossible to create or update at all: the form came back refusing
-      the one value the dropdown had just offered.
-
-      Checked against the year in context, which is the same clause the loader
-      builds its options from.
-    */
-    if (field.referenceTo === "@slots") {
-      const slot = await db.timeSlot.findFirst({
-        where: {
-          id: String(value),
-          schoolYearId: currentSchoolYearId(context),
-        },
-        select: { id: true },
-      });
-      if (!slot) return field.name;
-      continue;
-    }
-
-    const schema = resourceSchema(field.referenceTo);
-    if (!schema) return field.name;
-
-    const record = await schema.table().findFirst({
-      where: { ...schema.where(context), id: String(value) },
-    });
-    if (!record) return field.name;
   }
 
   return null;
+}
+
+/** Whether one submitted id points outside what the current context owns. */
+async function isUnreachable(
+  context: AuthContext,
+  referenceTo: string,
+  value: string,
+): Promise<boolean> {
+  if (referenceTo === "@teachers") {
+    const user = await db.user.findFirst({
+      where: { id: value, organizationId: context.organization.id },
+      select: { id: true },
+    });
+    return !user;
+  }
+
+  /*
+    The bell schedule.
+
+    `@slots` is a loader id, not a resource id, so `resourceSchema` has nothing
+    under it and the fall-through below treated the field as unreachable — on
+    every save. That made `teacher-unavailability`, whose `timeSlotId` points
+    here, impossible to create or update at all: the form came back refusing
+    the one value the dropdown had just offered.
+
+    Checked against the year in context, which is the same clause the loader
+    builds its options from.
+  */
+  if (referenceTo === "@slots") {
+    const slot = await db.timeSlot.findFirst({
+      where: { id: value, schoolYearId: currentSchoolYearId(context) },
+      select: { id: true },
+    });
+    return !slot;
+  }
+
+  const schema = resourceSchema(referenceTo);
+  if (!schema) return true;
+
+  const record = await schema.table().findFirst({
+    where: { ...schema.where(context), id: value },
+  });
+  return !record;
 }

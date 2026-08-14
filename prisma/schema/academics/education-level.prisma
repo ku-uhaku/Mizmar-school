@@ -30,6 +30,10 @@ model EducationLevel {
 
   levels Level[]
 
+  /// Qualifications declared for this whole cycle — see
+  /// prisma/schema/hr/teacher-subject.prisma.
+  teacherSubjects TeacherSubject[]
+
   /// A school runs each cycle at most once.
   @@unique([schoolId, cycle])
   @@index([schoolId])
