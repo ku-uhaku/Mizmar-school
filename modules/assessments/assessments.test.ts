@@ -532,6 +532,9 @@ describe("validation", () => {
       scheduledOn: "2026-01-15",
       maxScore: 20,
       coefficient: 1,
+      // Always posted: the edit form renders the switch on every paper, so the
+      // schema requires it rather than defaulting a weighting decision.
+      countsTowardAverage: true,
       notes: "",
       ...extra,
     });
@@ -577,6 +580,23 @@ describe("validation", () => {
       expect(
         assessmentSchema(t).safeParse(paper({ sequence: MAX_SEQUENCE + 1 })).success,
       ).toBe(false);
+    });
+
+    it("carries whether the paper weighs on the term", () => {
+      const off = assessmentSchema(t).safeParse(
+        paper({ countsTowardAverage: false }),
+      );
+      expect(off.success).toBe(true);
+      if (off.success) expect(off.data.countsTowardAverage).toBe(false);
+
+      // Required rather than defaulted: the form always posts it, and silently
+      // defaulting a weighting decision is how a paper drifts in or out of the
+      // average without anybody choosing.
+      const missing = assessmentSchema(t).safeParse({
+        ...paper(),
+        countsTowardAverage: undefined,
+      });
+      expect(missing.success).toBe(false);
     });
 
     it("strips anything the form did not declare", () => {

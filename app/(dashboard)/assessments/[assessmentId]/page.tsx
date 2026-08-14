@@ -68,6 +68,12 @@ export default async function AssessmentPage({
         <Badge variant="outline">
           /{assessment.maxScore} · ×{assessment.coefficient}
         </Badge>
+        {/* Only the exception. A paper outside the average looks exactly like
+            one inside it, and a teacher marking a sheet that weighs on nothing
+            is entitled to know before they start. */}
+        {assessment.countsTowardAverage ? null : (
+          <Badge variant="secondary">{t.assessment.doesNotCount}</Badge>
+        )}
         {assessment.scheduledOn ? (
           <Badge variant="outline">
             {formatDate(assessment.scheduledOn, locale)}

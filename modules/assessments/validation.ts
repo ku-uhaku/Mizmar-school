@@ -63,6 +63,8 @@ export function assessmentSchema(t: Dictionary) {
       .int({ error: v.invalidNumber })
       .min(1, { error: v.invalidNumber })
       .max(20, { error: v.invalidNumber }),
+    /** Whether the marks move the subject's average — see Assessment. */
+    countsTowardAverage: z.boolean(),
     notes: optionalText(NOTES_MAX),
   });
 }

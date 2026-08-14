@@ -24,7 +24,10 @@ import {
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
 import { formatDate, interpolate } from "@/lib/i18n/format";
-import { setAssessmentStatusAction } from "@/modules/assessments/actions";
+import {
+  setAssessmentCountsAction,
+  setAssessmentStatusAction,
+} from "@/modules/assessments/actions";
 import {
   ASSESSMENT_PAGE_SIZE,
   ASSESSMENT_STAGES,
@@ -70,6 +73,7 @@ export function DevoirsReview({
   terms,
   filters,
   canValidate,
+  canReweigh,
 }: {
   assessments: AssessmentRow[];
   choices: AssessmentFilterChoices;
@@ -83,6 +87,8 @@ export function DevoirsReview({
     stage: string;
   };
   canValidate: boolean;
+  /** ASSESSMENT_MANAGE — whether a paper may be moved in or out of the average. */
+  canReweigh: boolean;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -94,6 +100,14 @@ export function DevoirsReview({
     IDLE,
   );
   useActionFeedback(state);
+
+  // Its own state: reweighting a paper and moving its status are two different
+  // results, and sharing one would let the second overwrite the first's toast.
+  const [countsState, countsAction] = React.useActionState(
+    setAssessmentCountsAction,
+    IDLE,
+  );
+  useActionFeedback(countsState);
 
   /**
    * Rewrites one filter in the URL, keeping the rest.
@@ -250,7 +264,9 @@ export function DevoirsReview({
               <DevoirCard
                 assessment={assessment}
                 canValidate={canValidate}
+                canReweigh={canReweigh}
                 formAction={formAction}
+                countsAction={countsAction}
                 locale={locale}
               />
             </li>
@@ -265,12 +281,16 @@ export function DevoirsReview({
 function DevoirCard({
   assessment,
   canValidate,
+  canReweigh,
   formAction,
+  countsAction,
   locale,
 }: {
   assessment: AssessmentRow;
   canValidate: boolean;
+  canReweigh: boolean;
   formAction: (formData: FormData) => void;
+  countsAction: (formData: FormData) => void;
   locale: Parameters<typeof formatDate>[1];
 }) {
   const { t } = useI18n();
@@ -329,6 +349,16 @@ function DevoirCard({
                 ]}
           </Badge>
 
+          {/* Said on the row, not only in the edit form. A paper outside the
+            average looks exactly like one inside it — same marks, same class,
+            same badge — and the whole reason a school marks work this way is
+            that the distinction is invisible otherwise. Only the exception is
+            shown: "counts" is the ordinary case and a badge on every row would
+            say nothing. */}
+          {assessment.countsTowardAverage ? null : (
+            <Badge variant="secondary">{t.assessment.doesNotCount}</Badge>
+          )}
+
           <div className="ms-auto flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
               <Link href={`/assessments/${assessment.id}`}>
@@ -353,6 +383,50 @@ function DevoirCard({
                 <input type="hidden" name="status" value="GRADED" />
                 <Button type="submit" size="sm">
                   {t.assessment.acceptMarks}
+                </Button>
+              </form>
+            ) : null}
+
+            {/*
+              The other end of the same queue, and the half this screen was
+              missing. A devoir set from here is written DRAFT — nothing has
+              been said to the class or the families yet — and publishing is
+              the one decision that both announces it and opens its mark sheet.
+              Without this the office could set a devoir on this screen and
+              then had to go and find the paper to release it.
+            */}
+            {/*
+              Moving a paper in or out of the average, from the list.
+
+              A devoir set on the phone has no such box — the office decides
+              afterwards that this one was revision. Sending them through a full
+              edit form to change a boolean is how it would never get done.
+            */}
+            {canReweigh ? (
+              <form action={countsAction}>
+                <input type="hidden" name="id" value={assessment.id} />
+                {/* The value asked for, not the value held: an unticked
+                  checkbox posts nothing, and "nothing" would read as false on
+                  the way back and make the button one-way. */}
+                <input
+                  type="hidden"
+                  name="countsTowardAverage"
+                  value={assessment.countsTowardAverage ? "0" : "1"}
+                />
+                <Button type="submit" variant="ghost" size="sm">
+                  {assessment.countsTowardAverage
+                    ? t.assessment.makeNotCount
+                    : t.assessment.makeCount}
+                </Button>
+              </form>
+            ) : null}
+
+            {canValidate && stage === "TO_PUBLISH" ? (
+              <form action={formAction}>
+                <input type="hidden" name="id" value={assessment.id} />
+                <input type="hidden" name="status" value="PUBLISHED" />
+                <Button type="submit" size="sm">
+                  {t.assessment.publish}
                 </Button>
               </form>
             ) : null}

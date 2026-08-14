@@ -5,7 +5,9 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { defaultDateWithin } from "@/lib/school-year";
 import { DevoirsReview } from "@/modules/assessments/components/devoirs-review";
+import { SetDevoirDialog } from "@/modules/assessments/components/set-devoir-dialog";
 import {
   ASSESSMENT_PAGE_SIZE,
   statusesForStage,
@@ -13,6 +15,8 @@ import {
 import {
   listAssessmentFilterChoices,
   listAssessments,
+  listAssessmentTypes,
+  listDevoirTargets,
   listTerms,
 } from "@/modules/assessments/queries";
 
@@ -31,6 +35,11 @@ export const metadata: Metadata = { title: "Devoirs" };
  * validate anything — how much homework is being set, by whom, and in which
  * classes. The accept button is the part that needs `assessment.publish`, and it
  * is only rendered for whoever holds it.
+ *
+ * Setting one needs a third code again — `assessment.manage`, the office half of
+ * the pair, or `assessment.grade` for a member of staff who also teaches. The
+ * options behind that button are loaded only for whoever holds one of them,
+ * since a reader who may only look has nothing to pick from.
  */
 export default async function SchoolLifeDevoirsPage({
   searchParams,
@@ -63,7 +72,13 @@ export default async function SchoolLifeDevoirsPage({
   // `statusesForStage`.
   const statuses = filters.stage ? statusesForStage(filters.stage) : [];
 
-  const [assessments, choices, terms] = await Promise.all([
+  // The office half of the pair `createDevoirAction` gates on; a teacher who
+  // also holds a post in the office reaches it by their own half.
+  const canSet =
+    context.can(PERMISSIONS.ASSESSMENT_MANAGE) ||
+    context.can(PERMISSIONS.ASSESSMENT_GRADE);
+
+  const [assessments, choices, terms, targets, types] = await Promise.all([
     listAssessments(context, {
       kind: "DEVOIR",
       search: filters.search || undefined,
@@ -77,6 +92,8 @@ export default async function SchoolLifeDevoirsPage({
     }),
     listAssessmentFilterChoices(context, { kind: "DEVOIR" }),
     listTerms(context),
+    canSet ? listDevoirTargets(context) : [],
+    canSet ? listAssessmentTypes(context, { teacherCreatableOnly: true }) : [],
   ]);
 
   return (
@@ -84,7 +101,16 @@ export default async function SchoolLifeDevoirsPage({
       <PageHeader
         title={t.assessment.devoirsReview}
         description={t.assessment.devoirsReviewHint}
-      />
+      >
+        {canSet ? (
+          <SetDevoirDialog
+            targets={targets}
+            terms={terms}
+            types={types}
+            defaultDate={defaultDateWithin(context.currentSchoolYear)}
+          />
+        ) : null}
+      </PageHeader>
 
       <DevoirsReview
         assessments={assessments}
@@ -92,6 +118,9 @@ export default async function SchoolLifeDevoirsPage({
         terms={terms}
         filters={filters}
         canValidate={context.can(PERMISSIONS.ASSESSMENT_PUBLISH)}
+        // Moving a paper in or out of the average is a weighting decision, so
+        // it sits on the same code that decides what gets set at all.
+        canReweigh={context.can(PERMISSIONS.ASSESSMENT_MANAGE)}
       />
     </>
   );

@@ -59,7 +59,13 @@ export async function generateControle(
   const schoolId = currentSchoolId(context);
   const type = await db.assessmentType.findFirst({
     where: { id: assessmentTypeId, schoolId },
-    select: { id: true, name: true, defaultCoefficient: true, defaultMaxScore: true },
+    select: {
+      id: true,
+      name: true,
+      defaultCoefficient: true,
+      defaultMaxScore: true,
+      countsTowardAverage: true,
+    },
   });
   if (!type) return { ok: false, reason: "no-type" };
 
@@ -104,6 +110,9 @@ export async function generateControle(
       title: file.assessmentLabel?.trim() || defaultAssessmentTitle(type.name, sequence),
       maxScore,
       coefficient: type.defaultCoefficient,
+      // Copied from the kind like the weight beside it, so re-configuring the
+      // kind later cannot rescore a ministry sheet already imported under it.
+      countsTowardAverage: type.countsTowardAverage,
       status: "PUBLISHED",
       massarCode: file.exportId,
       scopeKey,

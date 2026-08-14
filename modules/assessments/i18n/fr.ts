@@ -76,7 +76,36 @@ const fr = {
       "Les devoirs donnés par les enseignants dans toute l'école, et ce qui attend d'être validé.",
     noDevoirs: "Aucun enseignant n'a encore donné de devoir cette année.",
     noDevoirsHint:
-      "Les devoirs sont créés depuis l'espace enseignant et apparaissent ici au fur et à mesure.",
+      "Les devoirs sont créés par les enseignants depuis l'espace enseignant, ou ici par l'administration, et apparaissent dans cette liste dans les deux cas.",
+
+    // ── Donner un devoir depuis l'administration ────────────────────────────
+    setDevoir: "Donner un devoir",
+    setDevoirTitle: "Donner un devoir",
+    setDevoirHint:
+      "Un devoir pour une classe — pour un collègue absent, ou qui l'a annoncé à la classe sans le saisir.",
+    setDevoirDraftHint:
+      "Enregistré en brouillon. C'est la publication qui ouvre la feuille de notes et prévient les familles.",
+    setDevoirNoTeaching:
+      "Aucune classe n'a encore d'affectation cette année — affectez d'abord un enseignant à une matière.",
+    setDevoirNoKinds:
+      "Aucun type de travail n'est ouvert aux enseignants. Ouvrez-en un dans la configuration.",
+    classAndSubject: "Classe et matière",
+    classAndSubjectHint:
+      "Le couple sur lequel un enseignant est affecté. Le devoir revient à celui qui occupe le poste, pas à celui qui le saisit.",
+    paperTitle: "Intitulé",
+    devoirTitlePlaceholder: "Exercices p.42",
+
+    // ── S'il pèse sur la période ────────────────────────────────────────────
+    countsTowardAverage: "Compte dans la moyenne",
+    countsTowardAverageHint:
+      "Décochez pour une révision, un blanc, ou un travail noté seulement pour situer l'élève. Il reste corrigé et reste visible — il ne déplace simplement jamais la moyenne de la matière.",
+    doesNotCount: "Hors moyenne",
+    makeCount: "Le compter",
+    makeNotCount: "Hors moyenne",
+    nowCounts: "Ce devoir compte désormais dans la moyenne.",
+    nowDoesNotCount: "Ce devoir ne compte plus dans la moyenne.",
+    uncountedNeedsNoMarks:
+      "Il ne pèse pas sur la période : il peut être clôturé sans aucune note.",
     showingFirst:
       "Les {count} plus récents. Affinez les filtres pour voir le reste.",
     allTeachers: "Tous les enseignants",

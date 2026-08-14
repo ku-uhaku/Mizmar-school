@@ -3,12 +3,12 @@
 import { refresh } from "next/cache";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
-import { authorizeSchool, requireAuth } from "@/lib/dal";
+import { authorizeSchool, ForbiddenError, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { field, listField, withActionErrors } from "@/lib/server-action";
+import { boolField, field, listField, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
 import { currentSchoolYearId } from "@/lib/scope";
@@ -326,6 +326,7 @@ export async function saveAssessmentAction(
       scheduledOn: field(formData, "scheduledOn"),
       maxScore: field(formData, "maxScore"),
       coefficient: field(formData, "coefficient"),
+      countsTowardAverage: boolField(formData, "countsTowardAverage"),
       notes: field(formData, "notes"),
     });
     if (!parsed.success) {
@@ -358,6 +359,7 @@ export async function saveAssessmentAction(
         scheduledOn: parsed.data.scheduledOn,
         maxScore: parsed.data.maxScore,
         coefficient: parsed.data.coefficient,
+        countsTowardAverage: parsed.data.countsTowardAverage,
         notes: parsed.data.notes,
       },
     });
@@ -530,6 +532,49 @@ export async function setAssessmentStatusAction(
 }
 
 /**
+ * Flips whether one paper's marks move the subject's average.
+ *
+ * Its own entry point rather than part of `saveAssessmentAction` because it is
+ * the one thing about a paper the office changes *after* the fact, from a list,
+ * without touching anything else on it. A teacher sets a devoir from the phone,
+ * where there is no such box; the office decides afterwards that this one was
+ * revision and should not weigh on the term. Making that a trip through the
+ * full edit form — retyping the title, the date and the weight to change a
+ * boolean — is how it would end up never being done.
+ *
+ * ASSESSMENT_MANAGE, the same code that decides what gets set at all. Moving a
+ * paper in or out of the average is a weighting decision, not marking.
+ */
+export async function setAssessmentCountsAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_MANAGE);
+
+    const existing = await findScopedAssessment(schoolId, field(formData, "id"));
+    if (!existing) return failure(t.errors.notFound);
+
+    const counts = boolField(formData, "countsTowardAverage");
+
+    await db.assessment.updateMany({
+      // Scoped by id *and* school: a crafted id matches nothing rather than
+      // reweighting somebody else's paper.
+      where: { id: existing.id, schoolId },
+      data: { countsTowardAverage: counts },
+    });
+
+    refresh();
+    return success(
+      counts ? t.assessment.nowCounts : t.assessment.nowDoesNotCount,
+    );
+  });
+}
+
+/**
  * Records a whole mark sheet.
  *
  * The rows travel as parallel arrays indexed by pupil, so every row must
@@ -672,9 +717,8 @@ function readQuestions(
  * that the teaching assignment is re-derived from the session here rather than
  * taken from the form.
  *
- * Created PUBLISHED, not DRAFT: a teacher setting a devoir has already told the
- * class about it, and making them press a second button to open their own mark
- * sheet would be ceremony with no decision behind it.
+ * Written DRAFT, so nothing reaches the families until the office opens it —
+ * see `createDevoir` for why that is one gate rather than two.
  */
 export async function createDevoirAction(
   _prevState: ActionState,
@@ -687,9 +731,27 @@ export async function createDevoirAction(
       return failure(t.errors.noSchoolYearContext);
     }
 
-    await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_GRADE);
+    /*
+      Either half of the pair, not only the teacher's.
 
-    const actsForSchool = context.can(PERMISSIONS.ASSESSMENT_MANAGE);
+      ASSESSMENT_GRADE is a teacher setting work for their own class;
+      ASSESSMENT_MANAGE is the office setting it for one of the school's. A
+      directeur pédagogique holds the second and deliberately not the first —
+      marking is not their job — so gating on GRADE alone locked the very people
+      the devoirs review is written for out of the button on it.
+
+      The two are not the same permission with a wider reach: which classes may
+      be reached is `actsForSchool` below, re-derived against the teaching
+      assignments inside `createDevoir`. This decides only who may ask.
+    */
+    const canGrade = context.canInSchool(schoolId, PERMISSIONS.ASSESSMENT_GRADE);
+    const actsForSchool = context.canInSchool(
+      schoolId,
+      PERMISSIONS.ASSESSMENT_MANAGE,
+    );
+    if (!canGrade && !actsForSchool) {
+      throw new ForbiddenError(PERMISSIONS.ASSESSMENT_GRADE);
+    }
 
     const parsed = devoirSchema(t).safeParse({
       schoolClassId: field(formData, "schoolClassId"),
@@ -701,6 +763,7 @@ export async function createDevoirAction(
       scheduledOn: field(formData, "scheduledOn"),
       maxScore: field(formData, "maxScore"),
       coefficient: field(formData, "coefficient"),
+      countsTowardAverage: boolField(formData, "countsTowardAverage"),
       questions: readQuestions(formData),
     });
     if (!parsed.success) {
@@ -730,6 +793,7 @@ export async function createDevoirAction(
       scheduledOn: parsed.data.scheduledOn,
       maxScore: parsed.data.maxScore,
       coefficient: parsed.data.coefficient,
+      countsTowardAverage: parsed.data.countsTowardAverage,
       questions: parsed.data.questions,
     });
 

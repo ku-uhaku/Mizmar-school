@@ -63,6 +63,25 @@ model Assessment {
   /// Weight within the subject's mark for the term. Copied from the type.
   coefficient Int @default(1)
 
+  /// Whether this paper's marks move the subject's average for the term.
+  ///
+  /// Copied from `AssessmentType.countsTowardAverage` at creation, for the same
+  /// reason `maxScore` and `coefficient` are: a school re-configuring a kind in
+  /// March must not silently rescore every paper already sat under it.
+  ///
+  /// Per paper and not only per kind because the exception is per paper. A
+  /// school runs one "Devoir" kind that counts, and then sets a piece of
+  /// revision, a mock, or work marked only to show the family where they stand
+  /// — pieces that are corrected and returned but must never move the average.
+  /// The alternative was inventing a parallel kind for every such case, which
+  /// is a configuration screen filling up to express one tick.
+  ///
+  /// A paper that counts for nothing may also be accepted with an unfinished
+  /// mark sheet — see `setAssessmentStatus`. The rule that every pupil must
+  /// have a mark or an absence exists to protect the average; there is nothing
+  /// to protect here.
+  countsTowardAverage Boolean @default(true)
+
   /// "DRAFT" | "PUBLISHED" | "GRADED" | "CANCELLED" — see
   /// modules/assessments/enums.ts. Marks may only be entered from PUBLISHED
   /// onward, and a CANCELLED paper counts nowhere.

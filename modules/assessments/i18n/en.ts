@@ -75,7 +75,36 @@ const en = {
       "The homework teachers have set across the school, and what is waiting to be accepted.",
     noDevoirs: "No teacher has set a devoir this year yet.",
     noDevoirsHint:
-      "Devoirs are set from the espace enseignant and appear here as they are.",
+      "Devoirs are set by teachers from the espace enseignant, or here by the office, and appear in this list either way.",
+
+    // ── Setting one from the office ─────────────────────────────────────────
+    setDevoir: "Set a devoir",
+    setDevoirTitle: "Set a devoir",
+    setDevoirHint:
+      "One piece of work for one class — for a colleague who is absent, or who has told the class without recording it.",
+    setDevoirDraftHint:
+      "Saved as a draft. Publishing it is what opens the mark sheet and tells the families.",
+    setDevoirNoTeaching:
+      "No class is staffed for this year yet — assign a teacher to a subject first.",
+    setDevoirNoKinds:
+      "No kind of work is teacher-settable. Make one so under Configuration.",
+    classAndSubject: "Class and subject",
+    classAndSubjectHint:
+      "The pair a teacher is assigned to. The paper answers to whoever holds that post, not to whoever sets it.",
+    paperTitle: "Title",
+    devoirTitlePlaceholder: "Exercices p.42",
+
+    // ── Whether it weighs on the term ───────────────────────────────────────
+    countsTowardAverage: "Counts toward the average",
+    countsTowardAverageHint:
+      "Untick for revision, a mock or work marked only to show the family where they stand. It is still corrected and still visible — it just never moves the subject's average.",
+    doesNotCount: "Not averaged",
+    makeCount: "Count it",
+    makeNotCount: "Do not average",
+    nowCounts: "This paper now counts toward the average.",
+    nowDoesNotCount: "This paper no longer counts toward the average.",
+    uncountedNeedsNoMarks:
+      "It does not weigh on the term, so it can be closed with no marks at all.",
     showingFirst: "Showing the most recent {count}. Narrow the filters to see the rest.",
     allTeachers: "All teachers",
     allClasses: "All classes",

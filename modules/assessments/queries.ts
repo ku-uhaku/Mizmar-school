@@ -2,6 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { PERMISSIONS } from "@/lib/permissions";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
@@ -178,6 +179,125 @@ export async function listAssessableClasses(
     cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
     levelOfferingId: schoolClass.levelOfferingId,
   }));
+}
+
+export type DevoirTarget = {
+  /** `schoolClassId:subjectId` — the pair travels as one value in the picker. */
+  key: string;
+  schoolClassId: string;
+  classCode: string;
+  cycleName: string;
+  levelNameLabel: string;
+  subjectId: string;
+  /** The matière in both languages. */
+  subjectLabel: string;
+  /** Who holds the post, for the office to see whose class it is setting for. */
+  teacherName: string;
+};
+
+/**
+ * The class-and-subject pairs the reader may set a piece of work against.
+ *
+ * A pair rather than two pickers because a devoir is not "any subject in any
+ * class": `createDevoir` re-derives the TeachingAssignment for the pair and
+ * refuses anything that has none, so offering the two independently would build
+ * combinations that can only come back as "you do not teach this class".
+ *
+ * Scoped the way the write is. A teacher sees their own assignments; whoever
+ * holds ASSESSMENT_MANAGE sees the school's, because the office setting work
+ * for an absent colleague is exactly the case `actsForSchool` exists for. The
+ * two must agree — a row offered here and refused by the service, or the
+ * reverse, is the picker and the rule disagreeing about who teaches what.
+ */
+export async function listDevoirTargets(
+  context: AuthContext,
+): Promise<DevoirTarget[]> {
+  const actsForSchool = context.can(PERMISSIONS.ASSESSMENT_MANAGE);
+
+  const assignments = await db.teachingAssignment.findMany({
+    where: {
+      ...(actsForSchool ? {} : { teacherId: context.user.id }),
+      schoolClass: {
+        schoolId: currentSchoolId(context),
+        levelOffering: yearScope(context),
+        isActive: true,
+      },
+    },
+    /*
+      Cycle first, then the level, then the class and its subjects.
+
+      The cycle leads because the picker heads its options by it, and
+      `clusterByGroup` cuts the list by *walking* it rather than bucketing it —
+      so a list ordered by class code alone interleaves the cycles, produces one
+      heading per run instead of one per cycle, and React reports duplicate
+      keys. The heading order has to be the row order; see components/form/
+      option-groups.ts.
+
+      `isPrimary` last, so a co-taught subject names the teacher who answers for
+      its marks rather than whichever colleague sorted first.
+    */
+    orderBy: [
+      { schoolClass: { levelOffering: { level: { educationLevel: { position: "asc" } } } } },
+      { schoolClass: { levelOffering: { level: { gradeYear: "asc" } } } },
+      { schoolClass: { code: "asc" } },
+      { subject: { code: "asc" } },
+      { isPrimary: "desc" },
+    ],
+    select: {
+      teacher: {
+        select: {
+          email: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      schoolClass: {
+        select: {
+          id: true,
+          code: true,
+          levelOffering: {
+            select: {
+              level: {
+                select: {
+                  code: true,
+                  name: true,
+                  nameAr: true,
+                  educationLevel: { select: { name: true, nameAr: true } },
+                },
+              },
+              track: { select: { name: true, nameAr: true } },
+            },
+          },
+        },
+      },
+      subject: { select: { id: true, name: true, nameAr: true } },
+    },
+  });
+
+  // One entry per pair. A subject split across groups is several assignments
+  // and one thing to set work on — which group the paper lands in is the
+  // service's to read off the assignment, not a choice to put to the reader.
+  const byPair = new Map<string, DevoirTarget>();
+  for (const assignment of assignments) {
+    const key = `${assignment.schoolClass.id}:${assignment.subject.id}`;
+    if (byPair.has(key)) continue;
+
+    const offering = assignment.schoolClass.levelOffering;
+    byPair.set(key, {
+      key,
+      schoolClassId: assignment.schoolClass.id,
+      classCode: assignment.schoolClass.code,
+      cycleName: cycleChoiceLabel(offering.level.educationLevel),
+      levelNameLabel: levelNameLabel(offering.level, offering.track),
+      subjectId: assignment.subject.id,
+      subjectLabel: bilingual(
+        assignment.subject.name,
+        assignment.subject.nameAr,
+      ),
+      teacherName: displayName(assignment.teacher),
+    });
+  }
+
+  return [...byPair.values()];
 }
 
 export type ProgrammeEntry = {
@@ -374,6 +494,8 @@ export type AssessmentRow = {
   scheduledOn: string | null;
   maxScore: number;
   coefficient: number;
+  /** Whether these marks move the subject's average — see Assessment. */
+  countsTowardAverage: boolean;
   subjectId: string;
   /** The raw name — what the subject facet matches on, so it must not change
    *  with the language. `subjectLabel` is what a reader sees. */
@@ -627,6 +749,7 @@ export async function listAssessments(
       scheduledOn: true,
       maxScore: true,
       coefficient: true,
+      countsTowardAverage: true,
       classGroupId: true,
       subject: {
         select: { id: true, code: true, name: true, nameAr: true, colorHex: true },
@@ -676,6 +799,7 @@ export async function listAssessments(
         : null,
       maxScore: assessment.maxScore,
       coefficient: assessment.coefficient,
+      countsTowardAverage: assessment.countsTowardAverage,
       subjectId: assessment.subject.id,
       subjectName: assessment.subject.name,
       subjectLabel: bilingual(assessment.subject.name, assessment.subject.nameAr),
@@ -906,6 +1030,7 @@ export async function findMarkSheet(
       scheduledOn: true,
       maxScore: true,
       coefficient: true,
+      countsTowardAverage: true,
       notes: true,
       massarCode: true,
       classGroupId: true,
@@ -1013,6 +1138,7 @@ export async function findMarkSheet(
         : null,
       maxScore: assessment.maxScore,
       coefficient: assessment.coefficient,
+      countsTowardAverage: assessment.countsTowardAverage,
       notes: assessment.notes,
       massarCode: assessment.massarCode,
       subjectId: assessment.subject.id,
@@ -1169,8 +1295,10 @@ export type PupilMarks = {
  *
  *   * only papers in a `COUNTED_STATUSES` state — a draft nobody has sat is not
  *     a zero;
- *   * only kinds whose `countsTowardAverage` is on — a school marks work it
- *     shows the family but never averages;
+ *   * only papers whose own `countsTowardAverage` is on — a school marks work
+ *     it shows the family but never averages, and that is per paper rather than
+ *     per kind, so one piece of revision can be excluded without inventing a
+ *     kind for it;
  *   * absences are excluded rather than averaged as zero, exactly as
  *     `markStatistics` does under a mark sheet. A child who was not there has
  *     not demonstrated a zero.
@@ -1199,9 +1327,7 @@ export async function loadPupilMarks(
       assessment: {
         include: {
           subject: { select: { id: true, name: true, nameAr: true } },
-          assessmentType: {
-            select: { name: true, nameAr: true, countsTowardAverage: true },
-          },
+          assessmentType: { select: { name: true, nameAr: true } },
           term: { select: { name: true, nameAr: true, number: true } },
         },
       },
@@ -1278,7 +1404,7 @@ export async function loadPupilMarks(
       isAbsent: grade.isAbsent,
       isExcused: grade.isExcused,
       comment: grade.comment,
-      counts: assessment.assessmentType.countsTowardAverage,
+      counts: assessment.countsTowardAverage,
     });
   }
 
@@ -1352,7 +1478,7 @@ export type ClassTermMark = {
  *
  *   * only papers in a `COUNTED_STATUSES` state — a draft nobody has sat is not
  *     a zero;
- *   * only kinds whose `countsTowardAverage` is on;
+ *   * only papers whose own `countsTowardAverage` is on;
  *   * absences are excluded rather than averaged as zero.
  *
  * The bulletin then weights these by the *programme*, ranks them and freezes
@@ -1379,7 +1505,7 @@ export async function loadClassTermMarks(
         ...schoolScope(context),
         termId,
         status: { in: [...COUNTED_STATUSES] },
-        assessmentType: { countsTowardAverage: true },
+        countsTowardAverage: true,
       },
       /*
         Scoped by the *roster*, not by whose class the paper belongs to.

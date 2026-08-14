@@ -280,7 +280,13 @@ export async function seedAssessments(
 
   const types = await db.assessmentType.findMany({
     where: { id: { in: [...input.typeIdByCode.values()] } },
-    select: { id: true, name: true, defaultMaxScore: true, defaultCoefficient: true },
+    select: {
+      id: true,
+      name: true,
+      defaultMaxScore: true,
+      defaultCoefficient: true,
+      countsTowardAverage: true,
+    },
   });
   const typeById = new Map(types.map((type) => [type.id, type]));
 
@@ -343,6 +349,7 @@ export async function seedAssessments(
               // the columns.
               maxScore: type.defaultMaxScore,
               coefficient: type.defaultCoefficient,
+              countsTowardAverage: type.countsTowardAverage,
               status: "GRADED",
               teacherId,
               createdById: input.createdById,

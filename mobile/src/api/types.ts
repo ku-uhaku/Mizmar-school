@@ -246,6 +246,14 @@ export type Assessment = {
   scheduledOn: string | null;
   maxScore: number;
   coefficient: number;
+  /**
+   * Whether these marks move the subject's average.
+   *
+   * Per paper, not per kind — a school runs one devoir kind that counts and
+   * still sets revision that does not. Worth showing beside a mark: a teacher
+   * marking a paper that weighs on nothing is entitled to know it.
+   */
+  countsTowardAverage: boolean;
   subjectId: string;
   subjectName: string;
   subjectCode: string;

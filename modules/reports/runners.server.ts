@@ -2539,7 +2539,9 @@ const RUNNERS: Record<string, Runner> = {
             score: { not: null },
             assessment: {
               status: { in: ["PUBLISHED", "GRADED"] },
-              assessmentType: { countsTowardAverage: true },
+              // The paper's own flag, not its kind's: a school may exclude one
+              // piece of work without excluding every paper of that kind.
+              countsTowardAverage: true,
               scheduledOn: { gte: range.from, lte: range.to },
             },
           },

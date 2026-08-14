@@ -85,5 +85,13 @@ export function devoirSchema(t: Dictionary) {
       .int({ error: v.invalidNumber })
       .min(1, { error: v.invalidNumber })
       .max(20, { error: v.invalidNumber }),
+    /**
+     * Whether the marks move the subject's average.
+     *
+     * Optional, and undefined is not the same as false: the mobile route offers
+     * no such box, and a missing value has to mean "whatever the kind says"
+     * rather than "does not count". See `createDevoir`.
+     */
+    countsTowardAverage: z.boolean().optional(),
   });
 }

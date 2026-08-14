@@ -208,6 +208,7 @@ export async function generateAssessments(
       name: true,
       defaultCoefficient: true,
       defaultMaxScore: true,
+      countsTowardAverage: true,
     },
   });
   if (!type) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
@@ -334,6 +335,9 @@ export async function generateAssessments(
           notes: target.notes,
           maxScore: type.defaultMaxScore,
           coefficient: type.defaultCoefficient,
+          // Copied like the two above it, so re-configuring the kind later
+          // cannot rescore a round already sat. See Assessment.
+          countsTowardAverage: type.countsTowardAverage,
           status: "DRAFT",
           // Non-null: `missing` is exactly the targets that resolved a teacher.
           teacherId: teacherFor(subject),
@@ -379,6 +383,12 @@ export type CreateDevoirInput = {
   scheduledOn: Date;
   maxScore: number;
   coefficient: number;
+  /**
+   * Whether the marks move the subject's average. Undefined takes the kind's
+   * own setting, which is what every caller that does not offer the choice —
+   * the mobile route — wants.
+   */
+  countsTowardAverage?: boolean;
   questions: { text: string; points: number }[];
 };
 
@@ -455,7 +465,7 @@ export async function createDevoir(
         allowTeacherCreate: true,
         isActive: true,
       },
-      select: { id: true },
+      select: { id: true, countsTowardAverage: true },
     }),
   ]);
 
@@ -490,6 +500,11 @@ export async function createDevoir(
       scheduledOn: input.scheduledOn,
       maxScore: input.maxScore,
       coefficient: input.coefficient,
+      // The kind's setting unless the form overrode it — a school running one
+      // devoir kind that counts still has to be able to set a piece of revision
+      // that does not. See Assessment.countsTowardAverage.
+      countsTowardAverage:
+        input.countsTowardAverage ?? type.countsTowardAverage,
       status: "DRAFT",
       // Answerable to whoever holds the class, not to whoever typed it in: an
       // office user setting work for a colleague must not end up owning the
@@ -803,11 +818,28 @@ export async function setAssessmentStatus(
   status: string,
 ): Promise<{ ok: boolean; reason?: "has-marks" | "incomplete" }> {
   if (status === "GRADED") {
-    // Accepting a paper is the office agreeing the marking is done, so it may
-    // not be done over an unfinished sheet. Absences count as accounted for —
-    // a pupil who did not sit it has been dealt with.
-    const pending = await countPendingMarks(assessmentId);
-    if (pending > 0) return { ok: false, reason: "incomplete" };
+    /*
+      Accepting a paper is the office agreeing the marking is done, so it may
+      not be done over an unfinished sheet. Absences count as accounted for — a
+      pupil who did not sit it has been dealt with.
+
+      Except on a paper that counts for nothing. The completeness rule exists to
+      protect the average: a hole in a counted sheet is a pupil silently left
+      out of their own moyenne. A paper outside the average has no such hole to
+      leave, and plenty of the work a school records this way is never marked
+      pupil by pupil at all — an exercise set, returned and noted. Holding those
+      in the validation queue for marks nobody intends to enter would make the
+      queue mean nothing, which is the one thing it has to keep meaning.
+    */
+    const paper = await db.assessment.findUnique({
+      where: { id: assessmentId },
+      select: { countsTowardAverage: true },
+    });
+
+    if (paper?.countsTowardAverage !== false) {
+      const pending = await countPendingMarks(assessmentId);
+      if (pending > 0) return { ok: false, reason: "incomplete" };
+    }
   }
 
   if (status === "DRAFT") {
