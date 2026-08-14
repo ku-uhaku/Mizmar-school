@@ -41,13 +41,18 @@ const NONE = "__none__";
 /**
  * Décaissement: money out.
  *
- * ── What this screen is *not* for any more ──────────────────────────────────
- * Paying staff has moved out entirely — a salary is a bulletin (`/hr/payroll`),
- * an avance is an avance (`/hr/advances`), and anything else owed to somebody on
- * the payroll is `/hr/paiements`. All three name the employee's row and all
- * three write a décaissement through the same service, so the ledger is
- * unchanged; what has gone is the staff picker, which made this form ask a
- * question that now has a better answer three screens away.
+ * ── What this screen is *not* for ───────────────────────────────────────────
+ * What staff are *owed* is paid where it is owed: a salary is a bulletin
+ * (`/hr/payroll`) and an avance is an avance (`/hr/advances`). Both name the
+ * employee's row and both write a décaissement through the same service, so the
+ * ledger is unchanged; what has gone from here is the staff picker, which made
+ * this form ask a question that has a better answer two screens away.
+ *
+ * A one-off that is not either — a reimbursement, an indemnité — is paid here
+ * as an ordinary décaissement, named in the beneficiary line. There used to be
+ * a third screen for exactly that (`/hr/paiements`); it was removed as a
+ * duplicate of this one, so the free-text beneficiary below is what carries
+ * those payments now.
  *
  * ── The supplier is the shortcut ────────────────────────────────────────────
  * Picking a declared fournisseur fills in the beneficiary, the rubrique and the

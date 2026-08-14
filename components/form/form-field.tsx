@@ -31,7 +31,17 @@ export function FormField({
   const errorId = error ? `${name}-error` : undefined;
 
   return (
-    <div className={cn("grid gap-2", className)}>
+    /*
+      `min-w-0` is load-bearing, not tidying.
+
+      A grid or flex child defaults to `min-width: auto`, which means it refuses
+      to shrink below its own content. A field holding a long value — the level
+      picker on a pupil's file, whose options read "1ère année du baccalauréat ·
+      Sciences mathématiques" — therefore pushed its whole column past the `1fr`
+      it was given, and the columns beside it were squeezed to compensate. The
+      controls already know how to truncate; they were never allowed to.
+    */
+    <div className={cn("grid min-w-0 gap-2", className)}>
       <Label htmlFor={name} className="gap-1">
         {label}
         {required ? (

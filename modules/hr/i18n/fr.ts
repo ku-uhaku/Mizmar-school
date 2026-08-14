@@ -368,7 +368,6 @@ export const nav = {
   hrAttendance: "Pointage",
   hrPayroll: "Paie",
   hrAdvances: "Avances",
-  hrStaffPayments: "Paiements personnel",
   hrLeave: "Congés",
 } as const;
 

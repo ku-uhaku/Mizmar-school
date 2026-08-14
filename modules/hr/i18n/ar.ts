@@ -362,8 +362,6 @@ export const nav = {
   hrAttendance: "الحضور",
   hrPayroll: "الأجور",
   hrAdvances: "\u0627\u0644\u062a\u0633\u0628\u064a\u0642\u0627\u062a",
-  hrStaffPayments:
-    "\u0623\u062f\u0627\u0621\u0627\u062a \u0627\u0644\u0645\u0648\u0638\u0641\u064a\u0646",
   hrLeave: "الإجازات",
 } as const;
 

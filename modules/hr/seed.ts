@@ -138,6 +138,8 @@ export const STAFF_SEEDS: StaffSeed[] = [
 
 /** Monthly base by job, for the teaching staff generated from their accounts. */
 const TEACHER_SALARY = 7500;
+/** What the office and the direction are paid in the demo. */
+const OFFICE_SALARY = 9000;
 
 export type SeedStaffInput = {
   schoolId: string;
@@ -293,6 +295,97 @@ export async function seedHr(
       userId: teacher.id,
       hiredOn: new Date(2021 + (index % 4), 8, 1),
       salaryCentimes: TEACHER_SALARY * 100,
+      kind: "CDI",
+    });
+  }
+
+  /*
+    The direction and the office.
+
+    They already exist as accounts and were the one group with a login and no
+    employment record — so they were missing from every HR picker, and a
+    directeur could not be given leave in the app that manages leave. Same case
+    as the teachers above, and the same `userId` link.
+
+    Membership in *this* school is what makes somebody its employee. It also
+    keeps a parent out: guardians hold no membership at all (see
+    modules/portal/queries.ts), so a household account can never be reached
+    here. Org-level staff — an administrateur over several schools — have no
+    membership either and stay out for the same reason: they are not on this
+    school's payroll.
+  */
+  const teacherIds = new Set(input.teachers.map((teacher) => teacher.id));
+  const office = await db.user.findMany({
+    where: {
+      isActive: true,
+      memberships: { some: { schoolId: input.schoolId } },
+      id: { notIn: [...teacherIds] },
+      staffRecord: null,
+    },
+    orderBy: { email: "asc" },
+    select: {
+      id: true,
+      email: true,
+      profile: {
+        select: {
+          firstName: true,
+          lastName: true,
+          phone: true,
+          jobFunction: { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  /*
+    Who is already on the payroll under their own name.
+
+    `staffRecord: null` is not enough on its own. The chauffeur's login is made
+    by `seedPortalAccounts`, which runs *after* this and only then points the
+    DRIVER row seeded above at it — so on the next run their account has a
+    membership, no staff record yet, and would be written up a second time as a
+    member of the office. `Staff.userId` is unique, so that lands as a hard
+    error at the moment the driver is finally linked.
+
+    Matching on the name is what tells the two apart: somebody already employed
+    here is not an unrecorded one, whichever way their account was made.
+  */
+  const employed = new Set(
+    (
+      await db.staff.findMany({
+        where: { schoolId: input.schoolId },
+        select: { firstName: true, lastName: true },
+      })
+    ).map((person) => `${person.firstName} ${person.lastName}`.toLowerCase()),
+  );
+
+  for (const [index, person] of office.entries()) {
+    if (!person.profile) continue;
+
+    const fullName =
+      `${person.profile.firstName} ${person.profile.lastName}`.toLowerCase();
+    if (employed.has(fullName)) continue;
+
+    const fonction = person.profile.jobFunction?.name ?? null;
+
+    await upsertStaff(db, {
+      schoolId: input.schoolId,
+      code: formatEntityCode(
+        DEFAULT_SETTINGS.staffCodeFormat,
+        2025,
+        STAFF_SEEDS.length + input.teachers.length + index + 1,
+      ),
+      firstName: person.profile.firstName,
+      lastName: person.profile.lastName,
+      // Derived from the fonction they already hold rather than a second
+      // wording of it — see StaffFunction.
+      jobRole: fonction?.startsWith("Directeur") ? "DIRECTOR" : "SECRETARY",
+      jobTitle: fonction ?? "Personnel administratif",
+      phone: person.profile.phone,
+      email: person.email,
+      userId: person.id,
+      hiredOn: new Date(2020 + (index % 5), 8, 1),
+      salaryCentimes: OFFICE_SALARY * 100,
       kind: "CDI",
     });
   }
