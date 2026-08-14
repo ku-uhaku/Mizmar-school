@@ -97,6 +97,32 @@ export function isUpcoming(
   return (event.endsAt ?? event.startsAt) >= now;
 }
 
+/**
+ * The clause that keeps an event on a family's screen, as of `now`.
+ *
+ * ── Why it is a day and not a moment ────────────────────────────────────────
+ * `isUpcoming` compares against the instant, which is right for the office's
+ * "À venir" tab and wrong for a parent: an all-day event is stored at midnight
+ * with no `endsAt` (see `normaliseDates`), so an instant comparison drops la
+ * réunion de parents off the phone at one second past midnight *on the morning
+ * of the réunion*. Cutting at the start of today instead keeps an event up for
+ * the whole of its last day, which is the day somebody is trying to attend it.
+ *
+ * Shaped as a `where` fragment rather than a predicate because the portal has
+ * to apply it in the query — a family's calendar is capped, and filtering after
+ * the take would return a page of events that had already happened.
+ */
+export function stillToComeWhere(now: Date = new Date()): {
+  OR: [{ endsAt: { gte: Date } }, { endsAt: null; startsAt: { gte: Date } }];
+} {
+  const cutoff = startOfDay(now);
+  return {
+    // A spanning event is judged on when it ends; a single one on when it
+    // starts, which is also when it ends.
+    OR: [{ endsAt: { gte: cutoff } }, { endsAt: null, startsAt: { gte: cutoff } }],
+  };
+}
+
 /** Whether the event spans more than the one day. */
 export function spansDays(event: {
   startsAt: Date;

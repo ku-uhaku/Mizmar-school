@@ -14,7 +14,10 @@ import { isSettled } from "@/modules/documents/enums";
 // Aliased: `documents` and `requests` both have a notion of what a family may
 // still do to a row, and the two answer about different tables.
 import { isCancellable as isRequestCancellable } from "@/modules/requests/enums";
-import { VISIBLE_EVENT_STATUSES } from "@/modules/events/enums";
+import {
+  stillToComeWhere,
+  VISIBLE_EVENT_STATUSES,
+} from "@/modules/events/enums";
 import { FAMILY_VISIBLE_STATUSES } from "@/modules/assessments/enums";
 // Aliased: this file already reads the assessments module's list of the same
 // name, and the two answer different questions about different tables.
@@ -24,6 +27,7 @@ import {
 } from "@/modules/bulletins/enums";
 import { MISSING_STATUSES } from "@/modules/classroom/enums";
 import { SEAT_HOLDING_STATUSES } from "@/modules/transport/enums";
+import { stillDueWhere } from "@/modules/supplies/enums";
 
 /**
  * The parent portal read model.
@@ -765,9 +769,16 @@ export type PortalEvent = {
  *      only if one of their children sits in a named class or is admitted to a
  *      named level. This is the join `EventAudience` exists for.
  *
- * Past events are kept — a parent looking for "when was the réunion?" is asking
- * a reasonable question — but the soonest come first and the caller may cut the
- * list.
+ *   4. It has not already happened. Ordering by `startsAt` ascending and
+ *      cutting at `limit` meant a family opening the app in March read a page
+ *      of September: the rentrée, then every réunion since, with the next one
+ *      below the fold or past the take entirely. What a parent's calendar is
+ *      for is what is still coming.
+ *
+ * An event stays up for the whole of its last day rather than to the minute —
+ * see `stillToComeWhere`, and why it is not `isUpcoming`. The office keeps the
+ * lot under the "Passés" tab of /events, so nothing is lost by this; it simply
+ * stops being the parent's problem.
  */
 export async function listMyEvents(
   userId: string,
@@ -810,6 +821,9 @@ export async function listMyEvents(
     where: {
       schoolYearId: { in: yearIds },
       status: { in: [...VISIBLE_EVENT_STATUSES] },
+      // Two independent `OR`s — who it is for, and whether it is still ahead —
+      // so they intersect instead of one overwriting the other in the literal.
+      AND: [stillToComeWhere()],
       OR: [
         { isSchoolWide: true },
         { audiences: { some: { schoolClassId: { in: classIds } } } },
@@ -1476,6 +1490,9 @@ export type PortalSupplyList = {
   /** Set when the list is for one subject — "pour les arts plastiques". */
   subjectName: string | null;
   notes: string | null;
+  /** ISO, or null when the list simply stands. What the phone prints as
+   *  "à apporter pour le …" — a list past its own is never returned. */
+  dueOn: string | null;
   items: PortalSupplyItem[];
   requiredCount: number;
 };
@@ -1490,6 +1507,14 @@ export type PortalSupplyList = {
  * thinking and a REJECTED one is a decision the teacher has to be able to read;
  * neither is a shopping list, and putting either in front of a parent would
  * have them buying things the school never agreed to ask for.
+ *
+ * ── And the deadline has not passed ─────────────────────────────────────────
+ * A shopping list is only useful before the shopping. Left in, September's
+ * arts plastiques list is still the first thing a parent reads in May, and the
+ * one list they actually have to act on is somewhere below it. So a list
+ * retires itself the day after it was due, and the office keeps it — marked as
+ * échue — because "what did we ask for last year" is a question they answer
+ * every August. A list with no deadline never passes.
  *
  * Several lists per class is the ordinary case — a general one plus one for
  * arts plastiques — so this returns them all rather than picking.
@@ -1512,6 +1537,9 @@ export async function loadChildSupplies(
       schoolClassId: enrolment.schoolClassId,
       schoolYearId: enrolment.schoolYearId,
       status: "APPROVED",
+      // And the deadline has not gone by — see `stillDueWhere`. A list with no
+      // deadline stands all year, which is the general rentrée list.
+      ...stillDueWhere(),
     },
     // The class's general list first — it is the one every family needs — then
     // the per-subject ones by name.
@@ -1520,6 +1548,7 @@ export async function loadChildSupplies(
       id: true,
       title: true,
       notes: true,
+      dueOn: true,
       subject: { select: { name: true } },
       items: {
         orderBy: [{ position: "asc" }, { label: "asc" }],
@@ -1540,6 +1569,7 @@ export async function loadChildSupplies(
     title: list.title,
     subjectName: list.subject?.name ?? null,
     notes: list.notes,
+    dueOn: list.dueOn?.toISOString() ?? null,
     items: list.items,
     requiredCount: list.items.filter((item) => item.isRequired).length,
   }));

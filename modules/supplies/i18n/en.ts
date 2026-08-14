@@ -22,6 +22,10 @@ const en = {
     subjectHint: "Leave blank for the class's general list.",
     notes: "Notes for families",
     notesHint: "Where to buy, when to bring it — anything the items cannot say.",
+    dueOn: "Bring it by",
+    dueOnHint:
+      "Leave blank for a list that simply stands. Once the day has gone by, families stop seeing it.",
+    passed: "Past due",
     items: "Items",
     itemsHint: "One line per article, so a parent can tick them off.",
     addItem: "Add an item",

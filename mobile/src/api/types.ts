@@ -816,6 +816,12 @@ export type SupplyList = {
   title: string;
   subjectName: string | null;
   notes: string | null;
+  /**
+   * ISO, or null for a list that simply stands. Print it as "à apporter pour
+   * le …" — a list whose day has gone by is never returned at all, so this
+   * never needs rendering as past.
+   */
+  dueOn: string | null;
   items: SupplyItem[];
   requiredCount: number;
 };

@@ -39,6 +39,7 @@ const ar = {
     kind: "النوع",
     sequence: "الرقم",
     sequenceHint: "ترتيبه بين فروض نوعه في الدورة — 1 للأول.",
+    sequenceLabel: "رقم {sequence}",
     scheduledOn: "أُنجز في",
     notScheduled: "بدون تاريخ",
     maxScore: "من أصل",

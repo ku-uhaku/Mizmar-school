@@ -60,6 +60,45 @@ export const SUPPLY_STATUSES = [
 ] as const;
 export type SupplyStatus = (typeof SUPPLY_STATUSES)[number];
 
+/**
+ * The deadline as it is stored: the end of the day the school named.
+ *
+ * A list due "le 15 septembre" is due *all* of the 15th. Stored at midnight it
+ * would retire itself on the morning it matters most, which is the one morning
+ * a parent opens it to check they have everything. Same reasoning as the
+ * all-day event in modules/events/enums.ts.
+ */
+export function dueOnValue(day: Date | null): Date | null {
+  if (day === null) return null;
+  const end = new Date(day);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+/**
+ * Whether the deadline has gone by, as of `now`.
+ *
+ * A list with no deadline never passes — that is a general list handed out at
+ * the rentrée, and it stands until the year does.
+ */
+export function isPassed(dueOn: Date | null, now: Date = new Date()): boolean {
+  return dueOn !== null && dueOn < now;
+}
+
+/**
+ * The clause that keeps a list on a family's phone.
+ *
+ * A `where` fragment rather than a predicate for the same reason the events one
+ * is: filtering after the read would hand a parent a screen of lists they can
+ * no longer act on, and the office is the only party that needs the passed
+ * ones. `null` deadlines are kept — see `isPassed`.
+ */
+export function stillDueWhere(now: Date = new Date()): {
+  OR: [{ dueOn: null }, { dueOn: { gte: Date } }];
+} {
+  return { OR: [{ dueOn: null }, { dueOn: { gte: now } }] };
+}
+
 /** The only status whose contents reach a family. */
 export function isVisibleToFamilies(status: string): boolean {
   return status === "APPROVED";

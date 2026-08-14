@@ -4,6 +4,7 @@ import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
+import { isPassed } from "@/modules/supplies/enums";
 
 /**
  * Reads for the supplies module.
@@ -43,6 +44,10 @@ export type SupplyListRow = {
   id: string;
   title: string;
   notes: string | null;
+  /** `YYYY-MM-DD`, or "" for a list with no deadline. */
+  dueOn: string;
+  /** Derived from `dueOn`, never stored — see `isPassed`. */
+  isPassed: boolean;
   status: string;
   schoolClassId: string;
   className: string;
@@ -80,6 +85,7 @@ type ListWithRelations = {
   id: string;
   title: string;
   notes: string | null;
+  dueOn: Date | null;
   status: string;
   authorId: string | null;
   reviewedAt: Date | null;
@@ -109,6 +115,10 @@ function toRow(list: ListWithRelations): SupplyListRow {
     id: list.id,
     title: list.title,
     notes: list.notes,
+    dueOn: toDateInputValue(list.dueOn),
+    // The office keeps a passed list and is told it has passed; the family
+    // simply stops seeing it. See `stillDueWhere`.
+    isPassed: isPassed(list.dueOn),
     status: list.status,
     schoolClassId: list.schoolClass.id,
     className: list.schoolClass.code,

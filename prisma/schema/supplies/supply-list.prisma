@@ -38,6 +38,20 @@ model SupplyList {
   /// Anything the items themselves cannot say: where to buy, when to bring it.
   notes String?
 
+  /// The day the class is asked to have it all in the bag.
+  ///
+  /// Null means the list has no deadline — a general list handed out at the
+  /// rentrée that simply stands all year. When it is set it is also what
+  /// retires the list: `modules/portal/queries.ts` stops showing it to families
+  /// the day after, so a parent's phone carries what they still have to buy and
+  /// not the arts plastiques list from September. The office keeps it either
+  /// way, marked as échue.
+  ///
+  /// A date and not a DateTime in meaning: stored at the end of the day so the
+  /// list is still there on the morning it is due. See `dueOnValue` in
+  /// modules/supplies/enums.ts.
+  dueOn DateTime?
+
   /// "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
   /// see modules/supplies/enums.ts.
   ///

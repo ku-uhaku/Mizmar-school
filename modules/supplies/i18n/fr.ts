@@ -21,6 +21,10 @@ const fr = {
     notes: "Remarques pour les familles",
     notesHint:
       "Où acheter, quand apporter — tout ce que les articles ne disent pas.",
+    dueOn: "À apporter pour le",
+    dueOnHint:
+      "Laisser vide pour une liste qui tient toute l'année. Passée la date, les familles ne la voient plus.",
+    passed: "Échue",
     items: "Articles",
     itemsHint: "Une ligne par article, pour que le parent puisse cocher.",
     addItem: "Ajouter un article",

@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/shell/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { interpolate } from "@/lib/i18n/format";
+import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { SupplyListDialog } from "@/modules/supplies/components/supply-list-dialog";
 import { SupplyReviewDialog } from "@/modules/supplies/components/supply-review-dialog";
@@ -52,7 +52,7 @@ export function SuppliesManager({
   currentUserId: string;
   permissions: { canWrite: boolean; canReview: boolean; canDelete: boolean };
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [editing, setEditing] = React.useState<SupplyListRow | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [reviewing, setReviewing] = React.useState<SupplyListRow | null>(null);
@@ -118,10 +118,18 @@ export function SuppliesManager({
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-medium">{list.title}</h3>
                         <SupplyStatusBadge status={list.status} />
+                        {/* The office keeps a passed list and is told so; the
+                          families simply stop seeing it. See `stillDueWhere`. */}
+                        {list.isPassed ? (
+                          <Badge variant="outline">{t.supply.passed}</Badge>
+                        ) : null}
                       </div>
                       <p className="text-muted-foreground mt-0.5 text-xs">
                         {list.className} · {list.levelLabel}
                         {list.subjectName ? ` · ${list.subjectName}` : ""}
+                        {list.dueOn
+                          ? ` · ${t.supply.dueOn} ${formatDate(list.dueOn, locale)}`
+                          : ""}
                         {" · "}
                         {interpolate(t.supply.itemCount, {
                           count: list.itemCount,

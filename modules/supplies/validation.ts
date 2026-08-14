@@ -1,7 +1,12 @@
 import * as z from "zod";
 
 import type { Dictionary } from "@/lib/i18n/types";
-import { enumField, optionalText, requiredText } from "@/lib/validation";
+import {
+  enumField,
+  optionalDate,
+  optionalText,
+  requiredText,
+} from "@/lib/validation";
 import { SUPPLY_STATUSES } from "@/modules/supplies/enums";
 
 /** Built per-request from the dictionary so messages come back localised. */
@@ -20,6 +25,8 @@ export function supplyListSchema(t: Dictionary) {
     subjectId: optionalText(40),
     title: requiredText(v, { max: 160 }),
     notes: optionalText(1000),
+    /** Blank for a list that simply stands — see `dueOn` on SupplyList. */
+    dueOn: optionalDate(v),
   });
 }
 

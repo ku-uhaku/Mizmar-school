@@ -6,8 +6,11 @@ import {
   SUPPLY_STATUSES,
   allowedReviewTransitions,
   canReviewTo,
+  dueOnValue,
   isEditableByAuthor,
+  isPassed,
   isVisibleToFamilies,
+  stillDueWhere,
 } from "@/modules/supplies/enums";
 
 /**
@@ -362,5 +365,49 @@ describe("the article categories", () => {
   it("stays small enough for a picker to group by", () => {
     // The only reason a catalogue of eighty articles is usable.
     expect(SUPPLY_CATEGORIES.length).toBeLessThanOrEqual(12);
+  });
+});
+
+// ── The deadline, and what it retires ────────────────────────────────────────
+
+describe("a list's deadline", () => {
+  const day = (iso: string) => new Date(`${iso}T00:00:00`);
+
+  it("stores the end of the day the school named", () => {
+    // A list due "le 15 septembre" is due all of the 15th. Stored at midnight
+    // it would retire itself on the morning it matters most.
+    const due = dueOnValue(day("2026-09-15"));
+    expect(due?.getHours()).toBe(23);
+    expect(due?.getMinutes()).toBe(59);
+    expect(due?.getDate()).toBe(15);
+  });
+
+  it("leaves a list with no deadline alone", () => {
+    expect(dueOnValue(null)).toBeNull();
+  });
+
+  it("is still due on the morning it is due", () => {
+    const due = dueOnValue(day("2026-09-15")) as Date;
+    expect(isPassed(due, new Date("2026-09-15T07:30:00"))).toBe(false);
+    expect(isPassed(due, new Date("2026-09-15T22:00:00"))).toBe(false);
+  });
+
+  it("has passed the day after", () => {
+    const due = dueOnValue(day("2026-09-15")) as Date;
+    expect(isPassed(due, new Date("2026-09-16T00:05:00"))).toBe(true);
+  });
+
+  it("never passes without a deadline", () => {
+    // The general rentrée list simply stands, and stands until the year does.
+    expect(isPassed(null, new Date("2099-01-01"))).toBe(false);
+  });
+
+  it("keeps the undated lists in the families' clause", () => {
+    // A `where` fragment, not a predicate: filtering after the read would hand
+    // a parent a screen of lists they can no longer act on.
+    const now = new Date("2026-09-16T09:00:00");
+    expect(stillDueWhere(now)).toEqual({
+      OR: [{ dueOn: null }, { dueOn: { gte: now } }],
+    });
   });
 });

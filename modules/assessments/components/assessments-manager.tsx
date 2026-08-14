@@ -133,6 +133,27 @@ export function AssessmentsManager({
         ),
       },
       {
+        /*
+          The round of contrôles this paper belongs to — "n°1", "n°2".
+
+          A string accessor, not the number: the facet filter compares against
+          what the column holds, and a facet's selected values are strings.
+          Hidden by default because the number is already inside the title the
+          generator writes; the facet beside the table is what it is for.
+        */
+        id: "sequence",
+        accessorFn: (row) => String(row.sequence),
+        header: t.assessment.sequence,
+        meta: { className: "hidden @4xl/table:table-cell" },
+        cell: ({ row }) => (
+          <span className="text-sm tabular-nums">
+            {interpolate(t.assessment.sequenceLabel, {
+              sequence: row.original.sequence,
+            })}
+          </span>
+        ),
+      },
+      {
         // The subject facet needs a column of its own to filter: it used to
         // point at an id nothing declared, so the filter did nothing and
         // TanStack logged "Column with id 'subjectName' does not exist".
@@ -306,6 +327,13 @@ export function AssessmentsManager({
       label: row.subjectLabel,
     }));
 
+    const sequences = [...new Set(visible.map((row) => row.sequence))]
+      .sort((a, b) => a - b)
+      .map((sequence) => ({
+        value: String(sequence),
+        label: interpolate(t.assessment.sequenceLabel, { sequence }),
+      }));
+
     return [
       {
         columnId: "status",
@@ -329,6 +357,23 @@ export function AssessmentsManager({
               columnId: "subjectName",
               label: t.assessment.subject,
               options: subjects,
+            },
+          ]
+        : []),
+      /*
+        "Show me contrôle n°2" — the round, across every subject of the class.
+
+        Sorted as numbers rather than as the strings the column holds, so ten
+        rounds read 1, 2, … 10 and not 1, 10, 2. Offered only once there is
+        more than one round to choose between, like the subject facet above:
+        a picker with a single option is a control that cannot do anything.
+      */
+      ...(sequences.length > 1
+        ? [
+            {
+              columnId: "sequence",
+              label: t.assessment.sequence,
+              options: sequences,
             },
           ]
         : []),
@@ -432,7 +477,7 @@ export function AssessmentsManager({
         data={visible}
         searchPlaceholder={t.assessment.searchPlaceholder}
         facets={facets}
-        initialColumnVisibility={{ subjectName: false }}
+        initialColumnVisibility={{ subjectName: false, sequence: false }}
         pageSize={20}
         emptyState={
           <EmptyState

@@ -13,6 +13,7 @@ import {
   isVisibleToFamilies,
   spansDays,
   startOfDay,
+  stillToComeWhere,
 } from "@/modules/events/enums";
 
 /**
@@ -560,5 +561,27 @@ describe("the day helpers", () => {
     expect(
       spansDays({ startsAt: new Date(2026, 2, 12), endsAt: null }),
     ).toBe(false);
+  });
+});
+
+// ── What a family still has ahead of them ────────────────────────────────────
+
+describe("stillToComeWhere", () => {
+  it("cuts at the start of today, not at the minute", () => {
+    // An all-day event is stored at midnight with no `endsAt`. Cutting at the
+    // instant would drop la réunion de parents off the phone at one second
+    // past midnight on the morning of the réunion.
+    const clause = stillToComeWhere(new Date("2026-03-15T14:30:00"));
+    const cutoff = clause.OR[0].endsAt.gte;
+
+    expect(cutoff.getHours()).toBe(0);
+    expect(cutoff.getMinutes()).toBe(0);
+    expect(cutoff.getDate()).toBe(15);
+  });
+
+  it("judges a spanning event on when it ends and a single one on when it starts", () => {
+    const clause = stillToComeWhere(new Date("2026-03-15T09:00:00"));
+    expect(clause.OR[1]).toMatchObject({ endsAt: null });
+    expect(clause.OR[1].startsAt).toEqual(clause.OR[0].endsAt);
   });
 });

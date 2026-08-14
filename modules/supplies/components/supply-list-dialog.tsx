@@ -241,6 +241,22 @@ export function SupplyListDialog({
               </FormField>
             </div>
 
+            {/* Optional, and blank is the ordinary case: the general rentrée
+              list simply stands. Once it is set it is also what retires the
+              list from the families' app — see `dueOn` on SupplyList. */}
+            <FormField
+              name="dueOn"
+              label={t.supply.dueOn}
+              hint={t.supply.dueOnHint}
+              error={errors.dueOn}
+            >
+              <Input
+                {...controlProps("dueOn", errors.dueOn, t.supply.dueOnHint)}
+                type="date"
+                defaultValue={valueOf(state, "dueOn", list?.dueOn)}
+              />
+            </FormField>
+
             <div className="grid gap-2">
               <Label>{t.supply.items}</Label>
 

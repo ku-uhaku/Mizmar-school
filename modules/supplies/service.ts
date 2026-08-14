@@ -10,6 +10,7 @@ import {
 } from "@/modules/notifications/service";
 import {
   canReviewTo,
+  dueOnValue,
   isEditableByAuthor,
   isVisibleToFamilies,
 } from "@/modules/supplies/enums";
@@ -104,6 +105,8 @@ export type SaveListInput = {
   subjectId: string | null;
   title: string;
   notes: string | null;
+  /** The day it is all to be in the bag. Null for a list with no deadline. */
+  dueOn: Date | null;
   items: ItemInput[];
 };
 
@@ -171,6 +174,9 @@ export async function saveList(
         subjectId: subject?.id ?? null,
         title: input.title,
         notes: input.notes,
+        // Normalised here rather than at the form, so the phone and the web
+        // cannot disagree about when a deadline actually runs out.
+        dueOn: dueOnValue(input.dueOn),
       },
     });
     await replaceItems(existing.id, input.schoolId, input.items);
@@ -186,6 +192,7 @@ export async function saveList(
       subjectId: subject?.id ?? null,
       title: input.title,
       notes: input.notes,
+      dueOn: dueOnValue(input.dueOn),
       status: "DRAFT",
       authorId: input.authorId,
     },

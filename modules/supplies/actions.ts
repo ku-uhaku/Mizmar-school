@@ -108,6 +108,7 @@ export async function saveSupplyListAction(
       subjectId: rawSubject === NO_SELECTION ? "" : rawSubject,
       title: field(formData, "title"),
       notes: field(formData, "notes"),
+      dueOn: field(formData, "dueOn"),
     });
     if (!parsed.success) {
       return failure(
@@ -142,6 +143,7 @@ export async function saveSupplyListAction(
       subjectId: parsed.data.subjectId || null,
       title: parsed.data.title,
       notes: parsed.data.notes,
+      dueOn: parsed.data.dueOn,
       items,
     });
 

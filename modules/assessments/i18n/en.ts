@@ -39,6 +39,8 @@ const en = {
     kind: "Kind",
     sequence: "Number",
     sequenceHint: "Which one of its kind within the term — 1 for the first.",
+    /** The facet option for one round of contrôles, e.g. "No. 2". */
+    sequenceLabel: "No. {sequence}",
     scheduledOn: "Sat on",
     notScheduled: "Not dated",
     maxScore: "Out of",

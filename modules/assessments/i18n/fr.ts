@@ -41,6 +41,7 @@ const fr = {
     sequence: "Numéro",
     sequenceHint:
       "Le combien de son type dans le semestre — 1 pour le premier.",
+    sequenceLabel: "n° {sequence}",
     scheduledOn: "Passé le",
     notScheduled: "Non daté",
     maxScore: "Noté sur",

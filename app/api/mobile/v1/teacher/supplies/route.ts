@@ -41,6 +41,8 @@ const schema = z.object({
   subjectId: z.string().min(1).nullish(),
   title: z.string().trim().min(1).max(160),
   notes: z.string().trim().max(1000).nullish(),
+  /** `YYYY-MM-DD`. Absent or null for a list that simply stands. */
+  dueOn: z.iso.date().nullish(),
   items: z
     .array(
       z.object({
@@ -78,6 +80,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       subjectId: parsed.data.subjectId ?? null,
       title: parsed.data.title,
       notes: parsed.data.notes?.trim() || null,
+      // The end of that day is put on it by `saveList`, so a deadline set from
+      // a phone runs out at the same moment as one set from the office.
+      dueOn: parsed.data.dueOn ? new Date(parsed.data.dueOn) : null,
       items: parsed.data.items.map((item) => ({
         articleId: item.articleId,
         quantity: item.quantity ?? null,
