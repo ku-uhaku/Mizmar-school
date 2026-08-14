@@ -209,6 +209,34 @@ const fr = {
     noNeighbourhoodsHint: "Ajoutez-les dans Configuration, \u00c9tablissement.",
 
     // ── L'abonnement de l'\u00e9l\u00e8ve ──────────────────────────────────
+    // ── L'assistant de création ─────────────────────────────────────────────
+    wizard: {
+      title: "Tracer une ligne",
+      subtitle: "La ligne, les horaires qu'elle assure, les quartiers qu'elle dessert, et les enfants qui y habitent. Enregistré en une fois.",
+      stepOf: "Étape {step} sur {total}",
+      codeHint: "Court et stable, par exemple L1.",
+      vehicleSeats: "{count} places dans ce bus.",
+      noVehicleHint:
+        "Une ligne sans bus n'offre aucune place — on pourra en affecter un plus tard.",
+      seatsUsed: "{taken} places sur {seats}",
+      neighbourhoodsHint:
+        "Les quartiers que cette ligne ramasse. Chacun devient un arrêt, dans l'ordre coché — on nomme le point d'arrêt et on l'horodate plus tard, sur la page de la ligne.",
+      ridersHint:
+        "Tous les inscrits pas encore sur un bus, classés par quartier de résidence.",
+      ridersNeedNeighbourhoods:
+        "Cochez d'abord un quartier — les passagers en découlent.",
+      noResidents:
+        "Aucun inscrit n'habite ce quartier, ou ils ont déjà une place.",
+      searchRiders: "Chercher par nom, matricule ou classe",
+      transportOnly: "Abonnés au transport seulement",
+      notSubscribed: "Transport non souscrit",
+      noMatches: "Aucun résultat ici.",
+      submit: "Ouvrir la ligne",
+      opened: "Ligne ouverte.",
+      openedPartly:
+        "Ligne ouverte — {seated} passagers inscrits, {refused} refusés. Le bus est peut-être complet ou ils avaient déjà une place.",
+    },
+
     riderNotes: "Notes",
     tabTransport: "Transport",
     arrangement: "Abonnement transport",

@@ -125,7 +125,9 @@ vi.mock("@/modules/enrolment/service", () => ({
   resyncOptionalCharges: async () => ({ added: 0, removed: 0 }),
 }));
 
-const { decideFuelRequest } = await import("@/modules/transport/service");
+const { decideFuelRequest, openRoute } = await import(
+  "@/modules/transport/service",
+);
 
 const of = (model: string, op: string) =>
   calls.filter((call) => call.model === model && call.op === op);
@@ -890,5 +892,220 @@ describe("decideFuelRequest", () => {
     await expect(decideFuelRequest(decision())).rejects.toThrow(
       "ledger unavailable",
     );
+  });
+});
+
+// ── Drawing a line in one sitting ────────────────────────────────────────────
+
+describe("openRoute", () => {
+  const line = {
+    schoolId: "school-1",
+    schoolYearId: "year-1",
+    route: {
+      code: "L1",
+      name: "Centre-ville",
+      nameAr: null,
+      direction: "BOTH" as const,
+      vehicleId: null,
+      capacity: 30,
+      isActive: true,
+      notes: null,
+    },
+    scheduleIds: [],
+    neighbourhoodIds: [],
+    stops: [],
+    riders: [],
+  };
+
+  /** A stop as the wizard derives it: one per quartier served, no times. */
+  const stop = (name: string, neighbourhoodId: string) => ({
+    name,
+    landmark: null,
+    neighbourhoodId,
+    pickupTime: null,
+    dropoffTime: null,
+  });
+
+  /** Everything `subscribeRider` reads on its way to taking a seat. */
+  function seatIsAvailable() {
+    answers = {
+      "routeStop.findUnique": {
+        id: "stop-1",
+        routeId: "created",
+        route: { schoolYearId: "year-1" },
+      },
+      "enrollment.findFirst": { id: "enrolment-1" },
+      "transportRoute.findUnique": {
+        capacity: 30,
+        vehicle: null,
+        _count: { subscriptions: 0 },
+      },
+      "transportSubscription.create": { id: "abonnement-1" },
+    };
+  }
+
+  it("numbers the stops in the order the quartiers were ticked", async () => {
+    // The catchment is the itinerary: one stop per quartier served, in the
+    // order they were chosen. Nobody maintains a position column by hand.
+    const result = await openRoute({
+      ...line,
+      neighbourhoodIds: ["q-maarif", "q-centre", "q-nord"],
+      stops: [
+        stop("Maârif", "q-maarif"),
+        stop("Centre-ville", "q-centre"),
+        stop("Quartier Nord", "q-nord"),
+      ],
+    });
+
+    const written = of("routeStop", "create").map(
+      (call) =>
+        (
+          call.args as {
+            data: { name: string; position: number; neighbourhoodId: string };
+          }
+        ).data,
+    );
+
+    expect(written.map((data) => data.name)).toEqual([
+      "Maârif",
+      "Centre-ville",
+      "Quartier Nord",
+    ]);
+    expect(written.map((data) => data.position)).toEqual([0, 1, 2]);
+    // The stop knows which quartier it answers for — that is what a rider's
+    // address is matched against afterwards.
+    expect(written.map((data) => data.neighbourhoodId)).toEqual([
+      "q-maarif",
+      "q-centre",
+      "q-nord",
+    ]);
+    expect(result.stops).toBe(3);
+  });
+
+  it("refuses a passenger whose quartier is not on the line", async () => {
+    // The action resolves a rider's quartier to its stop and drops them when it
+    // finds none — a quartier unticked between choosing the child and
+    // submitting. Counting them refused is the honest answer; seating them at
+    // whichever kerb happens to be last is not.
+    const result = await openRoute({
+      ...line,
+      neighbourhoodIds: ["q-maarif"],
+      stops: [stop("Maârif", "q-maarif")],
+      riders: [
+        {
+          enrollmentId: "enrolment-1",
+          stopIndex: 4,
+          scheduleIds: [],
+          direction: "BOTH",
+        },
+      ],
+    });
+
+    expect(result.ridersSeated).toBe(0);
+    expect(result.ridersRefused).toBe(1);
+    expect(of("transportSubscription", "create")).toHaveLength(0);
+  });
+
+  it("puts the runs on the line before anybody boards one", async () => {
+    // Dependency order, not preference: an abonnement naming a run the circuit
+    // does not yet make has that run silently dropped — see `resolveSchedule`.
+    seatIsAvailable();
+
+    await openRoute({
+      ...line,
+      scheduleIds: ["run-morning"],
+      neighbourhoodIds: ["q-maarif"],
+      stops: [stop("Maârif", "q-maarif")],
+      riders: [
+        {
+          enrollmentId: "enrolment-1",
+          stopIndex: 0,
+          scheduleIds: [],
+          direction: "BOTH",
+        },
+      ],
+    });
+
+    const linked = calls.findIndex(
+      (call) => call.model === "routeSchedule" && call.op === "createMany",
+    );
+    const boarded = calls.findIndex(
+      (call) =>
+        call.model === "transportSubscription" && call.op === "create",
+    );
+
+    expect(linked).toBeGreaterThanOrEqual(0);
+    expect(boarded).toBeGreaterThan(linked);
+  });
+
+  it("seats nobody on a line that offers no seats", async () => {
+    // The failure the wizard's passenger step now refuses to walk into: a line
+    // drawn with no bus and no cap offers nothing, so every child ticked onto
+    // it comes back FULL. The line is still drawn — it is a real thing being
+    // planned — but the count of refusals is the whole story and has to be
+    // reported rather than left to be noticed in September.
+    answers = {
+      "routeStop.findUnique": {
+        id: "stop-1",
+        routeId: "created",
+        route: { schoolYearId: "year-1" },
+      },
+      "enrollment.findFirst": { id: "enrolment-1" },
+      "transportRoute.findUnique": {
+        capacity: null,
+        vehicle: null,
+        _count: { subscriptions: 0 },
+      },
+    };
+
+    const result = await openRoute({
+      ...line,
+      route: { ...line.route, capacity: null },
+      neighbourhoodIds: ["q-maarif"],
+      stops: [stop("Maârif", "q-maarif")],
+      riders: [
+        {
+          enrollmentId: "enrolment-1",
+          stopIndex: 0,
+          scheduleIds: [],
+          direction: "BOTH",
+        },
+      ],
+    });
+
+    expect(result.routeId).toBe("created");
+    expect(result.ridersSeated).toBe(0);
+    expect(result.ridersRefused).toBe(1);
+    expect(of("transportSubscription", "create")).toHaveLength(0);
+  });
+
+  it("counts one passenger once, however many runs they board", async () => {
+    // The wizard asked for a rider, not for a number of abonnements: a child
+    // collected in the morning and taken home in the evening is one passenger.
+    seatIsAvailable();
+    answers["transportSchedule.findMany"] = [
+      { id: "run-morning", direction: "MORNING" },
+      { id: "run-evening", direction: "AFTERNOON" },
+    ];
+    answers["routeSchedule.findUnique"] = { scheduleId: "run-morning" };
+
+    const result = await openRoute({
+      ...line,
+      scheduleIds: ["run-morning", "run-evening"],
+      neighbourhoodIds: ["q-maarif"],
+      stops: [stop("Maârif", "q-maarif")],
+      riders: [
+        {
+          enrollmentId: "enrolment-1",
+          stopIndex: 0,
+          scheduleIds: ["run-morning", "run-evening"],
+          direction: "BOTH",
+        },
+      ],
+    });
+
+    expect(of("transportSubscription", "create")).toHaveLength(2);
+    expect(result.ridersSeated).toBe(1);
+    expect(result.ridersRefused).toBe(0);
   });
 });

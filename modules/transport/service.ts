@@ -731,6 +731,181 @@ export async function setRouteSchedules(
   return reachable.length;
 }
 
+// ── Drawing a line in one sitting ────────────────────────────────────────────
+
+/**
+ * A stop on the line being drawn.
+ *
+ * The wizard does not ask for these — it derives one per quartier served, in
+ * the order they were ticked, and that is what `neighbourhoodId` carries. The
+ * shape stays general so the line's own page, which does let a school name a
+ * kerb and time it, writes through the same door.
+ */
+export type OpenRouteStop = {
+  name: string;
+  landmark: string | null;
+  neighbourhoodId: string | null;
+  pickupTime: string | null;
+  dropoffTime: string | null;
+};
+
+export type OpenRouteRider = {
+  enrollmentId: string;
+  /**
+   * Which stop they board, by its place in `stops` — the line does not exist
+   * yet, so there is no stop id for the form to send back. The action derives
+   * it from the quartier the child lives in, never from the request.
+   */
+  stopIndex: number;
+  /**
+   * The runs they board, among those the line was just given. Empty means the
+   * line declares no horaire, and `direction` answers instead — the same split
+   * `subscribeRiderAction` makes.
+   */
+  scheduleIds: string[];
+  direction: TransportDirection;
+};
+
+export type OpenRouteInput = {
+  schoolId: string;
+  schoolYearId: string;
+  route: {
+    code: string;
+    name: string;
+    nameAr: string | null;
+    direction: TransportDirection;
+    vehicleId: string | null;
+    capacity: number | null;
+    isActive: boolean;
+    notes: string | null;
+  };
+  scheduleIds: string[];
+  neighbourhoodIds: string[];
+  stops: OpenRouteStop[];
+  riders: OpenRouteRider[];
+};
+
+export type OpenRouteResult = {
+  routeId: string;
+  stops: number;
+  schedules: number;
+  neighbourhoods: number;
+  ridersSeated: number;
+  /**
+   * Riders the line would not take — a full bus, or a pupil already holding
+   * that seat. Reported rather than thrown, for the reason
+   * `subscribeRiderToRuns` gives: a line that seats nineteen of twenty should be
+   * drawn, and the twentieth named, not refused whole.
+   */
+  ridersRefused: number;
+};
+
+/**
+ * Draws a line, its runs, its catchment, its stops and its first passengers in
+ * one act — what the création wizard posts.
+ *
+ * Every piece of this was already reachable one screen at a time: create the
+ * line, reopen it to tick its horaires, tick its quartiers, add the stops one
+ * dialog at a time, then add the riders. Five visits to build one bus route,
+ * and a line was live and pickable from the pupil's file after the first of
+ * them, with no stops on it for anybody to board at.
+ *
+ * The order is the dependency order and not a preference: the runs must be on
+ * the line before a rider can be put on one of them, and the stops must exist
+ * before anybody boards. Nothing here re-checks scope — the action has already
+ * re-derived the school, the year, the bus and every enrolment against the
+ * session, and the two seat-taking calls check their own invariants.
+ */
+export async function openRoute(
+  input: OpenRouteInput,
+): Promise<OpenRouteResult> {
+  const route = await db.transportRoute.create({
+    data: { schoolYearId: input.schoolYearId, ...input.route },
+    select: { id: true },
+  });
+
+  const schedules = await setRouteSchedules(
+    route.id,
+    input.schoolYearId,
+    input.scheduleIds,
+  );
+  const neighbourhoods = await setRouteNeighbourhoods(
+    route.id,
+    input.schoolId,
+    input.neighbourhoodIds,
+  );
+
+  /*
+    One transaction, and the ids come back in the order they went in — which is
+    what maps a rider's `stopIndex` onto the stop they board. `createMany` would
+    be one round trip fewer and gives no ids back on SQLite, so the mapping
+    would have to be re-read by name.
+  */
+  const stops = await db.$transaction(
+    input.stops.map((stop, index) =>
+      db.routeStop.create({
+        data: {
+          routeId: route.id,
+          name: stop.name,
+          landmark: stop.landmark,
+          neighbourhoodId: stop.neighbourhoodId,
+          pickupTime: stop.pickupTime,
+          dropoffTime: stop.dropoffTime,
+          // The order they were typed in is the order the bus reaches them.
+          position: index,
+        },
+        select: { id: true },
+      }),
+    ),
+  );
+
+  let ridersSeated = 0;
+  let ridersRefused = 0;
+
+  for (const rider of input.riders) {
+    const stopId = stops[rider.stopIndex]?.id;
+    // A rider pointing at a stop that was removed from the list before submit.
+    if (!stopId) {
+      ridersRefused += 1;
+      continue;
+    }
+
+    const base = {
+      enrollmentId: rider.enrollmentId,
+      stopId,
+      status: "ACTIVE" as SubscriptionStatus,
+      startsOn: new Date(),
+      endsOn: null,
+      notes: null,
+    };
+
+    if (rider.scheduleIds.length > 0) {
+      const runs = await subscribeRiderToRuns(base, rider.scheduleIds);
+      // One pupil counts once however many runs they were put on: the wizard
+      // asked for a passenger, not for a number of abonnements.
+      if (runs.created > 0) ridersSeated += 1;
+      else ridersRefused += 1;
+    } else {
+      const seated = await subscribeRider({
+        ...base,
+        direction: rider.direction,
+        scheduleId: null,
+      });
+      if (seated.ok) ridersSeated += 1;
+      else ridersRefused += 1;
+    }
+  }
+
+  return {
+    routeId: route.id,
+    stops: stops.length,
+    schedules,
+    neighbourhoods,
+    ridersSeated,
+    ridersRefused,
+  };
+}
+
 // ── L'appel du bus ───────────────────────────────────────────────────────────
 
 export type MarkRiderInput = {

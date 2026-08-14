@@ -64,7 +64,6 @@ export function RouteList({
 }) {
   const t = useT();
   const [editing, setEditing] = React.useState<RouteRow | null>(null);
-  const [creating, setCreating] = React.useState(false);
   const [removing, setRemoving] = React.useState<RouteRow | null>(null);
   const [isPending, startTransition] = React.useTransition();
 
@@ -82,9 +81,14 @@ export function RouteList({
     <div className="grid gap-3">
       {permissions.canManage ? (
         <div className="flex justify-end">
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" />
-            {t.transport.newRoute}
+          {/* Creation is a wizard on its own page, not a dialog: a line needs
+              its runs, its quartiers and its stops before it is a line, and a
+              modal that created it from four fields left it live and empty. */}
+          <Button asChild size="sm">
+            <Link href="/transport/routes/new">
+              <PlusIcon className="size-4" />
+              {t.transport.newRoute}
+            </Link>
           </Button>
         </div>
       ) : null}
@@ -95,6 +99,16 @@ export function RouteList({
             <EmptyState
               icon={<BusIcon className="size-5" />}
               title={t.transport.noRoutes}
+              action={
+                permissions.canManage ? (
+                  <Button asChild size="sm">
+                    <Link href="/transport/routes/new">
+                      <PlusIcon className="size-4" />
+                      {t.transport.newRoute}
+                    </Link>
+                  </Button>
+                ) : null
+              }
             />
           </CardContent>
         </Card>
@@ -194,14 +208,11 @@ export function RouteList({
         </div>
       )}
 
-      {creating || editing ? (
+      {editing ? (
         <RouteDialog
           route={editing}
           vehicleOptions={vehicleOptions}
-          onClose={() => {
-            setCreating(false);
-            setEditing(null);
-          }}
+          onClose={() => setEditing(null)}
         />
       ) : null}
 
@@ -236,12 +247,13 @@ export function RouteList({
   );
 }
 
+/** Edits a line that exists. Drawing a new one is the wizard's job. */
 function RouteDialog({
   route,
   vehicleOptions,
   onClose,
 }: {
-  route: RouteRow | null;
+  route: RouteRow;
   vehicleOptions: { id: string; label: string; seatCount: number }[];
   onClose: () => void;
 }) {
@@ -255,13 +267,11 @@ function RouteDialog({
       <DialogContent>
         <form action={formAction} className="grid gap-4">
           <DialogHeader>
-            <DialogTitle>
-              {route ? t.transport.editRoute : t.transport.newRoute}
-            </DialogTitle>
+            <DialogTitle>{t.transport.editRoute}</DialogTitle>
             <DialogDescription>{t.transport.capacityHint}</DialogDescription>
           </DialogHeader>
 
-          {route ? <input type="hidden" name="id" value={route.id} /> : null}
+          <input type="hidden" name="id" value={route.id} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field
@@ -273,7 +283,7 @@ function RouteDialog({
               <Input
                 id="code"
                 name="code"
-                defaultValue={valueOf(state, "code", route?.code)}
+                defaultValue={valueOf(state, "code", route.code)}
                 required
               />
             </Field>
@@ -286,7 +296,7 @@ function RouteDialog({
               <Input
                 id="name"
                 name="name"
-                defaultValue={valueOf(state, "name", route?.name)}
+                defaultValue={valueOf(state, "name", route.name)}
                 required
               />
             </Field>
@@ -296,7 +306,7 @@ function RouteDialog({
             <Select
               name="direction"
               defaultValue={
-                valueOf(state, "direction", route?.direction) || "BOTH"
+                valueOf(state, "direction", route.direction) || "BOTH"
               }
             >
               <SelectTrigger id="direction" className="w-full">
@@ -317,7 +327,7 @@ function RouteDialog({
               <Select
                 name="vehicleId"
                 defaultValue={
-                  valueOf(state, "vehicleId", route?.vehicleId) || "__none__"
+                  valueOf(state, "vehicleId", route.vehicleId) || "__none__"
                 }
               >
                 <SelectTrigger id="vehicleId" className="w-full">
@@ -346,7 +356,7 @@ function RouteDialog({
                 min="0"
                 dir="ltr"
                 defaultValue={
-                  route?.seats && route.vehicleId === null ? route.seats : ""
+                  route.seats && route.vehicleId === null ? route.seats : ""
                 }
               />
             </Field>
@@ -360,7 +370,7 @@ function RouteDialog({
               defaultChecked={checkedOf(
                 state,
                 "isActive",
-                route?.isActive ?? true,
+                route.isActive,
               )}
             />
           </div>

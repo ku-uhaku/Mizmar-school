@@ -2,7 +2,13 @@
 
 import { refresh } from "next/cache";
 
-import { failure, success, type ActionState } from "@/lib/action-state";
+import {
+  failure,
+  success,
+  successWith,
+  type ActionState,
+  type ActionStateWith,
+} from "@/lib/action-state";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
@@ -23,6 +29,9 @@ import {
   markBusRunInBulk,
   moveTripRun,
   markRiderAttendance,
+  openRoute,
+  type OpenRouteRider,
+  type OpenRouteStop,
   setRouteNeighbourhoods,
   setRouteSchedules,
   subscribeRider,
@@ -30,7 +39,11 @@ import {
   unsubscribeRider,
   updateRider,
 } from "@/modules/transport/service";
-import { tripRunWindow } from "@/modules/transport/enums";
+import {
+  TRANSPORT_DIRECTIONS,
+  tripRunWindow,
+  type TransportDirection,
+} from "@/modules/transport/enums";
 import {
   fuelDecisionSchema,
   fuelRequestSchema,
@@ -266,6 +279,229 @@ export async function saveRouteAction(
 
     refresh();
     return success(id ? t.transport.routeUpdated : t.transport.routeCreated);
+  });
+}
+
+/**
+ * The création wizard: one line, its runs, its quartiers, its stops and its
+ * first passengers, in a single submit.
+ *
+ * It writes what five separate screens used to — see `openRoute` — so it
+ * asserts both codes rather than one. TRANSPORT_SUBSCRIBE is only demanded when
+ * the form actually carries passengers: drawing an empty line is the fleet
+ * manager's job and must not require the seat-giving permission.
+ *
+ * Every id in the request is re-derived here against the session's school and
+ * year before `openRoute` writes anything, exactly as the single-step actions
+ * do — the wizard posts more at once, not more trustingly.
+ */
+export async function openRouteAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionStateWith<{ routeId: string }>> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (!schoolYearId) return failure(t.errors.noSchoolYearContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
+
+    // ── La ligne ─────────────────────────────────────────────────────────────
+    const parsed = routeSchema(t).safeParse({
+      code: field(formData, "code"),
+      name: field(formData, "name"),
+      nameAr: field(formData, "nameAr"),
+      direction: field(formData, "direction"),
+      vehicleId: optionalId(formData, "vehicleId"),
+      capacity: field(formData, "capacity"),
+      isActive: true,
+      notes: field(formData, "notes"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const vehicle = parsed.data.vehicleId
+      ? await db.vehicle.findFirst({
+          where: { id: parsed.data.vehicleId, schoolId },
+          select: { id: true },
+        })
+      : null;
+    if (parsed.data.vehicleId && !vehicle) return failure(t.errors.notFound);
+
+    const clash = await db.transportRoute.findFirst({
+      where: { schoolYearId, code: parsed.data.code },
+      select: { id: true },
+    });
+    if (clash) {
+      return failure(
+        t.transport.routeCodeTaken,
+        { code: t.transport.routeCodeTaken },
+        formValues(formData),
+      );
+    }
+
+    // ── Les horaires ─────────────────────────────────────────────────────────
+    // Re-read against the context rather than trusted; `setRouteSchedules` does
+    // the same, so an id that survives here still cannot cross a year.
+    const scheduleRows = await db.transportSchedule.findMany({
+      where: { id: { in: listField(formData, "scheduleIds") }, schoolYearId },
+      select: { id: true },
+    });
+    const scheduleIds = scheduleRows.map((schedule) => schedule.id);
+
+    // ── Les quartiers, et les arrêts qui en découlent ─────────────────────────
+    /*
+      One stop per quartier served, and no stops step at all.
+
+      That is the whole simplification. A line is drawn for a set of quartiers,
+      and the quartier *is* the kerb — which is exactly what
+      `RouteStop.neighbourhoodId` has always been for. Where the bus actually
+      pulls in and at what minute is a refinement, and it belongs on the line's
+      own page once the line exists; asking for it first turned drawing a
+      circuit into a twenty-field job before anybody could be put on it.
+    */
+    const submitted = listField(formData, "neighbourhoodIds");
+    const neighbourhoodRows = await db.neighbourhood.findMany({
+      where: { id: { in: submitted }, schoolId },
+      select: { id: true, name: true, city: { select: { name: true } } },
+    });
+
+    // The order they were ticked in, not the database's — it is the order the
+    // bus takes them in, and `openRoute` numbers the stops by it.
+    const served = submitted
+      .map((id) => neighbourhoodRows.find((row) => row.id === id))
+      .filter((row): row is (typeof neighbourhoodRows)[number] => Boolean(row));
+
+    const neighbourhoodIds = served.map((row) => row.id);
+
+    const stops: OpenRouteStop[] = served.map((row) => ({
+      // Two quartiers of the same name in different towns would collide on the
+      // line's unique index. The town tells them apart, and only then — a stop
+      // reading "Centre-ville · Oujda" on a line that serves one town is noise.
+      name: served.some(
+        (other) => other.id !== row.id && other.name === row.name,
+      )
+        ? `${row.name} · ${row.city.name}`
+        : row.name,
+      landmark: null,
+      neighbourhoodId: row.id,
+      pickupTime: null,
+      dropoffTime: null,
+    }));
+
+    // ── Les passagers ────────────────────────────────────────────────────────
+    // A rider names the quartier they live in, never a stop: the stop is this
+    // line's answer to that quartier, and deriving it here is what stops a
+    // crafted form seating a child at a kerb the circuit does not call at.
+    const riderEnrollmentIds = listField(formData, "riderEnrollmentId");
+    const riderNeighbourhoodIds = listField(formData, "riderNeighbourhoodId");
+    const riderDirections = listField(formData, "riderDirection");
+
+    if (
+      riderNeighbourhoodIds.length !== riderEnrollmentIds.length ||
+      riderDirections.length !== riderEnrollmentIds.length
+    ) {
+      return failure(t.errors.invalid);
+    }
+
+    if (riderEnrollmentIds.length > 0) {
+      await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_SUBSCRIBE);
+    }
+
+    // One query for the lot: every pupil named must be enrolled in this school,
+    // this year. Anyone else is not refused loudly — they are simply not on the
+    // bus, and a crafted enrolment id reaches nothing.
+    const enrolments = await db.enrollment.findMany({
+      where: {
+        id: { in: riderEnrollmentIds },
+        schoolYearId,
+        student: { schoolId },
+      },
+      select: { id: true },
+    });
+    const reachable = new Set(enrolments.map((enrolment) => enrolment.id));
+
+    const riders: OpenRouteRider[] = [];
+
+    riderEnrollmentIds.forEach((enrollmentId, index) => {
+      if (!reachable.has(enrollmentId)) return;
+
+      const stopIndex = neighbourhoodIds.indexOf(
+        riderNeighbourhoodIds[index] ?? "",
+      );
+      // A quartier unticked between choosing the pupil and submitting. The line
+      // no longer calls there, so there is nowhere for them to board.
+      if (stopIndex < 0) return;
+
+      const direction = riderDirections[index] ?? "BOTH";
+
+      riders.push({
+        enrollmentId,
+        stopIndex,
+        /*
+          The runs this one passenger boards, posted under their own enrolment
+          id rather than their row number — index-aligned arrays cannot nest, a
+          passenger holds a list rather than a value, and keying by position
+          would silently mis-assign the runs the moment the form rendered its
+          rows in an order the array did not share. Narrowed to the runs the
+          line was just given, so a stale form cannot put a child on a departure
+          this circuit does not make.
+        */
+        scheduleIds: listField(
+          formData,
+          `riderSchedules.${enrollmentId}`,
+        ).filter((id) => scheduleIds.includes(id)),
+        direction: (TRANSPORT_DIRECTIONS as readonly string[]).includes(direction)
+          ? (direction as TransportDirection)
+          : "BOTH",
+      });
+    });
+
+    const result = await openRoute({
+      schoolId,
+      schoolYearId,
+      route: {
+        code: parsed.data.code,
+        name: parsed.data.name,
+        nameAr: parsed.data.nameAr,
+        direction: parsed.data.direction,
+        vehicleId: vehicle?.id ?? null,
+        capacity: parsed.data.capacity,
+        isActive: true,
+        notes: parsed.data.notes,
+      },
+      scheduleIds,
+      neighbourhoodIds,
+      stops,
+      riders,
+    });
+
+    refresh();
+
+    /*
+      The wizard navigates, rather than this redirecting.
+
+      A redirect would drop the one thing the caller cannot see on the line's
+      page: the passengers the bus would not take. A refused rider is simply
+      absent there, and "absent" is indistinguishable from "never added" — so
+      the count comes back as a message and the wizard follows it.
+    */
+    return successWith(
+      { routeId: result.routeId },
+      result.ridersRefused > 0
+        ? interpolate(t.transport.wizard.openedPartly, {
+            seated: result.ridersSeated,
+            refused: result.ridersRefused,
+          })
+        : t.transport.wizard.opened,
+    );
   });
 }
 

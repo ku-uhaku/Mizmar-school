@@ -205,6 +205,33 @@ const en = {
     noNeighbourhoodsHint: "Add them under Configuration, Establishment.",
 
     // ── The pupil's arrangement ─────────────────────────────────────────────
+    // ── The création wizard ─────────────────────────────────────────────────
+    wizard: {
+      title: "Draw a line",
+      subtitle: "The line, the runs it makes, the districts it serves, and the children living in them. Saved in one go.",
+      stepOf: "Step {step} of {total}",
+      codeHint: "Short and stable, e.g. L1.",
+      vehicleSeats: "{count} seats on this bus.",
+      noVehicleHint: "A line with no bus offers no seats — one can be put on it later.",
+      seatsUsed: "{taken} of {seats} seats",
+      neighbourhoodsHint:
+        "The districts this line collects from. Each becomes a stop, in the order ticked — name the kerb and time it later, on the line's own page.",
+      ridersHint:
+        "Everyone enrolled and not yet on a bus, listed under the district they live in.",
+      ridersNeedNeighbourhoods:
+        "Tick a district first — the passengers follow from it.",
+      noResidents:
+        "Nobody enrolled lives in this district, or they already have a seat.",
+      searchRiders: "Search by name, matricule or class",
+      transportOnly: "Bus subscribers only",
+      notSubscribed: "No bus at enrolment",
+      noMatches: "Nobody here matches.",
+      submit: "Open the line",
+      opened: "Line opened.",
+      openedPartly:
+        "Line opened — {seated} riders seated, {refused} refused. The bus may be full or they already had a seat.",
+    },
+
     riderNotes: "Notes",
     tabTransport: "Transport",
     arrangement: "Bus arrangement",

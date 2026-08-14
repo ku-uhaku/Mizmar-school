@@ -409,6 +409,30 @@ export type SubscribableStudent = {
   enrollmentId: string;
   studentId: string;
   label: string;
+  /**
+   * Where the child lives — `Student.neighbourhoodId`, the address, not a stop.
+   *
+   * Carried here because it is what the création wizard groups its passenger
+   * list by: a line is drawn for a set of quartiers, and the families it exists
+   * to collect are the ones living in them. Null for a pupil whose address was
+   * never taken down; they are still subscribable, just not from the wizard —
+   * see the note on its passenger step.
+   */
+  neighbourhoodId: string | null;
+  /**
+   * Whether the family actually took the bus at enrolment — an EnrollmentOption
+   * on a charge of kind TRANSPORT.
+   *
+   * Carried rather than filtered on, because the two callers want opposite
+   * defaults and neither wants the other's. The wizard shows subscribers first:
+   * a line is drawn for the families who asked for it. The rider dialog on the
+   * line's page offers everyone, because it exists partly for the case
+   * `syncTransportOption` was written for — a child put on a circuit whose
+   * enrolment never ticked the box, who is then billed rather than left riding
+   * free. Filtering here would make that case unreachable instead of merely
+   * deliberate.
+   */
+  usesTransport: boolean;
 };
 
 /**
@@ -438,7 +462,20 @@ export async function listSubscribableStudents(
       id: true,
       schoolClass: { select: { code: true } },
       student: {
-        select: { id: true, code: true, firstName: true, lastName: true },
+        select: {
+          id: true,
+          code: true,
+          firstName: true,
+          lastName: true,
+          neighbourhoodId: true,
+        },
+      },
+      // The opt-in, not a flag: `Enrollment.usesTransport` was replaced by a
+      // row naming the charge — see prisma/schema/enrolment/enrollment-option.prisma.
+      options: {
+        where: { feeType: { kind: "TRANSPORT" } },
+        select: { id: true },
+        take: 1,
       },
     },
   });
@@ -449,6 +486,8 @@ export async function listSubscribableStudents(
     label: `${enrollment.student.firstName} ${enrollment.student.lastName} · ${enrollment.student.code}${
       enrollment.schoolClass ? ` · ${enrollment.schoolClass.code}` : ""
     }`,
+    neighbourhoodId: enrollment.student.neighbourhoodId,
+    usesTransport: enrollment.options.length > 0,
   }));
 }
 
