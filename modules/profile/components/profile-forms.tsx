@@ -28,7 +28,7 @@ export type ProfileValues = {
   firstName: string;
   lastName: string;
   phone: string | null;
-  jobTitle: string | null;
+
   bio: string | null;
   avatarUrl: string | null;
   /** `YYYY-MM-DD`, or "" when unset. */
@@ -113,16 +113,6 @@ export function ProfileDetailsForm({ profile }: { profile: ProfileValues }) {
               />
             </FormField>
 
-            <FormField
-              name="jobTitle"
-              label={t.profile.jobTitle}
-              error={errors.jobTitle}
-            >
-              <Input
-                {...controlProps("jobTitle", errors.jobTitle)}
-                defaultValue={profile.jobTitle ?? ""}
-              />
-            </FormField>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

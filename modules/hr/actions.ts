@@ -222,7 +222,11 @@ export async function saveStaffAction(
         username: parsed.data.accountUsername,
         password: parsed.data.accountPassword,
         phone: parsed.data.phone,
-        jobTitle: parsed.data.jobTitle,
+        // The employee's own `Staff.jobTitle` still records what they were
+        // hired as. La fonction on their login is the school's own list and is
+        // set on the user screen — see StaffFunction — so it is not guessed
+        // from a free-text contract line here.
+        jobFunctionId: null,
       });
 
       if (!account.ok) {

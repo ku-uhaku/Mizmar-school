@@ -281,7 +281,7 @@ export async function openPortalAccessFor(
     username,
     password,
     phone: guardian.phone,
-    jobTitle: null,
+    jobFunctionId: null,
   });
   if (!account.ok) return null;
 

@@ -16,7 +16,7 @@ export function profileSchema(t: Dictionary) {
     firstName: requiredText(v, { max: 80 }),
     lastName: requiredText(v, { max: 80 }),
     phone: optionalText(32),
-    jobTitle: optionalText(80),
+
     bio: optionalText(500),
     avatarUrl: optionalImage(v),
     birthDate: birthDateField(v),

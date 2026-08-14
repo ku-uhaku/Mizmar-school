@@ -27,6 +27,7 @@ import {
 import {
   assessmentSchema,
   generateSchema,
+  massarCodeSchema,
   statusSchema,
 } from "@/modules/assessments/validation";
 
@@ -1662,5 +1663,34 @@ describe("the appréciation scale", () => {
     );
     // The order it is read in must not change which rung a mark lands on.
     expect(appreciationFor(19, 20, shuffled)?.label).toBe("Excellent");
+  });
+});
+
+// ── Pairing a paper with a MASSAR sheet ──────────────────────────────────────
+
+describe("massarCodeSchema", () => {
+
+  it("accepts the id off a NotesCC sheet", () => {
+    const parsed = massarCodeSchema().safeParse({
+      massarCode: "9f1c0b6e-1f4a-4e2c-9a77-0b1d2e3f4a5b",
+    });
+    expect(parsed.success && parsed.data.massarCode).toBe(
+      "9f1c0b6e-1f4a-4e2c-9a77-0b1d2e3f4a5b",
+    );
+  });
+
+  it("reads a blank box as no code rather than as an empty one", () => {
+    // Load-bearing: null is the ADOPTABLE state that lets the next import claim
+    // the paper, and "" would be a code no sheet will ever carry — see the
+    // ASSESSMENT_IDENTITY check in modules/massar/checks.ts.
+    const parsed = massarCodeSchema().safeParse({ massarCode: "" });
+    expect(parsed.success && parsed.data.massarCode).toBeNull();
+  });
+
+  it("refuses something longer than any ministry id", () => {
+    const parsed = massarCodeSchema().safeParse({
+      massarCode: "x".repeat(65),
+    });
+    expect(parsed.success).toBe(false);
   });
 });

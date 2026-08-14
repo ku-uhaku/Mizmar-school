@@ -113,7 +113,18 @@ export function guardianSchema(t: Dictionary) {
     phone: optionalText(32),
     phoneAlt: optionalText(32),
     email: optionalEmail(v),
-    profession: optionalText(120),
+    /**
+     * A row of the school's own list — see ParentJob.
+     *
+     * The Radix Select's "none" is normalised here, as it is for a user's
+     * fonction: the sentinel is a rendering detail and nothing past this line
+     * should have to know it.
+     */
+    parentJobId: z
+      .string()
+      .max(40)
+      .transform((value) => (value === "" || value === "none" ? null : value))
+      .nullable(),
     employer: optionalText(120),
     addressLine: optionalText(200),
     city: optionalText(80),

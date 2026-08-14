@@ -2,7 +2,7 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { schoolScope } from "@/lib/scope";
+import { currentSchoolId, schoolScope } from "@/lib/scope";
 
 /**
  * Reads for the families module.
@@ -43,7 +43,9 @@ export type GuardianRow = {
   phone: string | null;
   phoneAlt: string | null;
   email: string | null;
-  profession: string | null;
+  parentJobId: string | null;
+  /** What the picker showed when it was chosen. Null when none is set. */
+  parentJobName: string | null;
   employer: string | null;
   addressLine: string | null;
   city: string | null;
@@ -97,7 +99,8 @@ function toGuardianRow(guardian: {
   phone: string | null;
   phoneAlt: string | null;
   email: string | null;
-  profession: string | null;
+  parentJobId: string | null;
+  parentJob: { name: string } | null;
   employer: string | null;
   addressLine: string | null;
   city: string | null;
@@ -108,8 +111,28 @@ function toGuardianRow(guardian: {
   isActive: boolean;
   user: { username: string | null; isActive: boolean } | null;
 }): GuardianRow {
-  const { user, ...rest } = guardian;
-  return { ...rest, portalAccount: user };
+  // The relation is flattened to its name: the panel prints the profession and
+  // the form posts the id, and neither wants a nested object.
+  const { user, parentJob, ...rest } = guardian;
+  return { ...rest, parentJobName: parentJob?.name ?? null, portalAccount: user };
+}
+
+/**
+ * The professions a guardian may be given, for the picker.
+ *
+ * Active ones only: `isActive` is how a school retires a duplicate without
+ * rewriting the families that already named it, so an inactive row must not
+ * come back through the picker. Whoever holds one keeps it — the dossier reads
+ * the name off the row, not off this list.
+ */
+export async function listParentJobs(
+  context: AuthContext,
+): Promise<{ id: string; name: string }[]> {
+  return db.parentJob.findMany({
+    where: { schoolId: currentSchoolId(context), isActive: true },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: { id: true, name: true },
+  });
 }
 
 export async function listFamilies(context: AuthContext): Promise<FamilyRow[]> {
@@ -172,6 +195,8 @@ export async function findFamily(
         orderBy: GUARDIAN_ORDER,
         include: {
           user: { select: { username: true, isActive: true } },
+          // So the dossier prints the profession without a second read.
+          parentJob: { select: { name: true } },
         },
       },
       children: {

@@ -98,6 +98,71 @@ export type SeededTeacher = {
  * Deliberately keeps `isSuperAdmin` so the organisation can never be locked out
  * by an unlucky role edit.
  */
+/**
+ * The fonctions a Moroccan school actually staffs, as its starting list.
+ *
+ * Seeded rather than left empty because the user form's picker is useless until
+ * something is in it, and these are the same handful every établissement writes
+ * on a contract. A school renames, reorders or deactivates them afterwards —
+ * that is what the Configuration screen is for.
+ *
+ * `position` is the organigramme's order, which is not alphabetical: a
+ * direction comes before an agent d'entretien.
+ */
+const STAFF_FUNCTIONS = [
+  { code: "DG", name: "Directeur général", nameAr: "المدير العام", position: 10 },
+  { code: "DIR", name: "Directeur", nameAr: "المدير", position: 20 },
+  {
+    code: "RESP-PEDA",
+    name: "Responsable pédagogique",
+    nameAr: "المسؤول البيداغوجي",
+    position: 30,
+  },
+  { code: "ENS", name: "Enseignant", nameAr: "أستاذ", position: 40 },
+  {
+    code: "SURV",
+    name: "Surveillant général",
+    nameAr: "الحارس العام",
+    position: 50,
+  },
+  { code: "GEST", name: "Gestionnaire", nameAr: "مدبر", position: 60 },
+  { code: "SECR", name: "Secrétaire", nameAr: "كاتب", position: 70 },
+  { code: "COMPTA", name: "Comptable", nameAr: "محاسب", position: 80 },
+  { code: "CHAUF", name: "Chauffeur", nameAr: "سائق", position: 90 },
+  {
+    code: "ENTRETIEN",
+    name: "Agent d'entretien",
+    nameAr: "عون النظافة",
+    position: 100,
+  },
+] as const;
+
+/**
+ * Upserts the fonctions of one school and answers name → id.
+ *
+ * Keyed on `(schoolId, code)`, so re-running corrects a wording rather than
+ * raising a second row — and a fonction a school has renamed keeps its id and
+ * everybody who holds it.
+ */
+export async function seedStaffFunctions(
+  db: SeedDb,
+  schoolId: string,
+): Promise<Record<string, string>> {
+  const byName: Record<string, string> = {};
+
+  for (const fonction of STAFF_FUNCTIONS) {
+    const row = await db.staffFunction.upsert({
+      where: { schoolId_code: { schoolId, code: fonction.code } },
+      update: { name: fonction.name, nameAr: fonction.nameAr, position: fonction.position },
+      create: { schoolId, ...fonction },
+      select: { id: true, name: true },
+    });
+    byName[row.name] = row.id;
+  }
+
+  return byName;
+}
+
 export async function seedAdmin(
   db: SeedDb,
   {
@@ -116,6 +181,9 @@ export async function seedAdmin(
   },
 ): Promise<void> {
   const passwordHash = await bcrypt.hash(adminPassword, 12);
+
+  // The picker's list has to exist before anybody can hold one of its rows.
+  const functions = schoolId ? await seedStaffFunctions(db, schoolId) : {};
 
   const defaultYear = schoolId
     ? await db.schoolYear.findFirst({ where: { schoolId, isDefault: true } })
@@ -139,7 +207,7 @@ export async function seedAdmin(
         create: {
           firstName: "Amine",
           lastName: "Tazi",
-          jobTitle: "Directeur général",
+          jobFunctionId: functions["Directeur général"] ?? null,
           phone: "+212 661 23 45 67",
           birthDate: new Date("1978-04-12"),
           locale: "fr",
@@ -235,7 +303,7 @@ export async function seedUsers(
       email: "pedagogie@almanar.ma",
       firstName: "Hafsa",
       lastName: "Idrissi",
-      jobTitle: "Responsable pédagogique",
+      jobFunction: "Responsable pédagogique",
       birthDate: new Date("1985-09-03"),
       orgRole: "Responsable pédagogique",
       memberships: [] as { schoolId: string; role: string }[],
@@ -244,7 +312,7 @@ export async function seedUsers(
       email: "directeur.oujda@almanar.ma",
       firstName: "Abdellah",
       lastName: "Berrada",
-      jobTitle: "Directeur",
+      jobFunction: "Directeur",
       birthDate: new Date("1979-05-22"),
       orgRole: null,
       memberships: [{ schoolId: oujda.id, role: "Directeur d'école" }],
@@ -255,7 +323,7 @@ export async function seedUsers(
       email: "gestion1.oujda@almanar.ma",
       firstName: "Salma",
       lastName: "Ziani",
-      jobTitle: "Gestionnaire",
+      jobFunction: "Gestionnaire",
       birthDate: new Date("1990-02-14"),
       orgRole: null,
       memberships: [{ schoolId: oujda.id, role: "Secrétaire" }],
@@ -264,7 +332,7 @@ export async function seedUsers(
       email: "gestion2.oujda@almanar.ma",
       firstName: "Yassine",
       lastName: "Rifai",
-      jobTitle: "Gestionnaire",
+      jobFunction: "Gestionnaire",
       birthDate: new Date("1988-11-30"),
       orgRole: null,
       memberships: [{ schoolId: oujda.id, role: "Secrétaire" }],
@@ -273,11 +341,29 @@ export async function seedUsers(
 
   const teacherRows: Record<string, SeededTeacher[]> = {};
 
+  /*
+    The fonctions, per school, resolved once.
+
+    Cached rather than upserted per person: a school of forty teachers would
+    otherwise re-upsert the same ten rows forty times, and the seed is meant to
+    be re-runnable without being slow about it.
+  */
+  const functionsBySchool = new Map<string, Record<string, string>>();
+  const functionsFor = async (schoolId: string) => {
+    const held = functionsBySchool.get(schoolId);
+    if (held) return held;
+
+    const fresh = await seedStaffFunctions(db, schoolId);
+    functionsBySchool.set(schoolId, fresh);
+    return fresh;
+  };
+
   const upsertPerson = async (person: {
     email: string;
     firstName: string;
     lastName: string;
-    jobTitle: string;
+    /** Matched to a seeded StaffFunction by name — see `seedStaffFunctions`. */
+    jobFunction: string;
     birthDate: Date;
     orgRole: string | null;
     memberships: { schoolId: string; role: string }[];
@@ -286,6 +372,7 @@ export async function seedUsers(
     const year = await db.schoolYear.findFirst({
       where: { schoolId: firstSchool, isDefault: true },
     });
+    const functions = await functionsFor(firstSchool);
 
     const user = await db.user.upsert({
       where: { email: person.email },
@@ -304,7 +391,7 @@ export async function seedUsers(
           create: {
             firstName: person.firstName,
             lastName: person.lastName,
-            jobTitle: person.jobTitle,
+            jobFunctionId: functions[person.jobFunction] ?? null,
             birthDate: person.birthDate,
             locale: "fr",
           },
@@ -360,7 +447,10 @@ export async function seedUsers(
           email: emailFor(first, last),
           firstName: first,
           lastName: last,
-          jobTitle: `Enseignant — ${requirement.subjectLabel}`,
+          // One "Enseignant" fonction, not one per subject: what they teach
+          // is already recorded by TeacherSubject, and a list with a row per
+          // matière is a list nobody can use.
+          jobFunction: "Enseignant",
           // Spread birthdays so the age column has something to show.
           birthDate: new Date(
             1980 + (nameCursor % 15),

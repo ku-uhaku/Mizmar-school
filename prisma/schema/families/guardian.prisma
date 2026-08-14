@@ -45,8 +45,17 @@ model Guardian {
   phoneAlt String?
   email    String?
 
-  profession String?
-  employer   String?
+  /// La profession — chosen from the school's own list, not typed.
+  ///
+  /// Replaced a free-text `profession`: a dossier familial is read in
+  /// aggregate, and "Prof.", "Professeur" and "enseignant" were three answers
+  /// to one question. See prisma/schema/families/parent-job.prisma.
+  parentJobId String?
+  parentJob   ParentJob? @relation(fields: [parentJobId], references: [id], onDelete: Restrict)
+
+  /// Where they work. Still free text — an employer is a name, not a list a
+  /// school can agree in advance.
+  employer String?
 
   /// Set only when this guardian does not live at the family address — a
   /// divorced father, a tuteur in another city. Null means "use the family's".
@@ -81,5 +90,6 @@ model Guardian {
   @@index([familyId])
   @@index([userId])
   @@index([lastName])
+  @@index([parentJobId])
   @@map("guardians")
 }

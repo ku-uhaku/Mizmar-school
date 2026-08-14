@@ -97,7 +97,8 @@ export type LoginAccountInput = {
   username: string | null;
   password: string;
   phone: string | null;
-  jobTitle: string | null;
+  /** A row of the school's own StaffFunction list. Null for none. */
+  jobFunctionId: string | null;
 };
 
 export type LoginAccountResult =
@@ -169,7 +170,7 @@ export async function createLoginAccount(
             firstName: input.firstName,
             lastName: input.lastName,
             phone: input.phone,
-            jobTitle: input.jobTitle,
+            jobFunctionId: input.jobFunctionId,
             locale: settings.defaultLocale,
             accent: settings.defaultAccent,
           },

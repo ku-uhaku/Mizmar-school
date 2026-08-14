@@ -32,6 +32,11 @@ import {
 } from "@/components/ui/select";
 import { IDLE } from "@/lib/action-state";
 import { interpolate } from "@/lib/i18n/format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { generateAssessmentsAction } from "@/modules/assessments/actions";
 import {
@@ -372,8 +377,27 @@ export function GenerateDialog({
 
   const chosenCount = Object.keys(chosen).length;
 
-  const disabled =
-    classes.length === 0 || openTerms.length === 0 || types.length === 0;
+  /*
+    Why the button cannot be pressed, when it cannot.
+
+    It used to be a bare `disabled`, and a head of studies opening the screen in
+    July met a dead button with nothing to read: every term was closed, which is
+    a perfectly ordinary state and nothing on the page said so. The three
+    preconditions are real — there is no paper to generate without a class, an
+    open term and a kind to set it under — so the guard stays and the reason is
+    said instead. A disabled control that explains itself is a different thing
+    from one that just does not work.
+  */
+  const blockedReason =
+    classes.length === 0
+      ? t.assessment.generateNoClasses
+      : types.length === 0
+        ? t.assessment.generateNoTypes
+        : openTerms.length === 0
+          ? t.assessment.generateNoOpenTerm
+          : null;
+
+  const disabled = blockedReason !== null;
 
   /**
    * One tickable subject, with its own date.
@@ -462,10 +486,20 @@ export function GenerateDialog({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} disabled={disabled}>
-        <SparklesIcon />
-        {t.assessment.generate}
-      </Button>
+      {/* Wrapped rather than tooltipping the button itself: a disabled button
+        fires no pointer events, so the tooltip on it would never open — which
+        is exactly how the reason went unsaid in the first place. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn(disabled && "cursor-not-allowed")}>
+            <Button onClick={() => setOpen(true)} disabled={disabled}>
+              <SparklesIcon />
+              {t.assessment.generate}
+            </Button>
+          </span>
+        </TooltipTrigger>
+        {blockedReason ? <TooltipContent>{blockedReason}</TooltipContent> : null}
+      </Tooltip>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">

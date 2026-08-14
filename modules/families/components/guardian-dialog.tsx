@@ -45,12 +45,15 @@ export function GuardianDialog({
   onOpenChange,
   familyId,
   guardian,
+  parentJobs,
   onCredentials,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   familyId: string;
   guardian?: GuardianRow;
+  /** The school's own professions, active ones only — see ParentJob. */
+  parentJobs: { id: string; name: string }[];
   /**
    * Handed the household's credentials when saving this guardian opened the
    * dossier's access — which happens on the *first* one, automatically. The
@@ -237,18 +240,34 @@ export function GuardianDialog({
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
-                  name="profession"
+                  name="parentJobId"
                   label={t.family.profession}
-                  error={errors.profession}
+                  hint={parentJobs.length === 0 ? t.family.noParentJobs : undefined}
+                  error={errors.parentJobId}
                 >
-                  <Input
-                    {...controlProps("profession", errors.profession)}
-                    defaultValue={valueOf(
-                      state,
-                      "profession",
-                      guardian?.profession,
-                    )}
-                  />
+                  {/* The school's own list, not free text — a dossier familial
+                    is read in aggregate, and "Prof.", "Professeur" and
+                    "enseignant" were three answers to one question. */}
+                  <Select
+                    name="parentJobId"
+                    defaultValue={
+                      valueOf(state, "parentJobId", guardian?.parentJobId) ||
+                      "none"
+                    }
+                    disabled={parentJobs.length === 0}
+                  >
+                    <SelectTrigger id="parentJobId" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t.common.none}</SelectItem>
+                      {parentJobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </FormField>
 
                 <FormField

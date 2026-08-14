@@ -32,7 +32,7 @@ export async function updateOwnProfileAction(
       firstName: field(formData, "firstName"),
       lastName: field(formData, "lastName"),
       phone: field(formData, "phone"),
-      jobTitle: field(formData, "jobTitle"),
+
       bio: field(formData, "bio"),
       avatarUrl: field(formData, "avatarUrl"),
       birthDate: field(formData, "birthDate"),

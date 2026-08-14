@@ -34,6 +34,7 @@ export function StudentFamilyPanel({
   family,
   guardians,
   families,
+  parentJobs,
   canManage,
   canManagePortal,
 }: {
@@ -48,6 +49,8 @@ export function StudentFamilyPanel({
   guardians: GuardianRow[];
   /** Dossiers to attach to, when the pupil has none. */
   families: { id: string; label: string }[];
+  /** The school's own professions, active ones only — see ParentJob. */
+  parentJobs: { id: string; name: string }[];
   canManage: boolean;
   canManagePortal: boolean;
 }) {
@@ -164,6 +167,7 @@ export function StudentFamilyPanel({
       <GuardiansPanel
         familyId={family.id}
         guardians={guardians}
+        parentJobs={parentJobs}
         canManage={canManage}
         canManagePortal={canManagePortal}
       />

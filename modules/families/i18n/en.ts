@@ -44,7 +44,9 @@ const en = {
     guardianNameAr: "Full name (Arabic)",
     nationalId: "National ID (CIN)",
     phoneAlt: "Second phone",
-    profession: "Profession",
+    profession: "Occupation",
+    noParentJobs:
+      "No occupation is configured for this school yet — add one under Configuration.",
     employer: "Employer",
     ownAddress: "Own address",
     ownAddressHint: "Only if different from the family address.",

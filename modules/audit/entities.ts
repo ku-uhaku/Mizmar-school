@@ -195,6 +195,10 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   PortalSeen: "access",
   Notification: "access",
   EventAudience: "vieScolaire",
+  // The two lists a school agrees about people: what its staff do, and what
+  // its pupils' parents do.
+  StaffFunction: "configuration",
+  ParentJob: "configuration",
 };
 
 /** The domain an entry belongs to, including the two pseudo-entities. */

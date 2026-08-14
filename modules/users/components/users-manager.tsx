@@ -49,7 +49,9 @@ export type UserRow = {
   firstName: string;
   lastName: string;
   phone: string | null;
-  jobTitle: string | null;
+  jobFunctionId: string | null;
+  /** What the picker showed — the column prints this, the form posts the id. */
+  jobFunctionName: string | null;
   avatarUrl: string | null;
   /** `YYYY-MM-DD`, or "" when unset — age is derived from it, never stored. */
   birthDate: string;
@@ -148,10 +150,12 @@ export function UsersManager({
         },
       },
       {
-        accessorKey: "jobTitle",
-        header: t.user.jobTitle,
+        // The name, not the id: the column is read and searched, and an id is
+        // neither. See `jobFunctionName` on UserRow.
+        accessorKey: "jobFunctionName",
+        header: t.user.jobFunction,
         meta: { className: "hidden @3xl/table:table-cell" },
-        cell: ({ row }) => row.original.jobTitle ?? "—",
+        cell: ({ row }) => row.original.jobFunctionName ?? "—",
       },
       {
         id: "age",

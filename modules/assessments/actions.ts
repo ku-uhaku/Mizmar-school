@@ -24,6 +24,7 @@ import {
 import {
   appreciationBandSchema,
   assessmentSchema,
+  massarCodeSchema,
   generateSchema,
   statusSchema,
 } from "@/modules/assessments/validation";
@@ -363,6 +364,85 @@ export async function saveAssessmentAction(
 
     refresh();
     return success(t.assessment.saved);
+  });
+}
+
+/**
+ * Pairs a paper with the MASSAR sheet it belongs to, or unpairs it.
+ *
+ * ── Why this is typed at all ────────────────────────────────────────────────
+ * It usually is not. The import stamps the code itself from the file's hidden
+ * `E5`, and a contrôle with a null code is exactly the ADOPTABLE state that
+ * lets the first NotesCC export claim it — see `generateControle` and the
+ * ASSESSMENT_IDENTITY check. This is for the case that flow cannot reach: a
+ * paper the school set by hand which a school already holds the sheet for, and
+ * which has to be told they are the same paper before the marks can go back.
+ *
+ * So the code entered here must be the one *off that sheet*. A code invented to
+ * fill the box is worse than a blank one: a blank paper adopts the ministry's
+ * id on first import, while a wrong one makes ASSESSMENT_IDENTITY an ERROR and
+ * blocks the import outright.
+ *
+ * Blank clears it, which is what puts a mispaired paper back to adoptable.
+ */
+export async function saveMassarCodeAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.ASSESSMENT_MANAGE);
+
+    const id = field(formData, "id");
+    const existing = await findScopedAssessment(schoolId, id);
+    if (!existing) return failure(t.errors.notFound);
+
+    const parsed = massarCodeSchema().safeParse({
+      massarCode: field(formData, "massarCode"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const code = parsed.data.massarCode;
+
+    /*
+      One sheet, one paper.
+
+      `@@unique([schoolId, massarCode])` says so, and catching it here rather
+      than letting it throw is what turns "something went wrong" into the one
+      sentence that helps: another contrôle already answers for this sheet, and
+      importing against either of them would file marks twice.
+    */
+    if (code !== null) {
+      const clash = await db.assessment.findFirst({
+        where: { schoolId, massarCode: code, id: { not: existing.id } },
+        select: { title: true },
+      });
+      if (clash) {
+        return failure(
+          interpolate(t.assessment.massarCodeTaken, { title: clash.title }),
+          { massarCode: t.assessment.massarCodeTaken },
+          formValues(formData),
+        );
+      }
+    }
+
+    await db.assessment.updateMany({
+      // Scoped by id *and* school, like every other write here: a crafted id
+      // matches nothing rather than repointing somebody else's paper.
+      where: { id: existing.id, schoolId },
+      data: { massarCode: code },
+    });
+
+    refresh();
+    return success(code === null ? t.assessment.massarCodeCleared : t.assessment.saved);
   });
 }
 

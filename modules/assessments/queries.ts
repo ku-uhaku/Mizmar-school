@@ -779,7 +779,17 @@ export type PaperQuestion = {
 };
 
 export type MarkSheet = {
-  assessment: AssessmentRow & { notes: string | null };
+  assessment: AssessmentRow & {
+    notes: string | null;
+    /**
+     * The ministry's own id for this paper, when it has one.
+     *
+     * Null for every contrôle the school set itself, which is most of them —
+     * and null is what lets the first NotesCC export claim the paper. See
+     * `massarCode` on Assessment and the ASSESSMENT_IDENTITY check.
+     */
+    massarCode: string | null;
+  };
   rows: MarkRow[];
   statistics: MarkStatistics;
   /** Whether the reader is the teacher answerable for these marks. */
@@ -897,6 +907,7 @@ export async function findMarkSheet(
       maxScore: true,
       coefficient: true,
       notes: true,
+      massarCode: true,
       classGroupId: true,
       teacherId: true,
       subject: {
@@ -1003,6 +1014,7 @@ export async function findMarkSheet(
       maxScore: assessment.maxScore,
       coefficient: assessment.coefficient,
       notes: assessment.notes,
+      massarCode: assessment.massarCode,
       subjectId: assessment.subject.id,
       subjectName: assessment.subject.name,
       subjectLabel: bilingual(assessment.subject.name, assessment.subject.nameAr),

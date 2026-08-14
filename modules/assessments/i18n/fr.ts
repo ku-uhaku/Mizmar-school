@@ -42,6 +42,18 @@ const fr = {
     sequenceHint:
       "Le combien de son type dans le semestre — 1 pour le premier.",
     sequenceLabel: "n° {sequence}",
+    massarCode: "Code MASSAR",
+    massarCodeHint:
+      "L'identifiant du E5 masqué de la feuille. Laisser vide pour que le prochain import NotesCC s'approprie lui-même ce contrôle — un code qui n'est pas celui de la feuille bloquera cet import.",
+    massarPaired: "Apparié à une feuille",
+    massarAdoptable: "Appropriable",
+    massarCodeTaken: "« {title} » répond déjà de cette feuille.",
+    massarCodeCleared: "Dissocié — le prochain import pourra s'approprier ce contrôle.",
+    generateNoClasses: "Aucune classe n'est ouverte cette année.",
+    generateNoTypes:
+      "Aucun type d'évaluation n'est configuré — ajoutez-en un sous Configuration.",
+    generateNoOpenTerm:
+      "Tous les semestres de l'année sont clos. Rouvrez-en un pour y programmer des contrôles.",
     scheduledOn: "Passé le",
     notScheduled: "Non daté",
     maxScore: "Noté sur",

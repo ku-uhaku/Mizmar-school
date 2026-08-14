@@ -26,7 +26,8 @@ export default async function EditUserPage(props: PageProps<"/users/[userId]">) 
   const user = await findUser(context, userId, PERMISSIONS.USER_UPDATE);
   if (!user) notFound();
 
-  const { schools, orgRoles, schoolRoles } = await loadUserFormChoices(context);
+  const { schools, orgRoles, schoolRoles, jobFunctions } =
+    await loadUserFormChoices(context);
 
   return (
     <>
@@ -40,6 +41,7 @@ export default async function EditUserPage(props: PageProps<"/users/[userId]">) 
         schools={schools}
         orgRoles={orgRoles}
         schoolRoles={schoolRoles}
+        jobFunctions={jobFunctions}
         canManageSuperAdmin={context.isSuperAdmin}
         canAssignOrgRole={context.canOrg(PERMISSIONS.USER_ASSIGN_ROLE)}
         user={user}

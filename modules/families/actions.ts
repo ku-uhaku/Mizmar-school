@@ -79,7 +79,7 @@ function readGuardianForm(formData: FormData) {
     phone: field(formData, "phone"),
     phoneAlt: field(formData, "phoneAlt"),
     email: field(formData, "email"),
-    profession: field(formData, "profession"),
+    parentJobId: field(formData, "parentJobId"),
     employer: field(formData, "employer"),
     addressLine: field(formData, "addressLine"),
     city: field(formData, "city"),
@@ -516,7 +516,7 @@ export async function openPortalAccountAction(
       username,
       password,
       phone: guardian.phone,
-      jobTitle: null,
+      jobFunctionId: null,
     });
 
     if (!account.ok) {

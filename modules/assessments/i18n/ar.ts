@@ -40,6 +40,17 @@ const ar = {
     sequence: "الرقم",
     sequenceHint: "ترتيبه بين فروض نوعه في الدورة — 1 للأول.",
     sequenceLabel: "رقم {sequence}",
+    massarCode: "رمز مسار",
+    massarCodeHint:
+      "المعرف من الخانة المخفية E5 في الملف. اتركه فارغًا ليتبناه الاستيراد القادم تلقائيًا — رمز ليس رمز الملف سيمنع ذلك الاستيراد.",
+    massarPaired: "مقترن بملف",
+    massarAdoptable: "قابل للتبني",
+    massarCodeTaken: "«{title}» يمثل هذا الملف بالفعل.",
+    massarCodeCleared: "تم فك الاقتران — يمكن للاستيراد القادم تبني هذا الفرض.",
+    generateNoClasses: "لا يوجد أي قسم مفتوح هذه السنة.",
+    generateNoTypes: "لم يُضبط أي نوع من التقويم — أضف نوعًا من الإعدادات.",
+    generateNoOpenTerm:
+      "كل دورات هذه السنة مغلقة. أعد فتح واحدة لبرمجة فروض فيها.",
     scheduledOn: "أُنجز في",
     notScheduled: "بدون تاريخ",
     maxScore: "من أصل",

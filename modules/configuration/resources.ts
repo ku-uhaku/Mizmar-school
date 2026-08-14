@@ -58,6 +58,10 @@ export const SECTIONS: SectionDef[] = [
   { id: "academics", labelKey: "academics" },
   { id: "facilities", labelKey: "facilities" },
   { id: "staff", labelKey: "staff" },
+  // What the school agrees about the people on the other side of the desk.
+  // Its own subject rather than a corner of Établissement, which is about the
+  // establishment itself.
+  { id: "families", labelKey: "families" },
   { id: "year", labelKey: "year" },
   { id: "classes", labelKey: "classes" },
   // Under both groups: the catalogue and the school's policy are the
@@ -556,6 +560,83 @@ export const RESOURCES: ResourceDef[] = [
     first thing to need one. See the note on Neighbourhood about why it is not
     the same thing as a TransportZone.
   */
+  {
+    /*
+      La fonction: what a member of staff does here.
+
+      Replaced a free-text `Profile.jobTitle`, which had become three spellings
+      of "Directeur" as far as any list or printed organigramme was concerned.
+      Distinct from a Role, which is a permission grant — see the note on the
+      model.
+    */
+    id: "staff-functions",
+    section: "staff",
+    labelKey: "staffFunctions",
+    scope: "SCHOOL",
+    labelFields: ["name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "DIR",
+        inTable: true,
+      },
+      {
+        name: "name",
+        type: "text",
+        labelKey: "name",
+        required: true,
+        maxLength: 120,
+        inTable: true,
+      },
+      NAME_AR_IN_TABLE,
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+
+  {
+    /*
+      La profession d'un parent.
+
+      A list rather than a column because a dossier familial is read in
+      aggregate — how many of our families are fonctionnaires — and "Prof.",
+      "Professeur" and "enseignant" answered that wrongly every time.
+    */
+    id: "parent-jobs",
+    section: "families",
+    labelKey: "parentJobs",
+    scope: "SCHOOL",
+    labelFields: ["name"],
+    fields: [
+      {
+        name: "code",
+        type: "text",
+        labelKey: "code",
+        required: true,
+        maxLength: 32,
+        dir: "ltr",
+        placeholder: "FONCT",
+        inTable: true,
+      },
+      {
+        name: "name",
+        type: "text",
+        labelKey: "name",
+        required: true,
+        maxLength: 120,
+        inTable: true,
+      },
+      NAME_AR_IN_TABLE,
+      POSITION,
+      IS_ACTIVE,
+    ],
+  },
+
   {
     id: "neighbourhoods",
     section: "school",

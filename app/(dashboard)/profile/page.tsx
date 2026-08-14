@@ -37,7 +37,6 @@ export default async function ProfilePage() {
               firstName: profile?.firstName ?? "",
               lastName: profile?.lastName ?? "",
               phone: profile?.phone ?? null,
-              jobTitle: profile?.jobTitle ?? null,
               bio: profile?.bio ?? null,
               avatarUrl: profile?.avatarUrl ?? null,
               birthDate: toDateInputValue(profile?.birthDate),

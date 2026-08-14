@@ -85,6 +85,7 @@ export function StudentProfile({
   family,
   guardians,
   families,
+  parentJobs,
   cities,
   neighbourhoods,
   enrolment,
@@ -124,6 +125,8 @@ export function StudentProfile({
   } | null;
   guardians: GuardianRow[];
   families: { id: string; label: string }[];
+  /** The school's own professions, active ones only — see ParentJob. */
+  parentJobs: { id: string; name: string }[];
   /** The school's towns, for the birthplace picker on the information tab. */
   cities: { id: string; label: string }[];
   /** Its quartiers, for the address picker beside it. */
@@ -349,6 +352,7 @@ export function StudentProfile({
             family={family}
             guardians={guardians}
             families={families}
+            parentJobs={parentJobs}
             canManage={permissions.canManageFamily}
             canManagePortal={permissions.canManageFamilyPortal}
           />

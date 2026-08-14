@@ -41,6 +41,18 @@ const en = {
     sequenceHint: "Which one of its kind within the term — 1 for the first.",
     /** The facet option for one round of contrôles, e.g. "No. 2". */
     sequenceLabel: "No. {sequence}",
+    massarCode: "MASSAR code",
+    massarCodeHint:
+      "The id from the sheet's hidden E5. Leave blank so the next NotesCC import can claim this paper itself — a code that is not the sheet's own will block that import.",
+    massarPaired: "Paired with a sheet",
+    massarAdoptable: "Adoptable",
+    massarCodeTaken: "« {title} » already answers for this sheet.",
+    massarCodeCleared: "Unpaired — the next import may claim this paper.",
+    generateNoClasses: "No class is open this year yet.",
+    generateNoTypes:
+      "No kind of assessment is configured — add one under Configuration.",
+    generateNoOpenTerm:
+      "Every term of this year is closed. Reopen one to set new papers under it.",
     scheduledOn: "Sat on",
     notScheduled: "Not dated",
     maxScore: "Out of",

@@ -289,6 +289,30 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ category: "asc" }, { position: "asc" }, { name: "asc" }],
   },
 
+  "staff-functions": {
+    table: () => db.staffFunction as unknown as Delegate,
+    model: "StaffFunction",
+    where: bySchool,
+    createData: (context) => ({
+      school: { connect: { id: context.currentSchool?.id } },
+    }),
+    // The order an organigramme reads in: a direction before an agent
+    // d'entretien, which alphabetical order gets exactly backwards.
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
+  "parent-jobs": {
+    table: () => db.parentJob as unknown as Delegate,
+    model: "ParentJob",
+    where: bySchool,
+    createData: (context) => ({
+      school: { connect: { id: context.currentSchool?.id } },
+    }),
+    // The handful a school records most often go first; alphabetical order
+    // buries them under the ones nobody picks.
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+  },
+
   neighbourhoods: {
     table: () => db.neighbourhood as unknown as Delegate,
     model: "Neighbourhood",

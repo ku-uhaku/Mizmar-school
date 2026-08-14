@@ -33,6 +33,7 @@ import { ageFrom } from "@/lib/utils";
 export function FamilyDetail({
   family,
   receipts,
+  parentJobs,
   canManage,
   canManagePortal,
 }: {
@@ -42,6 +43,8 @@ export function FamilyDetail({
    * money — the tab is absent rather than empty, like the pupil's own.
    */
   receipts: PaymentRow[] | null;
+  /** The school's own professions, active ones only — see ParentJob. */
+  parentJobs: { id: string; name: string }[];
   canManage: boolean;
   canManagePortal: boolean;
 }) {
@@ -87,6 +90,7 @@ export function FamilyDetail({
         <GuardiansPanel
           familyId={family.id}
           guardians={family.guardians}
+          parentJobs={parentJobs}
           canManage={canManage}
           canManagePortal={canManagePortal}
         />

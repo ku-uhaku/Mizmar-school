@@ -16,6 +16,7 @@ import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { StatusBadge } from "@/modules/assessments/components/assessments-manager";
 import { MarkSheet } from "@/modules/assessments/components/mark-sheet";
+import { MassarCodeCard } from "@/modules/assessments/components/massar-code-card";
 import { PaperCard } from "@/modules/assessments/components/paper-card";
 import { PublishBar } from "@/modules/assessments/components/publish-bar";
 import { acceptsMarks } from "@/modules/assessments/enums";
@@ -110,6 +111,16 @@ export default async function AssessmentPage({
           total={sheet.questionsTotal}
           maxScore={assessment.maxScore}
         />
+
+        {/* Pairing a paper with a MASSAR sheet is a mapping decision, so it sits
+            behind the same grant as managing the paper itself — and below the
+            paper, since it is about the round trip rather than the marking. */}
+        {context.can(PERMISSIONS.ASSESSMENT_MANAGE) ? (
+          <MassarCodeCard
+            assessmentId={assessment.id}
+            massarCode={assessment.massarCode}
+          />
+        ) : null}
 
         <MarkSheet
           sheet={sheet}

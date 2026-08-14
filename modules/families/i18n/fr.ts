@@ -42,6 +42,8 @@ const fr = {
     nationalId: "CIN",
     phoneAlt: "Second téléphone",
     profession: "Profession",
+    noParentJobs:
+      "Aucune profession n'est configurée pour cet établissement — ajoutez-en une sous Configuration.",
     employer: "Employeur",
     ownAddress: "Adresse personnelle",
     ownAddressHint: "Uniquement si différente de l'adresse de la famille.",

@@ -34,6 +34,39 @@ export async function seedFamilies(
   const idByCode: Record<string, string> = {};
   let guardianCount = 0;
 
+  /*
+    The professions this roster actually names, as the school's own list.
+
+    Built from the data rather than from a fixed catalogue: a seed that wrote
+    forty rows nobody holds would leave the picker full of professions the demo
+    never uses, and one that wrote none would leave it empty. Upserted on
+    `(schoolId, code)`, so re-running corrects a wording instead of raising a
+    second row.
+  */
+  const jobIdByName = new Map<string, string>();
+  const jobFor = async (name: string): Promise<string> => {
+    const held = jobIdByName.get(name);
+    if (held) return held;
+
+    const row = await db.parentJob.upsert({
+      where: {
+        schoolId_code: {
+          schoolId,
+          code: name.toUpperCase().replace(/\s+/g, "-").slice(0, 32),
+        },
+      },
+      update: { name },
+      create: {
+        schoolId,
+        code: name.toUpperCase().replace(/\s+/g, "-").slice(0, 32),
+        name,
+      },
+      select: { id: true },
+    });
+    jobIdByName.set(name, row.id);
+    return row.id;
+  };
+
   for (const seed of families) {
     const family = await db.family.upsert({
       where: { schoolId_code: { schoolId, code: seed.code } },
@@ -79,7 +112,7 @@ export async function seedFamilies(
       const data = {
         firstName: entry.first,
         lastName: entry.last,
-        profession: entry.profession,
+        parentJobId: await jobFor(entry.profession),
         phone: entry.phone,
         isPrimaryContact: index === 0,
         isEmergencyContact: index === 1,

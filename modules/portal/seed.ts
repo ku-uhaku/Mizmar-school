@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 
 import type { SeedDb } from "@/prisma/seed/client";
+import { seedStaffFunctions } from "@/modules/users/seed";
 
 /**
  * Portal accounts — the logins the native app is for.
@@ -94,6 +95,10 @@ async function seedDriverAccount(
   const driver = vehicle?.driver;
   if (!driver || !roleId) return null;
 
+  // The school's own list, upserted by the users seed and re-read here rather
+  // than duplicated: the chauffeur's fonction is the same row the office sees.
+  const functions = await seedStaffFunctions(db, schoolId);
+
   const email = `${slug(driver.firstName)}.${slug(driver.lastName)}@almanar.ma`;
 
   const user = await db.user.upsert({
@@ -109,7 +114,7 @@ async function seedDriverAccount(
         create: {
           firstName: driver.firstName,
           lastName: driver.lastName,
-          jobTitle: "Chauffeur",
+          jobFunctionId: functions["Chauffeur"] ?? null,
           phone: driver.phone,
           locale: "fr",
         },

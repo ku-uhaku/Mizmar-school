@@ -19,7 +19,9 @@ const fr = {
     passwordHint: "Au moins 8 caractères.",
     passwordEditHint: "Laissez vide pour conserver le mot de passe actuel.",
     phone: "Téléphone",
-    jobTitle: "Fonction",
+    jobFunction: "Fonction",
+    noJobFunctions:
+      "Aucune fonction n'est configurée pour cet établissement — ajoutez-en une sous Configuration.",
     birthDate: "Date de naissance",
     birthDateHint: "Sert à calculer l'âge.",
     age: "Âge",

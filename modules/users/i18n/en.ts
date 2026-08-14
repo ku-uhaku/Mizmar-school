@@ -19,7 +19,9 @@ const en = {
     passwordHint: "At least 8 characters.",
     passwordEditHint: "Leave blank to keep the current password.",
     phone: "Phone",
-    jobTitle: "Job title",
+    jobFunction: "Function",
+    noJobFunctions:
+      "No function is configured for this school yet — add one under Configuration.",
     birthDate: "Date of birth",
     birthDateHint: "Used to work out the age.",
     age: "Age",

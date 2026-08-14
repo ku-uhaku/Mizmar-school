@@ -27,7 +27,9 @@ export type UserRow = {
   firstName: string;
   lastName: string;
   phone: string | null;
-  jobTitle: string | null;
+  jobFunctionId: string | null;
+  /** What the picker showed when it was chosen. Null when none is set. */
+  jobFunctionName: string | null;
   avatarUrl: string | null;
   /** `YYYY-MM-DD` for `<input type="date">`; age is derived, never stored. */
   birthDate: string;
@@ -48,7 +50,9 @@ export type UserRow = {
 
 function includeFor(visibleSchoolIds: string[], hasOrgReach: boolean) {
   return {
-    profile: true,
+    // The fonction comes through so a list can print it without a second
+    // read — see `jobFunction` on Profile.
+    profile: { include: { jobFunction: { select: { id: true, name: true } } } },
     orgRole: { select: { id: true, name: true } },
     memberships: {
       // A school-scoped admin sees only the memberships inside their own
@@ -76,7 +80,8 @@ function toRow(user: UserWithRelations, currentUserId: string): UserRow {
     firstName: user.profile?.firstName ?? "",
     lastName: user.profile?.lastName ?? "",
     phone: user.profile?.phone ?? null,
-    jobTitle: user.profile?.jobTitle ?? null,
+    jobFunctionId: user.profile?.jobFunctionId ?? null,
+    jobFunctionName: user.profile?.jobFunction?.name ?? null,
     avatarUrl: user.profile?.avatarUrl ?? null,
     birthDate: toDateInputValue(user.profile?.birthDate),
     isActive: user.isActive,
@@ -150,7 +155,7 @@ export async function findUser(
  * two can never drift apart in what they offer.
  */
 export async function loadUserFormChoices(context: AuthContext) {
-  const [orgRoles, schoolRoles] = await Promise.all([
+  const [orgRoles, schoolRoles, jobFunctions] = await Promise.all([
     db.role.findMany({
       where: { organizationId: context.organization.id, scope: "ORG" },
       orderBy: { name: "asc" },
@@ -161,11 +166,25 @@ export async function loadUserFormChoices(context: AuthContext) {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    /*
+      The fonctions of the school being worked in.
+
+      Active ones only: `isActive` is how a merged or misspelt entry stops being
+      offered without rewriting who held it, so an inactive one must not come
+      back through the picker. Whoever already holds it keeps it — the form
+      reads the name off the row, not off this list.
+    */
+    db.staffFunction.findMany({
+      where: { schoolId: context.currentSchool?.id ?? "", isActive: true },
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
   ]);
 
   return {
     orgRoles,
     schoolRoles,
+    jobFunctions,
     // Only schools this actor can reach — the action filters memberships the
     // same way, so the form can never offer a school it would then discard.
     schools: context.schools.map((school) => ({

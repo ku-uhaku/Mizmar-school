@@ -53,7 +53,19 @@ export function userSchema(
       ? password(v)
       : z.union([z.literal(""), password(v)]).transform((value) => value || null),
     phone: optionalText(32),
-    jobTitle: optionalText(80),
+    /**
+     * A row of the school's own list — see StaffFunction.
+     *
+     * The picker's "none" is normalised here rather than at the action, the
+     * same way `orgRoleId` is: the sentinel is a rendering detail of a Radix
+     * Select, which cannot hold an empty value, and nothing past this line
+     * should have to know it.
+     */
+    jobFunctionId: z
+      .string()
+      .max(40)
+      .transform((value) => (value === "" || value === "none" ? null : value))
+      .nullable(),
     birthDate: birthDateField(v),
     avatarUrl: optionalImage(v),
     orgRoleId: z

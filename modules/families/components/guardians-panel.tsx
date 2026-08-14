@@ -57,11 +57,14 @@ import type { GuardianRow } from "@/modules/families/queries";
 export function GuardiansPanel({
   familyId,
   guardians,
+  parentJobs,
   canManage,
   canManagePortal = false,
 }: {
   familyId: string;
   guardians: GuardianRow[];
+  /** The school's own professions, active ones only — see ParentJob. */
+  parentJobs: { id: string; name: string }[];
   canManage: boolean;
   /** Opening a login is its own authority — see modules/families/permissions.ts. */
   canManagePortal?: boolean;
@@ -193,9 +196,9 @@ export function GuardiansPanel({
                         {guardian.nationalId}
                       </Detail>
                     ) : null}
-                    {guardian.profession ? (
+                    {guardian.parentJobName ? (
                       <Detail icon={<BriefcaseIcon className="size-3" />}>
-                        {guardian.profession}
+                        {guardian.parentJobName}
                         {guardian.employer ? ` · ${guardian.employer}` : ""}
                       </Detail>
                     ) : null}
@@ -260,6 +263,7 @@ export function GuardiansPanel({
           onOpenChange={dialog.setOpen}
           familyId={familyId}
           guardian={dialog.editing}
+          parentJobs={parentJobs}
           // The first guardian opens the dossier's access, and this is the one
           // moment its password can be read — into the same dialog the manual
           // flow uses, which is where printing the slip lives.

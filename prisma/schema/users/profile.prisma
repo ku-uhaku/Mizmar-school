@@ -10,8 +10,15 @@ model Profile {
   lastName  String
   phone     String?
   avatarUrl String?
-  jobTitle  String?
   bio       String?
+
+  /// La fonction — chosen from the school's own list, not typed.
+  ///
+  /// Replaced a free-text `jobTitle`, which had become three spellings of
+  /// "Directeur". Restrict on the other side: the fonction cannot be deleted
+  /// while anybody holds it. See prisma/schema/users/staff-function.prisma.
+  jobFunctionId String?
+  jobFunction   StaffFunction? @relation(fields: [jobFunctionId], references: [id], onDelete: Restrict)
   /// Age is always derived from this, never stored — a stored age silently rots.
   birthDate DateTime?
 
@@ -28,5 +35,6 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([jobFunctionId])
   @@map("profiles")
 }

@@ -64,6 +64,10 @@ model School {
   /// and the quartiers within them.
   cities          City[]
   neighbourhoods  Neighbourhood[]
+  /// The two lists the school agrees about people rather than places: what its
+  /// staff do, and what its pupils' parents do.
+  staffFunctions  StaffFunction[]
+  parentJobs      ParentJob[]
   /// Denormalised back-reference; a class always belongs to one of this school's
   /// years. See the invariant note on SchoolClass.schoolId.
   classes         SchoolClass[]

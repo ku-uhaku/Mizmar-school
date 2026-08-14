@@ -685,7 +685,7 @@ export async function commitImport(
           familiesOpened += 1;
           familyId = family.id;
 
-          await createGuardians(tx, familyId, row);
+          await createGuardians(tx, schoolId, familyId, row);
         }
 
         familyIds.set(key, familyId);
@@ -809,9 +809,51 @@ export async function commitImport(
   return { created, families: familiesOpened, enrolled: enrolmentsToBill.length };
 }
 
+/**
+ * The profession named in an import file, as a row of the school's own list.
+ *
+ * Created when it is new rather than refused. An import is a school handing
+ * over its own register, and rejecting a file because "Menuisier" is not yet
+ * configured would make the feature unusable on the one day it is used — while
+ * dropping the value silently would lose what the file actually said. So the
+ * list grows to fit the file, exactly as the migration that introduced it grew
+ * the list to fit what had already been typed.
+ *
+ * Matched on the name, case as given. A school that finds two spellings
+ * afterwards merges them from the Configuration screen, which is what
+ * `isActive` is for.
+ */
+async function resolveParentJob(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  schoolId: string,
+  name: string | null | undefined,
+): Promise<string | null> {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+
+  const existing = await tx.parentJob.findFirst({
+    where: { schoolId, name: trimmed },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const created = await tx.parentJob.create({
+    data: {
+      schoolId,
+      // The name itself, upper-cased and hyphenated — a code nobody chose is
+      // still better than a collision on a truncated one.
+      code: trimmed.toUpperCase().replace(/\s+/g, "-").slice(0, 32),
+      name: trimmed,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
 /** Père and mère, when the file named them. */
 async function createGuardians(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  schoolId: string,
   familyId: string,
   row: ImportRowPlan,
 ): Promise<void> {
@@ -848,7 +890,7 @@ async function createGuardians(
         lastName: parent.lastName ?? "",
         nationalId: parent.nationalId ?? null,
         phone: parent.phone ?? null,
-        profession: parent.profession ?? null,
+        parentJobId: await resolveParentJob(tx, schoolId, parent.profession),
         // The invariant `ensurePrimaryContact` keeps: exactly one per dossier,
         // and here it is whichever parent the file named first.
         isPrimaryContact: !primaryTaken,

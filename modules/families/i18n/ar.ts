@@ -42,6 +42,7 @@ const ar = {
     nationalId: "البطاقة الوطنية",
     phoneAlt: "هاتف ثانٍ",
     profession: "المهنة",
+    noParentJobs: "لم تُضبط أي مهنة لهذه المؤسسة — أضف واحدة من الإعدادات.",
     employer: "جهة العمل",
     ownAddress: "عنوان خاص",
     ownAddressHint: "فقط إذا كان مختلفًا عن عنوان الأسرة.",

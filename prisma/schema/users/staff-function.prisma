@@ -1,0 +1,50 @@
+/// La fonction: what a member of staff *does* here — Directeur, Surveillant
+/// général, Secrétaire, Agent d'entretien.
+///
+/// A lookup table rather than the free-text column it replaces, for the reason
+/// City is one. "Directeur", "directeur" and "Dir." were three functions as far
+/// as any list, filter or printed organigramme was concerned, and a school with
+/// two dozen staff had half that many spellings. Agreed once here, in French and
+/// in Arabic, and chosen from a picker afterwards.
+///
+/// School-scoped like everything else reachable from the working context: a
+/// groupe scolaire keeps a list per school, so one of them may have a
+/// Surveillant général the others have never needed.
+///
+/// Distinct from a *role*, which is a permission grant — see Role. A Secrétaire
+/// and a Directeur may hold the same role; the fonction is what goes on a
+/// contract and an organigramme, not what unlocks a screen.
+model StaffFunction {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Short reference, e.g. "DIR". What an import file and a printed list key
+  /// the fonction on, since two schools may word the name differently.
+  code String
+
+  name String
+  /// The Arabic wording, for the Arabic half of the paperwork. Agreed once per
+  /// fonction, which is the whole reason this table exists.
+  nameAr String?
+
+  /// Where it sits in a picker and on an organigramme — a direction comes
+  /// before an agent d'entretien, and alphabetical order says otherwise.
+  position Int @default(0)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Restrict: a fonction somebody holds cannot be deleted out from under them.
+  /// Deactivate it instead — `isActive` is what keeps a merged or misspelt
+  /// entry out of the pickers without rewriting who held it.
+  profiles Profile[]
+
+  @@unique([schoolId, code])
+  /// Two rows for the same fonction defeat the point of the list.
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("staff_functions")
+}

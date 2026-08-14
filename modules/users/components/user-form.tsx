@@ -52,6 +52,7 @@ export function UserForm({
   schools,
   orgRoles,
   schoolRoles,
+  jobFunctions,
   canManageSuperAdmin,
   canAssignOrgRole,
 }: {
@@ -59,6 +60,8 @@ export function UserForm({
   schools: SchoolChoice[];
   orgRoles: RoleChoice[];
   schoolRoles: RoleChoice[];
+  /** The school's own fonctions, active ones only. */
+  jobFunctions: { id: string; name: string }[];
   canManageSuperAdmin: boolean;
   canAssignOrgRole: boolean;
 }) {
@@ -244,15 +247,33 @@ export function UserForm({
               />
             </FormField>
 
+            {/* The school's own list, not free text — see StaffFunction, and
+              the note there on why "Directeur" had become three functions. */}
             <FormField
-              name="jobTitle"
-              label={t.user.jobTitle}
-              error={errors.jobTitle}
+              name="jobFunctionId"
+              label={t.user.jobFunction}
+              hint={jobFunctions.length === 0 ? t.user.noJobFunctions : undefined}
+              error={errors.jobFunctionId}
             >
-              <Input
-                {...controlProps("jobTitle", errors.jobTitle)}
-                defaultValue={valueOf(state, "jobTitle", user?.jobTitle)}
-              />
+              <Select
+                name="jobFunctionId"
+                defaultValue={
+                  valueOf(state, "jobFunctionId", user?.jobFunctionId) || "none"
+                }
+                disabled={jobFunctions.length === 0}
+              >
+                <SelectTrigger id="jobFunctionId" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t.common.none}</SelectItem>
+                  {jobFunctions.map((jobFunction) => (
+                    <SelectItem key={jobFunction.id} value={jobFunction.id}>
+                      {jobFunction.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </FormField>
           </FormGrid>
 

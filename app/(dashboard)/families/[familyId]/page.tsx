@@ -9,7 +9,7 @@ import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { FamilyDetail } from "@/modules/families/components/family-detail";
 import { listFamilyReceipts } from "@/modules/treasury/queries";
-import { findFamily } from "@/modules/families/queries";
+import { findFamily, listParentJobs } from "@/modules/families/queries";
 
 export const metadata: Metadata = { title: "Famille" };
 
@@ -37,6 +37,9 @@ export default async function FamilyPage({
     ? await listFamilyReceipts(context, family.id)
     : null;
 
+  // The school's own list, for the guardian dialog's profession picker.
+  const parentJobs = await listParentJobs(context);
+
   return (
     <>
       <PageHeader
@@ -53,6 +56,7 @@ export default async function FamilyPage({
       <FamilyDetail
         family={family}
         receipts={receipts}
+        parentJobs={parentJobs}
         canManage={context.can(PERMISSIONS.FAMILY_UPDATE)}
         canManagePortal={context.can(PERMISSIONS.FAMILY_PORTAL)}
       />

@@ -90,7 +90,9 @@ export async function exportStudentRows(
               lastName: true,
               nationalId: true,
               phone: true,
-              profession: true,
+              // The name, not the id: this is read back as a preview of what
+              // the file said, and an id previews nothing.
+              parentJob: { select: { name: true } },
             },
           },
         },
@@ -134,12 +136,12 @@ export async function exportStudentRows(
       fatherFirstName: father?.firstName ?? "",
       fatherNationalId: father?.nationalId ?? "",
       fatherPhone: father?.phone ?? "",
-      fatherProfession: father?.profession ?? "",
+      fatherProfession: father?.parentJob?.name ?? "",
       motherLastName: mother?.lastName ?? "",
       motherFirstName: mother?.firstName ?? "",
       motherNationalId: mother?.nationalId ?? "",
       motherPhone: mother?.phone ?? "",
-      motherProfession: mother?.profession ?? "",
+      motherProfession: mother?.parentJob?.name ?? "",
 
       levelCode: enrolment?.levelOffering.level.code ?? "",
       trackCode: enrolment?.levelOffering.track?.code ?? "",

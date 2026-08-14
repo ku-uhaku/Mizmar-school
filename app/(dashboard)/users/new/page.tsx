@@ -18,7 +18,8 @@ export default async function NewUserPage() {
     return <ForbiddenState />;
   }
 
-  const { schools, orgRoles, schoolRoles } = await loadUserFormChoices(context);
+  const { schools, orgRoles, schoolRoles, jobFunctions } =
+    await loadUserFormChoices(context);
 
   return (
     <>
@@ -32,6 +33,7 @@ export default async function NewUserPage() {
         schools={schools}
         orgRoles={orgRoles}
         schoolRoles={schoolRoles}
+        jobFunctions={jobFunctions}
         canManageSuperAdmin={context.isSuperAdmin}
         canAssignOrgRole={context.canOrg(PERMISSIONS.USER_ASSIGN_ROLE)}
       />

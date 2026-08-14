@@ -18,7 +18,11 @@ import {
   loadEnrolmentChoices,
   loadFeeGrid,
 } from "@/modules/enrolment/queries";
-import { findFamily, listFamilyChoices } from "@/modules/families/queries";
+import {
+  findFamily,
+  listFamilyChoices,
+  listParentJobs,
+} from "@/modules/families/queries";
 import {
   listCityChoices,
   listNeighbourhoodChoices,
@@ -94,6 +98,7 @@ export default async function StudentPage({
     cities,
     neighbourhoods,
     dossier,
+    parentJobs,
   ] = await Promise.all([
       loadStudentWorkflow(context, student.id),
       findEnrolment(context, student.id),
@@ -108,6 +113,8 @@ export default async function StudentPage({
       // Same rule for their quartier — a merged one must not blank the address.
       listNeighbourhoodChoices(context, [student.neighbourhoodId]),
       canSeeDossier ? loadStudentDossier(context, student.id) : null,
+      // The school's own list, for the guardian dialog's profession picker.
+      listParentJobs(context),
     ]);
 
   // The rest depends on what the first round found: no dossier means no
@@ -262,6 +269,7 @@ export default async function StudentPage({
         }
         guardians={family?.guardians ?? []}
         families={families}
+        parentJobs={parentJobs}
         cities={cities}
         neighbourhoods={neighbourhoods}
         enrolment={enrolment}

@@ -67,6 +67,21 @@ export function assessmentSchema(t: Dictionary) {
   });
 }
 
+/**
+ * The ministry's own id for a paper, typed in by hand.
+ *
+ * Normally this is *not* typed at all: it is stamped by the MASSAR import from
+ * the hidden `E5` of a NotesCC export, and null is what makes a contrôle
+ * adoptable by the first file that claims it (see the ASSESSMENT_IDENTITY check
+ * in modules/massar/checks.ts). The field exists for the case the import cannot
+ * cover — pairing a paper the school set with a sheet it already holds — so
+ * what is entered has to be the code off that sheet, not one invented here.
+ * Blank clears it, which puts the paper back to adoptable.
+ */
+export function massarCodeSchema() {
+  return z.object({ massarCode: optionalText(64) });
+}
+
 export function statusSchema(t: Dictionary) {
   return z.object({ status: enumField(ASSESSMENT_STATUSES, t.validation) });
 }
