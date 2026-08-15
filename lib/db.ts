@@ -3,7 +3,7 @@ import "server-only";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 import { auditExtension } from "@/lib/audit";
-import { withPoolDefaults } from "@/lib/db-url";
+import { connectionConfig } from "@/lib/db-url";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
 // Prisma 7 requires a driver adapter. One client per process — Next's dev
@@ -34,17 +34,30 @@ function createClient() {
     sequential queries) and far below the server's own `max_connections`, which
     the seeds, `prisma studio` and any second process also draw on.
 
-    `acquireTimeout` — five seconds before a caller waiting for a free
+    `acquireTimeout` — fifteen seconds before a caller waiting for a free
     connection gives up. Stated because it is load-bearing and a silent default
     is not: exhausting it reaches the secretary as `t.errors.unexpected`, and no
-    request in this app holds a connection for anything like five seconds, so it
-    means something is genuinely wrong rather than merely busy.
+    request in this app holds a connection for anything like that long, so it
+    means something is genuinely wrong rather than merely busy. It must stay
+    above `connectTimeout` — the first caller against an empty pool waits for a
+    connection to be *made*, and a shorter acquire gives up on it mid-handshake.
 
-    Both are defaults, not policy — a URL that sets either wins, which is what
+    `connectTimeout` — ten seconds to open the socket, against the driver's
+    default of one. One second is generous for a MySQL on the same machine and
+    not enough for a managed database across the internet, where the TCP
+    connect and the TLS handshake happen before a single byte of MySQL: at the
+    default, the first request of a cold serverless instance fails while the
+    connection it asked for is still being made.
+
+    All three are defaults, not policy — a URL that sets one wins, which is what
     lets a deployment tune the pool without a rebuild.
   */
   const adapter = new PrismaMariaDb(
-    withPoolDefaults(url, { connectionLimit: 10, acquireTimeout: 5000 }),
+    connectionConfig(url, {
+      connectionLimit: 10,
+      acquireTimeout: 15000,
+      connectTimeout: 10000,
+    }),
   );
 
   return new PrismaClient({

@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-import { withPoolDefaults } from "@/lib/db-url";
+import { connectionConfig } from "@/lib/db-url";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
 const url = process.env.DATABASE_URL;
@@ -17,8 +17,16 @@ if (!url) throw new Error("DATABASE_URL is not set — see .env.example.");
  */
 export const db = new PrismaClient({
   // A smaller pool than the app's: the seed is one sequential script, so
-  // anything above a couple of connections is idle sockets on the server.
-  adapter: new PrismaMariaDb(withPoolDefaults(url, { connectionLimit: 5 })),
+  // anything above a couple of connections is idle sockets on the server. The
+  // timeouts match lib/db.ts, for the same reason — a managed database across
+  // the internet does not answer inside the driver's one-second default.
+  adapter: new PrismaMariaDb(
+    connectionConfig(url, {
+      connectionLimit: 5,
+      acquireTimeout: 15000,
+      connectTimeout: 10000,
+    }),
+  ),
 });
 
 export type SeedDb = typeof db;
