@@ -15,15 +15,15 @@
 /// and a Directeur may hold the same role; the fonction is what goes on a
 /// contract and an organigramme, not what unlocks a screen.
 model StaffFunction {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short reference, e.g. "DIR". What an import file and a printed list key
   /// the fonction on, since two schools may word the name differently.
   code String
 
-  name String
+  name   String
   /// The Arabic wording, for the Arabic half of the paperwork. Agreed once per
   /// fonction, which is the whole reason this table exists.
   nameAr String?

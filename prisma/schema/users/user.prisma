@@ -1,9 +1,9 @@
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
+  id             String       @id @default(cuid()) @db.VarChar(30)
+  organizationId String       @db.VarChar(30)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  email        String  @unique
+  email String @unique
 
   /// What staff type to sign in. Null for accounts that do not — a guardian is
   /// identified by their email and their phone in the dossier familial, and a
@@ -15,7 +15,7 @@ model User {
   /// page answers ForbiddenState — so its form asks for a username. The phone's
   /// login serves both, and a parent still gives their email there.
   ///
-  /// Unique where present, which is what nullable-unique means in SQLite and is
+  /// Unique where present, which is what nullable-unique means in MySQL and is
   /// the behaviour wanted here: many accounts may have none, no two may share
   /// one. (Contrast lib/db-keys.ts, where that same behaviour is the bug.)
   ///
@@ -31,15 +31,15 @@ model User {
   isSuperAdmin Boolean @default(false)
 
   /// Organisation-wide role. Its permissions apply in every school.
-  orgRoleId String?
+  orgRoleId String? @db.VarChar(30)
   orgRole   Role?   @relation("UserOrgRole", fields: [orgRoleId], references: [id], onDelete: SetNull)
 
   /// The working context the user last selected. Persisted per user (not in a
   /// cookie) so it survives across devices and cannot be forged by the client.
-  currentSchoolId String?
+  currentSchoolId String? @db.VarChar(30)
   currentSchool   School? @relation("UserCurrentSchool", fields: [currentSchoolId], references: [id], onDelete: SetNull)
 
-  currentSchoolYearId String?
+  currentSchoolYearId String?     @db.VarChar(30)
   currentSchoolYear   SchoolYear? @relation("UserCurrentSchoolYear", fields: [currentSchoolYearId], references: [id], onDelete: SetNull)
 
   /// When this account's password last changed. Every credential — the session

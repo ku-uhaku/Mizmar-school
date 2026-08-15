@@ -45,13 +45,5 @@ next-env.d.ts
 
 /app/generated/prisma
 
-# local database
-/dev.db
-/dev.db-journal
-# WAL mode's sidecars — see `ensureWalMode` in lib/db.ts. They appear the moment
-# the app runs and are as much "the database" as dev.db itself.
-/dev.db-wal
-/dev.db-shm
-
 # prisma generated client
 /lib/generated

@@ -134,7 +134,7 @@ function start(name, command, args, cwd) {
     if (shuttingDown) return;
     // One half going down takes the other with it. A dev server left running
     // alone is worse than none: the next `npm run dev:all` finds its port taken
-    // and, on SQLite, its write lock held.
+    // and its connection pool still drawing on the database.
     console.log(`${prefix}exited (${signal ?? code}) — stopping the other.`);
     stopAll();
     process.exitCode = code ?? 1;

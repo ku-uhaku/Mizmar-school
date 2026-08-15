@@ -21,7 +21,7 @@
 ///
 /// Append-only by convention: nothing in the app updates or deletes a row here.
 model ActivityLog {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   // ── Where it happened ─────────────────────────────────────────────────────
   /// The tenant. Null only for events that precede a session — a failed login
@@ -65,12 +65,14 @@ model ActivityLog {
   /// reach it — see REDACTED_FIELDS in modules/audit/entities.ts. Null when
   /// nothing comparable changed.
   ///
-  /// A String because SQLite has no JSON column; read it through
-  /// `parseChanges` rather than `JSON.parse` at the call site.
+  /// TEXT rather than MySQL's JSON type: nothing queries inside it — the trail
+  /// is read whole, one entry at a time — and JSON would cost a validating
+  /// parse on every write for a shape the application already owns. Read it
+  /// through `parseChanges` rather than `JSON.parse` at the call site.
   changes  String?
   /// JSON: anything the action itself wanted recorded — the permission code a
   /// denial was refused for, the number of rows a bulk write touched.
-  metadata String?
+  metadata String? @db.Text
 
   createdAt DateTime @default(now())
 

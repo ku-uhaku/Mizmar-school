@@ -10,7 +10,7 @@
 /// accounts would make the throttle itself an oracle: "this one slowed down,
 /// therefore it exists".
 model LoginAttempt {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   /// Lowercased and trimmed, exactly as `checkCredentials` normalises it.
   email String @unique

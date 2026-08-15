@@ -128,8 +128,9 @@ export async function notify(input: NotifyInput): Promise<number> {
     return created.count;
   }
 
-  // One upsert per recipient rather than `createMany({ skipDuplicates })`,
-  // which SQLite does not support. The batch is a class's worth of guardians at
+  // One upsert per recipient rather than `createMany({ skipDuplicates })`: a
+  // repeat notification must refresh the existing row, not be dropped, which
+  // `INSERT IGNORE` would do. The batch is a class's worth of guardians at
   // worst, and it runs after the response's real work is done.
   await db.$transaction(
     rows.map((row) =>

@@ -27,7 +27,7 @@ import { copyTransportConfiguration } from "@/modules/transport/service";
 /**
  * Enforces "at most one default year per school".
  *
- * SQLite cannot express this as a partial unique index through Prisma, so it is
+ * MySQL cannot express this as a partial unique index through Prisma, so it is
  * a service-layer invariant: every write that sets `isDefault` must clear the
  * others first. `keepId` is the row being promoted, which must survive.
  */

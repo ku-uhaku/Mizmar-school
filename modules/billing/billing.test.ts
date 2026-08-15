@@ -254,7 +254,7 @@ describe("splitIntoInstalments", () => {
 describe("feeRateScopeKey", () => {
   it("keeps a level's own price apart from the every-level one", () => {
     // What stops one fee having two "all levels" prices in the same year, since
-    // SQLite treats NULLs as distinct in a unique index.
+    // MySQL treats NULLs as distinct in a unique index.
     expect(feeRateScopeKey(null)).not.toBe(feeRateScopeKey("level-1"));
     expect(feeRateScopeKey(null)).toBe(feeRateScopeKey(undefined));
   });

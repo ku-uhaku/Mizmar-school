@@ -26,8 +26,8 @@
 /// passed and is one figure for the school; this decides what the remark says,
 /// and a school may perfectly well have a rung that straddles its own pass.
 model AppreciationBand {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The floor of the band, in basis points of the paper's `maxScore` —

@@ -2,14 +2,14 @@
 /// module (admin editing someone else) and the `profile` / `appearance` modules
 /// (a user editing their own).
 model Profile {
-  id     String @id @default(cuid())
+  id     String @id @default(cuid()) @db.VarChar(30)
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   firstName String
   lastName  String
   phone     String?
-  avatarUrl String?
+  avatarUrl String? @db.MediumText
   bio       String?
 
   /// La fonction — chosen from the school's own list, not typed.
@@ -17,10 +17,10 @@ model Profile {
   /// Replaced a free-text `jobTitle`, which had become three spellings of
   /// "Directeur". Restrict on the other side: the fonction cannot be deleted
   /// while anybody holds it. See prisma/schema/users/staff-function.prisma.
-  jobFunctionId String?
+  jobFunctionId String?        @db.VarChar(30)
   jobFunction   StaffFunction? @relation(fields: [jobFunctionId], references: [id], onDelete: Restrict)
   /// Age is always derived from this, never stored — a stored age silently rots.
-  birthDate DateTime?
+  birthDate     DateTime?
 
   /// Preferred UI language, mirrored into a cookie on login for fast SSR.
   locale     String @default("fr")

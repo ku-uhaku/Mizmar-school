@@ -20,8 +20,8 @@
 /// recipient, in `Notification`. The two are deliberately separate and neither
 /// derives from the other: this stays the family space's badge.
 model PortalSeen {
-  id     String @id @default(cuid())
-  userId String
+  id     String @id @default(cuid()) @db.VarChar(30)
+  userId String @db.VarChar(30)
   user   User   @relation("PortalSeen", fields: [userId], references: [id], onDelete: Cascade)
 
   /// "EVENTS" | "CHAT" | "MARKS" | "REMARKS" — see modules/portal/enums.ts.

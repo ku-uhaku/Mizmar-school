@@ -80,7 +80,7 @@ export async function allocateFamilyCode(
 /**
  * Enforces "at most one primary contact per family".
  *
- * SQLite cannot express this as a partial unique index through Prisma, so every
+ * MySQL cannot express this as a partial unique index through Prisma, so every
  * write that sets `isPrimaryContact` must clear the others first — the same
  * shape as the default school year. `keepId` is the guardian being promoted.
  */

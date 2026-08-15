@@ -16,15 +16,15 @@
 /// القراءة / الإملاء / التعبير الكتابي in 3AP. A subject's components at a level
 /// are therefore "LevelSubject rows whose subject's parent is that subject".
 model LevelSubject {
-  id      String @id @default(cuid())
-  levelId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  levelId String @db.VarChar(30)
   level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   /// Null = applies to every track of this level.
-  trackId String?
+  trackId String? @db.VarChar(30)
   track   Track?  @relation(fields: [trackId], references: [id], onDelete: Cascade)
 
-  subjectId String
+  subjectId String  @db.VarChar(30)
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   /// Weight of this row **within its own scope**, not globally:

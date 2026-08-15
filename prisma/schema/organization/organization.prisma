@@ -1,7 +1,7 @@
 /// The single tenant this deployment serves. It owns every school, user and
 /// role. Modelled as a table (rather than config) so it can be edited in-app.
 model Organization {
-  id        String  @id @default(cuid())
+  id        String  @id @default(cuid()) @db.VarChar(30)
   name      String
   legalName String?
   /// Moroccan "Identifiant Commun de l'Entreprise".
@@ -12,13 +12,13 @@ model Organization {
   phone   String?
   website String?
 
-  addressLine String?
+  addressLine String? @db.Text
   city        String?
   region      String?
   postalCode  String?
   country     String  @default("MA")
 
-  logoUrl       String?
+  logoUrl       String? @db.MediumText
   defaultLocale String  @default("fr")
 
   createdAt DateTime @default(now())

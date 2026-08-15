@@ -7,20 +7,20 @@
 /// shift, and overwriting it with the expected figure would destroy the only
 /// evidence there was ever a discrepancy.
 model CashSession {
-  id             String       @id @default(cuid())
-  cashRegisterId String
+  id             String       @id @default(cuid()) @db.VarChar(30)
+  cashRegisterId String       @db.VarChar(30)
   cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
 
   /// Restrict on both: a cashier with sessions in the ledger cannot be deleted
   /// out from under them, because "who held the drawer" is the whole point.
-  openedById String
+  openedById String   @db.VarChar(30)
   openedBy   User     @relation("SessionOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
   openedAt   DateTime @default(now())
 
   /// The fond de caisse the drawer starts with, counted in.
   openingFloatCentimes Int @default(0)
 
-  closedById String?
+  closedById String?   @db.VarChar(30)
   closedBy   User?     @relation("SessionClosedBy", fields: [closedById], references: [id], onDelete: Restrict)
   closedAt   DateTime?
 
@@ -52,7 +52,7 @@ model CashSession {
   /// never tell.
   wasAutoClosed Boolean @default(false)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,7 +65,7 @@ model CashSession {
   ///
   /// INVARIANT (service layer): always `openSessionKey(cashRegisterId, status)`
   /// from modules/treasury/enums.ts — the register's id while OPEN, null once
-  /// CLOSED. SQLite treats NULLs as distinct in a unique index, so every closed
+  /// CLOSED. MySQL treats NULLs as distinct in a unique index, so every closed
   /// session is exempt while at most one open one is allowed. See lib/db-keys.ts
   /// for why the constraint cannot simply name `status`.
   openKey String? @unique

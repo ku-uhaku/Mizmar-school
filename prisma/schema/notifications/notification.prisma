@@ -22,23 +22,23 @@
 /// French on the desk and in Arabic on the phone. A notification written as
 /// text would be frozen in whatever locale the *writer* happened to hold.
 model Notification {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   /// The tenant. Every read is scoped on it as well as on `userId`, so a row is
   /// unreachable from another organisation even if an id leaked.
-  organizationId String
+  organizationId String       @db.VarChar(30)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   /// Which school it arose in. Null for the few that are not about one — an
   /// org-wide notice. Kept so a director who works across two schools can tell
   /// where a thing happened, and so closing a school takes its noise with it.
-  schoolId String?
+  schoolId String? @db.VarChar(30)
   school   School? @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Who is being told. One row per person: an event announced to a class is a
   /// fan-out over its guardians, which is the cost this design pays for being
   /// able to say what each of them has read.
-  userId String
+  userId String @db.VarChar(30)
   user   User   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
 
   /// What happened — "EVENT_PUBLISHED", "REQUEST_HANDLED", … The label, the
@@ -46,9 +46,15 @@ model Notification {
   kind String
 
   /// JSON object of substitution values for the label: `{"title":"Réunion"}`.
-  /// A string column because SQLite has no JSON type; read through `readParams`
-  /// in the module's enums, which tolerates anything that is not an object.
-  params String @default("{}")
+  /// VARCHAR rather than MySQL's JSON type, as on ActivityLog.changes: nothing
+  /// queries inside it. Read through `readParams` in the module's enums, which
+  /// tolerates anything that is not an object.
+  ///
+  /// Not TEXT, unlike the other stored payloads: MySQL refuses a DEFAULT on a
+  /// TEXT column, and `{}` here is what lets every caller that has no
+  /// substitutions omit the field. A thousand characters is far more than a
+  /// label's slots — `{"title":"Réunion des parents"}` is forty.
+  params String @default("{}") @db.VarChar(1000)
 
   /// The row this is about — the event, the dossier, the bulletin. Whose table
   /// it is in is decided by `kind`, so the pair is one fact rather than two.
@@ -61,12 +67,12 @@ model Notification {
   /// to say *whose* mark it is, and every family screen on the phone is reached
   /// through the child, so this is also what the deep link opens on. Cascade —
   /// a notification about a pupil no longer on the roll opens nothing.
-  studentId String?
+  studentId String?  @db.VarChar(30)
   student   Student? @relation("NotificationSubject", fields: [studentId], references: [id], onDelete: Cascade)
 
   /// What makes writing one twice a no-op — typically "<kind>:<subjectId>".
   ///
-  /// Null when repetition is meaningful, and SQLite's "NULLs are distinct"
+  /// Null when repetition is meaningful, and MySQL's "NULLs are distinct"
   /// behaviour then exempts the row from the unique index below. That is the
   /// same trick lib/db-keys.ts uses, and here it is the wanted behaviour rather
   /// than the bug: an event published, unpublished and published again should

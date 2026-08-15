@@ -10,9 +10,9 @@
 // Nothing central has to be edited, and no file grows without bound.
 // See AGENTS.md ("Database") for the full convention.
 //
-// Note: SQLite has no native enum type, so every "enum-like" column is a String
-// validated in TypeScript. The allowed values live in the owning module's
-// `enums.ts` — keep the two in sync.
+// Note: every "enum-like" column is a String validated in TypeScript rather
+// than a MySQL ENUM. The allowed values live in the owning module's `enums.ts`,
+// so adding one is a code change and not a migration — keep the two in sync.
 
 generator client {
   provider = "prisma-client"
@@ -20,5 +20,5 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
 }

@@ -26,7 +26,7 @@ export type ChannelKind = (typeof CHANNEL_KINDS)[number];
  * Builds `ChatChannel.generalKey`, which is what stops a year having two
  * school-wide channels.
  *
- * The year id when the channel is GENERAL, null otherwise — so SQLite's "NULLs
+ * The year id when the channel is GENERAL, null otherwise — so MySQL's "NULLs
  * are distinct" behaviour exempts every class channel from the unique index
  * while admitting only one general one. See lib/db-keys.ts for the pattern.
  */

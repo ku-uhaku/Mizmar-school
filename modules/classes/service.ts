@@ -8,7 +8,7 @@ import { assignmentScopeKey } from "@/modules/classes/enums";
  *
  * There is one rule here that the database cannot state: exactly one *primary*
  * teacher per (class, group, subject). A partial unique index would say it, and
- * neither SQLite through Prisma nor a plain unique constraint can — so it is
+ * neither MySQL through Prisma nor a plain unique constraint can — so it is
  * enforced on write, the same way the default school year is.
  */
 

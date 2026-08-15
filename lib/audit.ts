@@ -33,8 +33,9 @@ import type { ActivityAction } from "@/modules/audit/enums";
  *
  * ── What it costs ───────────────────────────────────────────────────────────
  * One extra read before an update or a delete (to diff against) and one insert
- * after. On a school's SQLite file, against writes that are already
- * user-initiated form submissions, that is not a cost worth engineering around.
+ * after. Against writes that are already user-initiated form submissions, on a
+ * MySQL server sized for one school, that is not a cost worth engineering
+ * around.
  * Reads are untouched.
  *
  * ── What it does not catch ──────────────────────────────────────────────────
@@ -43,11 +44,12 @@ import type { ActivityAction } from "@/modules/audit/enums";
  *    guardian's own creation is inside `changes`, not a line of its own.
  * 2. Raw SQL. `$queryRaw` bypasses the client's operation layer entirely.
  * 3. Rolled-back transactions. The entry is written the moment the operation
- *    succeeds, before any enclosing `$transaction` has committed. On SQLite it
- *    goes down the same connection, so it rolls back with the data — an
- *    abandoned transaction leaves no trace of itself. On a driver that gives
- *    transactions their own connection it would survive instead, and the trail
- *    would carry an act that was attempted and undone. Either is defensible;
+ *    succeeds, before any enclosing `$transaction` has committed. Prisma runs
+ *    the extension's write on the transaction's own connection, so it rolls
+ *    back with the data — an abandoned transaction leaves no trace of itself.
+ *    Were it to go down a second connection from the pool it would survive
+ *    instead, and the trail would carry an act that was attempted and undone.
+ *    Either is defensible;
  *    neither is worth a second write path to control.
  * 4. The seed, and any script using `prisma/seed/client.ts` — a separate client
  *    with no extension. Deliberate: the seed is not somebody doing something.
@@ -396,9 +398,9 @@ export function auditExtension(base: BaseClient) {
           // way to use this app and a common way to fill a trail with noise.
           if (event.action === "UPDATE" && !event.changes) return result;
 
-          // Awaited rather than left floating: the insert is a synchronous
-          // SQLite statement, and a promise dropped at the end of a request is
-          // a line of the trail lost for no gain worth having.
+          // Awaited rather than left floating: a promise dropped at the end of
+          // a request is a line of the trail lost, and on a pooled connection
+          // it can outlive the transaction it belongs to.
           await append(base, event);
 
           return result;

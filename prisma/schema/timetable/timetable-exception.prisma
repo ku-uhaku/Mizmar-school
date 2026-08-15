@@ -19,17 +19,17 @@
 /// session into a free period is a normal thing to want, and an override that
 /// could only modify an existing row could not express it.
 model TimetableException {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  schoolClassId String
+  schoolClassId String      @db.VarChar(30)
   schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
   /// Mirrors the template entry's group, so a change to one half of a split
   /// class leaves the other half alone.
-  classGroupId String?
+  classGroupId String?     @db.VarChar(30)
   classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
 
-  timeSlotId String
+  timeSlotId String   @db.VarChar(30)
   timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
 
   /// The Monday of the week this applies to, at local midnight. One key per
@@ -47,27 +47,27 @@ model TimetableException {
   /// The replacement, for a REPLACED row. All three are independent: swapping
   /// only the room is as ordinary as swapping the subject, and a null means
   /// "whatever the template said".
-  subjectId String?
+  subjectId String?  @db.VarChar(30)
   subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
-  teacherId String?
+  teacherId String? @db.VarChar(30)
   teacher   User?   @relation("TeacherTimetableExceptions", fields: [teacherId], references: [id], onDelete: SetNull)
 
-  roomId String?
+  roomId String? @db.VarChar(30)
   room   Room?   @relation(fields: [roomId], references: [id], onDelete: SetNull)
 
   /// Why — "sortie scolaire", "rattrapage du 12 mars". Printed on the week's
   /// grid, because a cancelled period with no reason invites the question.
-  note String?
+  note String? @db.Text
 
-  createdById String?
+  createdById String? @db.VarChar(30)
   createdBy   User?   @relation("TimetableExceptionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   /// Mirrors the nullable `classGroupId` so the unique index below actually
-  /// fires — SQLite treats NULLs as distinct, so without it two "whole class"
+  /// fires — MySQL treats NULLs as distinct, so without it two "whole class"
   /// exceptions for the same slot and week would both be accepted. Same trick,
   /// and same reason, as `TimetableEntry.bookingKey`. See lib/db-keys.ts.
   ///

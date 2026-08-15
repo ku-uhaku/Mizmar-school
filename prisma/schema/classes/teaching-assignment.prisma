@@ -6,21 +6,21 @@
 /// teacher workload read. The timetable answers "when and where", and there are
 /// several TimetableEntry rows per assignment.
 model TeachingAssignment {
-  id            String      @id @default(cuid())
-  schoolClassId String
+  id            String      @id @default(cuid()) @db.VarChar(30)
+  schoolClassId String      @db.VarChar(30)
   schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
   /// Null = the assignment covers the whole class. Set = this group only, which
   /// is how a split subject gets a different teacher per group.
-  classGroupId String?
+  classGroupId String?     @db.VarChar(30)
   classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: Cascade)
 
-  subjectId String
+  subjectId String  @db.VarChar(30)
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
 
   /// The teacher. A User, not a separate Staff table — teachers sign in, and
   /// their permissions already come from the role system.
-  teacherId String
+  teacherId String @db.VarChar(30)
   teacher   User   @relation("TeacherAssignments", fields: [teacherId], references: [id], onDelete: Cascade)
 
   /// Contracted load for this assignment, in minutes per week. Usually mirrors

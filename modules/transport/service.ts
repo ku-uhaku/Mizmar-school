@@ -838,8 +838,8 @@ export async function openRoute(
   /*
     One transaction, and the ids come back in the order they went in — which is
     what maps a rider's `stopIndex` onto the stop they board. `createMany` would
-    be one round trip fewer and gives no ids back on SQLite, so the mapping
-    would have to be re-read by name.
+    be one round trip fewer and gives no ids back on MySQL, which has no
+    `RETURNING`, so the mapping would have to be re-read by name.
   */
   const stops = await db.$transaction(
     input.stops.map((stop, index) =>
@@ -1284,10 +1284,13 @@ export async function ensureDayRuns(
   if (missing.length === 0) return 0;
 
   /*
-    `createMany` without skipDuplicates, which the SQLite connector does not
-    support — so a second caller racing this one would collide on the unique
-    index. Swallowed rather than surfaced: both callers wanted the same rows to
-    exist, and they now do. Any other failure still throws.
+    `createMany` without `skipDuplicates` — so a second caller racing this one
+    would collide on the unique index. Swallowed rather than surfaced: both
+    callers wanted the same rows to exist, and they now do.
+
+    Not `skipDuplicates: true`, which MySQL does support: it compiles to
+    `INSERT IGNORE`, and that would silence a bad foreign key or a truncated
+    value just as readily as the collision this is here to absorb.
   */
   try {
     const created = await db.tripRun.createMany({

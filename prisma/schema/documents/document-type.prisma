@@ -12,8 +12,8 @@
 /// inscrire cet enfant ?" — and the one that can be answered without becoming a
 /// document store.
 model DocumentType {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "ACTE-NAISSANCE". What the catalogue is keyed on.
@@ -34,7 +34,7 @@ model DocumentType {
   copies Int?
 
   /// Anything the name cannot say — where to get it, how recent it must be.
-  notes String?
+  notes String? @db.Text
 
   /// Order on the checklist and on the printed liste des pièces.
   position Int @default(0)

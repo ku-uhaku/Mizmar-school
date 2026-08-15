@@ -1,8 +1,12 @@
 import "dotenv/config";
 
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
+import { withPoolDefaults } from "@/lib/db-url";
 import { PrismaClient } from "@/lib/generated/prisma/client";
+
+const url = process.env.DATABASE_URL;
+if (!url) throw new Error("DATABASE_URL is not set — see .env.example.");
 
 /**
  * The seed's own Prisma client.
@@ -12,9 +16,9 @@ import { PrismaClient } from "@/lib/generated/prisma/client";
  * one-shot script.
  */
 export const db = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
-  }),
+  // A smaller pool than the app's: the seed is one sequential script, so
+  // anything above a couple of connections is idle sockets on the server.
+  adapter: new PrismaMariaDb(withPoolDefaults(url, { connectionLimit: 5 })),
 });
 
 export type SeedDb = typeof db;

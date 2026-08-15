@@ -14,13 +14,13 @@
 /// channel. `isArchived` below is the per-channel lever, for the one class that
 /// needs silencing without turning the feature off for everybody.
 model ChatChannel {
-  id           String     @id @default(cuid())
-  schoolId     String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolId     String     @db.VarChar(30)
   school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   /// The year it belongs to, so last year's conversation stops appearing when
   /// this year's classes are drawn up — the same rule the rest of the vie
   /// scolaire follows.
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// "GENERAL" | "CLASS" — see modules/chat/enums.ts.
@@ -28,7 +28,7 @@ model ChatChannel {
 
   /// The class this channel belongs to. Null for GENERAL, set for CLASS.
   ///
-  /// INVARIANT (service layer): set when and only when `kind` is CLASS. SQLite
+  /// INVARIANT (service layer): set when and only when `kind` is CLASS. MySQL
   /// cannot express a conditional NOT NULL, so it is enforced on write — see
   /// `ensureChannel`.
   schoolClassId String?      @unique
@@ -36,7 +36,7 @@ model ChatChannel {
 
   /// What stops a year having two general channels.
   ///
-  /// The year id when `kind` is GENERAL, null otherwise — so SQLite's "NULLs
+  /// The year id when `kind` is GENERAL, null otherwise — so MySQL's "NULLs
   /// are distinct" behaviour exempts every class channel from the unique index
   /// while admitting only one general one per year. `schoolClassId` carries its
   /// own `@unique` and covers the class case. See lib/db-keys.ts for the

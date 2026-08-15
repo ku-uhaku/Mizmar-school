@@ -12,7 +12,7 @@ in-app rather than created through a signup flow.
 | | |
 |---|---|
 | Framework | Next.js 16 (App Router, Turbopack, Server Actions) |
-| Database | SQLite via Prisma 7 + `better-sqlite3` driver adapter |
+| Database | MySQL 8 via Prisma 7 + `@prisma/adapter-mariadb` driver adapter |
 | Auth | Auth.js v5 (`next-auth@beta`), credentials + JWT sessions |
 | UI | shadcn/ui (Radix base, RTL-aware) + Tailwind CSS v4 |
 | Tables | TanStack Table |
@@ -20,9 +20,19 @@ in-app rather than created through a signup flow.
 
 ## Getting started
 
+You need a MySQL 8 server (MariaDB 10.6+ also works — same driver). Prisma
+migrates into the database but does not create it, so make it first:
+
+```sql
+CREATE DATABASE mizmar_school CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+`utf8mb4` is required — the app stores Arabic throughout — and
+`utf8mb4_unicode_ci` is what makes name search case- and accent-insensitive.
+
 ```bash
 npm install
-cp .env.example .env        # then set AUTH_SECRET
+cp .env.example .env        # then set DATABASE_URL and AUTH_SECRET
 npx prisma migrate deploy
 npm run db:seed
 npm run dev
@@ -112,9 +122,15 @@ boundary.
 - **The current school/year live on the `User` row**, not in a cookie — they
   cannot be forged, and they follow the user across devices. Language and
   appearance *are* cookies, because they must apply before anyone signs in.
-- **SQLite has no enum type.** Enum-like columns are `String`, with the allowed
-  values in `lib/enums.ts`. Keep them in sync with `prisma/schema.prisma`.
-  Moving to PostgreSQL is a datasource change plus a fresh migration.
+- **Enum-like columns are `String`, not MySQL `ENUM`.** Widening an `ENUM` is a
+  migration, and these values change with a school's configuration rather than
+  with the schema. The allowed values live in each module's `enums.ts` — keep
+  them in sync with that module's `prisma/schema/<module>/*.prisma`.
+- **Column lengths are explicit.** Prisma's default for a bare `String` is
+  `VARCHAR(191)`, so free text carries `@db.Text`, the four image columns carry
+  `@db.MediumText`, and every id and foreign key carries `@db.VarChar(30)` — a
+  cuid is 25 characters, and the short form is what keeps the six-column unique
+  on `assessments` inside InnoDB's 3072-byte index limit.
 - **Tables filter and paginate client-side.** One organisation's schools, users
   and roles are hundreds of rows at most, so shipping them in one go keeps search
   instant and the code simple. Revisit if a deployment grows past a few thousand.

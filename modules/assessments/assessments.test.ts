@@ -416,7 +416,7 @@ describe("question points", () => {
 
 describe("assessmentScopeKey", () => {
   it("gives a whole-class paper a real value rather than NULL", () => {
-    // SQLite treats NULLs as distinct in a unique index, so two "whole class"
+    // MySQL treats NULLs as distinct in a unique index, so two "whole class"
     // rows for the same subject and sequence would both be accepted and the
     // generator would stop being idempotent.
     expect(assessmentScopeKey(null)).toBe("__class__");

@@ -14,8 +14,8 @@
 /// decision: some write an attestation de réussite, some do not, and a school
 /// that starts should not need a migration to say so.
 model DocumentRequestType {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "ATTEST-SCO". What the catalogue is keyed on.
@@ -26,8 +26,8 @@ model DocumentRequestType {
 
   /// What the paper is for, in the family's words. Shown under the name on the
   /// phone, where a parent is choosing between four things they half know.
-  description   String?
-  descriptionAr String?
+  description   String? @db.Text
+  descriptionAr String? @db.Text
 
   /// How long the office ordinarily takes, in days. Used to *suggest* the date
   /// a request will be ready when it is accepted — never to decide it. The

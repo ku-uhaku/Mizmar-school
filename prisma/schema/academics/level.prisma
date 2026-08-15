@@ -8,8 +8,8 @@
 ///   TC  tronc commun              TC
 ///   BAC année baccalauréat        1BAC, 2BAC
 model Level {
-  id               String         @id @default(cuid())
-  educationLevelId String
+  id               String         @id @default(cuid()) @db.VarChar(30)
+  educationLevelId String         @db.VarChar(30)
   educationLevel   EducationLevel @relation(fields: [educationLevelId], references: [id], onDelete: Cascade)
 
   /// Denormalised from `educationLevel.schoolId`. Levels are read constantly and
@@ -18,7 +18,7 @@ model Level {
   ///
   /// INVARIANT (service layer): must always equal `educationLevel.schoolId`.
   /// Set it from the parent, never from the request.
-  schoolId String
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Ministry short code, e.g. "1AP", "3AC", "TC", "2BAC".
@@ -41,16 +41,16 @@ model Level {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tracks         Track[]
-  subjects       LevelSubject[]
-  offerings      LevelOffering[]
+  tracks          Track[]
+  subjects        LevelSubject[]
+  offerings       LevelOffering[]
   /// Qualifications narrowed to this niveau — see
   /// prisma/schema/hr/teacher-subject-level.prisma.
   teacherSubjects TeacherSubjectLevel[]
   /// Per-level pricing, e.g. scolarité is dearer at 2BAC than at 1AP.
-  feeRates       FeeRate[]
+  feeRates        FeeRate[]
   /// Events aimed at this level rather than at the whole school.
-  eventAudiences EventAudience[]
+  eventAudiences  EventAudience[]
 
   @@unique([schoolId, code])
   @@unique([schoolId, massarCode])

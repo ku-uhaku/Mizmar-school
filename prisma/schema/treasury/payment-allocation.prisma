@@ -14,14 +14,14 @@
 /// That a single receipt can hold lines belonging to different children is what
 /// makes paying for a fratrie one transaction.
 model PaymentAllocation {
-  id        String  @id @default(cuid())
-  paymentId String
+  id        String  @id @default(cuid()) @db.VarChar(30)
+  paymentId String  @db.VarChar(30)
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   /// Restrict: a schedule line that has been paid against cannot be deleted out
   /// from under the receipt that settled it. Correcting one means cancelling
   /// the receipt first, which is the point.
-  enrollmentFeeId String
+  enrollmentFeeId String        @db.VarChar(30)
   enrollmentFee   EnrollmentFee @relation(fields: [enrollmentFeeId], references: [id], onDelete: Restrict)
 
   /// Part-payment is ordinary, so this is not simply the line's amount.

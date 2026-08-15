@@ -14,8 +14,8 @@
 /// year and a class, and that is also what guarantees a row cannot exist for a
 /// pupil who is not on the roster.
 model StudentAttendance {
-  id           String     @id @default(cuid())
-  enrollmentId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   /// Midnight of the day being marked — the time of day is carried by the slot,
@@ -23,12 +23,12 @@ model StudentAttendance {
   date DateTime
 
   /// The period of the bell schedule. Null = the whole day.
-  timeSlotId String?
+  timeSlotId String?   @db.VarChar(30)
   timeSlot   TimeSlot? @relation(fields: [timeSlotId], references: [id], onDelete: SetNull)
 
   /// What was being taught. Null for a whole-day mark, which belongs to no
   /// subject. Carried so a family can be told *which* lesson was missed.
-  subjectId String?
+  subjectId String?  @db.VarChar(30)
   subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
 
   /// "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" — see modules/classroom/enums.ts
@@ -41,7 +41,7 @@ model StudentAttendance {
 
   /// Why, when somebody has said. Also what turns an ABSENT into an EXCUSED
   /// once a justification reaches the office.
-  reason String?
+  reason String? @db.Text
 
   /// Whether a justification is on file. Kept apart from the status because
   /// "absent, justified later" is the ordinary case and the office needs to see
@@ -50,7 +50,7 @@ model StudentAttendance {
 
   /// Who marked it. Restrict would be wrong here — a register outlives the
   /// account of the teacher who took it.
-  recordedById String?
+  recordedById String? @db.VarChar(30)
   recordedBy   User?   @relation("AttendanceRecordedByTeacher", fields: [recordedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

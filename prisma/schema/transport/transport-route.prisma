@@ -5,8 +5,8 @@
 /// year's is drawn up afresh. The vehicle it runs on is year-independent and
 /// lives in Vehicle; this is what that vehicle is doing this year.
 model TransportRoute {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "L1", "L2".
@@ -22,7 +22,7 @@ model TransportRoute {
   /// The bus assigned. Null while a line is being planned before the fleet is
   /// allocated. SetNull: retiring a bus must leave the line standing so somebody
   /// can put another one on it, not delete the route and its passengers.
-  vehicleId String?
+  vehicleId String?  @db.VarChar(30)
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   /// Seats this line offers, when that is not simply the vehicle's.
@@ -34,7 +34,7 @@ model TransportRoute {
   capacity Int?
 
   isActive Boolean @default(true)
-  notes    String?
+  notes    String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -10,17 +10,17 @@
 /// it means the row's `educationLevel` decides, or the whole school does. The
 /// only place that reads it is `qualifiedFor` in modules/timetable/service.ts.
 model TeacherSubjectLevel {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   /// Cascade: these rows are the parent's own list and have no meaning apart
   /// from it.
-  teacherSubjectId String
+  teacherSubjectId String         @db.VarChar(30)
   teacherSubject   TeacherSubject @relation(fields: [teacherSubjectId], references: [id], onDelete: Cascade)
 
   /// Cascade: a niveau the school no longer runs cannot be scoped to. Widening
   /// the parent instead — which is what SetNull would do here, since there is
   /// no null to hold — would quietly offer the teacher every other niveau.
-  levelId String
+  levelId String @db.VarChar(30)
   level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

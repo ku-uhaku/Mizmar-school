@@ -6,8 +6,8 @@
 /// may have all four. Modelled per school rather than globally so each school
 /// can name, order and deactivate its own cycles without touching its siblings.
 model EducationLevel {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// "PRESCHOOL" | "PRIMARY" | "SECONDARY_COLLEGE" | "SECONDARY_QUALIFYING"

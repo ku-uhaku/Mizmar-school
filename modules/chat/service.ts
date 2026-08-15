@@ -33,7 +33,7 @@ export type EnsureChannelInput = {
 export async function ensureChannel(
   input: EnsureChannelInput,
 ): Promise<{ id: string; isArchived: boolean } | null> {
-  // The invariant SQLite cannot express — see the note on
+  // The invariant MySQL cannot express — see the note on
   // `ChatChannel.schoolClassId`.
   if (input.kind === "CLASS" && !input.schoolClassId) return null;
   if (input.kind === "GENERAL" && input.schoolClassId) return null;

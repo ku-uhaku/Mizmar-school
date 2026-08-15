@@ -13,14 +13,14 @@
 /// more usefully — lets a school stop offering a quartier on a full line without
 /// deleting the stop and the history hanging off it.
 model RouteNeighbourhood {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  routeId String
+  routeId String         @db.VarChar(30)
   route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   /// Restrict: a quartier that circuits are serving cannot be deleted from under
   /// them — the same rule RouteStop.neighbourhoodId follows.
-  neighbourhoodId String
+  neighbourhoodId String        @db.VarChar(30)
   neighbourhood   Neighbourhood @relation(fields: [neighbourhoodId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())

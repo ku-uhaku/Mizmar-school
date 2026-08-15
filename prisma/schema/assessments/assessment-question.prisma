@@ -21,9 +21,9 @@
 /// marking would be a second, heavier way to grade and is not what the barème is
 /// for.
 model AssessmentQuestion {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  assessmentId String
+  assessmentId String     @db.VarChar(30)
   /// Cascade: the questions are the paper. Nothing reads them without it.
   assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
@@ -33,7 +33,7 @@ model AssessmentQuestion {
 
   /// The wording, as it will be read by the pupil. Plain text: a paper that
   /// carries markup is a paper that renders differently everywhere it is shown.
-  text String
+  text String @db.Text
 
   /// What this question is worth, in the same unit as `Assessment.maxScore`.
   /// Halves are ordinary on a Moroccan barème ("2,5 pts"), so this is stored in

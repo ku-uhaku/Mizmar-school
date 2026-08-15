@@ -11,8 +11,8 @@
 /// rule. Once an Assessment exists it owns its own `maxScore` and `coefficient`,
 /// so re-weighting the type later cannot silently rescore marks already entered.
 model AssessmentType {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "CC", "DS", "DM", "EXAM", "ORAL", "TP".

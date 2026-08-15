@@ -14,14 +14,14 @@
 /// to be a duplicate stops being offered without rewriting the families that
 /// already named it.
 model ParentJob {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short reference, e.g. "FONCT". What an import file keys the profession on.
   code String
 
-  name String
+  name   String
   /// The Arabic wording — a fiche de renseignements is filled in either
   /// language and has to read back in both.
   nameAr String?

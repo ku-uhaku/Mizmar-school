@@ -18,7 +18,7 @@ import {
  *
  * One rule here the database cannot state: **exactly one primary teacher per
  * (class, group, subject)**. A partial unique index would say it and neither
- * SQLite through Prisma nor a plain constraint can, so it is three cooperating
+ * MySQL through Prisma nor a plain constraint can, so it is three cooperating
  * statements — demote the others, write, put one back — and a rule enforced
  * that way breaks on the path nobody walked. That path is the subject of half
  * the tests below.
@@ -162,7 +162,7 @@ beforeEach(() => {
 
 describe("the scope keys", () => {
   it("stops a track-less level being opened twice in one year", () => {
-    // SQLite treats NULLs as distinct in a unique index, so a null `trackId`
+    // MySQL treats NULLs as distinct in a unique index, so a null `trackId`
     // could otherwise be inserted any number of times.
     expect(offeringScopeKey(null)).toBe(offeringScopeKey(undefined));
     expect(offeringScopeKey(null)).not.toBe(offeringScopeKey("track-sm"));

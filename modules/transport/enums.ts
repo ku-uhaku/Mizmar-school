@@ -222,7 +222,7 @@ export const MAX_MINUTES_WAITED = 30;
  * Mirror for the nullable `scheduleId`, so the unique index on
  * TransportAttendance actually fires.
  *
- * SQLite treats NULLs as distinct, so without this a rider could be marked
+ * MySQL treats NULLs as distinct, so without this a rider could be marked
  * twice for the same departure and counted absent twice. See lib/db-keys.ts,
  * and `attendanceScopeKey` in modules/classroom/enums.ts, which does the same
  * job for the nullable time slot.

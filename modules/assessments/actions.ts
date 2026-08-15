@@ -234,8 +234,8 @@ export async function generateAssessmentsAction(
       One run per class, aggregated.
 
       Sequential rather than in parallel: each run reads the class's programme
-      and its teaching assignments, and a whole year at once would open a
-      connection per class against SQLite for no gain — the work is small and
+      and its teaching assignments, and a whole year at once would take a
+      connection per class out of the pool for no gain — the work is small and
       the screen is used a handful of times a term.
 
       `generateAssessments` only writes subjects that are genuinely on the

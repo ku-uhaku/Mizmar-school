@@ -308,8 +308,8 @@ export type StaffDetail = StaffRow & {
  * ever find this school's payroll, and the caller gates it on `HR_VIEW`.
  *
  * `mode: "insensitive"` is deliberately not passed, for the reason given in
- * `searchStudents`: the SQLite connector does not support it, and its LIKE is
- * already case-insensitive for ASCII.
+ * `searchStudents`: the `utf8mb4_unicode_ci` collation has already made LIKE
+ * case- and accent-insensitive, and Prisma does not offer the option on MySQL.
  */
 export async function searchStaff(
   context: AuthContext,

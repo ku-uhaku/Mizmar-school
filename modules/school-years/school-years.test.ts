@@ -259,7 +259,7 @@ describe("deleteSchoolYearAction", () => {
 
 describe("the default year", () => {
   it("demotes whichever held it", async () => {
-    // SQLite cannot express a partial unique index through Prisma, so every
+    // MySQL cannot express a partial unique index through Prisma, so every
     // write that sets `isDefault` has to clear the others first.
     await makeDefaultYear("school-1", "year-2");
 

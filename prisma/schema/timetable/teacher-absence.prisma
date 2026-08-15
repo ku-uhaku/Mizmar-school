@@ -16,13 +16,13 @@
 /// School-scoped, not year-scoped: an absence is a date, and the year it falls
 /// in follows from the date rather than needing to be declared alongside it.
 model TeacherAbsence {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Cascade: an account removed from the school takes its absences with it —
   /// they describe nothing once the lessons pointing at it are unassigned.
-  teacherId String
+  teacherId String @db.VarChar(30)
   teacher   User   @relation("TeacherAbsences", fields: [teacherId], references: [id], onDelete: Cascade)
 
   /// Inclusive on both ends. A single day off has `startDate == endDate`.
@@ -35,10 +35,10 @@ model TeacherAbsence {
   /// Who is taking the classes instead, when somebody is. Null means the
   /// lessons are simply uncovered, which is the state worth seeing on the grid.
   /// SetNull: removing the stand-in's account must not delete the absence.
-  substituteId String?
+  substituteId String? @db.VarChar(30)
   substitute   User?   @relation("TeacherSubstitutions", fields: [substituteId], references: [id], onDelete: SetNull)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

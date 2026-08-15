@@ -22,7 +22,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.9.1",
+    "@prisma/adapter-mariadb": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-table": "^8.21.3",
@@ -32,6 +32,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
     "lucide-react": "^1.27.0",
+    "mariadb": "^3.5.3",
     "next": "16.2.12",
     "next-auth": "^5.0.0-beta.32",
     "radix-ui": "^1.6.7",
@@ -63,7 +64,6 @@
   },
   "allowScripts": {
     "@prisma/engines@7.9.1": true,
-    "better-sqlite3@12.11.1": true,
     "esbuild@0.28.1": true,
     "prisma@7.9.1": true,
     "sharp@0.34.5": true,

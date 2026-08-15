@@ -22,8 +22,8 @@
 /// record of them riding it, which is the same call `TransportSubscription`
 /// already makes about its own history.
 model TransportAttendance {
-  id             String                @id @default(cuid())
-  subscriptionId String
+  id             String                @id @default(cuid()) @db.VarChar(30)
+  subscriptionId String                @db.VarChar(30)
   subscription   TransportSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   /// Midnight of the day being marked. The time of day is carried by the run,
@@ -34,7 +34,7 @@ model TransportAttendance {
   /// Which departure. Null when the line makes only one and none has been
   /// declared, which is why `scopeKey` below exists.
   /// SetNull: re-drawing the timetable must not delete last term's absences.
-  scheduleId String?
+  scheduleId String?            @db.VarChar(30)
   schedule   TransportSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   /// "PRESENT" | "LATE" | "ABSENT" | "EXCUSED" — see RIDER_ATTENDANCE_STATUSES
@@ -49,7 +49,7 @@ model TransportAttendance {
   minutesLate Int?
 
   /// Why, when somebody has said — "parti avec sa mère", "malade".
-  reason String?
+  reason String? @db.Text
 
   /// Whether the family warned the school. Apart from the status because
   /// "absent, mother rang the office" and "absent, nobody knows" are the same
@@ -58,14 +58,14 @@ model TransportAttendance {
 
   /// Who marked it. SetNull rather than Restrict, as on StudentAttendance: a
   /// register outlives the account of the person who took it.
-  recordedById String?
+  recordedById String? @db.VarChar(30)
   recordedBy   User?   @relation("BusRegisterRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   /// Mirrors the nullable `scheduleId` so the unique index below actually
-  /// fires — SQLite treats NULLs as distinct, so without it a pupil could be
+  /// fires — MySQL treats NULLs as distinct, so without it a pupil could be
   /// marked twice for the same departure and counted absent twice. See
   /// lib/db-keys.ts.
   ///

@@ -11,14 +11,14 @@
 /// is ever wanted — the same run leaving five minutes earlier on the long line —
 /// it belongs here as a nullable override, not as a copy of the horaire.
 model RouteSchedule {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  routeId String
+  routeId String         @db.VarChar(30)
   route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   /// Restrict: an horaire that circuits are running cannot be deleted out from
   /// under them, and least of all out from under the abonnements pointing at it.
-  scheduleId String
+  scheduleId String            @db.VarChar(30)
   schedule   TransportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())

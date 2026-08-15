@@ -11,8 +11,8 @@
 /// Both directions live here. A cheque the school writes to a supplier has the
 /// same lifecycle as one it receives, read from the other side.
 model Cheque {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// "INCOMING" | "OUTGOING" — see modules/treasury/enums.ts.
@@ -24,7 +24,7 @@ model Cheque {
   /// The drawer's bank, picked from the school's list when it is one the school
   /// deals with. `bankName` stays beside it: a parent's cheque may be drawn on
   /// any bank in the country, and the desk cannot wait for configuration.
-  bankId String?
+  bankId String? @db.VarChar(30)
   bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
 
   bankName String?
@@ -53,9 +53,9 @@ model Cheque {
 
   /// Why it bounced, in the bank's words. Read out to the family, so it is kept
   /// verbatim rather than mapped onto a code.
-  bounceReason String?
+  bounceReason String? @db.Text
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -15,8 +15,8 @@
 /// school-years: the year owns its own dates, and this is a fact *about the
 /// week*, used to grey out days on a grid and to say why a week is empty.
 model SchoolHoliday {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   name   String
@@ -33,7 +33,7 @@ model SchoolHoliday {
   /// much open, and a closure is worth telling apart from a planned holiday.
   kind String @default("SCHOOL_HOLIDAY")
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

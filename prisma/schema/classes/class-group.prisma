@@ -5,8 +5,8 @@
 /// class stays the administrative unit — report cards, absences and the class
 /// council are per class; the group exists purely for timetabling and lab work.
 model ClassGroup {
-  id            String      @id @default(cuid())
-  schoolClassId String
+  id            String      @id @default(cuid()) @db.VarChar(30)
+  schoolClassId String      @db.VarChar(30)
   schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
   /// Short code within the class, e.g. "G1", "G2".
@@ -19,7 +19,7 @@ model ClassGroup {
 
   /// Set when the group exists for one subject in particular (the English group,
   /// the SVT lab group). Null for a general-purpose half.
-  subjectId String?
+  subjectId String?  @db.VarChar(30)
   subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
 
   capacity Int?

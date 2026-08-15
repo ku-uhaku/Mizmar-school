@@ -8,8 +8,8 @@
 /// Owned by the school-years module because a semester is a subdivision of a
 /// year, not a thing of its own.
 model Term {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// 1-based sequence within the year: 1 or 2 for a two-semester calendar.

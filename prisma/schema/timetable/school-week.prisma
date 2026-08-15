@@ -27,8 +27,8 @@
 /// SchoolHoliday is: the year owns its own dates, and this is a fact *about the
 /// week* that only the grid and the things pinned to it ever read.
 model SchoolWeek {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// 1-based over **every** week the year spans, holidays included.

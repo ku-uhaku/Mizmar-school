@@ -25,17 +25,17 @@
 /// parent's mark and is never added to the level total. Adding both would count
 /// Arabic twice, once at coefficient 6 and again as its three parts.
 model BulletinLine {
-  id         String   @id @default(cuid())
-  bulletinId String
+  id         String   @id @default(cuid()) @db.VarChar(30)
+  bulletinId String   @db.VarChar(30)
   bulletin   Bulletin @relation(fields: [bulletinId], references: [id], onDelete: Cascade)
 
   /// Restrict, as on Assessment: a subject that appears on an issued bulletin
   /// is history, and deleting it would leave documents that cannot be reprinted.
-  subjectId String
+  subjectId String  @db.VarChar(30)
   subject   Subject @relation("BulletinLineSubject", fields: [subjectId], references: [id], onDelete: Restrict)
 
   /// Set when this line is a component rather than a matière — see above.
-  parentSubjectId String?
+  parentSubjectId String?  @db.VarChar(30)
   parentSubject   Subject? @relation("BulletinLineParent", fields: [parentSubjectId], references: [id], onDelete: Restrict)
 
   /// The subject's name and the teacher's, as of computation. See the note above.
@@ -65,7 +65,7 @@ model BulletinLine {
   /// The teacher's line about this pupil in this subject. Written on the draft,
   /// never touched by a recomputation — the numbers are the machine's and the
   /// words are the teacher's.
-  appreciation String?
+  appreciation String? @db.Text
 
   /// Print order, taken from the programme's own `position` so the bulletin
   /// lists subjects in the order the school teaches them rather than

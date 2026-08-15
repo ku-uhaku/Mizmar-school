@@ -16,8 +16,8 @@
 /// SalaryAdvanceRecovery, which is what makes "still owed" derivable rather
 /// than stored.
 model SalaryAdvance {
-  id      String @id @default(cuid())
-  staffId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  staffId String @db.VarChar(30)
   staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   /// What was asked for, in centimes. Frozen once paid: the sum an employee
@@ -40,15 +40,15 @@ model SalaryAdvance {
   requestedOn DateTime @default(now())
   /// Why it was asked for. Kept because a school granting a fourth advance to
   /// the same person wants to see the first three.
-  reason      String?
+  reason      String?  @db.Text
 
   /// Who agreed to it, and when. Restrict is wrong here and SetNull is right:
   /// the decision outlives the account that made it.
-  approvedById String?
+  approvedById String?   @db.VarChar(30)
   approvedBy   User?     @relation("AdvanceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
   approvedAt   DateTime?
   /// Why it was refused. Shown to whoever asked.
-  decisionNote String?
+  decisionNote String?   @db.Text
 
   /// When the money actually left, and the ledger entry that took it out.
   ///
@@ -61,7 +61,7 @@ model SalaryAdvance {
   cashOperationId String?        @unique
   cashOperation   CashOperation? @relation("OperationAdvance", fields: [cashOperationId], references: [id], onDelete: SetNull)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -82,14 +82,14 @@ model SalaryAdvance {
 /// the payslips underneath it. It is also what lets a bulletin be restated —
 /// the rows for that month are replaced, and every balance follows.
 model SalaryAdvanceRecovery {
-  id        String        @id @default(cuid())
-  advanceId String
+  id        String        @id @default(cuid()) @db.VarChar(30)
+  advanceId String        @db.VarChar(30)
   advance   SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
 
   /// Cascade: a bulletin deleted takes its recoveries with it, which puts the
   /// advance back to what it was before that month — the correct outcome, and
   /// the reason this is not a soft link.
-  salaryPaymentId String
+  salaryPaymentId String        @db.VarChar(30)
   salaryPayment   SalaryPayment @relation(fields: [salaryPaymentId], references: [id], onDelete: Cascade)
 
   amountCentimes Int

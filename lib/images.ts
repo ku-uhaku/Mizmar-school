@@ -14,8 +14,10 @@
  * so a runtime upload there is not served in production without a route handler
  * to read it back, and on an ephemeral host it is gone at the next deploy.
  *
- * Keeping the bytes in SQLite means a backup is one file copy, a restore is the
- * same, and `<img src>` works unchanged because a data URI *is* a URL. The cost
+ * Keeping the bytes in the database means a backup is one `mysqldump`, a
+ * restore is one `mysql <` , and `<img src>` works unchanged because a data URI
+ * *is* a URL. The columns are MEDIUMTEXT — a bare `String` would be
+ * VARCHAR(191) and would silently truncate every crest to nothing. The cost
  * is row size, which is exactly what `MAX_IMAGE_BYTES` is here to bound — the
  * browser resizes before encoding, so the cap is a guard against a crafted
  * request rather than something an ordinary user meets.
@@ -31,7 +33,9 @@
  * 256 KB. A 512-pixel WebP crest lands around 20–40 KB and a 256-pixel avatar
  * under 20 KB, so this leaves room for a large logo without letting a full
  * camera photo through. A thousand pupils with portraits is then about 20 MB of
- * database, which SQLite carries without complaint.
+ * database, which MySQL carries without complaint — though it is worth knowing
+ * that MEDIUMTEXT over 256 KB is stored off-page, so a `SELECT` that does not
+ * ask for the column does not pay for it.
  */
 export const MAX_IMAGE_BYTES = 256 * 1024;
 

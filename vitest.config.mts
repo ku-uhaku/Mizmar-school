@@ -25,6 +25,16 @@ export default defineConfig({
     },
   },
   test: {
+    /*
+      A connection string that is never connected to.
+
+      `lib/db.ts` builds its adapter at import, and refuses to guess a MySQL
+      server when DATABASE_URL is unset — which is right in the app and wrong
+      here, where `lib/auth.ts` pulls the module in transitively and no test
+      issues a query. Set in the config rather than read from `.env` so the
+      suite passes on a machine that has never had one.
+    */
+    env: { DATABASE_URL: "mysql://vitest:vitest@127.0.0.1:3306/vitest" },
     // next-auth is left to Node's resolver by default, which never sees the
     // alias above; inlining it puts the import back through Vite.
     server: { deps: { inline: [/next-auth/, /@auth\//] } },

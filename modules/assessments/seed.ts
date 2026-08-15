@@ -263,7 +263,8 @@ export async function seedAssessments(
             seeded school — the marks never change on a re-run, so the rows that
             already exist need no write at all. Read what is there, insert the
             rest. The same shape as `markDayInBulk` in the RH module, and for
-            the same reason: the SQLite connector has no `skipDuplicates`.
+            the same reason: `skipDuplicates` is `INSERT IGNORE` on MySQL, which
+            hides a great deal more than a duplicate.
           */
           const marked = await db.assessmentGrade.findMany({
             where: { assessmentId: paper.id },

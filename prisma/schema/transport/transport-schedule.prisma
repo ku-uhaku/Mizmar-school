@@ -11,8 +11,8 @@
 /// timings are renegotiated every rentrée, and last year's must keep resolving
 /// on last year's abonnements after this year's have been set.
 model TransportSchedule {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "M1", "S2".

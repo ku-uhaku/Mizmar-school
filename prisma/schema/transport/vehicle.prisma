@@ -11,8 +11,8 @@
 /// and the date is the sort of thing nobody remembers until the gendarmerie
 /// asks — so the fleet screen sorts on them and flags what is close.
 model Vehicle {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Matricule, as written on the plate: "12345-A-6".
@@ -38,7 +38,7 @@ model Vehicle {
   ///
   /// SetNull: an employee leaving must leave the bus standing so somebody can
   /// put another driver on it, not delete the vehicle and its routes.
-  driverId String?
+  driverId String? @db.VarChar(30)
   driver   Staff?  @relation("VehicleDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
   /// The driver as free text, for the ones who are not employees.
@@ -67,7 +67,7 @@ model Vehicle {
   ///
   /// SetNull, for the reason `driverId` is: an employee leaving must leave the
   /// bus standing so somebody else can be put on it.
-  attendantId String?
+  attendantId String? @db.VarChar(30)
   attendant   Staff?  @relation("VehicleAttendant", fields: [attendantId], references: [id], onDelete: SetNull)
 
   /// The accompagnateur as free text, for the ones who are not employees — the
@@ -75,7 +75,7 @@ model Vehicle {
   attendantName  String?
   attendantPhone String?
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

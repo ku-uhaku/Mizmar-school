@@ -12,8 +12,8 @@
 ///     continu, no afternoon session). Rather than rewrite the grid twice a year,
 ///     a school keeps both sets of slots and switches `scheduleKind`.
 model TimeSlot {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// 1 = Monday … 6 = Saturday. ISO-8601 numbering, so it lines up with

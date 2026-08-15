@@ -28,17 +28,17 @@
 /// first — which is a decision somebody makes, not a side effect of a mark
 /// being fixed.
 model Bulletin {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The pupil's year, not the pupil: a child who repeats gets one bulletin per
   /// term per enrolment, and last year's keeps resolving. Same reasoning as
   /// AssessmentGrade.
-  enrollmentId String
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
-  termId String
+  termId String @db.VarChar(30)
   term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
 
   /// The class as it was when the bulletin was computed.
@@ -48,7 +48,7 @@ model Bulletin {
   /// move with them, and neither must the rank on it — which was a rank among
   /// the pupils of 3AP-A. SetNull because dissolving a class must not delete
   /// the bulletins its pupils were issued.
-  schoolClassId String?
+  schoolClassId String?      @db.VarChar(30)
   schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: SetNull)
 
   /// "DRAFT" | "PUBLISHED" — see modules/bulletins/enums.ts.
@@ -87,9 +87,9 @@ model Bulletin {
 
   /// The term's register, tallied at computation. Counted in lessons, which is
   /// what StudentAttendance records — a morning missed is several.
-  absenceCount             Int @default(0)
-  unjustifiedAbsenceCount  Int @default(0)
-  lateCount                Int @default(0)
+  absenceCount            Int @default(0)
+  unjustifiedAbsenceCount Int @default(0)
+  lateCount               Int @default(0)
 
   // ── What people wrote ──────────────────────────────────────────────────────
 
@@ -111,12 +111,12 @@ model Bulletin {
   decision String?
 
   /// The council's own words, printed under the results.
-  councilComment String?
+  councilComment String? @db.Text
 
   /// The professeur principal's note. Separate from the council's because they
   /// are two different people saying two different things, and a bulletin that
   /// merged them could not show either as attributable.
-  mainTeacherComment String?
+  mainTeacherComment String? @db.Text
 
   // ── Provenance ─────────────────────────────────────────────────────────────
 
@@ -125,7 +125,7 @@ model Bulletin {
   computedAt DateTime @default(now())
 
   publishedAt   DateTime?
-  publishedById String?
+  publishedById String?   @db.VarChar(30)
   publishedBy   User?     @relation("BulletinPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

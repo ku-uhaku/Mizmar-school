@@ -14,8 +14,8 @@
 /// Not restricted to Morocco: a pupil born in Paris or Dakar needs a row too, so
 /// `region` is nullable and nothing here assumes a Moroccan préfecture.
 model City {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short reference, e.g. "CASA". What a printed list and an import file key

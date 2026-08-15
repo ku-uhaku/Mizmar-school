@@ -11,8 +11,8 @@
 /// to be a top-level rubrique or to be nested three deep, neither of which a
 /// school means. See OperationSubcategory.
 model OperationCategory {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   code   String

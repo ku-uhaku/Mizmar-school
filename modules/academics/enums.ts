@@ -2,8 +2,8 @@
  * Allowed values for this module's "enum-like" String columns — the source of
  * truth for `prisma/schema/academics/*.prisma`.
  *
- * SQLite has no native enum type, so these unions are what validates the
- * columns. Labels belong in `modules/academics/i18n/*.ts` once this module grows
+ * The columns are `String` rather than a MySQL `ENUM`, so these unions are what
+ * validates them. Labels belong in `modules/academics/i18n/*.ts` once this module grows
  * a UI.
  */
 

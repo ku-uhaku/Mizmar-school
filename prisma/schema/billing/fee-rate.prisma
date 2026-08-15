@@ -8,16 +8,16 @@
 /// `levelId` null means "every level this year", which is how the flat charges
 /// (assurance, inscription) are declared once instead of per level.
 model FeeRate {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
-  feeTypeId String
+  feeTypeId String  @db.VarChar(30)
   feeType   FeeType @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
 
   /// Null = applies to every level. Set = this level's price, which overrides
   /// the null row for students at that level.
-  levelId String?
+  levelId String? @db.VarChar(30)
   level   Level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   /// The amount, in centimes of dirham (MAD).
@@ -40,7 +40,7 @@ model FeeRate {
   perInstalment Boolean @default(false)
 
   isActive Boolean @default(true)
-  notes    String?
+  notes    String? @db.Text
 
   /// Mirrors the nullable `levelId` so the unique index below actually fires —
   /// without it the same fee could be given two "all levels" prices in one year

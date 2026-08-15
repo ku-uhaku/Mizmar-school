@@ -187,7 +187,7 @@ describe("channel kinds", () => {
   });
 
   it("exempts every class channel from that index", () => {
-    // SQLite treats NULLs as distinct, which is what lets one year hold
+    // MySQL treats NULLs as distinct, which is what lets one year hold
     // twenty-four class channels and exactly one general.
     expect(generalChannelKey("year-1", "CLASS")).toBeNull();
     expect(generalChannelKey("year-1", "")).toBeNull();
@@ -233,7 +233,7 @@ describe("ensureChannel", () => {
   });
 
   it("refuses a class channel with no class", async () => {
-    // The invariant SQLite cannot express. Null rather than a stack trace: the
+    // The invariant MySQL cannot express. Null rather than a stack trace: the
     // kind and the class come from a request, so this is a crafted call.
     expect(await ensureChannel(input({ schoolClassId: null }))).toBeNull();
     expect(calls).toEqual([]);

@@ -5,8 +5,8 @@
 /// three teachers all asked for the same ring binder, which prose cannot be
 /// searched for.
 model SupplyItem {
-  id     String     @id @default(cuid())
-  listId String
+  id     String     @id @default(cuid()) @db.VarChar(30)
+  listId String     @db.VarChar(30)
   list   SupplyList @relation(fields: [listId], references: [id], onDelete: Cascade)
 
   /// Which catalogue article this line asks for — see SupplyArticle.
@@ -19,7 +19,7 @@ model SupplyItem {
   /// catalogue must not delete the lines that named it, nor block the
   /// withdrawal. The line keeps reading correctly because `label` below is a
   /// copy, not a lookup.
-  articleId String?
+  articleId String?        @db.VarChar(30)
   article   SupplyArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
 
   /// What to buy, copied off the article when the list was written.
@@ -35,7 +35,7 @@ model SupplyItem {
   quantity Int?
 
   /// Colour, size, brand if it genuinely matters.
-  notes String?
+  notes String? @db.Text
 
   /// Whether the child must have it. An optional line is a suggestion, and
   /// telling the two apart is what stops a family buying things it need not.

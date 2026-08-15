@@ -121,7 +121,7 @@ export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
  * Builds `EmploymentContract.activeKey`, which is what stops one employee
  * holding two live contracts.
  *
- * The staff id while the contract is ACTIVE, null otherwise — so SQLite's
+ * The staff id while the contract is ACTIVE, null otherwise — so MySQL's
  * "NULLs are distinct" behaviour exempts every draft and ended contract from the
  * unique index while admitting only one live one. See lib/db-keys.ts for the
  * general pattern, and `openSessionKey` for the same trick on a till.

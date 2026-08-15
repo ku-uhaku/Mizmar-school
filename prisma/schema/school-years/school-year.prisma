@@ -1,7 +1,7 @@
 /// An academic year, owned by a school so each school can run its own calendar.
 model SchoolYear {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Display label, e.g. "2025-2026".

@@ -1,12 +1,12 @@
 /// A named bundle of permissions. `scope` decides where it can be assigned:
 /// ORG roles go on User.orgRoleId, SCHOOL roles go on Membership.roleId.
 model Role {
-  id             String       @id @default(cuid())
-  organizationId String
+  id             String       @id @default(cuid()) @db.VarChar(30)
+  organizationId String       @db.VarChar(30)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   name        String
-  description String?
+  description String? @db.Text
   /// "ORG" | "SCHOOL" — see modules/access/enums.ts
   scope       String  @default("SCHOOL")
   /// System roles cannot be renamed or deleted, only their permissions tuned.

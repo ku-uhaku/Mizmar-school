@@ -277,7 +277,7 @@ describe("lessonAt", () => {
 
 describe("attendanceScopeKey", () => {
   it("gives a whole-day register a real value rather than NULL", () => {
-    // SQLite treats NULLs as distinct in a unique index, so a pupil could be
+    // MySQL treats NULLs as distinct in a unique index, so a pupil could be
     // marked twice for the same day and every absence count would double.
     expect(attendanceScopeKey(null)).toBe("__day__");
   });

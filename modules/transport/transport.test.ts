@@ -348,7 +348,7 @@ describe("bus attendance", () => {
   });
 
   it("gives a line with no run declared a real key rather than NULL", () => {
-    // SQLite treats NULLs as distinct, so without this a rider could be marked
+    // MySQL treats NULLs as distinct, so without this a rider could be marked
     // twice for the same departure and counted absent twice.
     expect(busRegisterScopeKey(null)).toBe(busRegisterScopeKey(undefined));
     expect(busRegisterScopeKey("run-1")).toBe("run-1");

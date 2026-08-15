@@ -20,23 +20,23 @@
 /// INVARIANT (service layer): `schoolId` equals the pupil's school. Set it from
 /// the pupil, never from the request.
 model DocumentRequest {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  schoolId String
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  studentId String
+  studentId String  @db.VarChar(30)
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   /// The guardian who asked. SetNull rather than Cascade: a request already
   /// handled is a fact about the school's work, and it must not disappear
   /// because a parent's account was closed over the summer.
-  requestedById String?
+  requestedById String? @db.VarChar(30)
   requestedBy   User?   @relation("DocumentRequestAuthor", fields: [requestedById], references: [id], onDelete: SetNull)
 
   /// Restrict: a paper with requests filed against it is not deletable out from
   /// under them. Withdraw it instead — `DocumentRequestType.isActive`.
-  typeId String
+  typeId String              @db.VarChar(30)
   type   DocumentRequestType @relation(fields: [typeId], references: [id], onDelete: Restrict)
 
   /// How many copies are wanted. Families ask for two as often as one — a bank
@@ -47,7 +47,7 @@ model DocumentRequest {
   /// What the family needs it for, in their own words, and anything else they
   /// want the office to know. Required for a type that says so — see
   /// `DocumentRequestType.requiresReason`.
-  reason String?
+  reason String? @db.Text
 
   /// "PENDING" | "ACCEPTED" | "READY" | "COLLECTED" | "REJECTED" | "CANCELLED"
   /// see modules/requests/enums.ts, which owns the allowed moves as well as the
@@ -69,11 +69,11 @@ model DocumentRequest {
   /// One field rather than one per outcome, because a request has exactly one
   /// answer and the two can never both apply. What it means is read from the
   /// status, which is the thing the screens already switch on.
-  officeNote String?
+  officeNote String? @db.Text
 
   /// Who last moved it, and when. A parent will ring in November about a paper
   /// they were promised in October, and "who said what" is the question.
-  handledById String?
+  handledById String?   @db.VarChar(30)
   handledBy   User?     @relation("DocumentRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
   handledAt   DateTime?
 

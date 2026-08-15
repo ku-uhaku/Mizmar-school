@@ -17,26 +17,26 @@
 /// year, and last year's list has to keep resolving after this year's is
 /// written.
 model SupplyList {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
-  schoolClassId String
+  schoolClassId String      @db.VarChar(30)
   schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
   /// Set when the list is for one subject — "pour les arts plastiques". Null
   /// means the class's general list, which is the commonest case.
   /// Restrict: a subject with lists against it is not deletable out from under
   /// them.
-  subjectId String?
+  subjectId String?  @db.VarChar(30)
   subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Restrict)
 
   title String
   /// Anything the items themselves cannot say: where to buy, when to bring it.
-  notes String?
+  notes String? @db.Text
 
   /// The day the class is asked to have it all in the bag.
   ///
@@ -61,16 +61,16 @@ model SupplyList {
 
   /// The teacher who wrote it. SetNull: a list outlives the account that
   /// proposed it, and the class still needs its pencils.
-  authorId String?
+  authorId String? @db.VarChar(30)
   author   User?   @relation("SupplyListAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 
   /// Who approved or refused it, and when — the audit trail that makes
   /// "who said we could ask parents for this" answerable.
-  reviewedById String?
+  reviewedById String?   @db.VarChar(30)
   reviewedBy   User?     @relation("SupplyListReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   reviewedAt   DateTime?
   /// Why it was refused. Shown to the teacher, never to a family.
-  reviewNote   String?
+  reviewNote   String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

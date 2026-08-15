@@ -425,7 +425,7 @@ export function expectedDrawerTotal(
 /**
  * Builds `CashSession.openKey`, which is what stops one till being open twice.
  *
- * The register's id while the session is open, null once it closes — so SQLite's
+ * The register's id while the session is open, null once it closes — so MySQL's
  * "NULLs are distinct" behaviour exempts every closed session from the unique
  * index while admitting only one open one. See lib/db-keys.ts for the general
  * pattern and why a partial index is not an option here.

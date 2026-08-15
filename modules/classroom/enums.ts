@@ -95,7 +95,7 @@ export const MAX_MINUTES_LATE = 120;
  * Mirror for the nullable `timeSlotId`, so the unique index on
  * StudentAttendance actually fires.
  *
- * SQLite treats NULLs as distinct in a unique index, so a pupil could be marked
+ * MySQL treats NULLs as distinct in a unique index, so a pupil could be marked
  * twice for the same whole-day register and every absence count would double.
  * Writing a sentinel instead of NULL is what makes the constraint real. See
  * lib/db-keys.ts for the same pattern elsewhere.

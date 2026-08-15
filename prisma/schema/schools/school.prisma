@@ -1,6 +1,6 @@
 model School {
-  id             String       @id @default(cuid())
-  organizationId String
+  id             String       @id @default(cuid()) @db.VarChar(30)
+  organizationId String       @db.VarChar(30)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   /// Short human code used in listings and exports, e.g. "AL-AMAL-CASA".
@@ -27,12 +27,13 @@ model School {
   /// working context and printed on its paperwork.
   ///
   /// Either an `https:` URL or a `data:` URI — see lib/images.ts. A data URI
-  /// keeps the whole application in one SQLite file, which is what makes a
-  /// backup a single copy; the size cap in the validator is what stops that
-  /// convenience turning into a 10 MB row.
-  logoUrl String?
+  /// keeps the whole application in one database, which is what makes a backup
+  /// a single `mysqldump`; the size cap in the validator is what stops that
+  /// convenience turning into a 10 MB row. MEDIUMTEXT because the cap is
+  /// 256 KB and TEXT stops at 64.
+  logoUrl String? @db.MediumText
 
-  addressLine String?
+  addressLine String? @db.Text
   city        String?
   region      String?
   postalCode  String?
@@ -56,31 +57,31 @@ model School {
   usersInContext User[]       @relation("UserCurrentSchool")
 
   // ── Academic configuration (year-independent) ──────────────────────────────
-  educationLevels EducationLevel[]
-  levels          Level[]
-  subjects        Subject[]
-  rooms           Room[]
+  educationLevels   EducationLevel[]
+  levels            Level[]
+  subjects          Subject[]
+  rooms             Room[]
   /// Towns the school writes on paperwork — birthplaces, previous schools —
   /// and the quartiers within them.
-  cities          City[]
-  neighbourhoods  Neighbourhood[]
+  cities            City[]
+  neighbourhoods    Neighbourhood[]
   /// The two lists the school agrees about people rather than places: what its
   /// staff do, and what its pupils' parents do.
-  staffFunctions  StaffFunction[]
-  parentJobs      ParentJob[]
+  staffFunctions    StaffFunction[]
+  parentJobs        ParentJob[]
   /// Denormalised back-reference; a class always belongs to one of this school's
   /// years. See the invariant note on SchoolClass.schoolId.
-  classes         SchoolClass[]
+  classes           SchoolClass[]
   /// The kinds of evaluation this school runs, and every paper set under them.
-  assessmentTypes AssessmentType[]
-  assessments     Assessment[]
+  assessmentTypes   AssessmentType[]
+  assessments       Assessment[]
   /// How this school words the remark beside a mark. See
   /// prisma/schema/assessments/appreciation-band.prisma.
   appreciationBands AppreciationBand[]
   /// The report cards issued here. See prisma/schema/bulletins/.
-  bulletins       Bulletin[]
+  bulletins         Bulletin[]
   /// What the school can charge. How much, per year, is FeeRate.
-  feeTypes        FeeType[]
+  feeTypes          FeeType[]
 
   // ── Vie scolaire ──────────────────────────────────────────────────────────
   /// Dossiers familiaux and the children on the books. Both are identity only;

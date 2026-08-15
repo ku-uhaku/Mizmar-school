@@ -13,8 +13,8 @@
 /// itself from the name and the period. What is left for the manager to type is
 /// the amount, which is the only thing that genuinely changes.
 model Supplier {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "LYDEC", "IAM". What the catalogue is keyed on.
@@ -35,12 +35,12 @@ model Supplier {
   /// The rubrique this supplier's payments are normally posted under, so the
   /// screen does not ask. Restrict: a rubrique named as a default by a supplier
   /// is not deletable out from under it.
-  defaultCategoryId String?
+  defaultCategoryId String?            @db.VarChar(30)
   defaultCategory   OperationCategory? @relation(fields: [defaultCategoryId], references: [id], onDelete: Restrict)
 
   /// And the sub-rubrique, where the school keeps one — "Eau" under "Eau,
   /// électricité, télécom".
-  defaultSubcategoryId String?
+  defaultSubcategoryId String?               @db.VarChar(30)
   defaultSubcategory   OperationSubcategory? @relation(fields: [defaultSubcategoryId], references: [id], onDelete: Restrict)
 
   /// The account number the school is billed under — a numéro de police for
@@ -49,7 +49,7 @@ model Supplier {
   accountRef String?
 
   phone String?
-  notes String?
+  notes String? @db.Text
 
   position Int     @default(0)
   isActive Boolean @default(true)

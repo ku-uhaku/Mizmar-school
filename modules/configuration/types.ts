@@ -37,7 +37,7 @@ export type FieldType =
   | "select"
   /**
    * Several of a fixed set of values, stored as one comma-joined string.
-   * SQLite has no array type and a join table for "which days do you teach"
+   * MySQL has no array type and a join table for "which days do you teach"
    * would be a table of at most seven small integers.
    */
   | "multiselect"

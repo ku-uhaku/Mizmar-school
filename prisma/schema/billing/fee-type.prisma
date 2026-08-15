@@ -6,8 +6,8 @@
 /// lets a price list be rebuilt for a new year without redefining the catalogue,
 /// and what keeps last year's invoices pointing at a fee type that still exists.
 model FeeType {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "SCOLARITE", "INSCRIPTION", "ASSURANCE",

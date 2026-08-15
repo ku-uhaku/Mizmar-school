@@ -11,13 +11,13 @@
 /// parents before the school has decided what to say — releasing it is a second,
 /// conscious act.
 model StudentRemark {
-  id           String     @id @default(cuid())
-  enrollmentId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   /// The subject it was observed in, when it was. Null for a general remark
   /// from the professeur principal.
-  subjectId String?
+  subjectId String?  @db.VarChar(30)
   subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
 
   /// "BEHAVIOUR" | "WORK" | "PROGRESS" | "ATTENDANCE" | "OTHER"
@@ -29,7 +29,7 @@ model StudentRemark {
   /// ever records problems is one nobody reads to the child's credit.
   tone String @default("NEUTRAL")
 
-  body String
+  body String @db.Text
 
   /// When it happened, which is not always when it was written up.
   occurredOn DateTime
@@ -37,7 +37,7 @@ model StudentRemark {
   /// Whether the family may see it. See the note above.
   isVisibleToFamily Boolean @default(false)
 
-  authorId String?
+  authorId String? @db.VarChar(30)
   author   User?   @relation("RemarkAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

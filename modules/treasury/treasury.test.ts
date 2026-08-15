@@ -330,7 +330,7 @@ describe("openSessionKey", () => {
   });
 
   it("is null once closed, so every closed session escapes the index", () => {
-    // SQLite treats NULLs as distinct, so any number of closed sessions coexist.
+    // MySQL treats NULLs as distinct, so any number of closed sessions coexist.
     expect(openSessionKey("reg-1", "CLOSED")).toBeNull();
   });
 });

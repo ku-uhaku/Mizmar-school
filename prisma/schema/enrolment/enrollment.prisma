@@ -10,23 +10,23 @@
 /// to 4AP in June and decides in September which of 4AP-A and 4AP-B it sits in;
 /// until then the enrolment is real, billable, and classless.
 model Enrollment {
-  id        String  @id @default(cuid())
-  studentId String
+  id        String  @id @default(cuid()) @db.VarChar(30)
+  studentId String  @db.VarChar(30)
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// The level (and filière, in the qualifying cycle) the child is admitted to,
   /// as opened by the school this year. Restrict: a level offering with pupils
   /// on it cannot be dropped without dealing with them first.
-  levelOfferingId String
+  levelOfferingId String        @db.VarChar(30)
   levelOffering   LevelOffering @relation(fields: [levelOfferingId], references: [id], onDelete: Restrict)
 
   /// The class. Null until the child is seated — see the note above.
   /// SetNull: dissolving a class must not delete its pupils' enrolments, it
   /// must leave them waiting to be re-seated.
-  schoolClassId String?
+  schoolClassId String?      @db.VarChar(30)
   schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: SetNull)
 
   /// The group within the class, for the subjects taught in halves.
@@ -34,7 +34,7 @@ model Enrollment {
   /// INVARIANT (service layer): must belong to `schoolClassId`, and is cleared
   /// whenever the class changes. A group of a class the child is not in would
   /// put it in two rooms at once on the timetable.
-  classGroupId String?
+  classGroupId String?     @db.VarChar(30)
   classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
 
   /// "PENDING" | "ACTIVE" | "TRANSFERRED" | "WITHDRAWN" | "COMPLETED"
@@ -63,7 +63,7 @@ model Enrollment {
   /// mandatory fee is billed to everyone, an optional one only to subscribers.
   options EnrollmentOption[]
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -76,7 +76,7 @@ model Enrollment {
 
   /// The report cards issued for this year — one per term. Keyed on the
   /// enrolment for the same reason the marks are.
-  bulletins        Bulletin[]
+  bulletins Bulletin[]
 
   /// Presence lesson by lesson, and what their teachers have noted about them.
   attendance StudentAttendance[]

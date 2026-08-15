@@ -11,8 +11,8 @@
 /// that lives with enrolment, which does not exist yet. Keeping the two apart is
 /// what stops this table turning into a rules engine.
 model Discount {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "FRATRIE-2", "PERSONNEL", "ANTICIPE", "BOURSE".
@@ -42,7 +42,7 @@ model Discount {
 
   /// Null = may reduce any fee. Set = only this fee type, which is how a school
   /// limits a sibling reduction to scolarité and keeps it off the bus.
-  feeTypeId String?
+  feeTypeId String?  @db.VarChar(30)
   feeType   FeeType? @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
 
   /// Whether this reduction may combine with others on the same charge. Most
@@ -50,7 +50,7 @@ model Discount {
   isStackable Boolean @default(false)
 
   isActive Boolean @default(true)
-  notes    String?
+  notes    String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -28,8 +28,9 @@ import type { TxClient } from "@/modules/treasury/service";
  * ── Why it re-implements rather than calls the services ─────────────────────
  * `generateTimeSlots`, `generateSchoolWeeks` and the four `copy*` functions all
  * close over the module-level `db` and take no client, so calling them here
- * would issue statements on the outer connection while better-sqlite3 holds the
- * write lock. What could be shared has been: `layPeriodBlock` and
+ * would issue their statements on a second connection from the pool — outside
+ * this transaction, and therefore not rolled back with it.
+ * What could be shared has been: `layPeriodBlock` and
  * `planSchoolWeeks` are pure and are the same arithmetic the seed and the
  * timetable service use, and every derived key goes through its owning module's
  * helper rather than being spelled out again.

@@ -10,8 +10,8 @@
 /// has never dealt with, and refusing to record it until somebody opens the
 /// configuration screen would stop the desk.
 model Bank {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short code as the school writes it on a bordereau, e.g. "AWB", "BP".

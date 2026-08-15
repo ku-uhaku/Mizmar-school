@@ -3,12 +3,12 @@
 /// Owned by `access` because it is the grant mechanism, even though the UI that
 /// edits it lives with the user form (modules/users/components).
 model Membership {
-  id       String @id @default(cuid())
-  userId   String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  userId   String @db.VarChar(30)
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  schoolId String
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  roleId   String
+  roleId   String @db.VarChar(30)
   role     Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())

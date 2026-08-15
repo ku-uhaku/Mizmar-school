@@ -6,15 +6,15 @@
 /// running it in 2025-2026. It is what lets a school drop a stream for one year
 /// without deleting its curriculum, and it is the parent of that year's classes.
 model LevelOffering {
-  id           String     @id @default(cuid())
-  schoolYearId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
-  levelId String
+  levelId String @db.VarChar(30)
   level   Level  @relation(fields: [levelId], references: [id], onDelete: Restrict)
 
   /// Null for primaire and collégial, which have no streams.
-  trackId String?
+  trackId String? @db.VarChar(30)
   track   Track?  @relation(fields: [trackId], references: [id], onDelete: Restrict)
 
   /// Seats the school intends to open across all classes of this level. The sum

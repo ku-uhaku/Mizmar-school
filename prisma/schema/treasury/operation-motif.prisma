@@ -12,13 +12,13 @@
 /// none — "Divers", "Régularisation" — is always offered. Requiring one would
 /// force a category to be picked first, which is not the order a bursar works in.
 model OperationMotif {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// SetNull rather than Cascade: retiring a rubrique must not silently delete
   /// the reasons filed under it, which are still on posted operations.
-  categoryId String?
+  categoryId String?            @db.VarChar(30)
   category   OperationCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   code   String

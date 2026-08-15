@@ -50,7 +50,7 @@ export type GuardianRelationship = (typeof GUARDIAN_RELATIONSHIPS)[number];
  * a second remarriage should not be stopped by a rule invented here.
  *
  * Enforced in `modules/families/service.ts` rather than by a unique index,
- * because SQLite cannot express "unique only for two of the values".
+ * because MySQL cannot express "unique only for two of the values".
  */
 export const SINGULAR_RELATIONSHIPS: readonly GuardianRelationship[] = [
   "FATHER",

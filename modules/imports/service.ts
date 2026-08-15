@@ -558,7 +558,7 @@ export async function planImport(
  * One transaction for the whole file: a half-loaded list is worse than none,
  * because the school cannot tell which pupils it still has to enter and
  * re-running the import would duplicate the ones that landed. Three thousand
- * rows is well inside what SQLite commits in one go.
+ * rows is well inside what InnoDB commits in one go.
  *
  * Codes are allocated in a block rather than through `allocateStudentCode` per
  * row — that helper scans the table each call, which for four hundred pupils

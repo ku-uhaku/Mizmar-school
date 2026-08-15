@@ -22,8 +22,8 @@
 /// Payment on the family side. Nothing here is ever summed to work out what the
 /// school spent.
 model SalaryPayment {
-  id      String @id @default(cuid())
-  staffId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  staffId String @db.VarChar(30)
   staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   /// The month this bulletin is for. Stored as two integers rather than a date
@@ -34,7 +34,7 @@ model SalaryPayment {
 
   /// The contract the figures were taken from. SetNull: a contract deleted in
   /// error must not take the payslips issued under it with it.
-  contractId String?
+  contractId String?             @db.VarChar(30)
   contract   EmploymentContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
 
   // ── Gains ──────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ model SalaryPayment {
   cashOperationId String?        @unique
   cashOperation   CashOperation? @relation("OperationSalary", fields: [cashOperationId], references: [id], onDelete: SetNull)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

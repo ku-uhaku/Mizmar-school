@@ -16,19 +16,19 @@
 /// A posted payment is never edited or deleted. Cancelling writes a reversing
 /// operation and flips the status — see cash-operation.prisma.
 model Payment {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The year the money is collected against. Kept even though the schedule
   /// lines imply it: the takings report is per year, and it must not have to
   /// walk two joins to find out which one a receipt belongs to.
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Restrict)
 
   /// Who paid. SetNull rather than Cascade: deleting a family file must never
   /// silently destroy the record of money it handed over.
-  familyId String?
+  familyId String? @db.VarChar(30)
   family   Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
 
   /// Receipt number, e.g. "R-2025-0187". Allocated per school.
@@ -52,24 +52,24 @@ model Payment {
   /// the action — a cancellation is the one movement in the ledger with no
   /// paper behind it, so the note is the only account of it that will exist
   /// when a parent disputes the receipt months later.
-  cancelReason String?
+  cancelReason String? @db.Text
 
   /// Who cancelled it. SetNull rather than Restrict: a cashier who leaves the
   /// school must be removable without erasing the record that the cancellation
   /// happened — the reason and the date survive them.
-  cancelledById String?
+  cancelledById String? @db.VarChar(30)
   cancelledBy   User?   @relation("PaymentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   /// The till session the money was taken in. Null when no drawer was involved
   /// — a virement that landed in the bank account.
-  cashSessionId String?
+  cashSessionId String?      @db.VarChar(30)
   cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
 
   /// Restrict: a receipt must always be able to say who wrote it.
-  createdById String
+  createdById String @db.VarChar(30)
   createdBy   User   @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

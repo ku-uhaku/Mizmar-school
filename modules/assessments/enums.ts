@@ -185,7 +185,7 @@ export const NOTES_MAX = 500;
  * Mirror for the nullable `classGroupId`, so the unique index on Assessment
  * actually fires.
  *
- * SQLite treats NULLs as distinct in a unique index, so two "whole class" rows
+ * MySQL treats NULLs as distinct in a unique index, so two "whole class" rows
  * for the same subject and sequence would both be accepted and the generator
  * would stop being idempotent. Writing a sentinel instead of NULL is what makes
  * the constraint real. See lib/db-keys.ts for the same pattern elsewhere.

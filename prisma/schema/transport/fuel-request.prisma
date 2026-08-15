@@ -21,19 +21,19 @@
 /// year-shaped fact, and a fleet's consumption history is worth reading across
 /// the rentrée that falls in the middle of it.
 model FuelRequest {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Restrict: a bus with fuel history cannot be deleted out from under it.
   /// Retire the vehicle instead — that is what `status` RETIRED is for.
-  vehicleId String
+  vehicleId String  @db.VarChar(30)
   vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
 
   /// The driver, when they are on the school's payroll. SetNull for the same
   /// reason as Vehicle.driverId: an employee record removed must leave the
   /// spending history standing.
-  requestedById String?
+  requestedById String? @db.VarChar(30)
   requestedBy   Staff?  @relation("FuelRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
 
   /// The driver as text, for the contractors who are on nobody's payroll.
@@ -70,7 +70,7 @@ model FuelRequest {
   /// Who decided it, and when. Restrict is wrong here and SetNull is right: a
   /// disputed approval should degrade to "approved, by an account since
   /// removed" rather than block the removal of a leaver.
-  decidedById String?
+  decidedById String?   @db.VarChar(30)
   decidedBy   User?     @relation("FuelRequestDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
   decidedAt   DateTime?
 
@@ -83,7 +83,7 @@ model FuelRequest {
   cashOperationId String?        @unique
   cashOperation   CashOperation? @relation("OperationFuel", fields: [cashOperationId], references: [id], onDelete: SetNull)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

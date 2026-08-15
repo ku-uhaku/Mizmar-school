@@ -16,7 +16,7 @@ import { familySchema, guardianSchema } from "@/modules/families/validation";
  * Two things make this module worth its own tests.
  *
  * **A dossier must always have somebody to ring.** `isPrimaryContact` is at
- * most one per family, and SQLite cannot say so — no partial unique index —
+ * most one per family, and MySQL cannot say so — no partial unique index —
  * so every write that sets it has to clear the others first and put one back
  * afterwards. A rule enforced by three cooperating statements is a rule that
  * breaks on the path nobody walked.

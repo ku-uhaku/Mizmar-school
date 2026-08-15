@@ -1,7 +1,7 @@
 model RolePermission {
-  roleId       String
+  roleId       String     @db.VarChar(30)
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permissionId String
+  permissionId String     @db.VarChar(30)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])

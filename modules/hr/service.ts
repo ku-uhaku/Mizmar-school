@@ -254,11 +254,17 @@ export async function markDayInBulk(input: {
   if (missing.length === 0) return 0;
 
   /*
-    `createMany` without skipDuplicates, which the SQLite connector does not
-    support — so somebody marking one person by hand between the read above and
-    this write would collide on `(staffId, date)`. Swallowed rather than
-    surfaced: the day is marked either way, and the hand-made mark is the more
-    deliberate of the two, so letting it stand is the right outcome.
+    `createMany` without `skipDuplicates` — so somebody marking one person by
+    hand between the read above and this write would collide on
+    `(staffId, date)`. Swallowed rather than surfaced: the day is marked either
+    way, and the hand-made mark is the more deliberate of the two, so letting it
+    stand is the right outcome.
+
+    Not `skipDuplicates: true`, which MySQL does support: it compiles to
+    `INSERT IGNORE`, and that downgrades a bad foreign key or a truncated value
+    to a warning as readily as it does the collision this is here to absorb.
+    Catching the one race deliberately is narrower than silencing every error
+    the statement can raise.
   */
   try {
     const created = await db.staffAttendance.createMany({

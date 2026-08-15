@@ -10,8 +10,8 @@
 /// that referenced them keep their own `label` and their `categoryId` is set to
 /// null rather than deleted — see CashOperation.
 model OperationSubcategory {
-  id         String            @id @default(cuid())
-  categoryId String
+  id         String            @id @default(cuid()) @db.VarChar(30)
+  categoryId String            @db.VarChar(30)
   category   OperationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   code   String

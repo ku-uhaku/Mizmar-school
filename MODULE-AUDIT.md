@@ -465,7 +465,7 @@ maintenant écrite au-dessus de la fonction.
 
 **Rien à redire.** Le refus « date de fin avant date de début » est dans le
 schéma zod, pas dans l'action. L'invariant « au plus une année par défaut par
-école » est dans `service.ts` avec la raison (SQLite ne sait pas exprimer l'index
+école » est dans `service.ts` avec la raison (MySQL ne sait pas exprimer l'index
 unique partiel) — donc toute écriture future passe par la même règle. Et une
 école sans année par défaut n'est pas un trou : `defaultSchoolYearFor` retombe sur
 l'année ACTIVE, puis sur la plus récente.

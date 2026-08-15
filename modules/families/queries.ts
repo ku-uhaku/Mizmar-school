@@ -272,9 +272,11 @@ export async function listFamilyChoices(
 /**
  * The header search. Matches a family name, a dossier number or a phone.
  *
- * SQLite's LIKE is case-insensitive for ASCII, which is what a French-language
- * name search needs; Arabic has no case, so it is unaffected. `mode: "insensitive"`
- * is deliberately not passed — the SQLite connector does not support it.
+ * The columns collate `utf8mb4_unicode_ci`, so LIKE is already case- *and*
+ * accent-insensitive — which is what a French-language name search needs, and
+ * more than it used to get: "benali" now finds "Benâli". Arabic has no case, so
+ * it is unaffected. `mode: "insensitive"` is deliberately not passed; Prisma
+ * does not offer it on MySQL, because the collation has already done it.
  */
 export async function searchFamilies(
   context: AuthContext,

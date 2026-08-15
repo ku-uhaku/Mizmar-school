@@ -13,8 +13,8 @@
 /// `leaveDaysTaken` in modules/hr/queries.ts counts approved days in a year,
 /// which is the figure anybody actually asks for.
 model LeaveRequest {
-  id      String @id @default(cuid())
-  staffId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  staffId String @db.VarChar(30)
   staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   /// "ANNUAL" | "SICK" | "UNPAID" | "MATERNITY" | "PATERNITY" | "EXCEPTIONAL"
@@ -33,17 +33,17 @@ model LeaveRequest {
   /// figure and the person approving it corrects it.
   dayCount Int @default(1)
 
-  reason String?
+  reason String? @db.Text
 
   /// "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" — see modules/hr/enums.ts.
   status String @default("PENDING")
 
   /// Who decided, and when. Both null while PENDING. SetNull: a director's
   /// account being deleted must not erase the fact that leave was granted.
-  decidedById  String?
+  decidedById  String?   @db.VarChar(30)
   decidedBy    User?     @relation("LeaveDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
   decidedAt    DateTime?
-  decisionNote String?
+  decisionNote String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

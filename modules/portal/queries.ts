@@ -785,8 +785,8 @@ export async function listMyEvents(
   { limit = 50 }: { limit?: number } = {},
 ): Promise<PortalEvent[]> {
   // The years and the places this household actually occupies. Read first so
-  // the event query is a plain `in`, rather than a correlated subquery SQLite
-  // would have to re-run per row.
+  // the event query is a plain `in`, rather than a correlated subquery the
+  // planner would re-run per row.
   const enrolments = await db.enrollment.findMany({
     where: { student: householdScope(userId) },
     /*

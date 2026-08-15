@@ -18,17 +18,17 @@
 /// from. Nothing here is ever summed to work out a balance; that is the
 /// enrolment's job and the caisse's.
 model TransportSubscription {
-  id           String     @id @default(cuid())
-  enrollmentId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   /// Restrict: a line with passengers cannot be dropped without moving them
   /// first — deleting it would silently take children off the bus.
-  routeId String
+  routeId String         @db.VarChar(30)
   route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
 
   /// Where they board. Restrict for the same reason.
-  stopId String
+  stopId String    @db.VarChar(30)
   stop   RouteStop @relation(fields: [stopId], references: [id], onDelete: Restrict)
 
   /// "MORNING" | "AFTERNOON" | "BOTH" — see modules/transport/enums.ts.
@@ -47,7 +47,7 @@ model TransportSubscription {
   /// INVARIANT (service layer): must be a run the subscribed route actually
   /// makes, i.e. a RouteSchedule row must join the two. Not expressible as a
   /// foreign key, so `subscribeRider` re-derives it rather than trusting it.
-  scheduleId String?
+  scheduleId String?            @db.VarChar(30)
   schedule   TransportSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   /// "ACTIVE" | "SUSPENDED" | "CANCELLED" — see modules/transport/enums.ts.
@@ -59,7 +59,7 @@ model TransportSubscription {
   startsOn DateTime  @default(now())
   endsOn   DateTime?
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,7 +69,7 @@ model TransportSubscription {
   attendance TransportAttendance[]
 
   /// Mirror of `scheduleId`, so the unique index below actually distinguishes
-  /// two named runs in the same half of the day — SQLite treats NULLs as
+  /// two named runs in the same half of the day — MySQL treats NULLs as
   /// distinct, so `[enrollmentId, direction]` alone let a line with a midday
   /// return and a separate afternoon pickup, both tagged AFTERNOON, take only
   /// one of them. A run that was named wins outright; a line with no horaire

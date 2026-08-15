@@ -20,8 +20,8 @@
 /// their own CNSS affiliation. Somebody genuinely shared between two schools is
 /// two staff rows, which is also how the two payrolls stay separable.
 model Staff {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The account, when this person signs in. Nullable-unique: most employees
@@ -68,7 +68,7 @@ model Staff {
 
   phone   String?
   email   String?
-  address String?
+  address String? @db.Text
 
   /// "TEACHER" | "DIRECTOR" | ... — see modules/hr/enums.ts.
   ///
@@ -111,7 +111,7 @@ model Staff {
   hiredOn DateTime?
   leftOn  DateTime?
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

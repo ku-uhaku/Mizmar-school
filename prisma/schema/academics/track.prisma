@@ -11,8 +11,8 @@
 /// Kept as rows rather than an enum because private schools open and close
 /// streams year to year, and the Ministry's list itself changes.
 model Track {
-  id      String @id @default(cuid())
-  levelId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  levelId String @db.VarChar(30)
   level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   /// e.g. "SM-A", "SVT", "PC", "LSH", "SEG", "STE".

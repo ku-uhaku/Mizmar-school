@@ -6,8 +6,8 @@
 /// school charges one flat transport fee, so the zone was a second answer to a
 /// question the échéancier had already settled.
 model RouteStop {
-  id      String         @id @default(cuid())
-  routeId String
+  id      String         @id @default(cuid()) @db.VarChar(30)
+  routeId String         @db.VarChar(30)
   route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
 
   name   String
@@ -20,7 +20,7 @@ model RouteStop {
   /// quartiers were listed still has its stops, and because a stop on a trunk
   /// road may genuinely be in none of them.
   /// Restrict: a quartier with stops in it cannot be deleted from under them.
-  neighbourhoodId String?
+  neighbourhoodId String?        @db.VarChar(30)
   neighbourhood   Neighbourhood? @relation(fields: [neighbourhoodId], references: [id], onDelete: Restrict)
 
   /// Order along the line, from the first pick-up to the school.

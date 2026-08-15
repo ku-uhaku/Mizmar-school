@@ -5,8 +5,8 @@
 /// robotics) without affecting its siblings. What a subject *weighs* is not
 /// here — that depends on the level, so it lives in LevelSubject.
 model Subject {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "MATH", "AR", "FR", "EN", "SVT", "PC", "HG",
@@ -23,7 +23,7 @@ model Subject {
   /// have to be exported to MASSAR under its nomenclature, and the two rarely
   /// match. Null until an administrator maps the subject.
   ///
-  /// Nullable-unique is deliberate here, and is the one place the SQLite
+  /// Nullable-unique is deliberate here, and is the one place the
   /// NULL-distinct behaviour is what we want: many subjects may be unmapped,
   /// but no two may claim the same MASSAR code. (Contrast lib/db-keys.ts, where
   /// that behaviour is the bug.)
@@ -40,7 +40,7 @@ model Subject {
   /// Nesting is **two levels only**: a subject, and its components. A component
   /// may not itself have components — enforced in the service layer, since a
   /// self-relation cannot express depth.
-  parentId String?
+  parentId String?   @db.VarChar(30)
   parent   Subject?  @relation("SubjectComponents", fields: [parentId], references: [id], onDelete: Cascade)
   children Subject[] @relation("SubjectComponents")
 

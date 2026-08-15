@@ -2,12 +2,12 @@
 /// module declares its own codes in `modules/<module>/permissions.ts`, and
 /// `prisma/seed.ts` upserts the aggregated catalogue.
 model Permission {
-  id          String  @id @default(cuid())
+  id          String  @id @default(cuid()) @db.VarChar(30)
   /// e.g. "school.create"
   code        String  @unique
   /// Grouping used to lay out the permission matrix, e.g. "school".
   group       String
-  description String?
+  description String? @db.Text
 
   roles RolePermission[]
 

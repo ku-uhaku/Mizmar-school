@@ -67,7 +67,7 @@ src/ui/                theme, formatting, the shared components
   lasts 2 h and refreshes automatically in `src/api/client.ts`; the refresh is
   de-duplicated so a screen firing four queries at once cannot rotate the token
   four times and sign itself out.
-- **Online-first.** The server is SQLite-backed with no sync layer, so there is
+- **Online-first.** The server is MySQL-backed with no sync layer, so there is
   no offline write story. TanStack Query's cache makes a dropped connection
   survivable for reading, and nothing more is promised.
 - **French only** for now. The server's dictionaries are not imported here; if

@@ -51,8 +51,8 @@
 /// without a contract row falls back to the week's own ceiling — see
 /// `weekCapacityMinutes` in modules/timetable/service.ts.
 model TeacherSubject {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The year this declaration is made for. Cascade: a year that is deleted
@@ -61,17 +61,17 @@ model TeacherSubject {
   /// Denormalised alongside `schoolId`, which the year already implies, because
   /// every read here is "this school, this year" and the pair is what the
   /// composite index below is built on.
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   /// Cascade: the qualification is a fact about the account, and means nothing
   /// once it is gone.
-  teacherId String
+  teacherId String @db.VarChar(30)
   teacher   User   @relation("TeacherSubjects", fields: [teacherId], references: [id], onDelete: Cascade)
 
   /// Cascade for the same reason — a subject the school has retired has no
   /// qualified teachers, it has no lessons.
-  subjectId String
+  subjectId String  @db.VarChar(30)
   subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
 
   /// Widest of the two level scopes: the whole cycle. Null = no cycle
@@ -80,7 +80,7 @@ model TeacherSubject {
   /// Cascade rather than SetNull: a cycle the school has stopped running has no
   /// qualifications *scoped to it* left to keep, and silently widening the row
   /// to school-wide would offer a primaire teacher to a lycée class.
-  educationLevelId String?
+  educationLevelId String?         @db.VarChar(30)
   educationLevel   EducationLevel? @relation(fields: [educationLevelId], references: [id], onDelete: Cascade)
 
   /// The niveaux this row applies to, when the school names them. Empty is the
@@ -102,7 +102,7 @@ model TeacherSubject {
   /// not change but a reader looking for "why was he on this?" needs.
   isActive Boolean @default(true)
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

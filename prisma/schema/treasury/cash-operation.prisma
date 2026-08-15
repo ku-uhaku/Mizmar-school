@@ -15,8 +15,8 @@
 /// a drawer at closing time, and conflating them is what makes a till count
 /// disagree with the receipts by exactly the value of the cheques in it.
 model CashOperation {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The session the movement was posted into. Null when nothing touched a
@@ -25,7 +25,7 @@ model CashOperation {
   /// forcing a fictitious session onto non-cash money.
   ///
   /// Restrict: a session with operations in it is history, not a draft.
-  cashSessionId String?
+  cashSessionId String?      @db.VarChar(30)
   cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
 
   /// "ENCAISSEMENT" | "DECAISSEMENT" | "TRANSFERT" — see modules/treasury/enums.ts.
@@ -58,7 +58,7 @@ model CashOperation {
   /// their schemas have always validated it; there was nowhere to put it, so
   /// every explanation typed into it was discarded on the way to the ledger.
   /// `label` is what the list column shows; this is the sentence behind it.
-  notes String?
+  notes String? @db.Text
 
   /// When the money moved, which is not always when it was typed in.
   occurredAt DateTime @default(now())
@@ -93,15 +93,15 @@ model CashOperation {
   ///
   /// The pair replaces `expenseCategoryId`, which only ever applied to money
   /// going out — see prisma/schema/treasury/operation-category.prisma.
-  categoryId String?
+  categoryId String?            @db.VarChar(30)
   category   OperationCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  subcategoryId String?
+  subcategoryId String?               @db.VarChar(30)
   subcategory   OperationSubcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull)
 
   /// The motif chosen from the school's list, when it came from the list. Null
   /// for a one-off typed straight into `label`.
-  motifId String?
+  motifId String?         @db.VarChar(30)
   motif   OperationMotif? @relation(fields: [motifId], references: [id], onDelete: SetNull)
 
   /// Who was paid, when they are on the payroll — a salary, an avance, a
@@ -111,7 +111,7 @@ model CashOperation {
   /// history of what was paid out with it. `beneficiaryName` is written
   /// alongside it in every case, so a cleared link degrades to the name that
   /// was on the movement rather than to nothing.
-  beneficiaryStaffId String?
+  beneficiaryStaffId String? @db.VarChar(30)
   beneficiaryStaff   Staff?  @relation("OperationBeneficiaryStaff", fields: [beneficiaryStaffId], references: [id], onDelete: SetNull)
 
   /// Who was paid, as text. Always set, including when the line above is:
@@ -123,7 +123,7 @@ model CashOperation {
   /// The supplier this went to, where it was one. SetNull: retiring a supplier
   /// must not erase what the school paid them, and `beneficiaryName` above is
   /// the copy that keeps the ledger readable either way.
-  supplierId String?
+  supplierId String?   @db.VarChar(30)
   supplier   Supplier? @relation("OperationSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
 
   /// The bulletin this décaissement settled, when it was a salary. Written by
@@ -146,24 +146,24 @@ model CashOperation {
 
   /// TRANSFERT only. The till at the other end. Null when the other end is the
   /// bank, which `bankAccountLabel` then names.
-  counterpartRegisterId String?
+  counterpartRegisterId String?       @db.VarChar(30)
   counterpartRegister   CashRegister? @relation("OperationCounterpartRegister", fields: [counterpartRegisterId], references: [id], onDelete: SetNull)
 
   /// Where the money went when it left for the bank rather than another till.
   /// The bank a virement went to or came from. `bankAccountLabel` is kept
   /// beside it for an account the school has not declared — see Bank.
-  bankId String?
+  bankId String? @db.VarChar(30)
   bank   Bank?   @relation(fields: [bankId], references: [id], onDelete: SetNull)
 
   bankAccountLabel String?
 
   /// The cheque this operation concerns, for the ones that are not payments —
   /// a cheque written to a supplier, or a deposit clearing.
-  chequeId String?
+  chequeId String? @db.VarChar(30)
   cheque   Cheque? @relation(fields: [chequeId], references: [id], onDelete: SetNull)
 
   /// Restrict: the ledger must always be able to say who posted a movement.
-  createdById String
+  createdById String @db.VarChar(30)
   createdBy   User   @relation("OperationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())

@@ -10,11 +10,11 @@
 /// yet" and "sat it and scored zero" and "was not there" are three different
 /// facts, and collapsing them loses the one the family asks about.
 model AssessmentGrade {
-  id           String     @id @default(cuid())
-  assessmentId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  assessmentId String     @db.VarChar(30)
   assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  enrollmentId String
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   /// Out of the assessment's own `maxScore`. Null = not marked yet.
@@ -34,11 +34,11 @@ model AssessmentGrade {
   isExcused Boolean @default(false)
 
   /// Appréciation shown to the family alongside the mark.
-  comment String?
+  comment String? @db.Text
 
   /// Who entered it and when — a mark that changes after a report card has gone
   /// out is exactly the thing somebody will later ask about.
-  gradedById String?
+  gradedById String?   @db.VarChar(30)
   gradedBy   User?     @relation("GradeAuthor", fields: [gradedById], references: [id], onDelete: SetNull)
   gradedAt   DateTime?
 

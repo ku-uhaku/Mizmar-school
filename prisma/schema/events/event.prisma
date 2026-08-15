@@ -13,12 +13,12 @@
 /// PUBLISHED, so an event being prepared is invisible to a phone however the
 /// request is crafted.
 model Event {
-  id           String     @id @default(cuid())
-  schoolId     String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolId     String     @db.VarChar(30)
   school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   /// The year it belongs to, so last year's calendar keeps resolving after this
   /// year's is drawn up — the same rule the rest of the vie scolaire follows.
-  schoolYearId String
+  schoolYearId String     @db.VarChar(30)
   schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
 
   title   String
@@ -26,7 +26,7 @@ model Event {
 
   /// What the parent reads under the title. Plain text — this is an
   /// announcement, not a document store.
-  description String?
+  description String? @db.Text
 
   /// "MEETING" | "OUTING" | "CEREMONY" | "EXAM" | "HOLIDAY_INFO" | "OTHER" —
   /// see modules/events/enums.ts.
@@ -67,10 +67,10 @@ model Event {
 
   /// Who published it, and when. Null while it is a draft.
   publishedAt   DateTime?
-  publishedById String?
+  publishedById String?   @db.VarChar(30)
   publishedBy   User?     @relation("EventPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
 
-  createdById String?
+  createdById String? @db.VarChar(30)
   createdBy   User?   @relation("EventAuthor", fields: [createdById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -92,19 +92,19 @@ model Event {
 /// the child's enrolment instead of parsing a string — see `householdScope` in
 /// modules/portal/queries.ts.
 ///
-/// Exactly one of `levelId` / `schoolClassId` is set. SQLite cannot express
+/// Exactly one of `levelId` / `schoolClassId` is set. MySQL cannot express
 /// that, so `modules/events/service.ts` enforces it on write.
 model EventAudience {
-  id      String @id @default(cuid())
-  eventId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  eventId String @db.VarChar(30)
   event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   /// Everyone admitted to this level, whichever class they sit in.
-  levelId String?
+  levelId String? @db.VarChar(30)
   level   Level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
   /// One class only.
-  schoolClassId String?
+  schoolClassId String?      @db.VarChar(30)
   schoolClass   SchoolClass? @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

@@ -138,8 +138,9 @@ export async function generateFeeSchedule(
     // written, so the second run of an unchanged year writes nothing at all.
     //
     // Filtered in memory against the (enrollment, feeType, periodIndex) unique
-    // rather than with `createMany({ skipDuplicates })`, which the SQLite
-    // connector does not support. Both the read and the write are inside the
+    // rather than with `createMany({ skipDuplicates })`: that is `INSERT
+    // IGNORE` on MySQL, which would swallow a bad foreign key as willingly as a
+    // duplicate. Both the read and the write are inside the
     // transaction, so a concurrent generation cannot slip between them — and if
     // one did, the unique index is still there to refuse it.
     const existing = await tx.enrollmentFee.findMany({
@@ -388,7 +389,7 @@ export async function resyncOptionalCharges(
 
     // What survives after the removals is what the additions must not duplicate
     // — the same in-memory filter `generateFeeSchedule` uses, and for the same
-    // reason: the SQLite connector has no `skipDuplicates`.
+    // reason: `skipDuplicates` is `INSERT IGNORE` and silences too much.
     const removed = new Set(stale.map((line) => line.id));
     const taken = new Set(
       existing

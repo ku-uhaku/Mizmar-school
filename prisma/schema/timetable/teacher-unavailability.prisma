@@ -23,23 +23,23 @@
 /// belongs to a year, and a second copy of that fact is a second thing to keep
 /// in step.
 model TeacherUnavailability {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   /// Cascade: an account removed takes its own constraints with it. Nothing is
   /// lost that is not re-derivable — no lesson points at this row.
-  teacherId String
+  teacherId String @db.VarChar(30)
   teacher   User   @relation("TeacherUnavailability", fields: [teacherId], references: [id], onDelete: Cascade)
 
   /// Cascade for the same reason: rewriting the bell schedule drops the blocks
   /// that referred to slots which no longer exist, which is the right answer —
   /// a block on a period that is gone constrains nothing.
-  timeSlotId String
+  timeSlotId String   @db.VarChar(30)
   timeSlot   TimeSlot @relation(fields: [timeSlotId], references: [id], onDelete: Cascade)
 
   /// Why, when it is worth saying — "cours à l'autre établissement", "temps
   /// partiel". Free text: this is a note for whoever builds the grid, not
   /// something the app reasons about.
-  reason String?
+  reason String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

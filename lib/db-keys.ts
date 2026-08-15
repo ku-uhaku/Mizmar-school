@@ -2,7 +2,7 @@
  * Helpers for unique constraints that involve a nullable column.
  *
  * ── The problem ───────────────────────────────────────────────────────────────
- * SQLite (like PostgreSQL, and per the SQL standard) treats NULLs as *distinct*
+ * MySQL (like PostgreSQL, and per the SQL standard) treats NULLs as *distinct*
  * in a unique index. So this does **not** do what it looks like:
  *
  *   @@unique([levelId, trackId, subjectId])   // trackId is nullable

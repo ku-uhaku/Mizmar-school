@@ -81,7 +81,7 @@ describe("the four cycles", () => {
 
 describe("levelSubjectScopeKey", () => {
   it("stops the same subject being declared twice for every track", () => {
-    // SQLite treats NULLs as distinct in a unique index, so two "all tracks"
+    // MySQL treats NULLs as distinct in a unique index, so two "all tracks"
     // rows would both be accepted and the subject's coefficient counted twice
     // in every average.
     expect(levelSubjectScopeKey(null)).toBe(levelSubjectScopeKey(undefined));

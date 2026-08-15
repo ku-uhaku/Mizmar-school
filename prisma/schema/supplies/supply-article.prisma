@@ -18,8 +18,8 @@
 /// `SupplyItem.articleId`, which is SetNull, and `SupplyItem.label`, which is a
 /// copy taken at the moment the list was written.
 model SupplyArticle {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// Short stable code, e.g. "STYLO-BLEU". What the catalogue is keyed on.
@@ -40,7 +40,7 @@ model SupplyArticle {
 
   /// Detail that belongs to the article itself rather than to any one list:
   /// the format, the ruling, the size. A list may still add its own on the line.
-  notes String?
+  notes String? @db.Text
 
   /// Order within its category, on the printed list and in the picker.
   position Int @default(0)

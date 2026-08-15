@@ -18,8 +18,8 @@
 /// The old design's own note argued that "a table of two rows per pupil is a
 /// join for nothing". The join was never the cost; the two was.
 model EnrollmentOption {
-  id           String     @id @default(cuid())
-  enrollmentId String
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  enrollmentId String     @db.VarChar(30)
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   /// The charge subscribed to. Always one whose `isMandatory` is false — a
@@ -31,7 +31,7 @@ model EnrollmentOption {
   /// charge* is history and pins its fee type, but a subscription to a charge
   /// that no longer exists is not history, it is a dangling intention. The
   /// lines already billed keep the record.
-  feeTypeId String
+  feeTypeId String  @db.VarChar(30)
   feeType   FeeType @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
 
   /// When the charge starts being owed, for a family that signs up after the
@@ -43,7 +43,7 @@ model EnrollmentOption {
   /// falling before it and leaves the rest at their normal amount, so a
   /// mid-year joiner pays the monthly rate for the months they use rather than
   /// the annual figure squeezed into fewer payments. The day is kept only
-  /// because SQLite has no month type.
+  /// because MySQL has no month type.
   ///
   /// INVARIANT (service layer): a month inside the enrolment's school year —
   /// see `resolveOptionStart`.

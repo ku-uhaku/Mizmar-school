@@ -14,14 +14,14 @@
 /// pupil's parcours — but it does not own it, which is the same split as
 /// Student versus Enrollment everywhere else in the vie scolaire.
 model StudentDocument {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
-  studentId String
+  studentId String  @db.VarChar(30)
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   /// Restrict: a pièce with dossiers recorded against it is not deletable out
   /// from under them. Withdraw it instead — `DocumentType.isActive`.
-  documentTypeId String
+  documentTypeId String       @db.VarChar(30)
   documentType   DocumentType @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
 
   /// "MISSING" | "RECEIVED" | "REJECTED" | "EXEMPTED"
@@ -42,11 +42,11 @@ model StudentDocument {
 
   /// Why it was refused, or on what grounds it was waived. The only place a
   /// REJECTED or EXEMPTED status can explain itself.
-  notes String?
+  notes String? @db.Text
 
   /// Who recorded it. SetNull: the record outlives the account that made it,
   /// and the dossier is still complete.
-  recordedById String?
+  recordedById String? @db.VarChar(30)
   recordedBy   User?   @relation("StudentDocumentRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

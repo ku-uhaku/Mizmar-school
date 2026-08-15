@@ -1,19 +1,17 @@
 /**
  * Runs once, before the server takes its first request.
  *
- * The one thing that has to happen here is WAL mode — see `ensureWalMode` in
- * lib/db.ts for why a school cannot really run without it. It belongs at boot
- * rather than beside the client, because it is a statement on a connection and
- * `lib/db.ts` is evaluated lazily by whichever request happens to import it
- * first; that request would then be the one paying for it, and in the meantime
- * everything else would already be contending on the old journal.
+ * All it does is open the connection pool — see `warmConnection` in lib/db.ts.
+ * It belongs at boot rather than beside the client, because `lib/db.ts` is
+ * evaluated lazily by whichever request happens to import it first, and that
+ * request would then be the one paying for the connect and the handshake.
  *
- * Node runtime only. The Edge runtime has no SQLite to configure, and importing
- * the Prisma client there would fail the build.
+ * Node runtime only. The Edge runtime has no database connection to open, and
+ * importing the Prisma client there would fail the build.
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { ensureWalMode } = await import("@/lib/db");
-  await ensureWalMode();
+  const { warmConnection } = await import("@/lib/db");
+  await warmConnection();
 }

@@ -12,13 +12,13 @@
 /// anyone reading it there, and a list mixing the quartiers of four cities is a
 /// dropdown nobody can find anything in.
 model Neighbourhood {
-  id       String @id @default(cuid())
-  schoolId String
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
   school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
 
   /// The town it is part of. Restrict: a town with quartiers on it cannot be
   /// deleted out from under the stops and addresses that point at them.
-  cityId String
+  cityId String @db.VarChar(30)
   city   City   @relation(fields: [cityId], references: [id], onDelete: Restrict)
 
   /// Short reference, e.g. "MAARIF".

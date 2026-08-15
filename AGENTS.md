@@ -109,10 +109,23 @@ recursively for `*.prisma`. Never recreate a single `schema.prisma`.
 
 ## Conventions every table follows
 
-- `id String @id @default(cuid())`, `createdAt`, `updatedAt`.
+- `id String @id @default(cuid()) @db.VarChar(30)`, `createdAt`, `updatedAt`.
+  **Every foreign key carries the same `@db.VarChar(30)`.** A cuid is 25
+  characters and Prisma's default for a bare `String` is `VARCHAR(191)`, which
+  in utf8mb4 is 764 bytes — five of those in one index passes InnoDB's
+  3072-byte key limit and the migration fails to apply. The six-column unique on
+  `assessments` is the one that would.
 - `@@map("snake_case_plural")` on every model. Table names are snake_case; model
   names are PascalCase singular.
-- Index every foreign key (`@@index([schoolId])`). SQLite does not do it for you.
+- **Say how long a string really is.** A bare `String` is `VARCHAR(191)`, which
+  silently truncates anything longer. Free text (`notes`, `reason`, a chat
+  `body`, a stored JSON payload) takes `@db.Text`; the four image columns take
+  `@db.MediumText`, because `lib/images.ts` caps a data URI at 256 KB and `TEXT`
+  stops at 64 KB. Neither can be indexed without a prefix length, so a column
+  that is in a `@@unique` or `@@index` stays a `VARCHAR`.
+- Index every foreign key (`@@index([schoolId])`). InnoDB creates one implicitly,
+  but declaring it keeps the index visible in the schema and lets a composite
+  (`@@index([schoolId, status])`) replace it deliberately rather than by accident.
 - Choose `onDelete` deliberately, and say why when it is not obvious: `Cascade`
   for owned children, `SetNull` for soft references such as
   `User.currentSchoolId`, `Restrict` where deleting would lose meaning
@@ -123,7 +136,9 @@ recursively for `*.prisma`. Never recreate a single `schema.prisma`.
 
 ## Enum-like columns
 
-SQLite has no native enum type. Every "enum" column is a `String` whose allowed
+Enum-like columns are deliberately **not** MySQL `ENUM`s: widening one would be a
+migration, and these change with a school's configuration rather than with the
+schema. Every "enum" column is a `String` whose allowed
 values live in the owning module's `enums.ts` as an `as const` array plus a
 derived type. Three things must move together:
 
@@ -132,6 +147,17 @@ derived type. Three things must move together:
 3. the labels in `modules/<module>/i18n/{en,fr,ar}.ts`.
 
 ## Migrations
+
+The database is **MySQL 8** (MariaDB 10.6+ works too — the driver is the same).
+Prisma migrates into it but will not create it, so a fresh checkout starts with:
+
+```sql
+CREATE DATABASE mizmar_school CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+`utf8mb4` is not optional — the app stores Arabic throughout — and
+`utf8mb4_unicode_ci` is what makes the `contains` searches in `queries.ts` case-
+and accent-insensitive without a `mode` Prisma does not offer on MySQL.
 
 ```bash
 npm run db:migrate      # prisma migrate dev — after any schema change
@@ -375,7 +401,7 @@ development (`lib/nav.ts`) rather than silently hiding the link.
 Match the surrounding code. It is deliberate and consistent.
 
 - Comments explain **why**, never what. Load-bearing decisions (a security scope,
-  a `Restrict`, a cookie mirror, an invariant SQLite cannot express) get a
+  a `Restrict`, a cookie mirror, an invariant MySQL cannot express) get a
   sentence. Obvious code gets none.
 - British spelling in English copy ("organisation"), matching the dictionary.
   Product-facing role names stay French — they are data, not translation keys.

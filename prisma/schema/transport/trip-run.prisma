@@ -15,14 +15,14 @@
 /// stops a driver's phone and the office screen both creating a run when they
 /// press start in the same second.
 model TripRun {
-  id String @id @default(cuid())
+  id String @id @default(cuid()) @db.VarChar(30)
 
   /// Restrict: a circuit with runs behind it is a circuit with a history, and
   /// deleting it would take the record of those mornings with it.
-  routeId String
+  routeId String         @db.VarChar(30)
   route   TransportRoute @relation(fields: [routeId], references: [id], onDelete: Restrict)
 
-  scheduleId String
+  scheduleId String            @db.VarChar(30)
   schedule   TransportSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
 
   /// The day this run belongs to, at midnight. Not derivable from `startedAt`:
@@ -48,25 +48,25 @@ model TripRun {
 
   /// When the driver actually pulled out, and who said so.
   startedAt   DateTime?
-  startedById String?
+  startedById String?   @db.VarChar(30)
   startedBy   User?     @relation("TripRunStartedBy", fields: [startedById], references: [id], onDelete: SetNull)
 
   arrivedAt   DateTime?
-  arrivedById String?
+  arrivedById String?   @db.VarChar(30)
   arrivedBy   User?     @relation("TripRunArrivedBy", fields: [arrivedById], references: [id], onDelete: SetNull)
 
   /// The bus that actually went, captured when the run starts rather than read
   /// from the circuit: a breakdown means the spare goes out that morning, and
   /// the circuit's usual vehicle is not what left the yard.
   /// SetNull: retiring a bus must not erase the runs it made.
-  vehicleId String?
+  vehicleId String?  @db.VarChar(30)
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   /// Why it did not run. Required by the action that cancels — a voyage struck
   /// off with no reason is the gap nobody can explain a week later.
-  cancelReason String?
+  cancelReason String? @db.Text
 
-  notes String?
+  notes String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

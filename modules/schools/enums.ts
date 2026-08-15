@@ -1,7 +1,8 @@
 /**
  * Allowed values for this module's "enum-like" String columns.
  *
- * SQLite has no native enum type, so these unions are the source of truth for
+ * The columns are `String` rather than a MySQL `ENUM`, so these unions are the
+ * source of truth for
  * `prisma/schema/schools/school.prisma`. Keep both in sync — and add the label
  * for every new value to `i18n/*.ts` (`school.levels`) at the same time.
  */

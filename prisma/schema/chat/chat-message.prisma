@@ -7,22 +7,22 @@
 /// that is actually gone cannot answer that. The reads filter it out; nothing
 /// but a moderator's own screen ever sees it again.
 model ChatMessage {
-  id        String      @id @default(cuid())
-  channelId String
+  id        String      @id @default(cuid()) @db.VarChar(30)
+  channelId String      @db.VarChar(30)
   channel   ChatChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   /// Who wrote it. Kept on delete of the account — `SetNull` would lose the
   /// authorship of everything a departing parent ever said, so the row is
   /// restricted and an account with messages is deactivated rather than
   /// deleted, the same way a member of staff with payslips is.
-  authorId String
+  authorId String @db.VarChar(30)
   author   User   @relation("ChatAuthor", fields: [authorId], references: [id], onDelete: Restrict)
 
-  body String
+  body String @db.Text
 
   /// Set when a moderator removed it. Null for a live message.
   deletedAt   DateTime?
-  deletedById String?
+  deletedById String?   @db.VarChar(30)
   deletedBy   User?     @relation("ChatModerator", fields: [deletedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())

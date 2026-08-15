@@ -12,8 +12,8 @@
 /// Scoped to the person, not to the school: "the reports I run every morning"
 /// follows a bursar between the two schools they cover.
 model ReportFavourite {
-  id     String @id @default(cuid())
-  userId String
+  id     String @id @default(cuid()) @db.VarChar(30)
+  userId String @db.VarChar(30)
   user   User   @relation("ReportFavourites", fields: [userId], references: [id], onDelete: Cascade)
 
   /// The catalogue id — see the note above.

@@ -14,8 +14,8 @@
 /// automatic rule here would quietly cost somebody a day's wages because a
 /// register was marked wrong on a Tuesday.
 model StaffAttendance {
-  id      String @id @default(cuid())
-  staffId String
+  id      String @id @default(cuid()) @db.VarChar(30)
+  staffId String @db.VarChar(30)
   staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
 
   /// The day, at midnight. Normalised by `startOfDay` in modules/hr/enums.ts so
@@ -38,11 +38,11 @@ model StaffAttendance {
   /// by an hour" are the same row otherwise.
   minutesLate Int @default(0)
 
-  notes String?
+  notes String? @db.Text
 
   /// Who marked the register. Restrict: a disputed absence must always be able
   /// to name the person who recorded it.
-  recordedById String
+  recordedById String @db.VarChar(30)
   recordedBy   User   @relation("AttendanceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())

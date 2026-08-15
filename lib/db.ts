@@ -1,34 +1,51 @@
 import "server-only";
 
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 import { auditExtension } from "@/lib/audit";
+import { withPoolDefaults } from "@/lib/db-url";
 import { PrismaClient } from "@/lib/generated/prisma/client";
 
 // Prisma 7 requires a driver adapter. One client per process — Next's dev
 // server re-evaluates modules on every hot reload, so cache it on globalThis to
-// avoid opening a new SQLite handle each time.
+// avoid opening a second connection pool each time.
 const globalForPrisma = globalThis as unknown as {
   prisma: ExtendedClient | undefined;
   prismaBase: PrismaClient | undefined;
 };
 
 function createClient() {
-  const adapter = new PrismaBetterSqlite3({
-    // Relative paths resolve against the process cwd (the project root), which
-    // is where `prisma migrate` also puts the file.
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
-    /*
-      Five seconds before a blocked writer gives up, rather than better-sqlite3's
-      own default of the same — stated because it is load-bearing here and a
-      silent default is not. Two writers do still contend under WAL (see
-      `ensureWalMode`), and without a busy timeout the loser gets SQLITE_BUSY
-      instantly, which reaches the secretary as `t.errors.unexpected`. No
-      transaction in this app runs for anything like five seconds, so exhausting
-      it means something is genuinely wrong rather than merely busy.
-    */
-    timeout: 5000,
-  });
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    // Better here than as an obscure connection error on the first request:
+    // there is no sensible default for a MySQL server, so a missing URL is a
+    // misconfiguration and not something to guess at.
+    throw new Error("DATABASE_URL is not set — see .env.example.");
+  }
+
+  /*
+    Pool settings ride on the URL rather than an options object — see
+    lib/db-url.ts for why.
+
+    `connectionLimit` — ten. A school runs one Next process against one MySQL
+    server, and Next serves requests concurrently, so the pool is what bounds
+    how many statements are in flight. Ten is comfortably above what a page
+    render needs (the dashboard is the worst offender, at a few dozen
+    sequential queries) and far below the server's own `max_connections`, which
+    the seeds, `prisma studio` and any second process also draw on.
+
+    `acquireTimeout` — five seconds before a caller waiting for a free
+    connection gives up. Stated because it is load-bearing and a silent default
+    is not: exhausting it reaches the secretary as `t.errors.unexpected`, and no
+    request in this app holds a connection for anything like five seconds, so it
+    means something is genuinely wrong rather than merely busy.
+
+    Both are defaults, not policy — a URL that sets either wins, which is what
+    lets a deployment tune the pool without a rebuild.
+  */
+  const adapter = new PrismaMariaDb(
+    withPoolDefaults(url, { connectionLimit: 10, acquireTimeout: 5000 }),
+  );
 
   return new PrismaClient({
     adapter,
@@ -82,38 +99,24 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /**
- * Puts the database file into WAL mode. Called once from `instrumentation.ts`.
+ * Opens the first connection, before the server takes a request. Called once
+ * from `instrumentation.ts`.
  *
- * ── Why a school needs it ────────────────────────────────────────────────────
- * SQLite's default journal is a rollback journal, under which a writer takes a
- * lock every reader has to wait behind. With one person on the app that is
- * invisible; with a school on it, it is the wrong shape entirely. The caisse
- * posts a receipt and, for the length of that transaction, the secretary's pupil
- * list, the director's dashboard and every phone on the parents' app stop. An
- * import or a bulletin run holds the same lock for very much longer.
+ * The pool connects lazily, so without this the first request of the morning
+ * pays for the TCP connect, the handshake and authentication — and, if the
+ * server is not up yet, is the one that discovers it. Doing it at boot moves
+ * both the latency and the diagnosis to a place where they are legible.
  *
- * Under WAL a reader carries on against the last committed snapshot while a
- * write is in flight, which is exactly this app's access pattern: many readers,
- * few writers, one process.
- *
- * ── Why it is a statement and not an option ──────────────────────────────────
- * The adapter takes better-sqlite3's `Options`, which has no pragma passthrough,
- * so the mode has to be set on a live connection. That is not a hardship:
- * `journal_mode` is a *persistent* property of the database file, so this runs
- * once at boot and the setting survives every later connection — including
- * `prisma studio` and the seeds. Running it again on a file already in WAL is a
- * no-op, which is what makes it safe on every start.
- *
- * Deliberately not fatal. A read-only volume or a filesystem that cannot do WAL
- * (some network mounts) should leave the school with a working app on the slower
- * journal, not a server that refuses to boot.
+ * Deliberately not fatal. A database that is still starting (a compose stack
+ * bringing MySQL up beside the app) should leave the pool to reconnect on the
+ * first real request rather than refuse to boot.
  */
-export async function ensureWalMode(): Promise<void> {
+export async function warmConnection(): Promise<void> {
   try {
-    await auditClient.$executeRawUnsafe("PRAGMA journal_mode = WAL;");
+    await auditClient.$queryRawUnsafe("SELECT 1");
   } catch (error) {
     console.warn(
-      "Could not enable SQLite WAL mode; continuing on the rollback journal.",
+      "Could not reach the database at startup; retrying on first request.",
       error,
     );
   }

@@ -1763,7 +1763,7 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
     on the screen every single user opens first. A group of five schools would
     have moved a hundred thousand rows per dashboard.
 
-    Two aggregates answer charged and paid without a row leaving SQLite.
+    Two aggregates answer charged and paid without a row leaving the database.
 
     Overdue cannot be one of them — it is a *per line* question, since a line
     that is fully settled is not overdue however late its date — so it stays a
