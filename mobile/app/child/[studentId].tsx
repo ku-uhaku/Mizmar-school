@@ -169,6 +169,12 @@ export default function ChildScreen() {
                 onPress={() => go("absences")}
               />
               <Tile
+                label={t.childMenu.tiles.classmates}
+                icon="account-group-outline"
+                hint={t.childMenu.tiles.classmatesHint}
+                onPress={() => go("classe")}
+              />
+              <Tile
                 label={t.childMenu.tiles.remarks}
                 icon="comment-text-outline"
                 hint={t.childMenu.tiles.remarksHint}

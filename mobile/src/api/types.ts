@@ -764,6 +764,28 @@ export type Dossier = {
   isComplete: boolean;
 };
 
+/**
+ * One child on the class list. Mirrors `PortalClassmate`.
+ *
+ * No birth date, deliberately: the server works out whose birthday it is and
+ * sends only the flag, so a classmate's date of birth never reaches a phone.
+ * See `listClassmates`.
+ */
+export type Classmate = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  isSelf: boolean;
+  isBirthdayToday: boolean;
+};
+
+/** A class and who sits in it. Mirrors `PortalClassmates`. */
+export type Classmates = {
+  className: string | null;
+  levelName: string | null;
+  pupils: Classmate[];
+};
+
 /** One parents' conversation. Mirrors `PortalChannel`. */
 export type Channel = {
   id: string;

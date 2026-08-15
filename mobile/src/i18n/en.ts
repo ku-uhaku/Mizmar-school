@@ -271,6 +271,8 @@ const en = {
       notesHint: "Published results",
       absences: "Absences",
       absencesHint: "The attendance register",
+      classmates: "Class",
+      classmatesHint: "Who is in the class",
       remarks: "Remarks",
       remarksHint: "The liaison book",
       timetable: "Timetable",
@@ -296,6 +298,7 @@ const en = {
     titles: {
       notes: "Marks",
       absences: "Absences",
+      classe: "Class",
       remarques: "Remarks",
       "emploi-du-temps": "Timetable",
       paiements: "Payments",
@@ -337,6 +340,15 @@ const en = {
     remarks: {
       loadError: "Could not load the remarks.",
       none: "No remark shared by the teachers.",
+    },
+
+    classmates: {
+      loadError: "Could not load the class.",
+      none: "No class list — the pupil has no class yet.",
+      className: "Class",
+      pupilCount: "Pupils",
+      you: "Your child",
+      birthdayA11y: "Birthday today",
     },
 
     timetable: {
@@ -618,6 +630,7 @@ const en = {
       LEAVE_DECIDED: "Your leave of {date}: {status}",
       ADVANCE_DECIDED: "Your salary advance of {amount}: {status}",
       REQUEST_FILED: "{document} asked for by {child}'s family",
+      ASSESSMENT_CREATED: "{teacher} set “{assessment}” for {className} — awaiting your decision",
       ASSESSMENT_SUBMITTED: "“{assessment}” corrected by {teacher} — awaiting validation",
       ASSESSMENT_VALIDATED: "\u201C{assessment}\u201D was accepted",
     },

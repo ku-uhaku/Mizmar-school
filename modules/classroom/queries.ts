@@ -606,6 +606,56 @@ export type PupilOption = {
   classCode: string;
 };
 
+/** A pupil the office may write about, and the class they sit in. */
+export type ClassPupilOption = PupilOption & { schoolClassId: string };
+
+/**
+ * Every seated pupil of the school this year, for the office's remark picker.
+ *
+ * ── Why the whole school in one read ────────────────────────────────────────
+ * The picker is a class and then a pupil in it, and a school is a few hundred
+ * enrolments — small enough to send once with the page and filter in the
+ * browser. The alternative, fetching the pupils when a class is chosen, buys
+ * nothing here and puts a round trip in the middle of a form somebody is
+ * filling in.
+ *
+ * Pupils with no class are left out rather than listed under a blank heading:
+ * `writeRemark` resolves the enrolment through its `schoolClass`, so a remark
+ * against an unseated one would be refused after the fact.
+ *
+ * Scoped like every other read in this file — the year and the school come from
+ * the context, never from the request.
+ */
+export async function listSchoolPupils(
+  context: AuthContext,
+): Promise<ClassPupilOption[]> {
+  const enrollments = await db.enrollment.findMany({
+    where: {
+      ...yearScope(context),
+      student: schoolScope(context),
+      schoolClassId: { not: null },
+    },
+    orderBy: [
+      { schoolClass: { code: "asc" } },
+      { student: { lastName: "asc" } },
+      { student: { firstName: "asc" } },
+    ],
+    select: {
+      id: true,
+      schoolClassId: true,
+      schoolClass: { select: { code: true } },
+      student: { select: { firstName: true, lastName: true, code: true } },
+    },
+  });
+
+  return enrollments.map((enrollment) => ({
+    enrollmentId: enrollment.id,
+    schoolClassId: enrollment.schoolClassId as string,
+    label: `${enrollment.student.lastName} ${enrollment.student.firstName} · ${enrollment.student.code}`,
+    classCode: enrollment.schoolClass?.code ?? "—",
+  }));
+}
+
 /** Every pupil the signed-in teacher teaches, for the remark picker. */
 export async function listMyPupils(
   context: AuthContext,

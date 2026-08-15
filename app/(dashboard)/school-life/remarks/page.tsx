@@ -5,10 +5,12 @@ import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { toDateInputValue } from "@/lib/utils";
 import { RemarksReview } from "@/modules/classroom/components/remarks-review";
 import {
   listRemarkFilterChoices,
   listRemarks,
+  listSchoolPupils,
 } from "@/modules/classroom/queries";
 
 export const metadata: Metadata = { title: "Remarques" };
@@ -52,7 +54,11 @@ export default async function SchoolLifeRemarksPage({
     pendingOnly: one("pending") === "1",
   };
 
-  const [remarks, choices] = await Promise.all([
+  // The pupils are read only for whoever may actually write one — there is no
+  // point sending a school's roll to a reader who cannot open the form.
+  const canWrite = context.can(PERMISSIONS.CLASSROOM_REMARK_WRITE);
+
+  const [remarks, choices, pupils] = await Promise.all([
     listRemarks(context, {
       search: filters.search || undefined,
       authorId: filters.authorId || undefined,
@@ -62,6 +68,7 @@ export default async function SchoolLifeRemarksPage({
       pendingOnly: filters.pendingOnly || undefined,
     }),
     listRemarkFilterChoices(context),
+    canWrite ? listSchoolPupils(context) : Promise.resolve([]),
   ]);
 
   return (
@@ -76,6 +83,11 @@ export default async function SchoolLifeRemarksPage({
         choices={choices}
         filters={filters}
         canPublish
+        canWrite={canWrite}
+        pupils={pupils}
+        // Computed here rather than in the browser: the date a remark defaults
+        // to is the school's today, not the reader's device clock.
+        defaultDate={toDateInputValue(new Date())}
       />
     </>
   );

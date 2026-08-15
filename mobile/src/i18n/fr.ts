@@ -264,6 +264,8 @@ const fr: Dictionary = {
       notesHint: "Les résultats publiés",
       absences: "Absences",
       absencesHint: "Le registre d'assiduité",
+      classmates: "Classe",
+      classmatesHint: "Qui est dans la classe",
       remarks: "Remarques",
       remarksHint: "Le carnet de liaison",
       timetable: "Emploi du temps",
@@ -289,6 +291,7 @@ const fr: Dictionary = {
     titles: {
       notes: "Notes",
       absences: "Absences",
+      classe: "Classe",
       remarques: "Remarques",
       "emploi-du-temps": "Emploi du temps",
       paiements: "Paiements",
@@ -330,6 +333,15 @@ const fr: Dictionary = {
     remarks: {
       loadError: "Impossible de charger les remarques.",
       none: "Aucune remarque partagée par les enseignants.",
+    },
+
+    classmates: {
+      loadError: "Impossible de charger la classe.",
+      none: "Aucune liste — l'élève n'a pas encore de classe.",
+      className: "Classe",
+      pupilCount: "Élèves",
+      you: "Votre enfant",
+      birthdayA11y: "Anniversaire aujourd'hui",
     },
 
     timetable: {
@@ -603,6 +615,7 @@ const fr: Dictionary = {
       LEAVE_DECIDED: "Votre congé du {date} : {status}",
       ADVANCE_DECIDED: "Votre avance de {amount} : {status}",
       REQUEST_FILED: "{document} demandé par la famille de {child}",
+      ASSESSMENT_CREATED: "{teacher} a donné « {assessment} » à {className} — en attente de votre décision",
       ASSESSMENT_SUBMITTED: "« {assessment} » corrigé par {teacher} — à valider",
       ASSESSMENT_VALIDATED: "« {assessment} » a été validé",
     },

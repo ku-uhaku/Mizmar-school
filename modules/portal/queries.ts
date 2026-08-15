@@ -1023,6 +1023,102 @@ export async function loadChildTimetable(
   };
 }
 
+// ── La classe ────────────────────────────────────────────────────────────────
+
+export type PortalClassmate = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  /** This household's own child, so the phone can mark them in the list. */
+  isSelf: boolean;
+  /** Today is their birthday. The date itself deliberately never leaves here. */
+  isBirthdayToday: boolean;
+};
+
+export type PortalClassmates = {
+  className: string | null;
+  levelName: string | null;
+  pupils: PortalClassmate[];
+};
+
+/** Whether two dates fall on the same day and month, whatever the year. */
+function isSameDayOfYear(a: Date, b: Date): boolean {
+  return a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/**
+ * The children in one child's class.
+ *
+ * ── What a household may know about somebody else's child ───────────────────
+ * A name, and whether it is their birthday. Nothing else — no birth date, no
+ * dossier, no guardian, no telephone. That is why `isBirthdayToday` is computed
+ * here and the date is dropped: sending `birthDate` and letting the phone
+ * decide would hand every parent in the class the birth date of every child in
+ * it, which is a fact about a minor that the school holds and a classmate's
+ * parent does not need.
+ *
+ * The list is what a class list has always been on a noticeboard, and it is
+ * scoped like every other read in this file: the child in the URL is resolved
+ * through `householdScope` first, and the class comes off *their* enrolment
+ * rather than from the request, so there is no id to craft.
+ */
+export async function listClassmates(
+  userId: string,
+  studentId: string,
+): Promise<PortalClassmates> {
+  const mine = await db.enrollment.findFirst({
+    where: { studentId, student: householdScope(userId) },
+    orderBy: [{ schoolYear: { startDate: "desc" } }],
+    select: {
+      schoolClassId: true,
+      schoolYearId: true,
+      // `name` is optional on a class and most schools leave it unset — the
+      // code is what is written on the door. Same fallback as the timetable's.
+      schoolClass: { select: { name: true, code: true } },
+      levelOffering: { select: { level: { select: { name: true } } } },
+    },
+  });
+
+  // Not this household's child, or a child admitted but not yet seated in a
+  // class — the same answer for both, because which of the two it is would
+  // itself say something about a pupil the caller may not know exists.
+  if (!mine?.schoolClassId) {
+    return { className: null, levelName: null, pupils: [] };
+  }
+
+  const classmates = await db.enrollment.findMany({
+    where: {
+      schoolClassId: mine.schoolClassId,
+      // The same year: a class keeps its name across years, and last year's
+      // roll is not who is sitting in the room now.
+      schoolYearId: mine.schoolYearId,
+      student: { isActive: true },
+    },
+    orderBy: [{ student: { lastName: "asc" } }, { student: { firstName: "asc" } }],
+    select: {
+      student: {
+        select: { id: true, firstName: true, lastName: true, birthDate: true },
+      },
+    },
+  });
+
+  const today = new Date();
+
+  return {
+    className: mine.schoolClass?.name ?? mine.schoolClass?.code ?? null,
+    levelName: mine.levelOffering?.level.name ?? null,
+    pupils: classmates.map(({ student }) => ({
+      id: student.id,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      isSelf: student.id === studentId,
+      isBirthdayToday: student.birthDate
+        ? isSameDayOfYear(student.birthDate, today)
+        : false,
+    })),
+  };
+}
+
 // ── Le dossier ───────────────────────────────────────────────────────────────
 
 export type PortalDossierPiece = {

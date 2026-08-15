@@ -143,6 +143,59 @@ export async function notify(input: NotifyInput): Promise<number> {
   return rows.length;
 }
 
+// ── Reading them ─────────────────────────────────────────────────────────────
+
+/**
+ * Which of an account's unread lines to stamp.
+ *
+ * `screen` is the one that is not a list the reader pressed: opening a child's
+ * absences *is* reading the absence notification, and a bell that goes on
+ * showing it afterwards is the app disagreeing with itself about what the reader
+ * has seen.
+ */
+export type ReadSelector =
+  | { id: string }
+  | { all: true }
+  | { studentId: string; kinds: NotificationKind[] };
+
+/**
+ * Marks notifications read, and answers with how many moved.
+ *
+ * ── The authorization is the `where` clause ─────────────────────────────────
+ * The account and the tenant come from the session and are never taken from the
+ * request, so every selector below only ever narrows rows this reader already
+ * owns: a crafted notification id, or another household's `studentId`, matches
+ * nothing rather than throwing. Whether the row exists at all stays none of the
+ * caller's business.
+ *
+ * `readAt: null` is in the `where` as well, so re-opening a screen does not move
+ * a timestamp — when you first read it is the fact worth keeping.
+ */
+export async function markRead(
+  scope: { userId: string; organizationId: string },
+  selector: ReadSelector,
+): Promise<number> {
+  // An empty `kinds` would match every kind rather than none, which is the one
+  // way this could clear an inbox nobody asked it to.
+  if ("kinds" in selector && selector.kinds.length === 0) return 0;
+
+  const result = await db.notification.updateMany({
+    where: {
+      userId: scope.userId,
+      organizationId: scope.organizationId,
+      readAt: null,
+      ...("all" in selector
+        ? {}
+        : "id" in selector
+          ? { id: selector.id }
+          : { studentId: selector.studentId, kind: { in: selector.kinds } }),
+    },
+    data: { readAt: new Date() },
+  });
+
+  return result.count;
+}
+
 // ── Who gets told ────────────────────────────────────────────────────────────
 
 /**

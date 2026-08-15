@@ -262,6 +262,8 @@ const ar: Dictionary = {
       notesHint: "النتائج المنشورة",
       absences: "الغياب",
       absencesHint: "سجل المواظبة",
+      classmates: "القسم",
+      classmatesHint: "من في القسم",
       remarks: "الملاحظات",
       remarksHint: "دفتر التواصل",
       timetable: "جدول الحصص",
@@ -287,6 +289,7 @@ const ar: Dictionary = {
     titles: {
       notes: "النقط",
       absences: "الغياب",
+      classe: "القسم",
       remarques: "الملاحظات",
       "emploi-du-temps": "جدول الحصص",
       paiements: "الأداءات",
@@ -328,6 +331,15 @@ const ar: Dictionary = {
     remarks: {
       loadError: "تعذّر تحميل الملاحظات.",
       none: "لا توجد أي ملاحظة من الأساتذة.",
+    },
+
+    classmates: {
+      loadError: "تعذّر تحميل القسم.",
+      none: "لا توجد لائحة — التلميذ ليس في قسم بعد.",
+      className: "القسم",
+      pupilCount: "التلاميذ",
+      you: "ابنكم",
+      birthdayA11y: "عيد ميلاد اليوم",
     },
 
     timetable: {
@@ -597,6 +609,7 @@ const ar: Dictionary = {
       LEAVE_DECIDED: "عطلتكم بتاريخ {date}: {status}",
       ADVANCE_DECIDED: "تسبيقكم بمبلغ {amount}: {status}",
       REQUEST_FILED: "{document} مطلوب من طرف عائلة {child}",
+      ASSESSMENT_CREATED: "{teacher} أعطى «{assessment}» لقسم {className} — في انتظار قراركم",
       ASSESSMENT_SUBMITTED: "«{assessment}» صُحّح من طرف {teacher} — في انتظار الاعتماد",
       ASSESSMENT_VALIDATED: "تمّ اعتماد «{assessment}»",
     },

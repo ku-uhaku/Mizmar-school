@@ -144,6 +144,9 @@ const fr = {
     filterClass: "Classe",
     allClasses: "Toutes les classes",
     searchRemarks: "Rechercher une remarque…",
+    chooseClass: "Choisir une classe",
+    choosePupil: "Choisir un élève",
+    chooseClassFirst: "Choisissez d'abord une classe",
   },
   classroomOptions: {
     attendanceStatuses: {

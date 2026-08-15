@@ -6,13 +6,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   useMarkSeen,
+  useMarkNotificationsRead,
   useChild,
+  useClassmates,
   useChildSupplies,
   useChildDossier,
   useChildRemarks,
   useChildTimetable,
   useEvents,
 } from "../../../src/api/hooks";
+import type { NotificationKind } from "../../../src/api/types";
 import { interpolate, label, useFormat, useT } from "../../../src/i18n";
 import {
   Badge,
@@ -56,6 +59,19 @@ const SEEN_FOR: Record<string, "EVENTS" | "MARKS" | "REMARKS"> = {
   remarques: "REMARKS",
 };
 
+/**
+ * The inbox lines a topic *is* — reading the screen is reading them.
+ *
+ * Separate from `SEEN_FOR` above because the two clear different things: a
+ * badge is a watermark on a whole topic, while these are rows in the bell's
+ * list about this one child. A parent told their child missed Tuesday's maths
+ * lesson, who then opens the absences and reads it, should not still be
+ * carrying the same unread line afterwards.
+ */
+const READS_KINDS: Record<string, NotificationKind[]> = {
+  absences: ["ATTENDANCE_MISSED"],
+};
+
 export default function TopicScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -73,6 +89,14 @@ export default function TopicScreen() {
     if (seen) markSeen.mutate(seen);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topic]);
+
+  // And what clears this child's lines in the bell about the same thing.
+  const markRead = useMarkNotificationsRead();
+  useEffect(() => {
+    const kinds = READS_KINDS[topic];
+    if (kinds && studentId) markRead.mutate({ studentId, kinds });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topic, studentId]);
 
   const titles: Record<string, string> = t.topic.titles;
 
@@ -106,6 +130,8 @@ function TopicBody({ studentId, topic }: { studentId: string; topic: string }) {
       return <Absences studentId={studentId} />;
     case "remarques":
       return <Remarques studentId={studentId} />;
+    case "classe":
+      return <Classmates studentId={studentId} />;
     case "emploi-du-temps":
       return <Timetable studentId={studentId} />;
     case "paiements":
@@ -355,6 +381,88 @@ function Absences({ studentId }: { studentId: string }) {
           ))}
         </Card>
       )}
+    </>
+  );
+}
+
+/**
+ * La classe: who else sits in the room.
+ *
+ * ── Names, and one icon ─────────────────────────────────────────────────────
+ * A class list is a list of names, and that is all this is. The cake says whose
+ * birthday it is today and nothing says when anybody else's is — the server
+ * sends a flag rather than a date precisely so this screen could not show one
+ * if it wanted to. See `listClassmates`.
+ *
+ * The household's own child is marked rather than removed: a parent reading a
+ * list of thirty names wants to find their own, and pulling it out would also
+ * make it the one name whose position tells you nothing.
+ */
+function Classmates({ studentId }: { studentId: string }) {
+  const t = useT();
+  const theme = useTheme();
+  const classmates = useClassmates(studentId);
+
+  if (classmates.isPending) return <Loading />;
+  if (classmates.isError) {
+    return <ErrorNote message={t.topic.classmates.loadError} />;
+  }
+  if (classmates.data.pupils.length === 0) {
+    return <Empty message={t.topic.classmates.none} />;
+  }
+
+  const { className, levelName, pupils } = classmates.data;
+
+  return (
+    <>
+      <Card>
+        <Row
+          label={t.topic.classmates.className}
+          value={[className, levelName].filter(Boolean).join(" · ") || "—"}
+        />
+        <Divider />
+        <Row
+          label={t.topic.classmates.pupilCount}
+          value={String(pupils.length)}
+        />
+      </Card>
+
+      <Card>
+        {pupils.map((pupil, index) => (
+          <View key={pupil.id}>
+            {index > 0 ? <Divider /> : null}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: spacing.sm,
+                paddingVertical: spacing.xs,
+              }}
+            >
+              <Text
+                style={{
+                  flex: 1,
+                  color: theme.text,
+                  fontWeight: pupil.isSelf ? "700" : "400",
+                }}
+              >
+                {`${pupil.firstName} ${pupil.lastName}`}
+              </Text>
+
+              {pupil.isSelf ? <Badge>{t.topic.classmates.you}</Badge> : null}
+
+              {pupil.isBirthdayToday ? (
+                <MaterialCommunityIcons
+                  name="cake-variant"
+                  size={18}
+                  color={theme.warning}
+                  accessibilityLabel={t.topic.classmates.birthdayA11y}
+                />
+              ) : null}
+            </View>
+          </View>
+        ))}
+      </Card>
     </>
   );
 }

@@ -2,14 +2,33 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { EyeIcon, LockIcon, MessageSquareTextIcon } from "lucide-react";
+import {
+  EyeIcon,
+  LockIcon,
+  MessageSquareTextIcon,
+  PlusIcon,
+} from "lucide-react";
 
 import { useI18n } from "@/components/providers/i18n-provider";
 import { EmptyState } from "@/components/shell/empty-state";
+import { FormField } from "@/components/form/form-field";
+import { SubmitButton } from "@/components/form/submit-button";
+import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -17,15 +36,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { IDLE } from "@/lib/action-state";
 import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
-import { publishRemarkAction } from "@/modules/classroom/actions";
+import {
+  publishRemarkAction,
+  saveRemarkAction,
+} from "@/modules/classroom/actions";
 import {
   REMARK_KINDS,
+  REMARK_MAX_LENGTH,
   REMARK_PAGE_SIZE,
   REMARK_TONES,
 } from "@/modules/classroom/enums";
 import type {
+  ClassPupilOption,
   RemarkFilterChoices,
   RemarkRow,
 } from "@/modules/classroom/queries";
@@ -62,6 +88,9 @@ export function RemarksReview({
   choices,
   filters,
   canPublish,
+  canWrite = false,
+  pupils = [],
+  defaultDate,
 }: {
   remarks: RemarkRow[];
   choices: RemarkFilterChoices;
@@ -74,11 +103,18 @@ export function RemarksReview({
     pendingOnly: boolean;
   };
   canPublish: boolean;
+  /** Whether to offer the writing half at all. The action re-checks it. */
+  canWrite?: boolean;
+  /** Every seated pupil of the school, for the picker. See `listSchoolPupils`. */
+  pupils?: ClassPupilOption[];
+  /** Today, as a date input value — computed on the server, not in the browser. */
+  defaultDate?: string;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const [pending, startTransition] = React.useTransition();
+  const [writing, setWriting] = React.useState(false);
 
   /**
    * Rewrites one filter in the URL, keeping the rest.
@@ -194,6 +230,23 @@ export function RemarksReview({
             {t.common.reset}
           </Button>
         ) : null}
+
+        {/*
+          Writing one from the review screen.
+
+          The office reads this screen with a parent on the telephone, and until
+          now recording what came of that call meant finding the child in a list
+          of several hundred on another screen. The pupil is chosen here rather
+          than assumed — a class, then a child in it, which is how somebody
+          holding a register thinks of a pupil and is far harder to get wrong
+          than one long roll of the school.
+        */}
+        {canWrite && pupils.length > 0 ? (
+          <Button className="ms-auto" onClick={() => setWriting(true)}>
+            <PlusIcon />
+            {t.classroom.newRemark}
+          </Button>
+        ) : null}
       </div>
 
       {/*
@@ -288,7 +341,242 @@ export function RemarksReview({
           ))}
         </ol>
       )}
+
+      {/* Mounted once, outside the list, so it survives a filter change. */}
+      {canWrite ? (
+        <NewRemarkDialog
+          open={writing}
+          onOpenChange={setWriting}
+          pupils={pupils}
+          classes={choices.classes}
+          defaultDate={defaultDate ?? ""}
+          canPublish={canPublish}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Writing an observation from the review screen: a class, then a pupil in it.
+ *
+ * ── Why the pupils all arrive with the page ─────────────────────────────────
+ * The class picker filters a list that is already here, so choosing a class is
+ * instant and the form has no loading state in the middle of it. A school is a
+ * few hundred enrolments — see `listSchoolPupils` — which is worth the bytes to
+ * avoid a round trip somebody waits on with a parent on the telephone.
+ *
+ * Nothing here decides anything: `saveRemarkAction` re-derives the right to
+ * write against the signed-in user, resolves the enrolment against their own
+ * school, and downgrades `isVisibleToFamily` for anyone without the publish
+ * grant whatever this form sent.
+ */
+function NewRemarkDialog({
+  open,
+  onOpenChange,
+  pupils,
+  classes,
+  defaultDate,
+  canPublish,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pupils: ClassPupilOption[];
+  classes: { id: string; label: string }[];
+  defaultDate: string;
+  canPublish: boolean;
+}) {
+  const { t } = useI18n();
+  const [schoolClassId, setSchoolClassId] = React.useState("");
+  const [enrollmentId, setEnrollmentId] = React.useState("");
+
+  const [state, formAction] = React.useActionState(saveRemarkAction, IDLE);
+  useActionFeedback(state, {
+    onSuccess: () => {
+      onOpenChange(false);
+      // The next remark is rarely about the same child, and a stale name left
+      // in the picker is the one mistake this form could make silently.
+      setEnrollmentId("");
+    },
+  });
+
+  const inClass = pupils.filter(
+    (pupil) => pupil.schoolClassId === schoolClassId,
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Wider than the dialog default: this form carries five fields across
+        two rows, and a pupil's name plus their code does not fit a narrow
+        select without being cut off mid-surname — which is the one thing on
+        this form somebody has to read to know they picked the right child. */}
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <form action={formAction}>
+          <DialogHeader>
+            <DialogTitle>{t.classroom.newRemarkTitle}</DialogTitle>
+            <DialogDescription>{t.classroom.remarkBodyHint}</DialogDescription>
+          </DialogHeader>
+
+          {/* The chosen pupil travels as a hidden field, and is re-derived
+            server-side against the writer's own school — a select is a request
+            like any other. */}
+          <input type="hidden" name="enrollmentId" value={enrollmentId} />
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField name="schoolClassId" label={t.classroom.filterClass}>
+                <Select
+                  value={schoolClassId}
+                  onValueChange={(value) => {
+                    setSchoolClassId(value);
+                    // The pupil belonged to the class that was there before.
+                    setEnrollmentId("");
+                  }}
+                >
+                  <SelectTrigger id="schoolClassId" className="w-full">
+                    <SelectValue placeholder={t.classroom.chooseClass} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField
+                name="pupil"
+                label={t.classroom.pupil}
+                required
+                error={state.fieldErrors?.enrollmentId}
+              >
+                <Select
+                  value={enrollmentId}
+                  onValueChange={setEnrollmentId}
+                  disabled={schoolClassId === ""}
+                >
+                  <SelectTrigger id="pupil" className="w-full">
+                    <SelectValue
+                      placeholder={
+                        schoolClassId === ""
+                          ? t.classroom.chooseClassFirst
+                          : t.classroom.choosePupil
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inClass.map((pupil) => (
+                      <SelectItem
+                        key={pupil.enrollmentId}
+                        value={pupil.enrollmentId}
+                      >
+                        {pupil.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FormField name="kind" label={t.classroom.remarkKind}>
+                <Select name="kind" defaultValue="BEHAVIOUR">
+                  <SelectTrigger id="kind" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMARK_KINDS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {t.classroomOptions.remarkKinds[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField name="tone" label={t.classroom.remarkTone}>
+                <Select name="tone" defaultValue="NEUTRAL">
+                  <SelectTrigger id="tone" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMARK_TONES.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {t.classroomOptions.remarkTones[option]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField
+                name="occurredOn"
+                label={t.classroom.occurredOn}
+                error={state.fieldErrors?.occurredOn}
+              >
+                <Input
+                  id="occurredOn"
+                  name="occurredOn"
+                  type="date"
+                  defaultValue={defaultDate}
+                  dir="ltr"
+                  aria-invalid={Boolean(state.fieldErrors?.occurredOn)}
+                />
+              </FormField>
+            </div>
+
+            <FormField
+              name="body"
+              label={t.classroom.remarkBody}
+              required
+              error={state.fieldErrors?.body}
+            >
+              <Textarea
+                id="body"
+                name="body"
+                rows={4}
+                maxLength={REMARK_MAX_LENGTH}
+                aria-invalid={Boolean(state.fieldErrors?.body)}
+              />
+            </FormField>
+
+            {canPublish ? (
+              <div className="flex items-start gap-3 rounded-lg border p-3">
+                <Checkbox
+                  id="isVisibleToFamily"
+                  name="isVisibleToFamily"
+                  className="mt-0.5"
+                />
+                <Label
+                  htmlFor="isVisibleToFamily"
+                  className="grid cursor-pointer gap-1 font-normal"
+                >
+                  <span className="text-sm font-medium">
+                    {t.classroom.visibleToFamily}
+                  </span>
+                  <span className="text-muted-foreground text-xs text-pretty">
+                    {t.classroom.visibleToFamilyHint}
+                  </span>
+                </Label>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t.common.cancel}
+              </Button>
+            </DialogClose>
+            <SubmitButton disabled={enrollmentId === ""}>
+              {t.common.save}
+            </SubmitButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

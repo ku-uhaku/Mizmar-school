@@ -78,10 +78,7 @@ export function ClassDetail({
         <TeachingPanel
           schoolClass={schoolClass}
           grid={teachingGrid}
-          choices={{
-            subjects: timetableChoices?.subjects ?? [],
-            teachers: timetableChoices?.teachers ?? [],
-          }}
+          choices={{ teachers: timetableChoices?.teachers ?? [] }}
           canManage={permissions.canAssignTeacher}
         />
       </TabsContent>

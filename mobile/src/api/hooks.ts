@@ -11,6 +11,7 @@ import {
 
 import { api } from "./client";
 import type {
+  AppNotification,
   Assessment,
   AssessmentOptions,
   Badges,
@@ -19,6 +20,7 @@ import type {
   ChatMessage,
   Child,
   ChildDetail,
+  Classmates,
   DirectorDashboard,
   DocumentRequest,
   Dossier,
@@ -27,6 +29,7 @@ import type {
   Inbox,
   MarkSheet,
   MyRemark,
+  NotificationKind,
   PupilOption,
   Timetable,
   Remark,
@@ -646,6 +649,22 @@ export function useMarkSeen(): UseMutationResult<Badges, Error, SeenTopic> {
   });
 }
 
+/**
+ * Who else is in this child's class.
+ *
+ * Not cached for long, unlike the other reference-ish reads here: the only
+ * thing on it that changes is whose birthday it is today, and a list that went
+ * stale overnight would wish the wrong child many happy returns.
+ */
+export function useClassmates(studentId: string): UseQueryResult<Classmates> {
+  return useQuery({
+    queryKey: ["child", studentId, "classmates"],
+    queryFn: () => api<Classmates>(`/family/children/${studentId}/classmates`),
+    enabled: Boolean(studentId),
+    staleTime: 60_000,
+  });
+}
+
 export function useChildSupplies(
   studentId: string,
 ): UseQueryResult<SupplyList[]> {
@@ -785,8 +804,21 @@ export function unreadOf(data: InfiniteData<Inbox> | undefined): number {
   return data?.pages[0]?.unread ?? 0;
 }
 
+/** What one call marks read. Mirrors `ReadSelector` on the server. */
+export type ReadSelector =
+  | { id: string }
+  | { all: true }
+  | { studentId: string; kinds: NotificationKind[] };
+
+/** Whether a line is one of the ones this call just cleared. */
+function isCleared(item: AppNotification, input: ReadSelector): boolean {
+  if ("all" in input) return true;
+  if ("id" in input) return item.id === input.id;
+  return item.studentId === input.studentId && input.kinds.includes(item.kind);
+}
+
 /**
- * Marks one read, or the lot.
+ * Marks one read, the lot, or everything one screen is about.
  *
  * Answers with the whole refreshed inbox rather than an acknowledgement, so the
  * count on the bell and the dots in the list come from one server answer and
@@ -795,7 +827,7 @@ export function unreadOf(data: InfiniteData<Inbox> | undefined): number {
 export function useMarkNotificationsRead(): UseMutationResult<
   Inbox,
   Error,
-  { id: string } | { all: true }
+  ReadSelector
 > {
   const client = useQueryClient();
   return useMutation({
@@ -822,9 +854,7 @@ export function useMarkNotificationsRead(): UseMutationResult<
             ...page,
             unread: fresh.unread,
             items: page.items.map((item) =>
-              "all" in input || item.id === input.id
-                ? { ...item, isRead: true }
-                : item,
+              isCleared(item, input) ? { ...item, isRead: true } : item,
             ),
           })),
         };

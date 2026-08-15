@@ -137,6 +137,9 @@ const ar = {
     filterClass: "القسم",
     allClasses: "كل الأقسام",
     searchRemarks: "ابحث في الملاحظات…",
+    chooseClass: "اختر قسمًا",
+    choosePupil: "اختر تلميذًا",
+    chooseClassFirst: "اختر القسم أولًا",
   },
   classroomOptions: {
     attendanceStatuses: {
