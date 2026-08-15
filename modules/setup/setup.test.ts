@@ -5,7 +5,9 @@ import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { CYCLE_CATALOGUE, MOROCCAN_CURSUS, SUBJECTS } from "@/modules/academics/presets";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { offeringScopeKey } from "@/modules/classes/enums";
+import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/presets";
 import {
+  REFERENCE_SIZES,
   classCodesFor,
   levelByCode,
   levelsFor,
@@ -17,14 +19,16 @@ import {
 import { slotsForBell } from "@/modules/setup/bell";
 
 /**
- * The setup wizard: one submit, nineteen tables, one transaction.
+ * The setup wizard: one submit, thirty-odd tables, one transaction.
  *
- * Three things here are not checkable by types and are the whole reason this
+ * Four things here are not checkable by types and are the whole reason this
  * file exists. The parallel arrays the programme step posts must zip by index
  * or every coefficient lands on the wrong subject. The denormalised `schoolId`
  * and the three `scopeKey`s must come from the transaction and their helpers,
- * never from the form. And every write must be an upsert, because the wizard
- * is re-runnable on a school somebody has already started editing.
+ * never from the form. Every write must be an upsert, because the wizard is
+ * re-runnable on a school somebody has already started editing. And the
+ * reference lists must land whatever was ticked, without undoing the two
+ * things a school edits in place — its appréciation scale and who holds a till.
  */
 
 const t = getDictionaryFor("en");
@@ -720,6 +724,90 @@ describe("applySetup", () => {
 
     expect(result).toBeNull();
     expect(of("schoolSettings", "upsert")).toHaveLength(0);
+  });
+
+  /*
+    ── The lists a school refers to rather than decides ──────────────────────
+    They are written on every run, whatever was ticked, because a school with
+    no town, no dossier, no kind of contrôle and no rubrique cannot enrol a
+    pupil, mark a paper or take a dirham — see modules/setup/reference.ts.
+    Before this, only `db:seed:config` wrote them, so a school opened through
+    the wizard and a school opened by the seed were two different schools.
+  */
+  it("writes the reference lists even when every step is skipped", async () => {
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T" } as never },
+      ...EMPTY_PLAN,
+    } as never);
+
+    expect(of("city", "upsert")).toHaveLength(REFERENCE_SIZES.cities);
+    expect(of("documentType", "upsert")).toHaveLength(REFERENCE_SIZES.documentTypes);
+    expect(of("documentRequestType", "upsert")).toHaveLength(REFERENCE_SIZES.requestTypes);
+    expect(of("assessmentType", "upsert")).toHaveLength(REFERENCE_SIZES.assessmentTypes);
+    expect(of("supplyArticle", "upsert")).toHaveLength(REFERENCE_SIZES.supplyArticles);
+    expect(of("cashRegister", "upsert")).toHaveLength(REFERENCE_SIZES.registers);
+    expect(of("operationCategory", "upsert")).toHaveLength(REFERENCE_SIZES.categories);
+    expect(of("operationSubcategory", "upsert")).toHaveLength(REFERENCE_SIZES.subcategories);
+    expect(of("operationMotif", "upsert")).toHaveLength(REFERENCE_SIZES.motifs);
+    expect(of("supplier", "upsert")).toHaveLength(REFERENCE_SIZES.suppliers);
+    expect(of("bank", "upsert")).toHaveLength(REFERENCE_SIZES.banks);
+    expect(of("appreciationBand", "createMany")).toHaveLength(1);
+  });
+
+  it("lays down only the quartiers of the town the school typed", async () => {
+    // The town comes back from the row that was just written, never from the
+    // plan: `School.city` is free text and the quartiers are matched on it.
+    answers["school.create"] = { id: "school-1", city: "Oujda" };
+
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T" } as never },
+      ...EMPTY_PLAN,
+    } as never);
+
+    const codes = of("neighbourhood", "upsert").map(
+      (call) => (call.args.create as Record<string, unknown>).code,
+    );
+    expect(codes.length).toBeGreaterThan(0);
+    for (const code of codes) {
+      const quartier = MOROCCAN_NEIGHBOURHOODS.find((row) => row.code === code);
+      expect(quartier?.cityCode).toBe("OUJDA");
+    }
+  });
+
+  it("lays down no quartier for a town outside the starting list", async () => {
+    answers["school.create"] = { id: "school-1", city: "Berkane" };
+
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T" } as never },
+      ...EMPTY_PLAN,
+    } as never);
+
+    expect(of("neighbourhood", "upsert")).toHaveLength(0);
+    // The towns themselves are still laid in full — a birthplace is anywhere.
+    expect(of("city", "upsert")).toHaveLength(REFERENCE_SIZES.cities);
+  });
+
+  it("never rewrites an appreciation scale the school has edited", async () => {
+    answers["appreciationBand.count"] = 3;
+
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T" } as never },
+      ...EMPTY_PLAN,
+    } as never);
+
+    // The wording is the whole point of that table: a re-run must not put
+    // "Assez bien" back over what the school wrote on its own bulletins.
+    expect(of("appreciationBand", "createMany")).toHaveLength(0);
+  });
+
+  it("never takes a till back off the cashier holding it", async () => {
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T" } as never },
+      ...EMPTY_PLAN,
+    } as never);
+
+    const update = of("cashRegister", "upsert")[0]!.args.update as Record<string, unknown>;
+    expect(update).not.toHaveProperty("holderId");
   });
 
   it("opens one class per section and the groups under it", async () => {

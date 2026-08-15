@@ -15,7 +15,20 @@ import {
   type EducationCycle,
   type LevelNomenclature,
 } from "@/modules/academics/enums";
+import { DEFAULT_APPRECIATION_BANDS } from "@/modules/assessments/enums";
+import { ASSESSMENT_TYPE_SEEDS } from "@/modules/assessments/presets";
 import { FEE_TYPES, FEE_RATES, DISCOUNTS } from "@/modules/billing/presets";
+import { DOCUMENT_TYPE_SEEDS } from "@/modules/documents/presets";
+import { MOROCCAN_CITIES } from "@/modules/geography/presets";
+import { REQUEST_TYPE_SEEDS } from "@/modules/requests/presets";
+import { SUPPLY_ARTICLE_SEEDS } from "@/modules/supplies/presets";
+import {
+  BANK_SEEDS,
+  CATEGORY_SEEDS,
+  MOTIF_SEEDS,
+  REGISTER_SEEDS,
+  SUPPLIER_SEEDS,
+} from "@/modules/treasury/presets";
 import { SPECIALIST_ROOMS, classroomBlock, type RoomPreset } from "@/modules/facilities/presets";
 
 /**
@@ -229,3 +242,31 @@ export function classCodesFor(
     [levelCode, trackCode, CLASS_SECTIONS[index]].filter(Boolean).join("-"),
   );
 }
+
+/**
+ * How many rows the reference step writes for every school — see
+ * `modules/setup/reference.ts`.
+ *
+ * Counted from the same presets that step writes, rather than typed out beside
+ * them: a review that promised twelve towns and wrote fourteen would be a
+ * screen nobody could trust twice. The quartiers are missing on purpose — how
+ * many a school gets depends on the town it types on the first step, so the
+ * review names them without a figure.
+ */
+export const REFERENCE_SIZES = {
+  cities: MOROCCAN_CITIES.length,
+  documentTypes: DOCUMENT_TYPE_SEEDS.length,
+  requestTypes: REQUEST_TYPE_SEEDS.length,
+  assessmentTypes: ASSESSMENT_TYPE_SEEDS.length,
+  appreciationBands: DEFAULT_APPRECIATION_BANDS.length,
+  supplyArticles: SUPPLY_ARTICLE_SEEDS.length,
+  registers: REGISTER_SEEDS.length,
+  categories: CATEGORY_SEEDS.length,
+  subcategories: CATEGORY_SEEDS.reduce(
+    (total, category) => total + (category.subcategories?.length ?? 0),
+    0,
+  ),
+  motifs: MOTIF_SEEDS.length,
+  suppliers: SUPPLIER_SEEDS.length,
+  banks: BANK_SEEDS.length,
+} as const;

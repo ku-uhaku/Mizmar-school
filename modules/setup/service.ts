@@ -4,6 +4,11 @@ import { db } from "@/lib/db";
 import type { SchoolSettingsValues } from "@/lib/school-settings";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { slotsForBell, type BellPlan } from "@/modules/setup/bell";
+import {
+  NO_REFERENCE_COUNTS,
+  writeReferenceData,
+  type ReferenceCounts,
+} from "@/modules/setup/reference";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { offeringScopeKey } from "@/modules/classes/enums";
 import { termStatus } from "@/modules/school-years/presets";
@@ -14,10 +19,11 @@ import type { TxClient } from "@/modules/treasury/service";
  * Writes everything the setup wizard asked for, in one transaction.
  *
  * ── Why one transaction and not a call per module ───────────────────────────
- * Nineteen tables across seven modules is a lot of ways to get half a school. A
- * wizard that wrote the cursus and then failed on the fee list would leave a
- * school nobody can finish configuring and nobody can safely re-run, so the
- * whole plan lands or none of it does.
+ * Thirty-odd tables across a dozen modules is a lot of ways to get half a
+ * school. A wizard that wrote the cursus and then failed on the fee list would
+ * leave a school nobody can finish configuring and nobody can safely re-run, so
+ * the whole plan lands or none of it does. The reference lists in
+ * `reference.ts` are inside the same transaction for the same reason.
  *
  * ── Why it re-implements rather than calls the services ─────────────────────
  * `generateTimeSlots`, `generateSchoolWeeks` and the four `copy*` functions all
@@ -193,6 +199,8 @@ export type SetupCounts = {
   offerings: number;
   classes: number;
   groups: number;
+  /** The lists every school gets whatever it ticked — see `reference.ts`. */
+  reference: ReferenceCounts;
 };
 
 export type SetupResult = {
@@ -205,6 +213,7 @@ const NO_COUNTS: SetupCounts = {
   cycles: 0, levels: 0, tracks: 0, subjects: 0, programme: 0, rooms: 0,
   terms: 0, slots: 0, holidays: 0, weeks: 0, feeTypes: 0, feeRates: 0,
   discounts: 0, offerings: 0, classes: 0, groups: 0,
+  reference: NO_REFERENCE_COUNTS,
 };
 
 async function writeCursus(
@@ -363,13 +372,14 @@ export async function applySetup(
           ? await tx.school.create({
               // organizationId comes from the session, never from the form.
               data: { ...plan.school.data, organizationId },
-              select: { id: true },
+              // `city` for the quartiers — see the reference step below.
+              select: { id: true, city: true },
             })
           : // Re-derived against the organisation even though the action already
             // authorized it, so a crafted id can only ever match zero rows.
             await tx.school.findFirst({
               where: { id: plan.school.id, organizationId },
-              select: { id: true },
+              select: { id: true, city: true },
             });
       if (!school) return null;
       const schoolId = school.id;
@@ -383,6 +393,18 @@ export async function applySetup(
         update: plan.settings,
         create: { schoolId, ...plan.settings },
       });
+
+      /*
+        ── 2b. The lists it refers to ──────────────────────────────────────────
+        Not a step and not ticked: towns, the dossier, the papers a family may
+        ask for, the kinds of contrôle, the fournitures catalogue and the whole
+        caisse — till, rubriques, sous-rubriques, motifs, fournisseurs and banks.
+        A school cannot enter a pupil, ask for a paper, mark a contrôle or take a
+        dirham without them, and none of it is a decision the school makes. See
+        `reference.ts` for why this is unconditional and what it will not
+        overwrite.
+      */
+      counts.reference = await writeReferenceData(tx, schoolId, school.city);
 
       // ── 3. The year and its terms ─────────────────────────────────────────
       let schoolYearId: string | null = null;

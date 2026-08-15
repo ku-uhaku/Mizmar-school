@@ -10,11 +10,8 @@ import { seedDocumentTypes } from "@/modules/documents/seed";
 import { seedRequestTypes } from "@/modules/requests/seed";
 import { seedRooms } from "@/modules/facilities/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
-import {
-  cityCodeByName,
-  seedCities,
-  seedNeighbourhoods,
-} from "@/modules/geography/seed";
+import { cityCodeByName } from "@/modules/geography/presets";
+import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
 import { seedSupplyArticles } from "@/modules/supplies/seed";
 import { PRESET_TEACHING_DAYS_SETTING } from "@/modules/timetable/presets";
 import {

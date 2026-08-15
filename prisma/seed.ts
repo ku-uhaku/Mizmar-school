@@ -21,7 +21,7 @@ import {
 import { seedSupplyLists } from "@/modules/supplies/seed";
 import { seedFamilies } from "@/modules/families/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
-import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/seed";
+import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/presets";
 import { seedMassarDemo } from "@/modules/massar/seed";
 import { DEMO_ORGANIZATION, seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
