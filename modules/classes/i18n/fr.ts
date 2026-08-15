@@ -27,6 +27,8 @@ const fr = {
     tabRoster: "Élèves",
     tabTeaching: "Enseignants",
     tabTimetable: "Emploi du temps",
+    tabControls: "Contrôles",
+    tabDevoirs: "Devoirs",
 
     roster: "Effectif",
     rosterHint: "Les élèves affectés à cette classe pour l'année.",

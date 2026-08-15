@@ -74,6 +74,9 @@ export function DevoirsReview({
   filters,
   canValidate,
   canReweigh,
+  kind = "DEVOIR",
+  showClassFilter = true,
+  paramPrefix = "",
 }: {
   assessments: AssessmentRow[];
   choices: AssessmentFilterChoices;
@@ -89,6 +92,23 @@ export function DevoirsReview({
   canValidate: boolean;
   /** ASSESSMENT_MANAGE — whether a paper may be moved in or out of the average. */
   canReweigh: boolean;
+  /**
+   * Which half of the split is on the list — it decides the empty state's
+   * wording and nothing else. The filtering itself is the caller's: this
+   * component renders the rows it is handed. See `AssessmentFilters.kind`.
+   */
+  kind?: "DEVOIR" | "CONTROLE";
+  /**
+   * Whether to offer the class picker. Off where the class is the route rather
+   * than a choice — a picker that navigates nowhere is worse than none.
+   */
+  showClassFilter?: boolean;
+  /**
+   * Prefix for this list's query parameters, so two of these can share a page
+   * without one's filters moving the other's. Empty for a screen that owns the
+   * URL to itself.
+   */
+  paramPrefix?: string;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -119,15 +139,27 @@ export function DevoirsReview({
   const setFilter = React.useCallback(
     (key: string, value: string | null) => {
       const next = new URLSearchParams(params.toString());
-      if (value === null || value === "" || value === ALL) next.delete(key);
-      else next.set(key, value);
+      const name = `${paramPrefix}${key}`;
+      if (value === null || value === "" || value === ALL) next.delete(name);
+      else next.set(name, value);
 
       startTransition(() => {
         router.replace(next.size > 0 ? `?${next.toString()}` : "?");
       });
     },
-    [params, router],
+    [params, router, paramPrefix],
   );
+
+  /** Clears only this list's parameters, leaving a neighbour's alone. */
+  const resetFilters = React.useCallback(() => {
+    const next = new URLSearchParams(params.toString());
+    for (const key of ["q", "teacher", "class", "subject", "term", "stage"]) {
+      next.delete(`${paramPrefix}${key}`);
+    }
+    startTransition(() => {
+      router.replace(next.size > 0 ? `?${next.toString()}` : "?");
+    });
+  }, [params, router, paramPrefix]);
 
   // Debounced so a title is one query at the end rather than one per keystroke.
   const [search, setSearch] = React.useState(filters.search);
@@ -166,13 +198,15 @@ export function DevoirsReview({
           allLabel={t.assessment.allTeachers}
         />
 
-        <FilterSelect
-          value={filters.schoolClassId || ALL}
-          onChange={(value) => setFilter("class", value)}
-          placeholder={t.assessment.class}
-          options={choices.classes}
-          allLabel={t.assessment.allClasses}
-        />
+        {showClassFilter ? (
+          <FilterSelect
+            value={filters.schoolClassId || ALL}
+            onChange={(value) => setFilter("class", value)}
+            placeholder={t.assessment.class}
+            options={choices.classes}
+            allLabel={t.assessment.allClasses}
+          />
+        ) : null}
 
         <FilterSelect
           value={filters.subjectId || ALL}
@@ -224,7 +258,7 @@ export function DevoirsReview({
             size="sm"
             onClick={() => {
               setSearch("");
-              startTransition(() => router.replace("?"));
+              resetFilters();
             }}
           >
             {t.common.reset}
@@ -252,8 +286,20 @@ export function DevoirsReview({
           <CardContent className="p-0">
             <EmptyState
               icon={<ClipboardListIcon className="size-5" />}
-              title={hasFilter ? t.common.noResults : t.assessment.noDevoirs}
-              description={hasFilter ? undefined : t.assessment.noDevoirsHint}
+              title={
+                hasFilter
+                  ? t.common.noResults
+                  : kind === "CONTROLE"
+                    ? t.assessment.noAssessments
+                    : t.assessment.noDevoirs
+              }
+              description={
+                hasFilter
+                  ? undefined
+                  : kind === "CONTROLE"
+                    ? t.assessment.noAssessmentsHint
+                    : t.assessment.noDevoirsHint
+              }
             />
           </CardContent>
         </Card>

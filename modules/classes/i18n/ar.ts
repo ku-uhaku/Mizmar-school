@@ -25,6 +25,8 @@ const ar = {
     tabRoster: "التلاميذ",
     tabTeaching: "الأساتذة",
     tabTimetable: "استعمال الزمن",
+    tabControls: "الفروض المحروسة",
+    tabDevoirs: "الواجبات",
 
     roster: "لائحة القسم",
     rosterHint: "التلاميذ المسندون إلى هذا القسم لهذه السنة.",

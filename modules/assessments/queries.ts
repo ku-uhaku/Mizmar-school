@@ -13,10 +13,12 @@ import {
   levelNameLabel,
 } from "@/modules/academics/labels";
 import {
+  ASSESSMENT_PAGE_SIZE,
   COUNTED_STATUSES,
   markStatistics,
   quartersToPoints,
   questionsTotal,
+  statusesForStage,
   type AppreciationBandRow,
   type MarkStatistics,
 } from "@/modules/assessments/enums";
@@ -647,7 +649,15 @@ export async function listAssessmentFilterChoices(
   // Only the scoping clauses, never the reader's own selections: pickers that
   // narrowed themselves as you used them would strand you on a filter you could
   // no longer clear.
-  const inScope = assessmentWhere(context, { kind: filters.kind });
+  //
+  // `classId` counts as scope rather than selection, and only because of where
+  // it comes from: the class tabs pass the class in the route, where it cannot
+  // be cleared and the pickers should describe that class alone. The school-wide
+  // screens pass `kind` only, so nothing changes for them.
+  const inScope = assessmentWhere(context, {
+    kind: filters.kind,
+    classId: filters.classId,
+  });
 
   const [authored, taught, classes, awaitingCount] = await Promise.all([
     db.assessment.findMany({
@@ -717,6 +727,68 @@ export async function listAssessmentFilterChoices(
     })),
     awaitingCount,
   };
+}
+
+/** One class tab's worth of papers: the list, its pickers, and the terms. */
+export type ClassPapers = {
+  assessments: AssessmentRow[];
+  choices: AssessmentFilterChoices;
+  terms: TermOption[];
+  filters: ClassPaperFilters;
+};
+
+/** What a reader may narrow a class's papers by. The class itself is the route. */
+export type ClassPaperFilters = {
+  search: string;
+  teacherId: string;
+  schoolClassId: string;
+  subjectId: string;
+  termId: string;
+  stage: string;
+};
+
+/**
+ * Everything the contrôles or devoirs tab of one class needs, in one call.
+ *
+ * ── Why this composes rather than the page doing it ─────────────────────────
+ * The class screen shows two of these side by side, and each is a list plus its
+ * pickers plus the terms — three reads that have to agree about the same scope.
+ * Composed here, the tab cannot be given a list of one class and pickers of
+ * another; left to the page it would be six calls whose arguments have to be
+ * kept in step by hand, in a file that is meant to hold no query logic at all.
+ *
+ * The list is capped like every school-wide read — see `AssessmentFilters.take`
+ * — and ordered most recent first, which is how a feed of "what has been set"
+ * reads. `stage` is turned into statuses here so the page does not have to know
+ * that mapping either.
+ */
+export async function loadClassPapers(
+  context: AuthContext,
+  classId: string,
+  kind: "CONTROLE" | "DEVOIR",
+  filters: ClassPaperFilters,
+): Promise<ClassPapers> {
+  // An unrecognised stage leaves the list unfiltered rather than empty — see
+  // `statusesForStage`.
+  const statuses = filters.stage ? statusesForStage(filters.stage) : [];
+
+  const [assessments, choices, terms] = await Promise.all([
+    listAssessments(context, {
+      kind,
+      classId,
+      search: filters.search || undefined,
+      teacherId: filters.teacherId || undefined,
+      subjectId: filters.subjectId || undefined,
+      termId: filters.termId || undefined,
+      statuses: statuses.length > 0 ? statuses : undefined,
+      recentFirst: true,
+      take: ASSESSMENT_PAGE_SIZE,
+    }),
+    listAssessmentFilterChoices(context, { kind, classId }),
+    listTerms(context),
+  ]);
+
+  return { assessments, choices, terms, filters };
 }
 
 /**
