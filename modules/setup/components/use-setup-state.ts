@@ -3,7 +3,9 @@
 import * as React from "react";
 
 import { localKey } from "@/lib/local-key";
-import type { SchoolSettingsValues } from "@/lib/school-settings";
+import { parseWeekdayList, type SchoolSettingsValues } from "@/lib/school-settings";
+import { FREE_AFTERNOON_DAYS, PRESET_TEACHING_DAYS } from "@/modules/timetable/presets";
+import type { BellPlan } from "@/modules/setup/bell";
 import type { EducationCycle, LevelNomenclature } from "@/modules/academics/enums";
 import { termNamesFor, termSpans } from "@/modules/school-years/presets";
 import { DISCOUNTS, FEE_TYPES } from "@/modules/billing/presets";
@@ -482,9 +484,25 @@ export function useSetupState(input: {
     setRooms((current) => current ?? roomRows);
   }, [roomRows]);
 
-  // ── The bell ───────────────────────────────────────────────────────────────
+  /*
+    ── The bell ───────────────────────────────────────────────────────────────
+    Monday to Friday, 08h00–12h00 and 14h00–18h00, with Wednesday afternoon
+    off: five mornings and four afternoons, thirty-six one-hour periods, which
+    is exactly the week `WEEKLY_TEACHING_MINUTES` writes every level's
+    programme against.
+
+    It used to open on a six-day week with Saturday mornings and no free
+    afternoon — forty-four periods — so a school that accepted the defaults got
+    a grid the cursus had been sized for and the seed would never have laid.
+    The two now agree, and `PRESET_TEACHING_DAYS` and `FREE_AFTERNOON_DAYS` say
+    the same thing on the seed's side.
+
+    It is only where the boxes *start*. Every day of the week can be ticked and
+    any of them can stop at noon — a school taking Friday afternoon rather than
+    Wednesday changes two boxes, and one opening on six days changes three.
+  */
   const [bell, setBell] = React.useState({
-    teachingDays: [1, 2, 3, 4, 5, 6],
+    teachingDays: [...PRESET_TEACHING_DAYS] as number[],
     dayStartsAt: input.settings.dayStartsAt,
     afternoonStartsAt: input.settings.afternoonStartsAt,
     periodMinutes: String(input.settings.periodMinutes),
@@ -492,7 +510,9 @@ export function useSetupState(input: {
     afternoonPeriods: String(input.settings.afternoonPeriods),
     periodsBeforeBreak: String(input.settings.periodsBeforeBreak),
     breakMinutes: String(input.settings.breakMinutes),
-    saturdayMorningOnly: true,
+    freeAfternoonDays: (input.settings.freeAfternoonDays
+      ? parseWeekdayList(input.settings.freeAfternoonDays)
+      : [...FREE_AFTERNOON_DAYS]) as number[],
     withRamadan: true,
     ramadanStartsAt: "09:00",
     ramadanPeriods: "4",
@@ -500,6 +520,32 @@ export function useSetupState(input: {
   const patchBell = React.useCallback((patch: Partial<typeof bell>) => {
     setBell((current) => ({ ...current, ...patch }));
   }, []);
+
+  /*
+    The answers above as the plan `slotsForBell` reads, derived once.
+
+    Two steps draw from it — the bell asks the questions and previews a day, the
+    week after it draws the whole grid — and a second reading of the same boxes
+    is a preview that eventually disagrees with the one beside it. The numbers
+    are coerced here rather than in either step for the same reason.
+  */
+  const bellPlan = React.useMemo<BellPlan>(
+    () => ({
+      teachingDays: bell.teachingDays,
+      dayStartsAt: bell.dayStartsAt,
+      afternoonStartsAt: bell.afternoonStartsAt,
+      periodMinutes: Number(bell.periodMinutes) || 60,
+      morningPeriods: Number(bell.morningPeriods) || 0,
+      afternoonPeriods: Number(bell.afternoonPeriods) || 0,
+      periodsBeforeBreak: Number(bell.periodsBeforeBreak) || 0,
+      breakMinutes: Number(bell.breakMinutes) || 0,
+      freeAfternoonDays: bell.freeAfternoonDays,
+      withRamadan: bell.withRamadan,
+      ramadanStartsAt: bell.ramadanStartsAt,
+      ramadanPeriods: Number(bell.ramadanPeriods) || 0,
+    }),
+    [bell],
+  );
 
   // ── Billing ────────────────────────────────────────────────────────────────
   const [fees, setFees] = React.useState<FeeDraft[]>(() =>
@@ -637,7 +683,7 @@ export function useSetupState(input: {
 
     rooms: { rows: roomRows, setRooms, updateRoom, takeOverRooms },
 
-    bell: { ...bell, patch: patchBell },
+    bell: { ...bell, patch: patchBell, plan: bellPlan },
 
     classes: {
       offerings, updateOffering, classCount,

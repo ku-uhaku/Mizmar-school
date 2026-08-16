@@ -1,6 +1,7 @@
 import "server-only";
 
-import { db } from "@/lib/db";
+import { recordEvent } from "@/lib/audit";
+import { auditClient, db } from "@/lib/db";
 import type { TxClient } from "@/modules/treasury/service";
 import { teachingDaysOf } from "@/lib/school-settings";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
@@ -1185,13 +1186,57 @@ function modalDuration(slots: GeneratorSlot[]): number {
 
 /**
  * Longer than Prisma's 5s default, because a whole-school apply is one
- * transaction holding roughly six hundred lessons — and each one is three
- * statements by the time the audit trail has read the row it replaces and
- * written its entry. Five seconds is a limit set for a handful of writes; this
- * is deliberately several hundred, and it must not half-write a school's week.
+ * transaction holding roughly six hundred lessons. Five seconds is a limit set
+ * for a handful of writes; this is deliberately several hundred, and it must
+ * not half-write a school's week.
  */
 const APPLY_TIMEOUT = { timeout: 60_000, maxWait: 10_000 } as const;
+
+/** Lessons per INSERT when the week is being replaced wholesale. */
+const CREATE_CHUNK = 500;
+
 export async function applyTimetableDraft(
+  schoolId: string,
+  schoolYearId: string,
+  options: GeneratorOptions,
+): Promise<{
+  written: number;
+  cleared: number;
+  assigned: number;
+  draft: TimetableDraft;
+}> {
+  const result = await writeTimetableDraft(schoolId, schoolYearId, options);
+
+  /*
+    One entry for one act, because the transaction below runs unaudited.
+
+    Drawing a week is a single decision that happens to touch several hundred
+    rows, and what a reader of the trail wants is the decision and its counts —
+    not six hundred lines saying `CREATE TimetableEntry`, which is what they
+    would have to read past to find anything else that happened that morning.
+    Written after the commit: an entry about a grid that rolled back would
+    describe rows that do not exist.
+  */
+  if (result.written > 0 || result.cleared > 0) {
+    await recordEvent({
+      action: "UPDATE",
+      entity: "TimetableEntry",
+      metadata: {
+        generator: true,
+        scheduleKind: options.scheduleKind,
+        seed: options.seed,
+        classes: result.draft.classes.length,
+        written: result.written,
+        cleared: result.cleared,
+        assigned: result.assigned,
+      },
+    });
+  }
+
+  return result;
+}
+
+async function writeTimetableDraft(
   schoolId: string,
   schoolYearId: string,
   options: GeneratorOptions,
@@ -1208,7 +1253,25 @@ export async function applyTimetableDraft(
     return { written: 0, cleared: 0, assigned: 0, draft };
   }
 
-  return db.$transaction(async (tx) => {
+  /*
+    Deliberately the client *without* the audit extension — see `auditClient`,
+    and `applySetup`, which takes the same door for the same reason.
+
+    Through the extended one every lesson costs three round trips rather than
+    one: a "before" read of the row it replaces, the write, and an
+    `activity_logs` insert that commits on its own connection. That is right for
+    a secretary saving one cell and wrong here, where a whole-school week is
+    several hundred rows in a single interactive transaction and the trail's
+    share of it is most of the wait.
+  */
+  return auditClient.$transaction(async (transaction) => {
+    /*
+      `TxClient` is the *extended* client's transaction type. The extension
+      wraps behaviour around the delegates rather than changing their shape, so
+      the two are the same object at runtime and this bridges the declaration —
+      exactly as `writeSetup` does.
+    */
+    const tx = transaction as unknown as TxClient;
     let cleared = 0;
 
     if (options.replaceExisting) {
@@ -1264,9 +1327,11 @@ export async function applyTimetableDraft(
       assigned += 1;
     }
 
-    let written = 0;
-
-    for (const placement of draft.placements) {
+    // Every lesson the draft placed, as rows. A block of two periods is two of
+    // them — see the note at the top of this file on why a lesson is several
+    // rows — and all of them are all-year templates, as the doc comment above
+    // says.
+    const rows = draft.placements.flatMap((placement) => {
       const bookingKey = bookingKeyOf(
         placement.classGroupId,
         null,
@@ -1275,36 +1340,61 @@ export async function applyTimetableDraft(
         null,
       );
 
-      for (const timeSlotId of placement.timeSlotIds) {
-        // Upsert rather than create: without `replaceExisting` the class may
-        // already hold this exact booking key in this slot, and a generated
-        // grid should settle on the newer lesson rather than fail the whole run.
+      return placement.timeSlotIds.map((timeSlotId) => ({
+        schoolClassId: placement.schoolClassId,
+        timeSlotId,
+        subjectId: placement.subjectId,
+        teacherId: placement.teacherId,
+        roomId: placement.roomId,
+        classGroupId: placement.classGroupId,
+        termId: null,
+        weekParity: "ALL",
+        fromWeek: null,
+        toWeek: null,
+        bookingKey,
+      }));
+    });
+
+    let written = 0;
+
+    if (options.replaceExisting) {
+      /*
+        Nothing here can collide, so the week goes in as a handful of INSERTs
+        rather than one round trip per lesson — which, once the trail was off
+        this path, was the rest of the wait.
+
+        The delete above took every row these classes held in this bell
+        schedule, and the generator books a class's ledger slot by slot, so no
+        two placements can share `(class, slot, bookingKey)` either. Chunked
+        because a whole school is several hundred rows and one statement per
+        commit is not a reason to build a megabyte of SQL.
+      */
+      for (let from = 0; from < rows.length; from += CREATE_CHUNK) {
+        const made = await tx.timetableEntry.createMany({
+          data: rows.slice(from, from + CREATE_CHUNK),
+        });
+        written += made.count;
+      }
+    } else {
+      // Nothing was cleared, so the class may already hold this exact booking
+      // key in this slot. Upsert so a generated grid settles on the newer
+      // lesson rather than failing the whole run on one cell.
+      for (const row of rows) {
+        const { schoolClassId, timeSlotId, bookingKey } = row;
         await tx.timetableEntry.upsert({
           where: {
             schoolClassId_timeSlotId_bookingKey: {
-              schoolClassId: placement.schoolClassId,
+              schoolClassId,
               timeSlotId,
               bookingKey,
             },
           },
           update: {
-            subjectId: placement.subjectId,
-            teacherId: placement.teacherId,
-            roomId: placement.roomId,
+            subjectId: row.subjectId,
+            teacherId: row.teacherId,
+            roomId: row.roomId,
           },
-          create: {
-            schoolClassId: placement.schoolClassId,
-            timeSlotId,
-            subjectId: placement.subjectId,
-            teacherId: placement.teacherId,
-            roomId: placement.roomId,
-            classGroupId: placement.classGroupId,
-            termId: null,
-            weekParity: "ALL",
-            fromWeek: null,
-            toWeek: null,
-            bookingKey,
-          },
+          create: row,
         });
         written += 1;
       }

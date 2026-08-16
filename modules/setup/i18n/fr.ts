@@ -42,6 +42,7 @@ const fr = {
       programme: "Programme",
       rooms: "Salles",
       bell: "Horaires",
+      week: "La semaine",
       classes: "Classes",
       fees: "Frais",
       review: "Récapitulatif",
@@ -57,6 +58,7 @@ const fr = {
       programme: "Le coefficient et l'horaire hebdomadaire de chaque matière, niveau par niveau.",
       rooms: "Où se déroulent les cours. Dimensionnées selon les classes ouvertes.",
       bell: "Quand sonnent les séances, et quels jours.",
+      week: "La grille que ces séances posent, avant que rien ne soit écrit.",
       classes: "Combien de classes ouvrent dans chaque niveau cette année, et leur effectif.",
       fees: "Ce que l'établissement facture, à quel prix cette année, et ce qu'il déduit.",
       review: "Ce qui va être enregistré.",
@@ -137,14 +139,27 @@ const fr = {
       periodsBeforeBreak: "Récréation après",
       periodsBeforeBreakHint: "Séances. Zéro place la série sans récréation.",
       breakMinutes: "Durée de la récréation",
-      saturdayMorningOnly: "Le samedi, matin seulement",
+      freeAfternoonDays: "Après-midis libres",
+      freeAfternoonDaysHint:
+        "Cochez les demi-journées qui s'arrêtent à midi — autant que l'établissement en prend. Le mercredi par habitude, le vendredi pour la prière, et un samedi matin seulement, ce sont les deux cases à la fois. Aucune case cochée : tous les après-midis sont travaillés.",
+      freeAfternoonNoDays: "Choisissez d'abord les jours travaillés.",
       withRamadan: "Générer aussi l'horaire de Ramadan",
       withRamadanHint: "L'horaire continu, sans séance l'après-midi.",
       ramadanStartsAt: "Ramadan commence à",
       ramadanPeriods: "Séances pendant Ramadan",
       preview: "À quoi ressemble la journée",
       slotCount: "{count} créneaux par semaine",
+      weeklyHours: "{hours} h de cours par semaine — ce que le programme peut demander",
       break: "Récréation",
+    },
+
+    week: {
+      period: "Séance",
+      empty: "Rien à dessiner pour l'instant — choisissez les jours travaillés à l'étape précédente.",
+      freeAfternoon: "Pas d'après-midi le : {days}.",
+      ramadan: "{count} séances de plus sur la grille de Ramadan, posée à côté de celle-ci.",
+      bellOff:
+        "L'étape de la sonnerie est désactivée : aucune séance n'est posée — l'école garde la grille qu'elle a déjà.",
     },
 
     classes: {

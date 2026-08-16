@@ -53,6 +53,7 @@ const en = {
       programme: "Programme",
       rooms: "Rooms",
       bell: "Bell schedule",
+      week: "The week",
       classes: "Classes",
       fees: "Fees",
       review: "Review",
@@ -68,6 +69,7 @@ const en = {
       programme: "The coefficient and weekly hours of each subject, level by level.",
       rooms: "Where lessons happen. Sized to the classes being opened.",
       bell: "When the periods ring, and on which days.",
+      week: "The grid those periods lay, before anything is written.",
       classes: "How many classes open in each level this year, and how big they are.",
       fees: "What the school charges, what it costs this year, and what it takes off.",
       review: "What is about to be written.",
@@ -148,14 +150,27 @@ const en = {
       periodsBeforeBreak: "Break after",
       periodsBeforeBreakHint: "Periods. Zero lays the run with no break.",
       breakMinutes: "Break length",
-      saturdayMorningOnly: "Saturday is morning only",
+      freeAfternoonDays: "Afternoons off",
+      freeAfternoonDaysHint:
+        "Tick the half-days that stop at noon — as many as the school takes. Wednesday is the habit, Friday the prière, and a Saturday morning-only is both boxes at once. None ticked teaches every afternoon.",
+      freeAfternoonNoDays: "Choose the teaching days first.",
       withRamadan: "Also generate the Ramadan schedule",
       withRamadanHint: "The compressed continuous day, with no afternoon session.",
       ramadanStartsAt: "Ramadan starts at",
       ramadanPeriods: "Ramadan periods",
       preview: "What the day looks like",
       slotCount: "{count} periods a week",
+      weeklyHours: "{hours} h of lessons a week — what the programme has room to ask for",
       break: "Break",
+    },
+
+    week: {
+      period: "Period",
+      empty: "Nothing to draw yet — choose the teaching days on the previous step.",
+      freeAfternoon: "No afternoon on: {days}.",
+      ramadan: "{count} more periods on the Ramadan grid, laid alongside this one.",
+      bellOff:
+        "The bell step is switched off, so no periods are laid — the school keeps the grid it already has.",
     },
 
     classes: {

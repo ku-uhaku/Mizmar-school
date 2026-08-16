@@ -78,6 +78,13 @@ export type FieldDef = {
   /** Dictionary path under `configuration.options`, e.g. "roomKinds". */
   optionsKey?: string;
   /**
+   * `select` only: the column behind it is an `Int`, so the posted string is
+   * turned into a number before the write — see `coerceIntegerSelects`.
+   * `TimeSlot.dayOfWeek` is the case: its options are "1".."7" and its column
+   * is not a string.
+   */
+  integer?: boolean;
+  /**
    * `reference` and `multireference` only: what to pick from. Either a resource
    * id, or one of the `@`-prefixed loaders in schema.server.ts (`@teachers`).
    */

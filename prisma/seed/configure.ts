@@ -13,7 +13,10 @@ import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import { cityCodeByName } from "@/modules/geography/presets";
 import { seedCities, seedNeighbourhoods } from "@/modules/geography/seed";
 import { seedSupplyArticles } from "@/modules/supplies/seed";
-import { PRESET_TEACHING_DAYS_SETTING } from "@/modules/timetable/presets";
+import {
+  FREE_AFTERNOON_DAYS_SETTING,
+  PRESET_TEACHING_DAYS_SETTING,
+} from "@/modules/timetable/presets";
 import {
   seedHolidays,
   seedSchoolWeeks,
@@ -132,13 +135,23 @@ export async function configureSchool(
     week is exactly the reason somebody edits `PRESET_TEACHING_DAYS`, and a
     settings row seeded by an earlier version would otherwise keep its Saturday
     for ever. Nothing else in the row is touched — see `seedSchools`.
+
+    `freeAfternoonDays` goes with it and for the same reason. `standardSlots`
+    already lays no Wednesday afternoon, so the grid was right and the setting
+    said the school taught ten half-days: the two disagreed, and anything
+    reading the setting rather than counting the slots — `afternoonDaysOf`, and
+    the wizard opening on an existing school — believed the setting.
   */
   await db.schoolSettings.upsert({
     where: { schoolId: school.id },
-    update: { teachingDays: PRESET_TEACHING_DAYS_SETTING },
+    update: {
+      teachingDays: PRESET_TEACHING_DAYS_SETTING,
+      freeAfternoonDays: FREE_AFTERNOON_DAYS_SETTING,
+    },
     create: {
       schoolId: school.id,
       teachingDays: PRESET_TEACHING_DAYS_SETTING,
+      freeAfternoonDays: FREE_AFTERNOON_DAYS_SETTING,
     },
   });
 

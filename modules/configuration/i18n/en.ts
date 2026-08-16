@@ -55,6 +55,8 @@ const en = {
     groups: {
       billing: "Instalments",
       parents: "Parents' space",
+      week: "The teaching week",
+      bell: "The bell",
     },
 
     resources: {
@@ -88,6 +90,7 @@ const en = {
       schoolClasses: "Classes",
       classGroups: "Groups",
       schoolSettings: "Billing policy",
+      schoolHours: "Hours and the week",
       feeTypes: "Fee types",
       feeRates: "Price list",
       discounts: "Discounts",
@@ -98,6 +101,15 @@ const en = {
       parentClassChatEnabled: "Class parent groups",
       defaultInstalmentCount: "Instalments per year",
       feeDueDayOfMonth: "Due on the",
+      teachingDays: "Teaching days",
+      freeAfternoonDays: "Afternoons off",
+      dayStartsAt: "Morning starts at",
+      afternoonStartsAt: "Afternoon starts at",
+      periodMinutes: "Period length (min)",
+      morningPeriods: "Morning periods",
+      afternoonPeriods: "Afternoon periods",
+      periodsBeforeBreak: "Break after",
+      breakMinutes: "Break length (min)",
       weekNumber: "Week",
       weekParity: "Rotation",
       weekLabel: "Name",
@@ -203,6 +215,16 @@ const en = {
         "How many instalments a monthly fee is split into. Leave at 0 to follow the school year — a twelve-month year then bills twelve times. A price list that names its own count still wins.",
       feeDueDayOfMonth:
         "Day of the month each instalment falls due. Capped at 28 so it exists in February.",
+      teachingDays:
+        "The days this school opens for lessons. A day with no afternoon still belongs here — take its afternoon off below instead.",
+      freeAfternoonDays:
+        "The half-days that stop at noon — any of them, and as many as the school takes. Nothing ticked teaches every afternoon.",
+      dayStartsAt:
+        "The shift. Every period of the morning follows from it, so a school opening at 08h30 changes this one setting rather than a whole schedule.",
+      periodMinutes:
+        "How long one lesson rings for. Changing it does not move the periods of a year already laid — those are under Periods.",
+      periodsBeforeBreak:
+        "Periods before the break, in each session. Zero lays the run with no break at all.",
       supplierKind:
         "Utilities, the landlord and service contracts appear on the Bills screen; vendors on the Purchases one.",
       defaultCategory:

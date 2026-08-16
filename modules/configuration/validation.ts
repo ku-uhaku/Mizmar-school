@@ -260,12 +260,34 @@ export function readResourceForm(
 
 /**
  * Columns that are integers in the database but arrive as strings from a
- * `<select>` — `TimeSlot.dayOfWeek` is the only one today.
+ * `<select>`, which has no notion of a number.
+ *
+ * Driven by the field's own `integer` flag rather than by a list of resource
+ * ids. It used to be `if (resource.id !== "time-slots") return values`, with
+ * `TimeSlot.dayOfWeek` named in the body — correct while it was the only one,
+ * and a trap the moment it was not: a second integer select is written by a
+ * function that has never heard of it, and Prisma is handed the string `"3"`
+ * for an `Int` column. Saying it on the field means a new one cannot be added
+ * without the coercion coming with it.
+ *
+ * A blank stays blank: the zod schema has already turned an optional select's
+ * empty string into null, and `Number(null)` is 0 — a real weekday.
  */
 export function coerceIntegerSelects(
   resource: ResourceDef,
   values: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (resource.id !== "time-slots") return values;
-  return { ...values, dayOfWeek: Number(values.dayOfWeek) };
+  const coerced = { ...values };
+
+  for (const field of resource.fields) {
+    if (!field.integer) continue;
+    const value = coerced[field.name];
+    if (value === null || value === undefined || value === "") {
+      coerced[field.name] = null;
+      continue;
+    }
+    coerced[field.name] = Number(value);
+  }
+
+  return coerced;
 }

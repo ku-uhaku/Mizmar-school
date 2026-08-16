@@ -181,8 +181,15 @@ export function labKindsFor(subjectCodes: readonly string[]): string[] {
   const kinds: string[] = [];
   const needsScience = subjectCodes.some((code) => code === "SVT" || code === "PC");
   if (needsScience) kinds.push("LAB_SCIENCE");
-  if (subjectCodes.includes("INFO")) kinds.push("LAB_COMPUTER");
+  // Sciences de l'ingénieur is taught on the machines, so it earns the salle
+  // informatique rather than a workshop the room catalogue does not offer.
+  if (subjectCodes.some((code) => code === "INFO" || code === "SI")) {
+    kinds.push("LAB_COMPUTER");
+  }
   if (subjectCodes.includes("EPS")) kinds.push("SPORTS");
+  // The salle polyvalente is where dessin and musique happen in a school that
+  // has no dedicated atelier — which is every school this catalogue describes.
+  if (subjectCodes.includes("ART")) kinds.push("MULTIPURPOSE");
   return kinds;
 }
 

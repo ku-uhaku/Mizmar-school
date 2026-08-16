@@ -136,6 +136,17 @@ const COMMON: SubjectPreset[] = [
   { code: "ISL", name: "Éducation Islamique", nameAr: "التربية الإسلامية", shortName: "Isl", massarCode: "EIS", colorHex: "#0d9488" },
   { code: "EPS", name: "Éducation Physique et Sportive", nameAr: "التربية البدنية", shortName: "EPS", massarCode: "EPS", colorHex: "#ea580c" },
   { code: "AMZ", name: "Tamazight", nameAr: "اللغة الأمازيغية", shortName: "Amz", massarCode: "AMZ", isLanguage: true, colorHex: "#a855f7" },
+  /*
+    The two the primaire cannot be described without.
+
+    "Activités scientifiques" is the Moroccan primary's own science — an hour of
+    observation rather than the SVT/physique-chimie split, which does not start
+    before the collège — and "Éducation artistique" is the dessin-et-musique
+    period every timetable in the cycle carries. Leaving them out was what made
+    a primary week come to 23h30 on paper against a grid that seats 36.
+  */
+  { code: "AS", name: "Activités scientifiques", nameAr: "الأنشطة العلمية", shortName: "Act. sci.", massarCode: "ASC", colorHex: "#0284c7" },
+  { code: "ART", name: "Éducation artistique", nameAr: "التربية الفنية", shortName: "Art", massarCode: "ART", colorHex: "#db2777" },
 ];
 
 /**
@@ -151,6 +162,8 @@ export const SUBJECTS: SubjectPreset[] = [
   ...COMMON,
   { code: "SVT", name: "Sciences de la Vie et de la Terre", nameAr: "علوم الحياة والأرض", shortName: "SVT", massarCode: "SVT", requiresLab: true, colorHex: "#059669" },
   { code: "PC", name: "Physique-Chimie", nameAr: "الفيزياء والكيمياء", shortName: "PC", massarCode: "PHC", requiresLab: true, colorHex: "#0891b2" },
+  // What separates Sciences Mathématiques B from A — see `2B-SM-B` below.
+  { code: "SI", name: "Sciences de l'ingénieur", nameAr: "علوم المهندس", shortName: "SI", massarCode: "SIN", requiresLab: true, colorHex: "#65a30d" },
   { code: "HG", name: "Histoire-Géographie", nameAr: "التاريخ والجغرافيا", shortName: "HG", massarCode: "HGE", colorHex: "#b45309" },
   { code: "INFO", name: "Informatique", nameAr: "المعلوميات", shortName: "Info", massarCode: "INF", requiresLab: true, colorHex: "#475569" },
   { code: "PHILO", name: "Philosophie", nameAr: "الفلسفة", shortName: "Philo", massarCode: "PHI", colorHex: "#9333ea" },
@@ -164,17 +177,49 @@ const PRESCHOOL_LEVELS: LevelPreset[] = [
 ];
 
 /**
- * Language, numbers and movement — no components, because a préscolaire report
- * card grades the child rather than their orthographe.
+ * How many minutes of lessons one week of the cursus asks for, at every level.
+ *
+ * 2160 is 36 hours, which is exactly what the preset grid seats: Monday to
+ * Friday, four one-hour periods 08h00–12h00 and four more 14h00–18h00, with
+ * Wednesday afternoon off. Five mornings and four afternoons, twenty and
+ * sixteen periods, thirty-six.
+ *
+ * **Every level and every filière comes to this figure exactly**, and
+ * `presets.test.ts` fails the build if one of them drifts. That is the point of
+ * naming it: a programme is otherwise a column of plausible numbers nobody adds
+ * up, and the two that were wrong were wrong by twelve hours a week — a primary
+ * year asked for 23h30 against a grid seating 36, so a third of the timetable
+ * was empty and no screen said why.
+ *
+ * ── The week is full, and that is a choice ──────────────────────────────────
+ * Filling it leaves the generator no slack: every period of every class is
+ * spoken for, so a lesson needing a laboratoire competes for it against every
+ * other class at once and `generateTimetable` reports the shortfall rather than
+ * finding room. A school that wants breathing space takes an hour or two off a
+ * level under /configuration → Programme; the arithmetic here is the ceiling,
+ * not a rule the app enforces at runtime.
+ */
+export const WEEKLY_TEACHING_MINUTES = 2160;
+
+/**
+ * Language, numbers, movement and making things — no components, because a
+ * préscolaire report card grades the child rather than their orthographe.
+ *
+ * Heavier on Arabic, art and EPS than the years above it and lighter on
+ * everything examined: a full week at this age is a day in the school, not a
+ * day of lessons, and the balance is what says so.
  */
 function preschoolProgramme(levelCode: string): ProgrammePreset[] {
   return [
     { levelCode, trackCode: null, subjectCode: "AR", coefficient: 4, weeklyMinutes: 480 },
-    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 2, weeklyMinutes: 180 },
-    { levelCode, trackCode: null, subjectCode: "MATH", coefficient: 2, weeklyMinutes: 180 },
-    { levelCode, trackCode: null, subjectCode: "ISL", coefficient: 1, weeklyMinutes: 60 },
-    { levelCode, trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 180 },
-    { levelCode, trackCode: null, subjectCode: "AMZ", coefficient: 1, weeklyMinutes: 60 },
+    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 2, weeklyMinutes: 360 },
+    { levelCode, trackCode: null, subjectCode: "MATH", coefficient: 2, weeklyMinutes: 300 },
+    { levelCode, trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 240 },
+    { levelCode, trackCode: null, subjectCode: "ART", coefficient: 1, weeklyMinutes: 240 },
+    { levelCode, trackCode: null, subjectCode: "ISL", coefficient: 1, weeklyMinutes: 180 },
+    { levelCode, trackCode: null, subjectCode: "AS", coefficient: 1, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "EN", coefficient: 1, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "AMZ", coefficient: 1, weeklyMinutes: 120 },
   ];
 }
 
@@ -249,24 +294,39 @@ export function ministryLevelCode(code: string): string {
 
 const PRIMARY_LEVELS: LevelPreset[] = primaryLevels("MOROCCAN");
 
-/** Arabic, French, maths, Islamic education, EPS and Tamazight at a primary level. */
+/**
+ * The eleven subjects a Moroccan primary week is actually made of.
+ *
+ * The same eleven at every one of the six years, deliberately: the Ministry
+ * phases histoire-géo and anglais in from 3AP, but a preset that differed by
+ * year would give 1AP a short week and hand the school six programmes to
+ * reconcile instead of one to trim. A school that does not teach anglais in
+ * 1AP unticks that row under /configuration → Programme; the catalogue offers
+ * the full cycle.
+ */
 function primaryProgramme(levelCode: string): ProgrammePreset[] {
   return [
     { levelCode, trackCode: null, subjectCode: "AR", coefficient: 6, weeklyMinutes: 480 },
-    // Components divide the parent's 6 between themselves.
+    // Components divide the parent's 6 between themselves. No weekly minutes:
+    // they are marked inside Arabic, not timetabled beside it.
     { levelCode, trackCode: null, subjectCode: "AR-LEC", coefficient: 2 },
     { levelCode, trackCode: null, subjectCode: "AR-IML", coefficient: 1 },
     { levelCode, trackCode: null, subjectCode: "AR-EXP", coefficient: 2 },
     { levelCode, trackCode: null, subjectCode: "AR-GRM", coefficient: 1 },
-    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 300 },
+    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 360 },
     { levelCode, trackCode: null, subjectCode: "FR-GRM", coefficient: 1 },
     { levelCode, trackCode: null, subjectCode: "FR-CNJ", coefficient: 1 },
     { levelCode, trackCode: null, subjectCode: "FR-ORT", coefficient: 1 },
     { levelCode, trackCode: null, subjectCode: "FR-EXP", coefficient: 1 },
-    { levelCode, trackCode: null, subjectCode: "MATH", coefficient: 5, weeklyMinutes: 300 },
+    { levelCode, trackCode: null, subjectCode: "MATH", coefficient: 5, weeklyMinutes: 360 },
+    { levelCode, trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "AS", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "HG", coefficient: 2, weeklyMinutes: 120 },
     { levelCode, trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "ART", coefficient: 1, weeklyMinutes: 120 },
     { levelCode, trackCode: null, subjectCode: "EPS", coefficient: 1, weeklyMinutes: 120 },
-    { levelCode, trackCode: null, subjectCode: "AMZ", coefficient: 1, weeklyMinutes: 90 },
+    { levelCode, trackCode: null, subjectCode: "AMZ", coefficient: 1, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "INFO", coefficient: 1, weeklyMinutes: 120 },
   ];
 }
 
@@ -281,17 +341,23 @@ const COLLEGE_LEVELS: LevelPreset[] = [1, 2, 3].map((year) => ({
   massarCode: `C${year}`,
 }));
 
+/**
+ * The collège, where the primaire's "activités scientifiques" splits into SVT
+ * and physique-chimie and informatique becomes a subject of its own.
+ */
 function collegeProgramme(levelCode: string): ProgrammePreset[] {
   return [
     { levelCode, trackCode: null, subjectCode: "AR", coefficient: 4, weeklyMinutes: 300 },
-    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 270 },
-    { levelCode, trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 300 },
     { levelCode, trackCode: null, subjectCode: "MATH", coefficient: 4, weeklyMinutes: 300 },
-    { levelCode, trackCode: null, subjectCode: "SVT", coefficient: 2, weeklyMinutes: 150 },
-    { levelCode, trackCode: null, subjectCode: "PC", coefficient: 2, weeklyMinutes: 150 },
-    { levelCode, trackCode: null, subjectCode: "HG", coefficient: 2, weeklyMinutes: 150 },
+    { levelCode, trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 240 },
+    { levelCode, trackCode: null, subjectCode: "SVT", coefficient: 2, weeklyMinutes: 180 },
+    { levelCode, trackCode: null, subjectCode: "PC", coefficient: 2, weeklyMinutes: 180 },
+    { levelCode, trackCode: null, subjectCode: "HG", coefficient: 2, weeklyMinutes: 180 },
     { levelCode, trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
     { levelCode, trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "INFO", coefficient: 1, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "ART", coefficient: 1, weeklyMinutes: 120 },
   ];
 }
 
@@ -312,68 +378,122 @@ const QUALIFYING_TRACKS: TrackPreset[] = [
   { levelCode: "2BAC", code: "2B-SVT", name: "Sciences de la vie et de la terre", nameAr: "علوم الحياة والأرض", massarCode: "2SVT" },
   { levelCode: "2BAC", code: "2B-PC", name: "Sciences physiques et chimiques", nameAr: "علوم فيزيائية", massarCode: "2PC" },
   { levelCode: "2BAC", code: "2B-SM-A", name: "Sciences mathématiques A", nameAr: "علوم رياضية أ", massarCode: "2SMA" },
+  /*
+    Sciences mathématiques B, which the catalogue was missing.
+
+    A and B are one stream in mathematics and physics and differ in the third
+    science: A keeps SVT, B takes sciences de l'ingénieur. A school running both
+    therefore teaches them together for most of the week and splits for one
+    subject — which is exactly why B could not be approximated by ticking A, and
+    why `SI` had to exist before this row could.
+  */
+  { levelCode: "2BAC", code: "2B-SM-B", name: "Sciences mathématiques B", nameAr: "علوم رياضية ب", massarCode: "2SMB" },
   { levelCode: "2BAC", code: "2B-L", name: "Lettres", nameAr: "آداب", massarCode: "2L" },
 ];
 
+/**
+ * The tronc commun (780 minutes) each qualifying level shares between its
+ * filières — the five subjects examined in every stream alike.
+ *
+ * The rest of the week, 1380 minutes of it, is the filière's own. **No subject
+ * appears in both halves**: a row here and a second row for the same subject
+ * under a track would write two `LevelSubject` rows, and the class would carry
+ * the sum of the two without any screen showing where the second came from.
+ * Philosophie used to be the exception and is now in the tracks alone, weighted
+ * per stream, which is the same result stated once.
+ */
+function qualifyingCore(levelCode: string): ProgrammePreset[] {
+  return [
+    { levelCode, trackCode: null, subjectCode: "AR", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 240 },
+    { levelCode, trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 180 },
+    { levelCode, trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
+    { levelCode, trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 120 },
+  ];
+}
+
 const QUALIFYING_PROGRAMME: ProgrammePreset[] = [
   // ── Tronc commun ──────────────────────────────────────────────────────────
-  { levelCode: "TC", trackCode: "TC-S", subjectCode: "MATH", coefficient: 4, weeklyMinutes: 300 },
-  { levelCode: "TC", trackCode: "TC-S", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 180 },
-  { levelCode: "TC", trackCode: "TC-S", subjectCode: "PC", coefficient: 3, weeklyMinutes: 180 },
-  { levelCode: "TC", trackCode: "TC-S", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 90 },
-  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "MATH", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "HG", coefficient: 4, weeklyMinutes: 240 },
-  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "TC", trackCode: null, subjectCode: "AR", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "TC", trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 240 },
-  { levelCode: "TC", trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "TC", trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "TC", trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 120 },
+  ...qualifyingCore("TC"),
+  // Scientifique.
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "MATH", coefficient: 4, weeklyMinutes: 360 },
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 270 },
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "PC", coefficient: 3, weeklyMinutes: 270 },
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "HG", coefficient: 2, weeklyMinutes: 180 },
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "TC", trackCode: "TC-S", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  // Lettres et sciences humaines.
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "HG", coefficient: 4, weeklyMinutes: 420 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 240 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "MATH", coefficient: 2, weeklyMinutes: 180 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "SVT", coefficient: 2, weeklyMinutes: 150 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "PC", coefficient: 2, weeklyMinutes: 150 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 120 },
+  { levelCode: "TC", trackCode: "TC-LSH", subjectCode: "ART", coefficient: 1, weeklyMinutes: 120 },
 
   // ── 1ère année baccalauréat ───────────────────────────────────────────────
+  ...qualifyingCore("1BAC"),
   // Sciences expérimentales.
-  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "SVT", coefficient: 5, weeklyMinutes: 270 },
-  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "PC", coefficient: 5, weeklyMinutes: 270 },
-  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "MATH", coefficient: 5, weeklyMinutes: 270 },
-  // Sciences mathématiques — the same three, weighted for the stream.
-  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 390 },
-  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "PC", coefficient: 6, weeklyMinutes: 270 },
-  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 150 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "MATH", coefficient: 5, weeklyMinutes: 360 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "SVT", coefficient: 5, weeklyMinutes: 300 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "PC", coefficient: 5, weeklyMinutes: 300 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "HG", coefficient: 1, weeklyMinutes: 120 },
+  { levelCode: "1BAC", trackCode: "1B-SE", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  // Sciences mathématiques — the same subjects, weighted for the stream.
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 480 },
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "PC", coefficient: 6, weeklyMinutes: 360 },
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 180 },
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "1BAC", trackCode: "1B-SM", subjectCode: "HG", coefficient: 1, weeklyMinutes: 60 },
   // Lettres et sciences humaines.
-  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "HG", coefficient: 5, weeklyMinutes: 240 },
-  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "PHILO", coefficient: 4, weeklyMinutes: 180 },
-  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "MATH", coefficient: 1, weeklyMinutes: 60 },
-  // Common to every 1BAC track.
-  { levelCode: "1BAC", trackCode: null, subjectCode: "AR", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "1BAC", trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 240 },
-  { levelCode: "1BAC", trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "1BAC", trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "1BAC", trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "HG", coefficient: 5, weeklyMinutes: 420 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "PHILO", coefficient: 4, weeklyMinutes: 300 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "ART", coefficient: 1, weeklyMinutes: 240 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "MATH", coefficient: 1, weeklyMinutes: 120 },
+  { levelCode: "1BAC", trackCode: "1B-L", subjectCode: "SVT", coefficient: 1, weeklyMinutes: 120 },
 
   // ── 2ème année baccalauréat ───────────────────────────────────────────────
+  ...qualifyingCore("2BAC"),
   // Sciences de la Vie et de la Terre.
-  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "SVT", coefficient: 7, weeklyMinutes: 330 },
-  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "PC", coefficient: 5, weeklyMinutes: 240 },
-  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 240 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "SVT", coefficient: 7, weeklyMinutes: 360 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "PC", coefficient: 5, weeklyMinutes: 300 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 300 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-SVT", subjectCode: "HG", coefficient: 1, weeklyMinutes: 120 },
   // Sciences physiques et chimiques — the mirror of the above.
-  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "PC", coefficient: 7, weeklyMinutes: 330 },
-  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 270 },
-  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "SVT", coefficient: 5, weeklyMinutes: 210 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "PC", coefficient: 7, weeklyMinutes: 360 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "MATH", coefficient: 7, weeklyMinutes: 360 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "SVT", coefficient: 5, weeklyMinutes: 240 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-PC", subjectCode: "HG", coefficient: 1, weeklyMinutes: 120 },
   // Sciences Mathématiques A — the same subjects, weighted very differently.
   { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "MATH", coefficient: 9, weeklyMinutes: 480 },
-  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "PC", coefficient: 7, weeklyMinutes: 300 },
-  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "PC", coefficient: 7, weeklyMinutes: 360 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "SVT", coefficient: 3, weeklyMinutes: 180 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-SM-A", subjectCode: "HG", coefficient: 1, weeklyMinutes: 60 },
+  // Sciences Mathématiques B — A's week exactly, with sciences de l'ingénieur
+  // in place of SVT. That single substitution is the whole difference between
+  // the two filières, and it is why they share a maths and a physics teacher.
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "MATH", coefficient: 9, weeklyMinutes: 480 },
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "PC", coefficient: 7, weeklyMinutes: 360 },
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "SI", coefficient: 3, weeklyMinutes: 240 },
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-SM-B", subjectCode: "HG", coefficient: 1, weeklyMinutes: 60 },
   // Lettres.
-  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "HG", coefficient: 6, weeklyMinutes: 270 },
-  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "PHILO", coefficient: 5, weeklyMinutes: 240 },
-  // Common to every 2BAC track. Philosophie is examined in every stream, which
-  // is why it is here as well as weighted higher in the lettres row above.
-  { levelCode: "2BAC", trackCode: null, subjectCode: "PHILO", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "2BAC", trackCode: null, subjectCode: "AR", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "2BAC", trackCode: null, subjectCode: "FR", coefficient: 4, weeklyMinutes: 240 },
-  { levelCode: "2BAC", trackCode: null, subjectCode: "EN", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "2BAC", trackCode: null, subjectCode: "ISL", coefficient: 2, weeklyMinutes: 120 },
-  { levelCode: "2BAC", trackCode: null, subjectCode: "EPS", coefficient: 2, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "HG", coefficient: 6, weeklyMinutes: 420 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "PHILO", coefficient: 5, weeklyMinutes: 300 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "ART", coefficient: 1, weeklyMinutes: 240 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "INFO", coefficient: 1, weeklyMinutes: 180 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "MATH", coefficient: 1, weeklyMinutes: 120 },
+  { levelCode: "2BAC", trackCode: "2B-L", subjectCode: "SVT", coefficient: 1, weeklyMinutes: 120 },
 ];
 
 // ── The catalogue ────────────────────────────────────────────────────────────

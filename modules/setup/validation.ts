@@ -122,7 +122,12 @@ export function bellScheduleSchema(t: Dictionary) {
       afternoonPeriods: z.coerce.number<number>().int().min(0).max(12),
       periodsBeforeBreak: z.coerce.number<number>().int().min(0).max(12),
       breakMinutes: z.coerce.number<number>().int().min(0).max(120),
-      saturdayMorningOnly: z.boolean(),
+      // None is a real answer — "we teach every afternoon" — so an empty list
+      // is admitted rather than refused. Any day, and as many as the school
+      // says: see `freeAfternoonDays` on BellPlan.
+      freeAfternoonDays: z
+        .array(z.coerce.number<number>().int().min(1).max(7))
+        .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
       withRamadan: z.boolean(),
       ramadanStartsAt: timeOfDay(v),
       ramadanPeriods: z.coerce.number<number>().int().min(0).max(12),

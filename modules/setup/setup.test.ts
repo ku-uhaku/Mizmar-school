@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDictionaryFor } from "@/lib/i18n/server";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
-import { CYCLE_CATALOGUE, MOROCCAN_CURSUS, SUBJECTS } from "@/modules/academics/presets";
+import {
+  CYCLE_CATALOGUE,
+  MOROCCAN_CURSUS,
+  SUBJECTS,
+  WEEKLY_TEACHING_MINUTES,
+} from "@/modules/academics/presets";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { offeringScopeKey } from "@/modules/classes/enums";
 import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/presets";
@@ -16,7 +21,7 @@ import {
   suggestedFeeAmount,
   suggestedRooms,
 } from "@/modules/setup/catalogue";
-import { slotsForBell } from "@/modules/setup/bell";
+import { slotsForBell, weeklyTeachingMinutes } from "@/modules/setup/bell";
 
 /**
  * The setup wizard: one submit, thirty-odd tables, one transaction.
@@ -76,8 +81,20 @@ const db = new Proxy(
   },
 );
 
-vi.mock("@/lib/db", () => ({ db, auditClient: {} }));
-vi.mock("@/lib/audit", () => ({ recordEvent: async () => {} }));
+/*
+  The same recorder under both names. `applySetup` opens its transaction on
+  `auditClient` — the client without the audit extension, because a thousand
+  audited writes do not fit in any transaction budget — and records the one
+  event itself, which `recordedEvents` collects below.
+*/
+vi.mock("@/lib/db", () => ({ db, auditClient: db }));
+
+const recordedEvents: Record<string, unknown>[] = [];
+vi.mock("@/lib/audit", () => ({
+  recordEvent: async (event: Record<string, unknown>) => {
+    recordedEvents.push(event);
+  },
+}));
 
 const granted = new Set<string>();
 const askedOrg: string[] = [];
@@ -143,6 +160,7 @@ const IDLE = { status: "idle" } as never;
 
 beforeEach(() => {
   calls.length = 0;
+  recordedEvents.length = 0;
   askedOrg.length = 0;
   askedSchool.length = 0;
   answers = {};
@@ -159,9 +177,9 @@ describe("the cursus preset", () => {
     // here silently renumbers every seeded school.
     expect(MOROCCAN_CURSUS.cycles).toHaveLength(3);
     expect(MOROCCAN_CURSUS.levels).toHaveLength(12);
-    expect(MOROCCAN_CURSUS.tracks).toHaveLength(9);
-    expect(MOROCCAN_CURSUS.subjects).toHaveLength(20);
-    expect(MOROCCAN_CURSUS.programme).toHaveLength(154);
+    expect(MOROCCAN_CURSUS.tracks).toHaveLength(10);
+    expect(MOROCCAN_CURSUS.subjects).toHaveLength(23);
+    expect(MOROCCAN_CURSUS.programme).toHaveLength(223);
 
     expect(MOROCCAN_CURSUS.cycles.map((cycle) => cycle.cycle)).not.toContain("PRESCHOOL");
     expect(MOROCCAN_CURSUS.levels.map((level) => level.code)).toEqual([
@@ -300,7 +318,9 @@ describe("the bell schedule", () => {
     afternoonPeriods: 4,
     periodsBeforeBreak: 2,
     breakMinutes: 15,
-    saturdayMorningOnly: true,
+    // Saturday stops at noon — which is now the school's own tick rather than
+    // a `saturdayMorningOnly` rule about the sixth day.
+    freeAfternoonDays: [6],
     withRamadan: false,
     ramadanStartsAt: "09:00",
     ramadanPeriods: 0,
@@ -338,6 +358,108 @@ describe("the bell schedule", () => {
     expect(slotsForBell(bell).some((slot) => slot.scheduleKind === "RAMADAN")).toBe(false);
     const withRamadan = slotsForBell({ ...bell, withRamadan: true, ramadanPeriods: 4 });
     expect(withRamadan.some((slot) => slot.scheduleKind === "RAMADAN")).toBe(true);
+  });
+
+  it("takes the afternoon off the free half-day and keeps its morning", () => {
+    const slots = slotsForBell({ ...bell, freeAfternoonDays: [3] });
+    const wednesday = slots.filter((slot) => slot.dayOfWeek === 3);
+    expect(wednesday.every((slot) => slot.session === "MORNING")).toBe(true);
+    expect(wednesday.length).toBeGreaterThan(0);
+    // Every other teaching day keeps both halves — Saturday's afternoon comes
+    // back, because nothing here is a rule about a named day.
+    expect(slots.some((slot) => slot.dayOfWeek === 2 && slot.session === "AFTERNOON")).toBe(true);
+    expect(slots.some((slot) => slot.dayOfWeek === 6 && slot.session === "AFTERNOON")).toBe(true);
+  });
+
+  it("takes off as many half-days as the school asks for", () => {
+    // Friday afternoon for the prière and a Saturday that stops at noon — the
+    // pair a single free afternoon beside a Saturday switch could not express.
+    const slots = slotsForBell({ ...bell, freeAfternoonDays: [5, 6] });
+    const afternoons = new Set(
+      slots.filter((slot) => slot.session === "AFTERNOON").map((slot) => slot.dayOfWeek),
+    );
+    expect([...afternoons].sort()).toEqual([1, 2, 3, 4]);
+    // Both keep their mornings.
+    expect(slots.some((slot) => slot.dayOfWeek === 5)).toBe(true);
+    expect(slots.some((slot) => slot.dayOfWeek === 6)).toBe(true);
+  });
+
+  it("counts the week the preset lays as thirty-six hours", () => {
+    // Monday to Friday, 08h00–12h00 and 14h00–18h00 with Wednesday afternoon
+    // off — the grid `WEEKLY_TEACHING_MINUTES` sizes every programme against.
+    const week = weeklyTeachingMinutes({
+      ...bell,
+      teachingDays: [1, 2, 3, 4, 5],
+      freeAfternoonDays: [3],
+    });
+    expect(week).toBe(WEEKLY_TEACHING_MINUTES);
+    expect(week).toBe(36 * 60);
+  });
+
+  it("leaves the breaks out of the week it counts", () => {
+    // Four periods plus a quarter-hour récréation is 4h15 on the clock and four
+    // hours of lessons. The programme is sized against the second figure.
+    expect(
+      weeklyTeachingMinutes({
+        ...bell,
+        teachingDays: [1],
+        freeAfternoonDays: [],
+        afternoonPeriods: 0,
+      }),
+    ).toBe(240);
+  });
+});
+
+// ── Every level's week is full ───────────────────────────────────────────────
+
+describe("the programme fills the week", () => {
+  /*
+    The one arithmetic nobody adds up by hand, and the one that was wrong.
+
+    A programme is a column of plausible weekly minutes; only the total says
+    whether a class has a full timetable or a third of one sitting empty. Every
+    level, and every filière of a level that has them, must come to exactly the
+    grid — see `WEEKLY_TEACHING_MINUTES`.
+  */
+  for (const [cycle, entry] of Object.entries(CYCLE_CATALOGUE)) {
+    for (const level of entry.levels) {
+      const levelTracks = entry.tracks.filter((track) => track.levelCode === level.code);
+      const targets: (string | null)[] =
+        levelTracks.length > 0 ? levelTracks.map((track) => track.code) : [null];
+
+      for (const trackCode of targets) {
+        const label = [cycle, level.code, trackCode].filter(Boolean).join(" · ");
+
+        it(`seats a full week — ${label}`, () => {
+          const rows = entry.programme.filter(
+            (row) =>
+              row.levelCode === level.code &&
+              (row.trackCode === null || row.trackCode === trackCode),
+          );
+
+          const total = rows.reduce((sum, row) => sum + (row.weeklyMinutes ?? 0), 0);
+          expect(total).toBe(WEEKLY_TEACHING_MINUTES);
+
+          /*
+            And no subject counted twice. A row under the level and a second
+            under one of its filières would write two `LevelSubject` rows for
+            the same subject, so the class would carry the sum of the two with
+            nothing on screen to say where the extra hours came from.
+          */
+          const timetabled = rows
+            .filter((row) => row.weeklyMinutes)
+            .map((row) => row.subjectCode);
+          expect(new Set(timetabled).size).toBe(timetabled.length);
+        });
+      }
+    }
+  }
+
+  it("names every subject the catalogue knows", () => {
+    const known = new Set(SUBJECTS.map((subject) => subject.code));
+    for (const row of MOROCCAN_CURSUS.programme) {
+      expect(known.has(row.subjectCode)).toBe(true);
+    }
   });
 });
 
@@ -713,6 +835,52 @@ describe("applySetup", () => {
     expect(of("schoolSettings", "upsert")).toHaveLength(1);
     expect(of("level", "upsert")).toHaveLength(1);
     expect(of("feeType", "upsert")).toHaveLength(1);
+  });
+
+  /*
+    ── One trail entry, not a thousand ───────────────────────────────────────
+    The transaction runs on the client *without* the audit extension, because
+    that extension costs a "before" read and an `activity_logs` insert per row
+    and a school is about a thousand rows: audited, this write expired at both
+    60 s and 120 s and the wizard could not save at all. The trail still hears
+    about it — once, for the act that was actually performed.
+  */
+  it("records the setup as one event and not one per row", async () => {
+    await applySetup("org-1", {
+      school: { mode: "new", data: { code: "T", name: "École T" } as never },
+      ...FULL_PLAN,
+    } as never);
+
+    expect(recordedEvents).toHaveLength(1);
+    expect(recordedEvents[0]).toMatchObject({
+      action: "CREATE",
+      entity: "School",
+      entityLabel: "École T",
+    });
+    // And it says what was written, so the entry is worth reading.
+    expect(recordedEvents[0]!.metadata).toMatchObject({ setupWizard: true });
+  });
+
+  it("records an existing school's configuration as an update", async () => {
+    answers["school.findFirst"] = { id: "school-9" };
+    await applySetup("org-1", {
+      school: { mode: "existing", id: "school-9" },
+      ...EMPTY_PLAN,
+    } as never);
+
+    expect(recordedEvents).toHaveLength(1);
+    expect(recordedEvents[0]).toMatchObject({ action: "UPDATE", entity: "School" });
+  });
+
+  it("leaves no trail entry when the school could not be reached", async () => {
+    answers["school.findFirst"] = null;
+    await applySetup("org-1", {
+      school: { mode: "existing", id: "elsewhere" },
+      ...EMPTY_PLAN,
+    } as never);
+
+    // Nothing was written, so nothing is recorded as having been.
+    expect(recordedEvents).toHaveLength(0);
   });
 
   it("refuses an existing school that is not in the organisation", async () => {

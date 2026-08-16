@@ -57,6 +57,8 @@ export type SchoolSettingsValues = {
   breakMinutes: number;
   morningPeriods: number;
   afternoonPeriods: number;
+  /** ISO weekdays taught in the morning only, comma-joined. See the column. */
+  freeAfternoonDays: string;
   payrollWorkingDays: number;
   /** Employee CNSS share, in basis points. See the note on the column. */
   cnssRateBps: number;
@@ -90,6 +92,13 @@ export const DEFAULT_SETTINGS: SchoolSettingsValues = {
   breakMinutes: 15,
   morningPeriods: 4,
   afternoonPeriods: 4,
+  /*
+    Empty, not Wednesday: a school that has said nothing teaches every afternoon
+    it opens, which is the behaviour the app had before the column existed. The
+    preset week picks Wednesday where that choice belongs — in the wizard, and
+    in `FREE_AFTERNOON_DAYS` for the seed.
+  */
+  freeAfternoonDays: "",
   payrollWorkingDays: 26,
   // The ordinary Moroccan employee shares. IR stays blank on purpose — a flat
   // rate would be wrong for everybody, and the barème is progressive.
@@ -193,14 +202,14 @@ export function isPassingScore(
 // ── Calendrier ──────────────────────────────────────────────────────────────
 
 /**
- * The teaching week, as sorted, de-duplicated ISO weekday numbers.
+ * A comma-joined column of ISO weekday numbers, sorted and de-duplicated.
  *
- * Anything outside 1–7 is dropped, and an empty result falls back to the
- * default week: a settings row edited by hand must not be able to leave the
- * timetable with no columns at all.
+ * Anything outside 1–7 is dropped. Empty comes back empty — the caller decides
+ * whether that means "nothing" (no free afternoon) or "fall back to the usual
+ * week", and only one of the two columns wants a fallback.
  */
-export function parseTeachingDays(value: string): Weekday[] {
-  const days = [
+export function parseWeekdayList(value: string): Weekday[] {
+  return [
     ...new Set(
       value
         .split(",")
@@ -210,7 +219,16 @@ export function parseTeachingDays(value: string): Weekday[] {
         ),
     ),
   ].sort((a, b) => a - b);
+}
 
+/**
+ * The teaching week, as sorted, de-duplicated ISO weekday numbers.
+ *
+ * An empty result falls back to the default week: a settings row edited by hand
+ * must not be able to leave the timetable with no columns at all.
+ */
+export function parseTeachingDays(value: string): Weekday[] {
+  const days = parseWeekdayList(value);
   return days.length > 0 ? days : [1, 2, 3, 4, 5, 6];
 }
 
@@ -223,6 +241,17 @@ export function isTeachingDayIn(
   settings: SchoolSettingsValues,
 ): boolean {
   return teachingDaysOf(settings).includes(day as Weekday);
+}
+
+/** The half-days that stop at noon. Empty when every afternoon is taught. */
+export function freeAfternoonDaysOf(settings: SchoolSettingsValues): Weekday[] {
+  return parseWeekdayList(settings.freeAfternoonDays);
+}
+
+/** The days the school teaches an afternoon, the free half-days removed. */
+export function afternoonDaysOf(settings: SchoolSettingsValues): Weekday[] {
+  const free = freeAfternoonDaysOf(settings);
+  return teachingDaysOf(settings).filter((day) => !free.includes(day));
 }
 
 // ── Matricules ──────────────────────────────────────────────────────────────

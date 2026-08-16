@@ -102,21 +102,30 @@ export const PRESET_TEACHING_DAYS = [1, 2, 3, 4, 5] as const;
 export const PRESET_TEACHING_DAYS_SETTING = PRESET_TEACHING_DAYS.join(",");
 
 /**
- * The one half-day the school does not teach — Wednesday afternoon.
+ * The half-days this preset week does not teach — Wednesday afternoon.
  *
- * A week wants exactly one, and it wants it to be an *afternoon*: a morning off
- * would split the day either side of a hole, whereas an afternoon off simply
- * ends the day at noon. Wednesday rather than Friday because it puts the break
- * in the middle of the week, which is what both the Moroccan and the French
- * habit do with it, and it leaves Friday whole.
+ * A half-day off wants to be an *afternoon*: a morning off would split the day
+ * either side of a hole, whereas an afternoon off simply ends it at noon.
+ * Wednesday because it puts the break in the middle of the week, which is what
+ * both the Moroccan and the French habit do with it, and it leaves Friday
+ * whole.
  *
- * Set to `null` to teach all ten half-days.
+ * A **list**, and not because this preset needs one: a school does not all take
+ * the same half-day off. Friday afternoon for the prière, Wednesday for the
+ * habit, and both plus a Saturday that stops at noon for the ones that open on
+ * six days — every one of those is a set, so `SchoolSettings.freeAfternoonDays`
+ * stores a set and this is one value of it. Empty teaches every afternoon.
  */
-export const FREE_AFTERNOON_DAY: number | null = 3;
+export const FREE_AFTERNOON_DAYS = [3] as const;
 
-/** The days that have an afternoon session — every teaching day but the one. */
+/** `SchoolSettings.freeAfternoonDays` for the week above. */
+export const FREE_AFTERNOON_DAYS_SETTING = FREE_AFTERNOON_DAYS.join(",");
+
+/** The days that have an afternoon session — every teaching day but those. */
 export function afternoonDays(): number[] {
-  return PRESET_TEACHING_DAYS.filter((day) => day !== FREE_AFTERNOON_DAY);
+  return PRESET_TEACHING_DAYS.filter(
+    (day) => !(FREE_AFTERNOON_DAYS as readonly number[]).includes(day),
+  );
 }
 
 /**
@@ -129,10 +138,16 @@ export function afternoonDays(): number[] {
  * half an hour or ninety minutes is still exactly expressible — `startTime` and
  * `endTime` carry whatever is laid — one hour is only this preset's default.
  *
- * Nine half-days is 36 periods a week against the 28 hours the heaviest level of
- * the cursus asks for (3AC), so the week has room for its own programme with
- * enough left over for a timetable to be arrangeable rather than merely
- * arithmetically possible.
+ * Nine half-days is **36 periods a week, and that is exactly what every level
+ * of the cursus asks for** — see `WEEKLY_TEACHING_MINUTES`, which is sized from
+ * this grid and which `presets.test.ts` holds the two to.
+ *
+ * So the week is full rather than roomy, and the generator has no slack: a
+ * lesson wanting the laboratoire competes for it against every other class at
+ * once, and `generateTimetable` reports the shortfall instead of finding room.
+ * That is the honest consequence of a full week and it is visible on the
+ * screen; a school wanting margin trims an hour off a level's programme under
+ * /configuration rather than changing the bell.
  */
 export function standardSlots(): SlotPreset[] {
   const morning = layPeriodBlock({

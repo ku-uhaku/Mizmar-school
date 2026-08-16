@@ -342,7 +342,12 @@ export async function saveSingletonAction(
       );
     }
 
-    const values = parsed.data as Record<string, unknown>;
+    // Same coercion the list resources get: a singleton may hold an integer
+    // select too, and this path did not call it.
+    const values = coerceIntegerSelects(
+      resource,
+      parsed.data as Record<string, unknown>,
+    );
 
     await db.schoolSettings.upsert({
       where: { schoolId },

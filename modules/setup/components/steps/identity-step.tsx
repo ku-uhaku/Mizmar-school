@@ -26,6 +26,9 @@ import { SCHOOL_LEVELS } from "@/modules/schools/enums";
  * Deliberately the same field names `createSchoolAction` reads, so the identity
  * half of the wizard goes through `schoolSchema` unprefixed and a message comes
  * back on the key the field is rendered with.
+ *
+ * When the school teaches is not asked here — it is the bell step and the week
+ * that follows it.
  */
 export function IdentityStep({
   state,

@@ -27,6 +27,17 @@ export const db = new PrismaClient({
       connectTimeout: 10000,
     }),
   ),
+  /*
+    An `upsert` is several statements, and Prisma wraps them in a transaction
+    whose default budget is five seconds. That is ample against a local server
+    and not against a managed one across the internet, where each statement
+    costs a round-trip: the cursus alone upserts a few hundred rows, and the
+    first one to overrun aborts with P2028 ("transaction already closed")
+    halfway through a school's configuration, leaving the seed part-applied.
+    Raised rather than removed — the seed is a one-shot script, so a slow
+    transaction is worth waiting for, but a hung one should still give up.
+  */
+  transactionOptions: { maxWait: 30000, timeout: 120000 },
 });
 
 export type SeedDb = typeof db;

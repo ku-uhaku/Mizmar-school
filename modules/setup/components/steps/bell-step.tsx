@@ -18,7 +18,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { interpolate } from "@/lib/i18n/format";
 import { LESSON_LENGTHS_MINUTES, TEACHING_DAYS } from "@/modules/timetable/enums";
-import { slotsForBell } from "@/modules/setup/bell";
+import { slotsForBell, weeklyTeachingMinutes } from "@/modules/setup/bell";
 import type { SetupState } from "@/modules/setup/components/use-setup-state";
 
 /**
@@ -38,40 +38,47 @@ export function BellStep({
   const t = useT();
   const bell = setup.bell;
 
+  // The one reading of the answers, shared with the week step that draws the
+  // whole grid — see `bellPlan` in use-setup-state.
+  const plan = bell.plan;
+
   const preview = React.useMemo(() => {
-    const days = bell.teachingDays;
-    if (days.length === 0) return [];
+    if (plan.teachingDays.length === 0) return [];
     try {
-      return slotsForBell({
-        teachingDays: days,
-        dayStartsAt: bell.dayStartsAt,
-        afternoonStartsAt: bell.afternoonStartsAt,
-        periodMinutes: Number(bell.periodMinutes) || 60,
-        morningPeriods: Number(bell.morningPeriods) || 0,
-        afternoonPeriods: Number(bell.afternoonPeriods) || 0,
-        periodsBeforeBreak: Number(bell.periodsBeforeBreak) || 0,
-        breakMinutes: Number(bell.breakMinutes) || 0,
-        saturdayMorningOnly: bell.saturdayMorningOnly,
-        withRamadan: bell.withRamadan,
-        ramadanStartsAt: bell.ramadanStartsAt,
-        ramadanPeriods: Number(bell.ramadanPeriods) || 0,
-      });
+      return slotsForBell(plan);
     } catch {
       // A half-typed time is not an error worth showing — the schema catches it
       // on submit, and until then the preview simply has nothing to draw.
       return [];
     }
-  }, [bell]);
+  }, [plan]);
 
   const monday = preview.filter(
     (slot) => slot.dayOfWeek === bell.teachingDays[0] && slot.scheduleKind === "STANDARD",
   );
+
+  // Hours, to two decimals only when it is not a whole number — "36 h", not
+  // "36.00 h", and "35.5 h" when a half-hour period makes it one.
+  const weeklyHours = weeklyTeachingMinutes(plan) / 60;
 
   function toggleDay(day: number, on: boolean) {
     bell.patch({
       teachingDays: on
         ? [...new Set([...bell.teachingDays, day])].sort((a, b) => a - b)
         : bell.teachingDays.filter((item) => item !== day),
+      // A day the school stops teaching cannot keep a free afternoon: the tick
+      // would survive unseen and come back the moment the day did.
+      freeAfternoonDays: on
+        ? bell.freeAfternoonDays
+        : bell.freeAfternoonDays.filter((item) => item !== day),
+    });
+  }
+
+  function toggleFreeAfternoon(day: number, on: boolean) {
+    bell.patch({
+      freeAfternoonDays: on
+        ? [...new Set([...bell.freeAfternoonDays, day])].sort((a, b) => a - b)
+        : bell.freeAfternoonDays.filter((item) => item !== day),
     });
   }
 
@@ -191,23 +198,42 @@ export function BellStep({
             onChange={(event) => bell.patch({ breakMinutes: event.target.value })}
           />
         </FormField>
+
       </FormGrid>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-          <Label htmlFor="saturdayMorningOnly" className="font-normal">
-            {t.setup.bell.saturdayMorningOnly}
-          </Label>
-          <Switch
-            id="saturdayMorningOnly"
-            checked={bell.saturdayMorningOnly}
-            onCheckedChange={(value) => bell.patch({ saturdayMorningOnly: value === true })}
-          />
-          {bell.saturdayMorningOnly ? (
-            <input type="hidden" name="saturdayMorningOnly" value="on" />
-          ) : null}
+      {/*
+        Which half-days stop at noon — as many as the school likes, and any of
+        them. Ticked against the days it teaches rather than chosen from a list
+        of every weekday: an afternoon can only be taken off a day that has one.
+      */}
+      <div className="grid gap-2">
+        <Label>{t.setup.bell.freeAfternoonDays}</Label>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 rounded-lg border px-4 py-3">
+          {bell.teachingDays.length === 0 ? (
+            <span className="text-muted-foreground text-xs">
+              {t.setup.bell.freeAfternoonNoDays}
+            </span>
+          ) : (
+            bell.teachingDays.map((day) => (
+              <label key={day} className="flex items-center gap-2 text-sm font-normal">
+                <input
+                  type="checkbox"
+                  className="accent-primary size-4"
+                  checked={bell.freeAfternoonDays.includes(day)}
+                  onChange={(event) => toggleFreeAfternoon(day, event.target.checked)}
+                />
+                {t.configOptions.days[String(day) as "1"]}
+                {bell.freeAfternoonDays.includes(day) ? (
+                  <input type="hidden" name="freeAfternoonDay" value={day} />
+                ) : null}
+              </label>
+            ))
+          )}
         </div>
+        <p className="text-muted-foreground text-xs">{t.setup.bell.freeAfternoonDaysHint}</p>
+      </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
           <div className="space-y-0.5">
             <Label htmlFor="withRamadan" className="font-normal">
@@ -260,6 +286,16 @@ export function BellStep({
         </div>
         <p className="text-muted-foreground text-xs">
           {interpolate(t.setup.bell.slotCount, { count: preview.length })}
+        </p>
+        {/*
+          The figure the programme has to fit inside. A school reading "36 h a
+          week" beside a cursus asking for 23 h30 can see the third of the
+          timetable that would sit empty, which is the whole reason it is here.
+        */}
+        <p className="text-sm font-medium">
+          {interpolate(t.setup.bell.weeklyHours, {
+            hours: Number.isInteger(weeklyHours) ? weeklyHours : weeklyHours.toFixed(1),
+          })}
         </p>
       </section>
     </div>

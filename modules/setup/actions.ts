@@ -115,6 +115,34 @@ function rowError(
 
 const misaligned = (t: Dictionary, step: string) => ({ [step]: t.setup.rowsMisaligned });
 
+/**
+ * The message a rejected submit shows, naming the fields it was rejected on.
+ *
+ * "Check the fields" is useless in a wizard: thirteen panes, a hundred inputs,
+ * and the failing one is usually not the pane being looked at. The toast is the
+ * one thing that is definitely seen, so it carries the errors themselves —
+ * field name and reason — and `STEP_OF_FIELD` still opens the pane that owns
+ * the first of them.
+ *
+ * The field names are the form's own, not translated: they are what identifies
+ * the control, and a school reading "officeMiddayTo" at least has something to
+ * quote. Two at most, because a toast is not a list.
+ */
+function describeErrors(
+  t: Dictionary,
+  errors: ActionState["fieldErrors"],
+): string {
+  const entries = Object.entries(errors ?? {});
+  if (entries.length === 0) return t.errors.invalid;
+
+  const shown = entries
+    .slice(0, 2)
+    .map(([name, reason]) => `${name}: ${reason}`)
+    .join(" · ");
+
+  return entries.length > 2 ? `${shown} (+${entries.length - 2})` : shown;
+}
+
 // ── Readers ──────────────────────────────────────────────────────────────────
 
 function readSchoolForm(formData: FormData) {
@@ -146,7 +174,7 @@ export async function runSetupAction(
     const t = await getDictionary();
     const values = formValues(formData);
     const invalid = (errors: ActionState["fieldErrors"]) =>
-      failure(t.errors.invalid, errors, values);
+      failure(describeErrors(t, errors), errors, values);
 
     const mode = field(formData, "mode") === "existing" ? "existing" : "new";
 
@@ -347,7 +375,7 @@ export async function runSetupAction(
         afternoonPeriods: field(formData, "afternoonPeriods"),
         periodsBeforeBreak: field(formData, "periodsBeforeBreak"),
         breakMinutes: field(formData, "breakMinutes"),
-        saturdayMorningOnly: boolField(formData, "saturdayMorningOnly"),
+        freeAfternoonDays: listField(formData, "freeAfternoonDay"),
         withRamadan: boolField(formData, "withRamadan"),
         ramadanStartsAt: field(formData, "ramadanStartsAt") || "09:00",
         ramadanPeriods: field(formData, "ramadanPeriods") || "0",
@@ -582,6 +610,8 @@ export async function runSetupAction(
       settings.breakMinutes = bell.breakMinutes;
       settings.morningPeriods = bell.morningPeriods;
       settings.afternoonPeriods = bell.afternoonPeriods;
+      // Comma-joined, like `teachingDays` beside it: MySQL has no array type.
+      settings.freeAfternoonDays = bell.freeAfternoonDays.join(",");
     }
 
     // ── Authorize what this run actually writes ──────────────────────────────

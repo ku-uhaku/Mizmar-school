@@ -134,6 +134,23 @@ model SchoolSettings {
   morningPeriods   Int @default(4)
   afternoonPeriods Int @default(4)
 
+  /// The half-days the school teaches no afternoon, as ISO weekday numbers
+  /// joined by commas — "3" for a free Wednesday afternoon, "5" for Friday,
+  /// "3,6" for a school that also stops at noon on Saturday. Empty teaches
+  /// every afternoon of every teaching day. Read through `parseWeekdayList`.
+  ///
+  /// Distinct from `teachingDays`, which says whether the school opens at all:
+  /// a Wednesday with a free afternoon is still a teaching day, and dropping it
+  /// from `teachingDays` would take its morning with it.
+  ///
+  /// A **list**, and never a rule about one named day. It began as a single
+  /// `freeAfternoonDay` beside a `saturdayMorningOnly` switch, which is two
+  /// mechanisms for one fact and neither of them the school's own choice: a
+  /// school taking Friday afternoon for the prière had to leave Saturday to a
+  /// hard-coded switch, and that switch was not stored at all — the grid lost
+  /// its Saturday afternoons while this column said the week was whole.
+  freeAfternoonDays String @default("")
+
   // ── Paie ──────────────────────────────────────────────────────────────────
   /// The divisor that turns a monthly salary into a daily rate. A convention
   /// (26 is the common Moroccan one), which is exactly why it is a setting: the

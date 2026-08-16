@@ -24,12 +24,16 @@ import {
   SCHEDULE_KINDS,
   TEACHING_DAYS,
 } from "@/modules/timetable/enums";
+import { DEFAULT_SETTINGS, WEEKDAYS } from "@/lib/school-settings";
 import type {
   ResourceDef,
   ResourceScope,
   ScopeGroupDef,
   SectionDef,
 } from "@/modules/configuration/types";
+
+/** The weekdays as a `select`/`multiselect` reads them — values are strings. */
+const WEEKDAY_VALUES = WEEKDAYS.map(String);
 
 /**
  * Every configurable table, described once.
@@ -845,6 +849,7 @@ export const RESOURCES: ResourceDef[] = [
         hintKey: "dayOfWeek",
         options: TEACHING_DAYS.map(String),
         optionsKey: "days",
+        integer: true,
         defaultValue: "1",
         required: true,
         inTable: true,
@@ -1072,9 +1077,131 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
 
+  /*
+    ── Horaires ──────────────────────────────────────────────────────────────
+    The school's week: which days it teaches, which afternoon it does not, and
+    the bell those days ring to.
+
+    A singleton on `SchoolSettings`, like the billing policy below it — the
+    second one, and the reason `saveSingletonAction` was written against the
+    table rather than against a resource id.
+
+    ── Why the bell is editable here at all ─────────────────────────────────
+    It was written once by the setup wizard and then unreachable: a school that
+    moved its rentrée to 08h30 had no screen to say so, and the eight columns
+    sat at whatever the wizard had posted months earlier. The time slots of a
+    year already laid are *not* rewritten by saving this — they are rows under
+    /configuration → Créneaux — so this decides what the next year's grid is
+    generated from.
+  */
+  {
+    id: "school-hours",
+    section: "school",
+    labelKey: "schoolHours",
+    scope: "SCHOOL",
+    kind: "singleton",
+    labelFields: ["id"],
+    fields: [
+      {
+        name: "teachingDays",
+        type: "multiselect",
+        labelKey: "teachingDays",
+        hintKey: "teachingDays",
+        options: WEEKDAY_VALUES,
+        optionsKey: "days",
+        groupKey: "week",
+        required: true,
+        defaultValue: DEFAULT_SETTINGS.teachingDays,
+      },
+      {
+        name: "freeAfternoonDays",
+        type: "multiselect",
+        labelKey: "freeAfternoonDays",
+        hintKey: "freeAfternoonDays",
+        options: WEEKDAY_VALUES,
+        optionsKey: "days",
+        groupKey: "week",
+        // Nothing ticked is the answer "we teach every afternoon", so it is not
+        // `required` — and stored comma-joined like `teachingDays` above it.
+        defaultValue: DEFAULT_SETTINGS.freeAfternoonDays,
+      },
+      {
+        name: "dayStartsAt",
+        type: "time",
+        labelKey: "dayStartsAt",
+        hintKey: "dayStartsAt",
+        groupKey: "bell",
+        dir: "ltr",
+        required: true,
+        defaultValue: DEFAULT_SETTINGS.dayStartsAt,
+      },
+      {
+        name: "afternoonStartsAt",
+        type: "time",
+        labelKey: "afternoonStartsAt",
+        groupKey: "bell",
+        dir: "ltr",
+        required: true,
+        defaultValue: DEFAULT_SETTINGS.afternoonStartsAt,
+      },
+      {
+        name: "periodMinutes",
+        type: "number",
+        labelKey: "periodMinutes",
+        hintKey: "periodMinutes",
+        groupKey: "bell",
+        required: true,
+        min: 30,
+        max: 120,
+        defaultValue: DEFAULT_SETTINGS.periodMinutes,
+      },
+      {
+        name: "morningPeriods",
+        type: "number",
+        labelKey: "morningPeriods",
+        groupKey: "bell",
+        required: true,
+        min: 0,
+        max: 12,
+        defaultValue: DEFAULT_SETTINGS.morningPeriods,
+      },
+      {
+        name: "afternoonPeriods",
+        type: "number",
+        labelKey: "afternoonPeriods",
+        groupKey: "bell",
+        required: true,
+        min: 0,
+        max: 12,
+        defaultValue: DEFAULT_SETTINGS.afternoonPeriods,
+      },
+      {
+        name: "periodsBeforeBreak",
+        type: "number",
+        labelKey: "periodsBeforeBreak",
+        hintKey: "periodsBeforeBreak",
+        groupKey: "bell",
+        required: true,
+        min: 0,
+        max: 12,
+        defaultValue: DEFAULT_SETTINGS.periodsBeforeBreak,
+      },
+      {
+        name: "breakMinutes",
+        type: "number",
+        labelKey: "breakMinutes",
+        groupKey: "bell",
+        required: true,
+        min: 0,
+        max: 120,
+        defaultValue: DEFAULT_SETTINGS.breakMinutes,
+      },
+    ],
+  },
+
   // ── Facturation ───────────────────────────────────────────────────────────
   /*
-    The one singleton, and first in its section because it decides what the
+    The other singleton, and first in its section because it decides what the
     price lists under it *mean*: how many lines a monthly rate turns into, and
     what day each falls due.
 

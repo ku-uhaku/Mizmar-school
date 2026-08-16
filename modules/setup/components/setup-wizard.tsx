@@ -31,6 +31,7 @@ import { FeesInputs, FeesStep } from "@/modules/setup/components/steps/fees-step
 import { IdentityStep } from "@/modules/setup/components/steps/identity-step";
 import { ReviewStep } from "@/modules/setup/components/steps/review-step";
 import { RoomsInputs, RoomsStep } from "@/modules/setup/components/steps/rooms-step";
+import { WeekStep } from "@/modules/setup/components/steps/week-step";
 import { YearInputs, YearStep } from "@/modules/setup/components/steps/year-step";
 import { useSetupState, type SetupMode } from "@/modules/setup/components/use-setup-state";
 
@@ -44,6 +45,7 @@ const STEPS = [
   "programme",
   "rooms",
   "bell",
+  "week",
   "classes",
   "fees",
   "review",
@@ -68,9 +70,13 @@ const STEP_OF_FIELD: Record<string, Step> = {
   programme: "programme",
   rooms: "rooms",
 
+  // Every key `bellScheduleSchema` can fail on, the Ramadan pair included: a
+  // message on a key that is not here lands on no step at all, and the wizard
+  // then reports an error the user cannot see and cannot clear.
   teachingDays: "bell", dayStartsAt: "bell", afternoonStartsAt: "bell",
   periodMinutes: "bell", morningPeriods: "bell", afternoonPeriods: "bell",
-  periodsBeforeBreak: "bell", breakMinutes: "bell",
+  periodsBeforeBreak: "bell", breakMinutes: "bell", freeAfternoonDays: "bell",
+  withRamadan: "bell", ramadanStartsAt: "bell", ramadanPeriods: "bell",
 
   classes: "classes", groupsPerClass: "classes", groupPurpose: "classes",
 
@@ -202,6 +208,41 @@ export function SetupWizard({
         </p>
       </div>
 
+      {/*
+        The same errors the toast carries, kept on the page.
+
+        A toast is gone in four seconds and the submit button is at the bottom
+        of a thirteen-pane form, so a failure read once and then scrolled past
+        is a failure nobody can act on. Every field is listed, not just the
+        first, because fixing one at a time through thirteen submits is how a
+        wizard becomes unusable.
+      */}
+      {state.status === "error" ? (
+        <Alert variant="destructive" className="mt-4">
+          <AlertDescription>
+            <span className="font-medium">{state.message}</span>
+            {Object.keys(errors).length > 0 ? (
+              <ul className="mt-1 grid gap-0.5 text-xs">
+                {Object.entries(errors).map(([name, reason]) => (
+                  <li key={name}>
+                    <button
+                      type="button"
+                      className="text-start underline-offset-2 hover:underline"
+                      onClick={() => {
+                        const target = STEP_OF_FIELD[name];
+                        if (target && visibleSteps.includes(target)) setStep(target);
+                      }}
+                    >
+                      <span className="font-mono">{name}</span> — {reason}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {snapshot && snapshot.counts.levels + snapshot.counts.rooms + snapshot.counts.classes > 0 ? (
         <Alert className="mt-4">
           <AlertDescription>
@@ -313,6 +354,18 @@ export function SetupWizard({
           blockedReason={blockedByYear}
         >
           <BellStep setup={setup} errors={errors} />
+        </StepShell>
+
+        {/* Reads the bell's answers and writes nothing, so it has no switch of
+            its own — it is blocked by whatever blocks the step it draws. */}
+        <StepShell
+          id="week"
+          visible={step === "week"}
+          title={t.setup.steps.week}
+          description={t.setup.hints.week}
+          blockedReason={blockedByYear ?? (setup.enabled.bell ? undefined : t.setup.week.bellOff)}
+        >
+          <WeekStep setup={setup} />
         </StepShell>
 
         <StepShell

@@ -64,21 +64,21 @@ export const HOLIDAY_KINDS = [
 export type HolidayKind = (typeof HOLIDAY_KINDS)[number];
 
 /**
- * Teaching days, ISO-8601 numbered (1 = Monday).
+ * The days a school may declare it teaches, ISO-8601 numbered (1 = Monday).
  *
- * The Moroccan week runs Monday to Saturday — Saturday is usually morning only,
- * and Sunday is the weekly day off. There is deliberately no 7.
- */
-/**
- * The week when nobody has said otherwise — Monday to Saturday, as most
- * Moroccan schools run.
+ * All seven, and that is the point: this is what every picker offers, not what
+ * a Moroccan school usually does. The usual week — Monday to Saturday, Saturday
+ * morning only, Sunday off — is a *default*, and it lives in
+ * `DEFAULT_SETTINGS.teachingDays` and `PRESET_TEACHING_DAYS` where a default
+ * belongs. It used to stop at six here as well, which meant a school could not
+ * say it opens on a Sunday however it configured itself: the picker simply had
+ * no box, and `generateTimeSlotsAction` filtered the day back out.
  *
- * A school declares its own in the configuration (SchoolSettings.teachingDays),
- * and every grid is drawn from `teachingDaysOf(context.settings)`. This stays as
- * the fallback and as the set the picker offers, which is why it still lists six
- * days rather than seven: a school that teaches Sunday adds it in the settings.
+ * Which of them a given school actually teaches is `SchoolSettings.teachingDays`,
+ * read through `teachingDaysOf(context.settings)`; which of those stop at noon
+ * is `freeAfternoonDays`.
  */
-export const TEACHING_DAYS = [1, 2, 3, 4, 5, 6] as const;
+export const TEACHING_DAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 export type TeachingDay = (typeof TEACHING_DAYS)[number];
 
 /**

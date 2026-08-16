@@ -99,7 +99,9 @@ const byYear = (context: AuthContext) => ({
 
 export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
   /*
-    The one singleton — the school's own billing policy.
+    The two singletons — the school's own billing policy, and its week and
+    opening hours. Both are rows of `SchoolSettings`, which is why
+    `saveSingletonAction` upserts that table by name.
 
     ── Why this entry is the whole reason Settings "did not work" ──────────────
     The resource used to exist in `resources.ts` with no row here. Saving went
@@ -114,6 +116,13 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     `schoolId` taken from the authorized context, never assembled from a form.
   */
   "school-settings": {
+    table: () => db.schoolSettings as unknown as Delegate,
+    model: "SchoolSettings",
+    where: bySchool,
+    orderBy: [{ createdAt: "asc" }],
+  },
+
+  "school-hours": {
     table: () => db.schoolSettings as unknown as Delegate,
     model: "SchoolSettings",
     where: bySchool,

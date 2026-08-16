@@ -687,11 +687,11 @@ describe("the week helpers", () => {
 });
 
 describe("the declared sets", () => {
-  it("runs Monday to Saturday, with no seventh day", () => {
-    // Sunday is the weekly day off. A school that teaches it adds it in the
-    // settings rather than having it assumed.
-    expect([...TEACHING_DAYS]).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(TEACHING_DAYS).not.toContain(7);
+  it("offers every day of the week and never a zero", () => {
+    // All seven, so a school can declare whatever week it runs — Sunday
+    // included. Which days it actually teaches is its own setting, and Monday
+    // to Saturday is only the default. ISO numbering, so there is no day 0.
+    expect([...TEACHING_DAYS]).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(TEACHING_DAYS).not.toContain(0);
   });
 

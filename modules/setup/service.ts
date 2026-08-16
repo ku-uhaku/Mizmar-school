@@ -1,6 +1,7 @@
 import "server-only";
 
-import { db } from "@/lib/db";
+import { recordEvent } from "@/lib/audit";
+import { auditClient } from "@/lib/db";
 import type { SchoolSettingsValues } from "@/lib/school-settings";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { slotsForBell, type BellPlan } from "@/modules/setup/bell";
@@ -363,8 +364,54 @@ export async function applySetup(
   organizationId: string,
   plan: SetupPlan,
 ): Promise<SetupResult | null> {
-  return db.$transaction(
-    async (tx) => {
+  const result = await writeSetup(organizationId, plan);
+
+  /*
+    One entry for one act, because the transaction above ran unaudited.
+
+    The wizard is a single decision — "configure this school" — that happens to
+    touch a thousand rows, and the trail records the decision. Written after the
+    commit rather than inside it: an entry about a setup that rolled back would
+    be a line about rows that do not exist, and the trail is deliberately not
+    part of the transaction it describes (see `auditClient`).
+  */
+  if (result) {
+    await recordEvent({
+      action: plan.school.mode === "new" ? "CREATE" : "UPDATE",
+      entity: "School",
+      entityId: result.schoolId,
+      entityLabel: plan.school.mode === "new" ? plan.school.data.name : null,
+      metadata: { setupWizard: true, ...result.counts },
+    });
+  }
+
+  return result;
+}
+
+async function writeSetup(
+  organizationId: string,
+  plan: SetupPlan,
+): Promise<SetupResult | null> {
+  /*
+    Deliberately the client *without* the audit extension — see `auditClient`.
+
+    Through the extended one, every one of these upserts also issues a "before"
+    read and an `activity_logs` insert that commits on its own connection, and a
+    thousand of those do not finish inside any transaction budget worth setting:
+    this write used to expire at 60 s, then at 120 s, always at whichever
+    statement happened to be in flight. The entry the trail actually wants is
+    written once, by the caller above.
+  */
+  return auditClient.$transaction(
+    async (transaction) => {
+      /*
+        `TxClient` is the *extended* client's transaction type, and a dozen
+        services take it. The extension wraps behaviour around the delegates
+        rather than changing their shape, so the two are the same object at
+        runtime and this bridges the declaration — narrowing `TxClient` to the
+        base client instead would touch every service that takes one.
+      */
+      const tx = transaction as unknown as TxClient;
       const counts: SetupCounts = { ...NO_COUNTS };
 
       // ── 1. The school ─────────────────────────────────────────────────────
@@ -696,8 +743,20 @@ export async function applySetup(
 
       return { schoolId, schoolYearId, counts };
     },
-    // A full cursus with classes and a fee grid is several hundred upserts. The
-    // default five-second budget is not enough for the largest school.
-    { timeout: 60_000, maxWait: 15_000 },
+    /*
+      A full cursus with classes and a fee grid is several hundred upserts, and
+      an upsert is two statements — so the default five-second budget does not
+      survive the largest school, and sixty seconds does not survive a managed
+      database across the internet, where every one of those statements is a
+      round trip. `prisma/seed/client.ts` reached the same figure writing the
+      same rows, for the same reason; when this one expires it does so at
+      whichever statement happened to be in flight, which is why the error names
+      an innocent table (`tx.supplier.upsert`) rather than the slow part.
+
+      Two minutes and not "no limit": the wizard writes one school once and
+      nothing contends with it, but a transaction that hangs should still give
+      up rather than hold its locks until the process is killed.
+    */
+    { timeout: 120_000, maxWait: 30_000 },
   );
 }

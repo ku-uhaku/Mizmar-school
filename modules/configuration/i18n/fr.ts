@@ -45,6 +45,8 @@ const fr = {
     groups: {
       billing: "Échéances",
       parents: "Espace parents",
+      week: "La semaine scolaire",
+      bell: "La sonnerie",
     },
 
     resources: {
@@ -78,6 +80,7 @@ const fr = {
       schoolClasses: "Classes",
       classGroups: "Groupes",
       schoolSettings: "Règles de facturation",
+      schoolHours: "Horaires et semaine",
       feeTypes: "Types de frais",
       feeRates: "Grille tarifaire",
       discounts: "Remises",
@@ -88,6 +91,15 @@ const fr = {
       parentClassChatEnabled: "Groupes par classe",
       defaultInstalmentCount: "Échéances par an",
       feeDueDayOfMonth: "Exigible le",
+      teachingDays: "Jours de classe",
+      freeAfternoonDays: "Après-midis libres",
+      dayStartsAt: "Le matin commence à",
+      afternoonStartsAt: "L'après-midi commence à",
+      periodMinutes: "Durée d'une séance (min)",
+      morningPeriods: "Séances du matin",
+      afternoonPeriods: "Séances de l'après-midi",
+      periodsBeforeBreak: "Récréation après",
+      breakMinutes: "Durée de la récréation (min)",
       weekNumber: "Semaine",
       weekParity: "Rotation",
       weekLabel: "Libellé",
@@ -193,6 +205,16 @@ const fr = {
         "En combien d'échéances un frais mensuel est réparti. Laissez 0 pour suivre l'année scolaire — une année de douze mois est alors facturée douze fois. Un tarif qui fixe son propre nombre l'emporte.",
       feeDueDayOfMonth:
         "Jour du mois où chaque échéance tombe. Plafonné à 28 pour qu'il existe en février.",
+      teachingDays:
+        "Les jours où l'école fait cours. Un jour sans après-midi reste ici — c'est en dessous qu'on lui retire son après-midi.",
+      freeAfternoonDays:
+        "Les demi-journées qui s'arrêtent à midi — celles que vous voulez, autant que l'établissement en prend. Rien de coché : tous les après-midis sont travaillés.",
+      dayStartsAt:
+        "Le décalage. Toutes les séances du matin en découlent : une école qui ouvre à 08h30 change ce seul réglage, pas tout un horaire.",
+      periodMinutes:
+        "La durée d'une séance. La modifier ne déplace pas les créneaux d'une année déjà posée — ils sont sous Créneaux horaires.",
+      periodsBeforeBreak:
+        "Séances avant la récréation, dans chaque demi-journée. Zéro place la série sans récréation.",
       supplierKind:
         "Les r\u00e9gies, le bailleur et les prestataires apparaissent sur l\u2019\u00e9cran Factures ; les fournisseurs sur Achats.",
       defaultCategory:

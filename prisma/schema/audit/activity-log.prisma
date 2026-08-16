@@ -69,7 +69,12 @@ model ActivityLog {
   /// is read whole, one entry at a time — and JSON would cost a validating
   /// parse on every write for a shape the application already owns. Read it
   /// through `parseChanges` rather than `JSON.parse` at the call site.
-  changes  String?
+  ///
+  /// The `@db.Text` is the whole point and was missing: a bare String is
+  /// VARCHAR(191), and a diff of a created row passes that on almost every
+  /// table. MySQL rejected the insert with P2000, `append` swallowed it as it
+  /// is meant to, and the trail quietly kept only its shortest entries.
+  changes  String? @db.Text
   /// JSON: anything the action itself wanted recorded — the permission code a
   /// denial was refused for, the number of rows a bulk write touched.
   metadata String? @db.Text

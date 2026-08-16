@@ -84,10 +84,27 @@ function createClient() {
 /**
  * The client without the audit extension.
  *
- * Two things need it, and nothing else should: the trail writes its own entries
- * through it (an entry about an entry is not wanted), and it reads the "before"
- * state of a row through it (a read that must not itself be observed). Exported
- * only so `lib/audit.ts` can reach it from `recordEvent` — see that file.
+ * Three things need it, and nothing else should.
+ *
+ * Two are the trail's own: it writes its entries through this client (an entry
+ * about an entry is not wanted), and it reads the "before" state of a row
+ * through it (a read that must not itself be observed). `lib/audit.ts` reaches
+ * both from `recordEvent`.
+ *
+ * The third is a **bulk write that is one act**. The extension costs three
+ * round trips and a durable commit per row — a "before" read, the write, and an
+ * `activity_logs` insert on its own connection — which is right for a form that
+ * saves one pupil and ruinous for `applySetup`, where a school's whole
+ * configuration is a thousand rows written in a single interactive transaction.
+ * Measured on a local MySQL: the wizard's reference data alone takes 455 ms
+ * through this client and does not finish in two minutes through the extended
+ * one, so the transaction expired and the wizard could not save at all.
+ *
+ * A caller that takes this door owes the trail one `recordEvent` for the act it
+ * performed. That is not a loss of fidelity: "the setup wizard configured this
+ * school, with these counts" is what a reader of the trail wants, and a
+ * thousand lines saying `CREATE LevelSubject` is what they would have to read
+ * past to find it.
  */
 export const auditClient: PrismaClient =
   globalForPrisma.prismaBase ?? createClient();

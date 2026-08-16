@@ -4,6 +4,7 @@ import { recordEvent } from "@/lib/audit";
 import { failure, type ActionState } from "@/lib/action-state";
 import { ForbiddenError } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
+import type { Dictionary } from "@/lib/i18n/types";
 import { ACCESS_ENTITY } from "@/modules/audit/enums";
 
 /**
@@ -49,8 +50,48 @@ export async function withActionErrors<S extends ActionState>(
     }
 
     console.error("Server action failed:", error);
-    return failure(t.errors.unexpected);
+    return failure(unexpectedMessage(t, error));
   }
+}
+
+/**
+ * What a genuine bug says on screen: the reason itself while developing, the
+ * localised apology in production.
+ *
+ * A toast reading only "something went wrong" sends whoever is building the app
+ * to the terminal for every failure, and the terminal is not always the window
+ * they are looking at — a missing column, a unique clash and a dropped
+ * connection all look identical from the browser. In production the text is
+ * never shown: a Prisma or driver message names tables, columns and
+ * constraints, which is not something a school is told, and it is in the server
+ * log either way.
+ *
+ * ── Why the last line, and not the first ────────────────────────────────────
+ * A Prisma failure opens with the call site and a dump of every argument it was
+ * given — thirty lines of it for an upsert — and puts the sentence that says
+ * what actually went wrong at the very end. Printing the first 300 characters
+ * therefore shows the dump and truncates the answer, which is a toast that
+ * looks informative and tells you nothing. The code (`P2028`, `P2002`) goes in
+ * front of it, because it is the half worth searching for.
+ */
+function unexpectedMessage(t: Dictionary, error: unknown): string {
+  if (process.env.NODE_ENV === "production") return t.errors.unexpected;
+
+  const detail = error instanceof Error ? error.message : String(error);
+  const lines = detail
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const reason = lines[lines.length - 1] ?? "";
+  const code =
+    typeof (error as { code?: unknown })?.code === "string"
+      ? `${(error as { code: string }).code} · `
+      : "";
+
+  return reason
+    ? `${t.errors.unexpected} — ${code}${reason.slice(0, 500)}`
+    : t.errors.unexpected;
 }
 
 /** Reads a trimmed string field out of FormData. */

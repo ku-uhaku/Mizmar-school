@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE `school_settings` ADD COLUMN `freeAfternoonDay` INTEGER NULL,
+    ADD COLUMN `officeClosesAt` VARCHAR(191) NOT NULL DEFAULT '18:00',
+    ADD COLUMN `officeClosesAtMidday` BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN `officeDays` VARCHAR(191) NOT NULL DEFAULT '1,2,3,4,5,6',
+    ADD COLUMN `officeMiddayFrom` VARCHAR(191) NOT NULL DEFAULT '12:00',
+    ADD COLUMN `officeMiddayTo` VARCHAR(191) NOT NULL DEFAULT '14:00',
+    ADD COLUMN `officeOpensAt` VARCHAR(191) NOT NULL DEFAULT '08:00';

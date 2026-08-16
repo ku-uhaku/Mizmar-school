@@ -335,14 +335,22 @@ const SECOND_SUBJECTS: Record<string, string[]> = {
   AR: ["ISL", "PHILO"],
   FR: ["EN", "HG"],
   MATH: ["PC", "INFO"],
-  PC: ["MATH"],
-  SVT: ["PC"],
+  PC: ["MATH", "SI"],
+  SVT: ["PC", "AS"],
   ISL: ["AR"],
   EN: ["FR"],
   HG: ["ISL"],
   AMZ: ["AR"],
-  INFO: ["MATH"],
+  INFO: ["MATH", "SI"],
   PHILO: ["HG"],
+  // The primaire's own science and its dessin, and the filière SM-B's atelier.
+  // Each is one post on its own, so the pairing is what gives it a second
+  // qualified person: the SVT teacher takes activités scientifiques, and
+  // sciences de l'ingénieur is covered by physique and by informatique.
+  AS: ["SVT"],
+  ART: ["EPS"],
+  SI: ["PC", "INFO"],
+  EPS: ["ART"],
 };
 
 function teacherPlan(): TeacherRequirement[] {
