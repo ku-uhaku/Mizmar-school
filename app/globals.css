@@ -91,8 +91,46 @@
    which reads as an error state. They are stronger here, and the card lift
    above means the border is no longer the only thing separating a card from
    the page — it is not carrying that weight alone any more. */
+/*
+  ── The light palette, as three surfaces and not one ────────────────────────
+  Light mode read as a single sheet of white. The page ground was 0.972, the
+  cards 1.0 and the rail 0.99 — three surfaces inside three points of lightness,
+  which is below what a screen in a bright room resolves at all. Nothing looked
+  raised, nothing looked contained, and the only thing separating a table from
+  the page behind it was a 0.878 hairline that disappeared on a laptop panel at
+  an angle. The app looked unfinished rather than clean.
+
+  So the levels are now spaced far enough apart to survive a real room, and the
+  order is the one the eye expects — the ground is the darkest thing, and
+  anything raised off it is lighter:
+
+    --background  0.955   the page, and the only surface that recedes
+    --card        1.0     everything raised off it: cards, tables, popovers
+    --sidebar     1.0     the rail, raised like a card and edged like one
+
+  `--muted` is the step *inside* a card — a table's header row, a badge, a
+  hovered row — so it is measured against the card's white rather than against
+  the page, and 0.928 is what makes it read there.
+
+  The lines were the other half of the problem and are darkened with them — but
+  not by the same amount, because they are not the same kind of line:
+
+    --border  0.855   decorative. A card edge, a table rule, a separator. It
+                      says where a region ends; nothing is lost if the eye
+                      skims it.
+    --input   0.68    a control boundary, and the one thing on a data-entry
+                      screen that has to be found rather than skimmed. WCAG
+                      1.4.11 asks 3:1 of it against the surface behind it and
+                      the old 0.842 gave 1.6:1 — an empty field on a white card
+                      was very nearly invisible, which in an office that fills
+                      in forms all day is the failure that costs time.
+
+  Chroma stays at zero. The greys are deliberately neutral so the accent — which
+  the school chooses, and which `[data-accent]` rebinds below — is the only
+  colour on a chrome surface.
+*/
 :root {
-  --background: oklch(0.972 0 0);
+  --background: oklch(0.955 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -100,15 +138,15 @@
   --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.941 0 0);
+  --secondary: oklch(0.928 0 0);
   --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.941 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.941 0 0);
+  --muted: oklch(0.928 0 0);
+  --muted-foreground: oklch(0.47 0 0);
+  --accent: oklch(0.928 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.545 0.225 27.325);
-  --border: oklch(0.878 0 0);
-  --input: oklch(0.842 0 0);
+  --border: oklch(0.855 0 0);
+  --input: oklch(0.68 0 0);
   --ring: oklch(0.55 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -131,14 +169,20 @@
      theme's own border along the edge to separate it from the page. Every other
      token tracks its content twin — the ink is `--primary`, the hover is
      `--accent`, the border is `--border` — so there is one light palette and
-     not two. Dark mode keeps the values it always had. */
-  --sidebar: oklch(0.99 0 0);
+     not two. Dark mode keeps the values it always had.
+
+     It sits at the card's white rather than a shade of its own. At 0.99 it was
+     neither the page nor a card — a third, indecisive surface a point and a half
+     off each of them, which is what made the whole screen read as one wash.
+     Raised is raised: the rail and a card are the same level, and the border
+     down its edge is what says where one ends. */
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.205 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.941 0 0);
+  --sidebar-accent: oklch(0.928 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.878 0 0);
+  --sidebar-border: oklch(0.855 0 0);
   --sidebar-ring: oklch(0.55 0 0);
 }
 
@@ -439,8 +483,10 @@ html.dark[data-accent="teal"] {
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
-  /* One step off the surface: gridlines must recede behind the data. */
-  --grid: oklch(0.922 0 0);
+  /* One step off the surface: gridlines must recede behind the data. Kept
+     lighter than `--border` — a gridline that reads as strongly as the card's
+     own edge competes with the chart it is meant to sit behind. */
+  --grid: oklch(0.9 0 0);
   /* Reserved for "up and that is good" deltas — never used as a series colour.
      Darker than the series green because it is worn by text, not by a mark. */
   --success: #006300;
