@@ -64,13 +64,15 @@ const en = {
     spendRecorded: "Payment recorded.",
     payNow: "Record the payment",
     staffPayments: "Pay a member of staff",
-    staffPaymentsHint: "A reimbursement or a one-off. Salaries and advances have their own screens.",
+    staffPaymentsHint:
+      "A reimbursement or a one-off. Salaries and advances have their own screens.",
     supplier: "Supplier",
     supplierHint:
       "Picking one fills in the name and the rubrique. Leave it on \u201cother\u201d for a one-off nobody has a row for.",
     accountRef: "Account no.",
     familyPayments: "Family situation",
-    familyPaymentsHint: "What every household has been charged, paid, and is behind on.",
+    familyPaymentsHint:
+      "What every household has been charged, paid, and is behind on.",
     enrolledChildren: "Children",
     charged: "Charged",
     collected: "Paid",
@@ -80,7 +82,8 @@ const en = {
     lastPaid: "Last payment",
     familiesLate: "{count} families behind",
     noFamilies: "No household on the books this year.",
-    noFamiliesHint: "Enrol a pupil and their dossier appears here with its \u00e9ch\u00e9ancier.",
+    noFamiliesHint:
+      "Enrol a pupil and their dossier appears here with its \u00e9ch\u00e9ancier.",
     notYourTill:
       "That till belongs to another cashier. Open your own to take money.",
     sessionStaleClosed:
@@ -97,7 +100,6 @@ const en = {
     noRegisters: "No till has been set up for this school yet.",
     inDrawer: "In the drawer",
     openRegisterCount: "{count} tills open",
-    todayHint: "Since midnight",
     heldCount: "{count} held",
     bouncedCount: "{count} bounced",
     openRegisters: "Tills open",
@@ -127,8 +129,13 @@ const en = {
     category: "Category",
     recordedBy: "Recorded by",
     reversalOf: "Reversal",
-    collectedToday: "Collected today",
-    disbursedToday: "Paid out today",
+    /**
+     * The two overview tiles. Both follow the period filter, so neither names a
+     * window itself. Suffixed to keep them apart from `collected` above, which
+     * heads a column of what one household has paid.
+     */
+    collectedAmount: "Collected",
+    disbursedAmount: "Paid out",
 
     // ── Encaissement ────────────────────────────────────────────────────────
     encaissement: "Collection",
@@ -155,8 +162,7 @@ const en = {
       "Add a line per form of money — cash and a cheque together is one receipt.",
     addTender: "Add another form of payment",
     removeTender: "Remove",
-    tendersMustMatch:
-      "What was handed over must match what is being settled.",
+    tendersMustMatch: "What was handed over must match what is being settled.",
     amountRequired: "Enter an amount.",
     nothingSelected: "Select at least one charge to settle.",
     chequeNumberRequired: "A cheque needs its number.",
@@ -194,8 +200,7 @@ const en = {
     alreadyCancelled: "That receipt is already cancelled.",
     cancelNeedsDrawer:
       "Handing this money back moves cash. Open your till first.",
-    cancelNeedsCash:
-      "Your till does not hold enough cash to hand this back.",
+    cancelNeedsCash: "Your till does not hold enough cash to hand this back.",
     cancelOperation: "Cancel the movement",
     cancelOperationTitle: "Cancel this movement?",
     cancelOperationBody:
@@ -230,7 +235,8 @@ const en = {
     beneficiaryHint: "A member of staff, a supplier, a landlord.",
     bank: "Bank",
     otherBank: "Another bank",
-    otherBankHint: "For a bank the school has not declared. Add it in the configuration if it recurs.",
+    otherBankHint:
+      "For a bank the school has not declared. Add it in the configuration if it recurs.",
     operationCategory: "Rubric",
     operationSubcategory: "Sub-rubric",
     noSubcategories: "This rubric has no sub-rubrics.",

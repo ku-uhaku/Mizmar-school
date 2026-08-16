@@ -60,7 +60,7 @@ vi.mock("@/modules/school-life/queries", () => ({
 }));
 vi.mock("@/modules/treasury/queries", () => ({
   treasurySummary: record("treasurySummary", {
-    collectedTodayCentimes: 1_234_56,
+    collectedCentimes: 1_234_56,
     openRegisterCount: 2,
     chequesBouncedCount: 1,
   }),

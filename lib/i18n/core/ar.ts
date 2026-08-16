@@ -57,6 +57,21 @@ const core = {
     insights: "في لمحة",
     pending: "في الانتظار",
   },
+  period: {
+    label: "الفترة",
+    names: {
+      day: "يوم",
+      week: "أسبوع",
+      month: "شهر",
+      year: "سنة",
+    },
+    hints: {
+      day: "منذ منتصف الليل",
+      week: "هذا الأسبوع",
+      month: "هذا الشهر",
+      year: "هذه السنة الدراسية",
+    },
+  },
   validation: {
     required: "هذا الحقل مطلوب.",
     email: "أدخل بريدًا إلكترونيًا صالحًا.",

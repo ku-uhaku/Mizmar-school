@@ -57,6 +57,21 @@ const core = {
     insights: "En un coup d'œil",
     pending: "En attente",
   },
+  period: {
+    label: "Période",
+    names: {
+      day: "Jour",
+      week: "Semaine",
+      month: "Mois",
+      year: "Année",
+    },
+    hints: {
+      day: "Depuis minuit",
+      week: "Cette semaine",
+      month: "Ce mois-ci",
+      year: "Cette année scolaire",
+    },
+  },
   validation: {
     required: "Ce champ est obligatoire.",
     email: "Saisissez une adresse e-mail valide.",
@@ -65,7 +80,8 @@ const core = {
     notAnImage: "Ce fichier n'est pas une image.",
     tooShort: "Doit contenir au moins {min} caractères.",
     tooLong: "Ne doit pas dépasser {max} caractères.",
-    passwordTooShort: "Le mot de passe doit contenir au moins {min} caractères.",
+    passwordTooShort:
+      "Le mot de passe doit contenir au moins {min} caractères.",
     invalidNumber: "Saisissez un nombre valide.",
     invalidDate: "Saisissez une date valide.",
     invalidChoice: "Choisissez l'une des options proposées.",

@@ -90,9 +90,10 @@ export function AppSidebar({
                   />
                 ) : (
                   // Inverted against the rail rather than painted with
-                  // --primary: the rail is dark in both themes, and --primary
-                  // is near-black in light mode, which would have put a black
-                  // mark on a black panel.
+                  // --primary: --primary is near-black in light mode and
+                  // near-white in dark, so on one of the two it would paint the
+                  // mark in the rail's own colour. Off the rail's foreground it
+                  // is legible in both by construction.
                   <div className="bg-sidebar-foreground text-sidebar flex aspect-square size-8 items-center justify-center rounded-lg">
                     <GraduationCapIcon className="size-4" />
                   </div>
@@ -102,8 +103,9 @@ export function AppSidebar({
                     {organizationName}
                   </span>
                   {/* Off the rail's own foreground, not --muted-foreground:
-                    that token is a dark grey in light mode and would disappear
-                    here. */}
+                    the rail has its own surface in both modes, and a token
+                    mixed for the page behind it is not guaranteed to read on
+                    it. */}
                   <span className="text-sidebar-foreground/70 truncate text-xs">
                     {subtitle ?? t.nav.administration}
                   </span>

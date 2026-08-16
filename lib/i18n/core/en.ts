@@ -63,6 +63,28 @@ const core = {
     insights: "At a glance",
     pending: "Waiting on somebody",
   },
+  /**
+   * The window a screen's flow figures are read over — see `PeriodFilter`.
+   * Core rather than per-module for the same reason `bands` is: two sections
+   * already ask the question and every other one that grows a figure over time
+   * will ask it in the same words.
+   */
+  period: {
+    label: "Period",
+    names: {
+      day: "Day",
+      week: "Week",
+      month: "Month",
+      year: "Year",
+    },
+    /** Written under a figure, so it says what window it was read over. */
+    hints: {
+      day: "Since midnight",
+      week: "This week",
+      month: "This month",
+      year: "This school year",
+    },
+  },
   validation: {
     required: "This field is required.",
     email: "Enter a valid email address.",

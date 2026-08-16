@@ -64,13 +64,15 @@ const fr = {
     spendRecorded: "Paiement enregistr\u00e9.",
     payNow: "Enregistrer le paiement",
     staffPayments: "Payer un membre du personnel",
-    staffPaymentsHint: "Un remboursement ou un versement ponctuel. Les salaires et les avances ont leurs propres \u00e9crans.",
+    staffPaymentsHint:
+      "Un remboursement ou un versement ponctuel. Les salaires et les avances ont leurs propres \u00e9crans.",
     supplier: "Fournisseur",
     supplierHint:
       "En choisir un remplit le nom et la rubrique. Laissez \u00ab autre \u00bb pour un paiement ponctuel sans fiche.",
     accountRef: "N\u00b0 de contrat",
     familyPayments: "Situation des familles",
-    familyPaymentsHint: "Ce que chaque foyer a \u00e9t\u00e9 factur\u00e9, r\u00e9gl\u00e9, et ce qu\u2019il doit d\u00e9j\u00e0.",
+    familyPaymentsHint:
+      "Ce que chaque foyer a \u00e9t\u00e9 factur\u00e9, r\u00e9gl\u00e9, et ce qu\u2019il doit d\u00e9j\u00e0.",
     enrolledChildren: "Enfants",
     charged: "Factur\u00e9",
     collected: "R\u00e9gl\u00e9",
@@ -80,7 +82,8 @@ const fr = {
     lastPaid: "Dernier r\u00e8glement",
     familiesLate: "{count} familles en retard",
     noFamilies: "Aucun foyer inscrit cette ann\u00e9e.",
-    noFamiliesHint: "Inscrivez un \u00e9l\u00e8ve et son dossier appara\u00eet ici avec son \u00e9ch\u00e9ancier.",
+    noFamiliesHint:
+      "Inscrivez un \u00e9l\u00e8ve et son dossier appara\u00eet ici avec son \u00e9ch\u00e9ancier.",
     notYourTill:
       "Cette caisse est celle d\u2019un autre caissier. Ouvrez la v\u00f4tre pour encaisser.",
     sessionStaleClosed:
@@ -97,7 +100,6 @@ const fr = {
     noRegisters: "Aucune caisse n'a encore été créée pour cette école.",
     inDrawer: "En caisse",
     openRegisterCount: "{count} caisses ouvertes",
-    todayHint: "Depuis minuit",
     heldCount: "{count} en portefeuille",
     bouncedCount: "{count} impayés",
     openRegisters: "Caisses ouvertes",
@@ -127,8 +129,8 @@ const fr = {
     category: "Rubrique",
     recordedBy: "Saisie par",
     reversalOf: "Annulation",
-    collectedToday: "Encaissé aujourd'hui",
-    disbursedToday: "Décaissé aujourd'hui",
+    collectedAmount: "Encaissé",
+    disbursedAmount: "Décaissé",
 
     // ── Encaissement ────────────────────────────────────────────────────────
     encaissement: "Encaissement",
@@ -184,7 +186,8 @@ const fr = {
     posted: "Valid\u00e9",
     cancelled: "Annul\u00e9",
     receiptCount: "{count} re\u00e7us",
-    noReceiptsHint: "Les re\u00e7us \u00e9tablis pour ce foyer appara\u00eetront ici.",
+    noReceiptsHint:
+      "Les re\u00e7us \u00e9tablis pour ce foyer appara\u00eetront ici.",
     cancelPayment: "Annuler le reçu",
     cancelPaymentTitle: "Annuler ce reçu ?",
     cancelPaymentBody:
@@ -229,7 +232,8 @@ const fr = {
     beneficiaryHint: "Un membre du personnel, un fournisseur, un bailleur.",
     bank: "Banque",
     otherBank: "Une autre banque",
-    otherBankHint: "Pour une banque non déclarée. Ajoutez-la dans la configuration si elle revient.",
+    otherBankHint:
+      "Pour une banque non déclarée. Ajoutez-la dans la configuration si elle revient.",
     operationCategory: "Rubrique",
     operationSubcategory: "Sous-rubrique",
     noSubcategories: "Cette rubrique n'a pas de sous-rubrique.",

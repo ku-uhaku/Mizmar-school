@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
+import { DEFAULT_PERIOD, type Period } from "@/lib/period";
 import { PERMISSIONS } from "@/lib/permissions";
 import { countRoles } from "@/modules/access/queries";
 import { countEnrolmentsByLevel } from "@/modules/enrolment/queries";
@@ -102,6 +103,13 @@ export type SectionHeadlines = {
 
 export async function loadSectionHeadlines(
   context: AuthContext,
+  /**
+   * The window the *flow* figures are read over. Only la caisse has one on this
+   * screen: pupils, riders and staff are stocks, and asking "how many pupils
+   * this week" would print four different answers to one true question — see
+   * the note on `lib/period.ts`.
+   */
+  period: Period = DEFAULT_PERIOD,
 ): Promise<SectionHeadlines> {
   const now = new Date();
 
@@ -109,7 +117,9 @@ export async function loadSectionHeadlines(
     context.can(PERMISSIONS.SCHOOL_LIFE_VIEW)
       ? loadSchoolLifeSummary(context)
       : null,
-    context.can(PERMISSIONS.TREASURY_VIEW) ? treasurySummary(context) : null,
+    context.can(PERMISSIONS.TREASURY_VIEW)
+      ? treasurySummary(context, period)
+      : null,
     context.can(PERMISSIONS.TRANSPORT_VIEW) ? transportSummary(context) : null,
     context.can(PERMISSIONS.HR_VIEW)
       ? hrSummary(context, now.getFullYear(), now.getMonth() + 1)
@@ -128,7 +138,7 @@ export async function loadSectionHeadlines(
       ? {
           // Dirhams, not centimes: the card prints it as money, and rounding at
           // the source stops every caller re-deciding the same thing.
-          value: Math.round(treasury.collectedTodayCentimes / 100),
+          value: Math.round(treasury.collectedCentimes / 100),
           detail: treasury.openRegisterCount,
           attention: treasury.chequesBouncedCount,
         }

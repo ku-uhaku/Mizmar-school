@@ -2,6 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { DEFAULT_PERIOD, periodRange, type Period } from "@/lib/period";
 import { currentSchoolYearId, schoolScope } from "@/lib/scope";
 import { bilingual } from "@/modules/academics/labels";
 import type { Prisma } from "@/lib/generated/prisma/client";
@@ -521,7 +522,9 @@ const OPERATION_INCLUDE = {
 } as const;
 
 type OperationRecord = Awaited<
-  ReturnType<typeof db.cashOperation.findMany<{ include: typeof OPERATION_INCLUDE }>>
+  ReturnType<
+    typeof db.cashOperation.findMany<{ include: typeof OPERATION_INCLUDE }>
+  >
 >[number];
 
 function toOperationRow(operation: OperationRecord): OperationRow {
@@ -953,7 +956,9 @@ export async function studentPaymentStanding(
       dueDate: true,
       // `position` is what orders the breakdown — the same column the fee grid
       // orders its rows by, so the two screens cannot disagree.
-      feeType: { select: { id: true, name: true, nameAr: true, position: true } },
+      feeType: {
+        select: { id: true, name: true, nameAr: true, position: true },
+      },
       allocations: {
         where: { payment: { status: "POSTED" } },
         select: { amountCentimes: true, payment: { select: { paidAt: true } } },
@@ -1387,36 +1392,53 @@ export async function listStudentPayments(
 }
 
 export type TreasurySummary = {
-  /** Cash the school's open drawers should currently hold. */
+  /**
+   * Cash the school's open drawers should currently hold. A stock, not a flow —
+   * it is true as of now and the period does not touch it.
+   */
   drawerCentimes: number;
   openRegisterCount: number;
-  collectedTodayCentimes: number;
-  disbursedTodayCentimes: number;
+  /** Net encaissements over the window asked for. */
+  collectedCentimes: number;
+  /** Net décaissements over the same window. */
+  disbursedCentimes: number;
   chequesPendingCount: number;
   chequesPendingCentimes: number;
   chequesBouncedCount: number;
 };
 
-/** The figures on the caisse landing page. */
+/**
+ * The figures on the caisse landing page.
+ *
+ * Two of them are flows and follow `period`; the rest are stocks and do not —
+ * see the note on `lib/period.ts`. The window is worked out here rather than
+ * passed in as dates, so the caisse and the main dashboard cannot end up
+ * reading "this week" over two different weeks.
+ */
 export async function treasurySummary(
   context: AuthContext,
+  period: Period = DEFAULT_PERIOD,
 ): Promise<TreasurySummary> {
   const schoolId = context.currentSchool?.id;
   if (!schoolId) {
     return {
       drawerCentimes: 0,
       openRegisterCount: 0,
-      collectedTodayCentimes: 0,
-      disbursedTodayCentimes: 0,
+      collectedCentimes: 0,
+      disbursedCentimes: 0,
       chequesPendingCount: 0,
       chequesPendingCentimes: 0,
       chequesBouncedCount: 0,
     };
   }
 
-  const dayStart = startOfDay(new Date());
+  const { from, to } = periodRange(
+    period,
+    new Date(),
+    context.currentSchoolYear,
+  );
 
-  const [openSessions, todayOperations, pendingCheques, bouncedCount] =
+  const [openSessions, windowOperations, pendingCheques, bouncedCount] =
     await Promise.all([
       db.cashSession.findMany({
         where: { status: "OPEN", cashRegister: { schoolId } },
@@ -1429,13 +1451,15 @@ export async function treasurySummary(
         },
       }),
       db.cashOperation.findMany({
-        where: { schoolId, ...POSTED, occurredAt: { gte: dayStart } },
+        // Half-open, so a movement dated at the last instant of the month is
+        // counted by that month and by nothing else.
+        where: { schoolId, ...POSTED, occurredAt: { gte: from, lt: to } },
         select: {
           kind: true,
           amountCentimes: true,
           reversesOperationId: true,
           // The day the movement being corrected actually happened — see
-          // `netToday`. Only fetched for reversing entries; it is null on
+          // `netOverWindow`. Only fetched for reversing entries; it is null on
           // everything else.
           reversesOperation: { select: { occurredAt: true } },
         },
@@ -1467,30 +1491,34 @@ export async function treasurySummary(
   );
 
   /**
-   * Nets a day's figure: what was taken, less what was reversed *of that day*.
+   * Nets the window's figure: what was taken, less what was reversed *of that
+   * window*.
    *
    * A reversing entry carries the kind it corrects, so a receipt cancelled an
-   * hour after it was written must come off the day's takings rather than be
-   * added to them — which is what summing `amountCentimes` blindly would do.
+   * hour after it was written must come off the takings rather than be added to
+   * them — which is what summing `amountCentimes` blindly would do.
    *
    * But the mirror is always dated *today* while the original keeps its own
-   * date, so subtracting every reversal took yesterday's cancelled receipt off
-   * a day that never counted it: cancel a 3 000 receipt from last week and the
-   * tile read −3 000 collected. A reversal only nets against the day it can
-   * actually net against — its original's. Anything older belongs to a day that
-   * has already been counted, banked and reported on, and this figure is not
-   * the place to restate it.
+   * date, so subtracting every reversal took an older cancelled receipt off a
+   * window that never counted it: cancel a 3 000 receipt from last month and
+   * the day's tile read −3 000 collected. A reversal only nets against the
+   * window it can actually net against — its original's. Anything outside
+   * belongs to a period that has already been counted, banked and reported on,
+   * and this figure is not the place to restate it.
+   *
+   * Widening the window narrows this correction rather than loosening it: on
+   * "year", last month's cancellation *is* inside the window and does net.
    */
-  const netToday = (kind: string) =>
+  const netOverWindow = (kind: string) =>
     sumCentimes(
-      todayOperations
+      windowOperations
         .filter((operation) => operation.kind === kind)
         .map((operation) => {
           if (operation.reversesOperationId === null) {
             return operation.amountCentimes;
           }
           const original = operation.reversesOperation?.occurredAt;
-          return original && original >= dayStart
+          return original && original >= from && original < to
             ? -operation.amountCentimes
             : 0;
         }),
@@ -1499,8 +1527,8 @@ export async function treasurySummary(
   return {
     drawerCentimes,
     openRegisterCount: openSessions.length,
-    collectedTodayCentimes: netToday("ENCAISSEMENT"),
-    disbursedTodayCentimes: netToday("DECAISSEMENT"),
+    collectedCentimes: netOverWindow("ENCAISSEMENT"),
+    disbursedCentimes: netOverWindow("DECAISSEMENT"),
     chequesPendingCount: pendingCheques.length,
     chequesPendingCentimes: sumCentimes(
       pendingCheques.map((cheque) => cheque.amountCentimes),
@@ -1807,7 +1835,10 @@ export async function schoolCollectionStanding(context: AuthContext): Promise<{
   const paid = paidAgg._sum.amountCentimes ?? 0;
 
   const settledByLine = new Map(
-    settledPastDue.map((row) => [row.enrollmentFeeId, row._sum.amountCentimes ?? 0]),
+    settledPastDue.map((row) => [
+      row.enrollmentFeeId,
+      row._sum.amountCentimes ?? 0,
+    ]),
   );
 
   /*

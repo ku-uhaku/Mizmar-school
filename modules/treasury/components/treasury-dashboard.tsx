@@ -8,6 +8,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 
+import { PeriodFilter } from "@/components/shell/period-filter";
 import {
   SectionLinks,
   type SectionLink,
@@ -16,6 +17,7 @@ import { useT } from "@/components/providers/i18n-provider";
 import { useMoney } from "@/components/providers/settings-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { interpolate } from "@/lib/i18n/format";
+import type { Period } from "@/lib/period";
 import { cn } from "@/lib/utils";
 import type { TreasurySummary } from "@/modules/treasury/queries";
 import { SectionHeading } from "@/components/shell/section-heading";
@@ -30,9 +32,12 @@ import { SectionHeading } from "@/components/shell/section-heading";
  */
 export function TreasuryDashboard({
   summary,
+  period,
   permissions,
 }: {
   summary: TreasurySummary;
+  /** The window the two flow figures were read over — see `lib/period.ts`. */
+  period: Period;
   permissions: {
     canCollect: boolean;
     canDisburse: boolean;
@@ -92,7 +97,10 @@ export function TreasuryDashboard({
         way into the section. This one has no third band — the caisse's own
         tables sit on the page below it, headed there. */}
       <section className="grid gap-3">
-        <SectionHeading label={t.bands.overview} />
+        {/* The control sits on the band's own rule rather than on the page
+          header: it moves the two figures below it and nothing else on the
+          screen, and a page-level filter would claim otherwise. */}
+        <SectionHeading label={t.bands.overview} action={<PeriodFilter />} />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MoneyTile
             label={t.treasury.inDrawer}
@@ -102,17 +110,20 @@ export function TreasuryDashboard({
             })}
             icon={<WalletIcon className="size-4" />}
           />
+          {/* These two follow the period; the drawer and the cheques beside
+            them are stocks and stay as of now. The hint is what says so — the
+            reader must not have to remember which of the four it moved. */}
           <MoneyTile
-            label={t.treasury.collectedToday}
-            value={money(summary.collectedTodayCentimes)}
-            hint={t.treasury.todayHint}
+            label={t.treasury.collectedAmount}
+            value={money(summary.collectedCentimes)}
+            hint={t.period.hints[period]}
             icon={<BanknoteArrowDownIcon className="size-4" />}
             tone="in"
           />
           <MoneyTile
-            label={t.treasury.disbursedToday}
-            value={money(summary.disbursedTodayCentimes)}
-            hint={t.treasury.todayHint}
+            label={t.treasury.disbursedAmount}
+            value={money(summary.disbursedCentimes)}
+            hint={t.period.hints[period]}
             icon={<BanknoteArrowUpIcon className="size-4" />}
             tone="out"
           />

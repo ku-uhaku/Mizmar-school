@@ -5,6 +5,7 @@ import { SectionHeading } from "@/components/shell/section-heading";
 import { ForbiddenState } from "@/components/shell/states";
 import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
+import { parsePeriod } from "@/lib/period";
 import { PERMISSIONS } from "@/lib/permissions";
 import {
   OperationsTable,
@@ -45,8 +46,13 @@ export default async function TreasuryPage({
     return typeof value === "string" && value !== "" ? value : undefined;
   };
 
+  // The overview's window. Only the two flow tiles follow it — see
+  // `lib/period.ts` — and it is deliberately not one of the tables' `from`/`to`:
+  // narrowing the ledger is a different question from reading the day's takings.
+  const period = parsePeriod(single("period"));
+
   const [summary, registers, operations, payments] = await Promise.all([
-    treasurySummary(context),
+    treasurySummary(context, period),
     listRegisters(context),
     // The ledger's window, its filters and its order are all decided here — see
     // the note on `listOperationsPage`.
@@ -77,6 +83,7 @@ export default async function TreasuryPage({
       <div className="grid gap-5">
         <TreasuryDashboard
           summary={summary}
+          period={period}
           permissions={{
             canCollect: context.can(PERMISSIONS.TREASURY_COLLECT),
             canDisburse: context.can(PERMISSIONS.TREASURY_DISBURSE),

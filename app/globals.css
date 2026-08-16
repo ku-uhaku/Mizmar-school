@@ -116,20 +116,30 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  /* The rail is dark in light mode too — the same values dark mode uses.
-     Navigation is chrome, not content: giving it its own permanent surface
-     puts the working area unambiguously forward, and the edge where a dark
-     rail meets a light page needs no border to be legible. It also means the
-     shell barely moves when the theme is toggled; the content flips and the
-     furniture stays put. */
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.922 0 0);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* The rail is a light surface in light mode: it takes the theme's own inks
+     and greys rather than a slab of the dark theme transplanted into it.
+
+     It used to be dark in both modes, on the argument that navigation is chrome
+     and a permanent dark surface pushes the working area forward. In practice a
+     near-black column beside a white page is the loudest thing on the screen —
+     it wins the eye every time the page is opened, which is the opposite of
+     what chrome is for — and it left the app looking like two themes stitched
+     together rather than one light one.
+
+     So the rail is now lifted *above* the page rather than sunk below it:
+     lighter than `--background`, which reads as a raised panel, with the
+     theme's own border along the edge to separate it from the page. Every other
+     token tracks its content twin — the ink is `--primary`, the hover is
+     `--accent`, the border is `--border` — so there is one light palette and
+     not two. Dark mode keeps the values it always had. */
+  --sidebar: oklch(0.99 0 0);
+  --sidebar-foreground: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.941 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.878 0 0);
+  --sidebar-ring: oklch(0.55 0 0);
 }
 
 .dark {
@@ -503,21 +513,26 @@ html.dark[data-accent="teal"] {
   --section-administration: #f0748f;
 }
 
-/* The rail is a dark surface in *both* modes, so it always wants the
-   dark-surface hues. Without this the light values — which are dark inks
-   chosen for a white card — would be navy on near-black, and the section
-   colour would vanish exactly where it is doing the most work. Rebinding the
-   `--section-*` inputs rather than `--section` itself means the per-section
-   rules below keep working untouched. */
-[data-slot="sidebar"] {
+/* The rail now shares the page's mode, so it shares the page's hues — the
+   light inks in light mode, the light-on-dark ones in dark. Only dark mode
+   needs the rebinding, and only because the rail is `--sidebar` rather than
+   `--background`; the values are the same ones `.dark` already sets, repeated
+   here so a future change to one surface cannot silently take the other with
+   it. Rebinding the `--section-*` inputs rather than `--section` itself means
+   the per-section rules below keep working untouched. */
+.dark [data-slot="sidebar"] {
   --section-vieScolaire: #6ba6f7;
   --section-finance: #34b8ab;
   --section-logistique: #e08a3c;
   --section-rh: #a98cf5;
   --section-enseignant: #4fb2d8;
   --section-administration: #f0748f;
-  /* The two neutral sections track --primary, which is near-black in light
-     mode. On the rail they take its foreground instead. */
+}
+
+/* The two neutral sections track --primary, which an accent theme colours. On
+   the rail they stay the rail's own ink instead, so the group labels above the
+   nav do not turn into a second accent competing with the active row. */
+[data-slot="sidebar"] {
   --section-main: var(--sidebar-foreground);
   --section-account: var(--sidebar-foreground);
 }
@@ -1080,8 +1095,16 @@ html.dark[data-accent="teal"] {
   position: absolute;
   inset: -56px 0 -56px 0;
   background-image:
-    linear-gradient(to right, color-mix(in oklab, white 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, white 7%, transparent) 1px, transparent 1px);
+    linear-gradient(
+      to right,
+      color-mix(in oklab, white 7%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, white 7%, transparent) 1px,
+      transparent 1px
+    );
   background-size: 56px 56px;
   animation: mizmar-traces 14s linear infinite;
   will-change: transform;

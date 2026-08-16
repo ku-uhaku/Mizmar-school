@@ -14,6 +14,7 @@ import {
 
 import { StatTile } from "@/components/charts/stat-tile";
 import { PageHeader } from "@/components/shell/page-header";
+import { PeriodFilter } from "@/components/shell/period-filter";
 import { SectionHeading } from "@/components/shell/section-heading";
 import { SectionCard } from "@/modules/dashboard/components/section-card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ import {
 } from "@/modules/dashboard/queries";
 import { formatDate, formatNumber, interpolate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
+import { parsePeriod } from "@/lib/period";
 import { PERMISSIONS } from "@/lib/permissions";
 
 /**
@@ -53,10 +55,19 @@ import { PERMISSIONS } from "@/lib/permissions";
  * Every figure is live and scoped inside its owning module, so a school
  * director does not learn the size of the rest of the organisation.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const context = await requireAuth();
   const t = await getDictionary();
   const locale = await getLocale();
+
+  // The window the section band's *flow* figures are read over. Only la caisse
+  // has one here — the other three cards lead with a stock, which is true as of
+  // now and has no period. See `lib/period.ts`.
+  const period = parsePeriod((await searchParams).period);
 
   // All three in one round. The charts read the same permission-scoped module
   // queries the counts do — so a reader who may not open a section is not
@@ -66,7 +77,7 @@ export default async function DashboardPage() {
   const [{ activeSchools, users, roleCount, yearCount }, headlines, charts] =
     await Promise.all([
       loadDashboardStats(context),
-      loadSectionHeadlines(context),
+      loadSectionHeadlines(context, period),
       loadDashboardCharts(context),
     ]);
 
@@ -102,7 +113,13 @@ export default async function DashboardPage() {
       <div className="space-y-8">
         {/* ---- The working sections ------------------------------------- */}
         <section className="space-y-3">
-          <SectionHeading label={t.dashboard.sections} />
+          {/* Only the caisse card follows it, and that card says so in its own
+            label — so the control can sit on the band's rule without claiming
+            the headcounts beside it moved too. */}
+          <SectionHeading
+            label={t.dashboard.sections}
+            action={<PeriodFilter />}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {headlines.vieScolaire ? (
@@ -132,7 +149,7 @@ export default async function DashboardPage() {
                 icon={<WalletIcon className="size-4" />}
                 value={headlines.finance.value}
                 suffix={` ${context.settings.currencyCode}`}
-                valueLabel={t.treasury.collectedToday}
+                valueLabel={`${t.treasury.collectedAmount} · ${t.period.hints[period]}`}
                 detail={detail(
                   headlines.finance.detail,
                   t.treasury.openRegisterCount,
