@@ -32,6 +32,25 @@ import type { TeachingGridRow } from "@/modules/classes/queries";
  * submit is a form where a mistyped row loses the other eleven. Each row posts
  * itself; the toast names what happened. The row is disabled while its own
  * request is in flight so a double-click cannot race two writes at one subject.
+ *
+ * ── Why the call is wrapped in a transition ─────────────────────────────────
+ * It used to be a bare `void action().then(...)`, on the reasoning that a
+ * transition would let a second click through while the first was in flight.
+ * That reasoning was wrong twice over. The row is held by `pending`, which is
+ * what disables it — the transition never had anything to do with it. And a
+ * Server Function is only an *action* when React invokes it as one: through a
+ * form, or from an event handler inside `startTransition`. Called as a plain
+ * promise it is an ordinary fetch, so the `refresh()` the action performs is
+ * never applied to the client router.
+ *
+ * The effect was a picker that saved and then snapped back: the write landed,
+ * `rows` never changed, and the combobox is driven by `row.teacherId`. Reload
+ * the page and the new teacher was there all along.
+ *
+ * The optimistic copy is what removes the round trip from the picker as well.
+ * React reverts it when the transition settles, by which point `refresh()` has
+ * delivered the server's own answer — so the value never flickers, and a
+ * refusal puts the old holder straight back.
  */
 export function TeachingGrid({
   schoolClassId,
@@ -46,6 +65,20 @@ export function TeachingGrid({
 }) {
   const t = useT();
   const [pending, setPending] = React.useState<string | null>(null);
+  const [, startTransition] = React.useTransition();
+
+  // What the table draws: the server's rows, with the row being saved already
+  // showing its new holder. Keyed on the subject rather than the index — the
+  // programme is re-read on every refresh and a row must not follow a position.
+  const [shownRows, showTeacher] = React.useOptimistic(
+    rows,
+    (state, next: { subjectId: string; teacherId: string | null }) =>
+      state.map((row) =>
+        row.subjectId === next.subjectId
+          ? { ...row, teacherId: next.teacherId }
+          : row,
+      ),
+  );
 
   const options = React.useMemo(
     () => teachers.map((teacher) => ({ value: teacher.id, label: teacher.label })),
@@ -54,20 +87,27 @@ export function TeachingGrid({
 
   function save(subjectId: string, teacherId: string | null) {
     setPending(subjectId);
-    // Not a transition: the row has to stay disabled until the server answers,
-    // and a transition would let the next click through while it was pending.
-    void setClassSubjectTeacherAction(schoolClassId, subjectId, teacherId)
-      .then((result) => {
-        if (result.status === "success") {
-          toast.success(result.message ?? t.schoolClass.assignmentSaved);
-        } else {
-          toast.error(result.message ?? t.errors.unexpected);
-        }
-      })
-      .finally(() => setPending(null));
+    startTransition(async () => {
+      // Before the await, which is the only place an optimistic update counts.
+      showTeacher({ subjectId, teacherId });
+
+      const result = await setClassSubjectTeacherAction(
+        schoolClassId,
+        subjectId,
+        teacherId,
+      );
+      if (result.status === "success") {
+        toast.success(result.message ?? t.schoolClass.assignmentSaved);
+      } else {
+        toast.error(result.message ?? t.errors.unexpected);
+      }
+      setPending(null);
+    });
   }
 
-  const unstaffed = rows.filter((row) => row.teacherId === null).length;
+  // Counted off what is on screen, so clearing the last vacancy clears the
+  // warning with it rather than one refresh later.
+  const unstaffed = shownRows.filter((row) => row.teacherId === null).length;
 
   return (
     <div className="grid gap-3">
@@ -92,7 +132,7 @@ export function TeachingGrid({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((row) => (
+            {shownRows.map((row) => (
               <tr
                 key={row.subjectId}
                 className={cn(

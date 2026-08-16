@@ -107,10 +107,11 @@ export function EnrolmentPanel({
   const router = useRouter();
   const isEdit = Boolean(enrolment);
 
-  const [state, formAction] = useActionState(
+  const [state, formAction, isPending] = useActionState(
     isEdit ? updateEnrolmentAction : enrolStudentAction,
     IDLE,
   );
+  const [, startTransition] = React.useTransition();
   useActionFeedback(state, { onSuccess: () => router.refresh() });
 
   const [offeringId, setOfferingId] = React.useState(
@@ -119,7 +120,54 @@ export function EnrolmentPanel({
   const [classId, setClassId] = React.useState(
     enrolment?.schoolClassId ?? "__none__",
   );
+  /*
+    The group is controlled like the two above it rather than left on a
+    `defaultValue`, because it is the only one of the three that depends on
+    another: `groups` is read off the chosen class. Uncontrolled, choosing a
+    different class left the previous class's group sitting in the box — and
+    posted it, so the save carried a group id belonging to a class the pupil
+    was no longer in.
+  */
+  const [groupId, setGroupId] = React.useState(
+    enrolment?.classGroupId ?? "__none__",
+  );
   const [deleting, setDeleting] = React.useState(false);
+
+  /*
+    ── The server's answer is the truth after every save ─────────────────────
+    These three are the secretary's *in-progress edit*, and `useState` seeds
+    them once. So when a save succeeded and `router.refresh()` brought the row
+    back, the pickers went on showing what was on screen before it: unseating a
+    pupil saved — the database and a reload both agreed — and the class picker
+    snapped straight back to the class they had just been taken out of, with a
+    freshly recounted "0 / 30" beside it to make it look authoritative.
+
+    Following the row is the documented way to reset state on a prop change:
+    compare during render, and React re-renders with the new values before
+    committing anything to the DOM.
+
+    Only when the row actually changes, which is what makes a *refusal* behave
+    correctly too — a level the guard locks leaves `enrolment` untouched, so the
+    choice the secretary made stays on screen beside the message explaining why
+    it was not taken.
+  */
+  const seated = {
+    levelOfferingId: enrolment?.levelOfferingId ?? null,
+    schoolClassId: enrolment?.schoolClassId ?? null,
+    classGroupId: enrolment?.classGroupId ?? null,
+  };
+  const [lastSeated, setLastSeated] = React.useState(seated);
+
+  if (
+    lastSeated.levelOfferingId !== seated.levelOfferingId ||
+    lastSeated.schoolClassId !== seated.schoolClassId ||
+    lastSeated.classGroupId !== seated.classGroupId
+  ) {
+    setLastSeated(seated);
+    setOfferingId(seated.levelOfferingId ?? offerings[0]?.id ?? "");
+    setClassId(seated.schoolClassId ?? "__none__");
+    setGroupId(seated.classGroupId ?? "__none__");
+  }
 
   /*
     The opt-ins are controlled rather than uncontrolled, unlike the switches
@@ -236,11 +284,61 @@ export function EnrolmentPanel({
             description={t.enrolment.notEnrolledHint}
           />
         ) : (
-          <form action={formAction} className="grid gap-5">
+          <form
+            className="grid gap-5"
+            /*
+              ── Why this form submits itself instead of taking `action` ───────
+              React resets a form once the action it was given succeeds, and
+              Radix answers a form `reset` by restoring the value each picker
+              mounted with — through `onValueChange`, because these three are
+              controlled. So a save that worked ended by dragging the controls
+              backwards: unseating a pupil wrote `schoolClassId: null`, the
+              refreshed row came back null, the picker correctly showed "Pas
+              encore de classe", and then the reset put the old class straight
+              back in the box. The database, the class badge in the page header
+              and a reload all agreed the pupil had been taken out of it. Only
+              the control disagreed, and the control is what the secretary reads.
+
+              `onReset` cannot save it: `preventDefault` cancels the reset's
+              own effect on the DOM, not the listeners Radix has already
+              registered for the event. The reset has to not happen, and the
+              only way to have it not happen is to keep the `action` prop off
+              the form and hand the FormData to the action inside a transition.
+
+              `useActionState` still does everything else — the field errors,
+              the message, and the pending flag `SubmitButton` is given by hand
+              because `useFormStatus` reports for `action` forms only.
+            */
+            onSubmit={(event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              startTransition(() => formAction(data));
+            }}
+          >
             <input type="hidden" name="studentId" value={studentId} />
             {enrolment ? (
               <input type="hidden" name="id" value={enrolment.id} />
             ) : null}
+
+            {/*
+              ── Why these three post through hidden inputs ──────────────────
+              React resets the form once the action succeeds, and Radix honours
+              a form `reset` by restoring the value it mounted with — through
+              `onValueChange`, because these pickers are controlled. So a
+              successful save ended by dragging the state backwards: unseating a
+              pupil wrote `schoolClassId: null`, the refreshed row came back
+              null, and then the reset put the old class straight back in the
+              box. The database, the header badge and a reload all said the
+              pupil had been taken out; only the picker disagreed.
+
+              Naming the value here instead of on the `<Select>` takes the
+              native control Radix would have reset out of the form altogether —
+              the same arrangement `Combobox` already uses, and for the same
+              reason.
+            */}
+            <input type="hidden" name="levelOfferingId" value={offeringId} />
+            <input type="hidden" name="schoolClassId" value={classId} />
+            <input type="hidden" name="classGroupId" value={groupId} />
 
             <div className="grid gap-5 sm:grid-cols-3">
               <FormField
@@ -251,13 +349,14 @@ export function EnrolmentPanel({
                 required
               >
                 <Select
-                  name="levelOfferingId"
                   value={offeringId}
                   onValueChange={(value) => {
                     setOfferingId(value);
                     // The old class belongs to the old level; keeping it would
-                    // submit a class the server will refuse.
+                    // submit a class the server will refuse. And the group
+                    // belongs to the class, so it goes with it.
                     setClassId("__none__");
+                    setGroupId("__none__");
                   }}
                 >
                   <SelectTrigger id="levelOfferingId" className="w-full">
@@ -290,9 +389,13 @@ export function EnrolmentPanel({
                 error={errors.schoolClassId}
               >
                 <Select
-                  name="schoolClassId"
                   value={classId}
-                  onValueChange={setClassId}
+                  onValueChange={(value) => {
+                    setClassId(value);
+                    // The group belongs to the class, exactly as the class
+                    // belongs to the level above it.
+                    setGroupId("__none__");
+                  }}
                 >
                   <SelectTrigger id="schoolClassId" className="w-full">
                     <SelectValue />
@@ -323,11 +426,8 @@ export function EnrolmentPanel({
                 error={errors.classGroupId}
               >
                 <Select
-                  name="classGroupId"
-                  defaultValue={
-                    valueOf(state, "classGroupId", enrolment?.classGroupId) ||
-                    "__none__"
-                  }
+                  value={groupId}
+                  onValueChange={setGroupId}
                   disabled={groups.length === 0}
                 >
                   <SelectTrigger id="classGroupId" className="w-full">
@@ -449,7 +549,7 @@ export function EnrolmentPanel({
 
             {canSubmit ? (
               <div className="flex justify-end">
-                <SubmitButton>
+                <SubmitButton pending={isPending}>
                   {isEdit ? t.common.save : t.enrolment.enrol}
                 </SubmitButton>
               </div>

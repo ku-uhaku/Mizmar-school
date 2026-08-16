@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
 import { getDictionaryFor } from "@/lib/i18n/server";
+import { balanceTenders } from "@/modules/treasury/payment-state";
 import { paymentSchema, transferSchema } from "@/modules/treasury/validation";
 
 /**
@@ -444,5 +445,83 @@ describe("recordPayment", () => {
 
     expect(result).toMatchObject({ ok: false, reason: "OVER_ALLOCATED" });
     expect(created).toEqual([]);
+  });
+});
+
+/**
+ * Balancing a règlement — the "Solder" button.
+ *
+ * Its own block because the rule is about *which row* takes the difference, and
+ * every case below is one a cashier hits at the desk. The old version put the
+ * difference on the first row whatever it was, which is where the chèque cases
+ * come from.
+ */
+describe("balanceTenders", () => {
+  const cash = (amount: number) => ({
+    method: "CASH",
+    amountCentimes: amount,
+    isBlank: false,
+  });
+  const cheque = (amount: number) => ({
+    method: "CHEQUE",
+    amountCentimes: amount,
+    isBlank: false,
+  });
+  const blank = (method = "CASH") => ({
+    method,
+    amountCentimes: 0,
+    isBlank: true,
+  });
+
+  it("fills a single empty row with the whole selection", () => {
+    expect(balanceTenders([blank()], 120_000)).toEqual([120_000]);
+  });
+
+  it("puts the balance on the empty row, not on the chèque above it", () => {
+    // 3 000 by chèque, the rest in cash — the case the old version broke by
+    // restating a signed document.
+    expect(balanceTenders([cheque(300_000), blank()], 500_000)).toEqual([
+      300_000,
+      200_000,
+    ]);
+  });
+
+  it("leaves a chèque alone and tops up the cash row when none is blank", () => {
+    expect(balanceTenders([cheque(300_000), cash(100_000)], 500_000)).toEqual([
+      300_000,
+      200_000,
+    ]);
+  });
+
+  it("falls back to the last row when every row is a chèque", () => {
+    expect(balanceTenders([cheque(100_000), cheque(100_000)], 500_000)).toEqual([
+      100_000,
+      400_000,
+    ]);
+  });
+
+  it("never leaves a row negative when more was tendered than ticked", () => {
+    // The old subtraction produced -100 000 on row one: a receipt claiming the
+    // school handed money out.
+    const balanced = balanceTenders([cash(300_000), cash(300_000)], 500_000);
+    expect(balanced).toEqual([300_000, 200_000]);
+    expect(balanced.every((amount) => amount >= 0)).toBe(true);
+  });
+
+  it("empties later rows before touching earlier ones", () => {
+    expect(
+      balanceTenders([cash(300_000), cash(100_000), cash(100_000)], 250_000),
+    ).toEqual([250_000, 0, 0]);
+  });
+
+  it("changes nothing when it already balances", () => {
+    expect(balanceTenders([cash(200_000), cash(300_000)], 500_000)).toEqual([
+      200_000,
+      300_000,
+    ]);
+  });
+
+  it("copes with no rows at all", () => {
+    expect(balanceTenders([], 500_000)).toEqual([]);
   });
 });

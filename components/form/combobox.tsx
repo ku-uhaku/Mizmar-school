@@ -133,7 +133,12 @@ export function Combobox({
             aria-expanded={open}
             disabled={disabled}
             className={cn(
-              "w-full justify-between font-normal",
+              // `min-w-0` for the reason `SelectTrigger` carries it: `Button`
+              // sets `whitespace-nowrap`, so without it the automatic minimum
+              // size is the whole selected label and `w-full` loses to it. The
+              // `truncate` below then has nothing to truncate against, and a
+              // long option drags the trigger across the field beside it.
+              "w-full min-w-0 justify-between font-normal",
               !selected && "text-muted-foreground",
               className,
             )}

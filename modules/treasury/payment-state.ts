@@ -121,3 +121,85 @@ export const PAYMENT_STATE_STYLES: Record<
     surface: "border-destructive/30 bg-destructive/5",
   },
 };
+
+// ── Making a règlement add up ────────────────────────────────────────────────
+
+/** One row of the règlement, reduced to what balancing it needs. */
+export type TenderShare = {
+  /** "CASH" | "CHEQUE" | … — see modules/treasury/enums.ts. */
+  method: string;
+  /** What the row currently says, in centimes. Zero for a blank row. */
+  amountCentimes: number;
+  /** Whether the cashier has actually typed a figure in it. */
+  isBlank: boolean;
+};
+
+/**
+ * What each row of a règlement should say for it to settle exactly what was
+ * ticked — the "Solder" button.
+ *
+ * ── Which row the difference lands on ───────────────────────────────────────
+ * It used to be the first, always. That is right when there is one row and
+ * wrong the moment there are two, which is the ordinary case at a desk: a
+ * family pays 3 000 by chèque and the rest in espèces, so the cashier types the
+ * chèque on the first row and adds a second row for the cash — and "Solder" put
+ * the balance onto the chèque, restating a document that has already been
+ * signed for a fixed amount. The cash row it was added for stayed empty.
+ *
+ * So the shortfall goes where the cashier would put it:
+ *
+ *   1. the first row still blank — the one just added to take "the rest";
+ *   2. failing that, the last row that is not a chèque, because a chèque is
+ *      written for a sum somebody else decided and the app must not invent a
+ *      different one;
+ *   3. failing that, the last row: everything is a chèque, and the figure has
+ *      to go somewhere the cashier can see and correct.
+ *
+ * An over-payment is handed back from the last row towards the first, each
+ * clamped at zero. The old subtraction simply took the excess off row one, so
+ * tendering more than was ticked left a **negative** amount on it — a receipt
+ * claiming the school had handed money out.
+ *
+ * Everything in centimes. The old version added a parsed float to a converted
+ * one, which is how a receipt ends up a centime away from the lines it says it
+ * settles.
+ *
+ * Returns one amount per row, in the order given.
+ */
+export function balanceTenders(
+  tenders: readonly TenderShare[],
+  selectedCentimes: number,
+): number[] {
+  const amounts = tenders.map((tender) => tender.amountCentimes);
+  const tendered = amounts.reduce((total, amount) => total + amount, 0);
+  const difference = selectedCentimes - tendered;
+
+  if (tenders.length === 0 || difference === 0) return amounts;
+
+  if (difference > 0) {
+    const blank = tenders.findIndex(
+      (tender) => tender.isBlank || tender.amountCentimes === 0,
+    );
+    const lastNonCheque = tenders.reduce(
+      (found, tender, index) => (tender.method === "CHEQUE" ? found : index),
+      -1,
+    );
+
+    const target =
+      blank >= 0 ? blank : lastNonCheque >= 0 ? lastNonCheque : amounts.length - 1;
+
+    amounts[target] += difference;
+    return amounts;
+  }
+
+  // Over-tendered: give it back from the last row towards the first, so no row
+  // is ever left holding a negative amount.
+  let excess = -difference;
+  for (let index = amounts.length - 1; index >= 0 && excess > 0; index -= 1) {
+    const taken = Math.min(amounts[index], excess);
+    amounts[index] -= taken;
+    excess -= taken;
+  }
+
+  return amounts;
+}

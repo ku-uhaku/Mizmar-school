@@ -17,6 +17,7 @@ export function SubmitButton({
   size,
   className,
   disabled,
+  pending: pendingProp,
 }: {
   children?: React.ReactNode;
   pendingLabel?: string;
@@ -24,9 +25,19 @@ export function SubmitButton({
   size?: React.ComponentProps<typeof Button>["size"];
   className?: string;
   disabled?: boolean;
+  /**
+   * Pending state, for the forms that drive the submission themselves.
+   *
+   * `useFormStatus` only reports for a form given React the `action` prop —
+   * and a form that must not be reset afterwards cannot use it, since the
+   * reset comes with it. Those forms submit inside a transition and pass
+   * `useActionState`'s own pending flag here instead. See `EnrolmentPanel`.
+   */
+  pending?: boolean;
 }) {
   const t = useT();
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingProp ?? status.pending;
 
   return (
     <Button

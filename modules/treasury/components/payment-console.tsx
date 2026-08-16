@@ -57,6 +57,7 @@ import {
 } from "@/modules/treasury/enums";
 import {
   PAYMENT_STATE_STYLES,
+  balanceTenders,
   paymentStateOf,
 } from "@/modules/treasury/payment-state";
 import type {
@@ -118,6 +119,12 @@ type Tender = {
   chequeDueOn: string;
   drawerName: string;
 };
+
+/** What one row of the règlement is worth, in centimes. Blank and junk read 0. */
+function tenderCentimes(tender: Tender): number {
+  const value = Number(tender.amount);
+  return Number.isFinite(value) ? dirhamsToCentimes(value) : 0;
+}
 
 function emptyTender(method: TenderMethod = "CASH"): Tender {
   return {
@@ -229,11 +236,7 @@ export function PaymentConsole({
   );
 
   const tenderTotalCentimes = React.useMemo(
-    () =>
-      tenders.reduce((total, tender) => {
-        const value = Number(tender.amount);
-        return total + (Number.isFinite(value) ? dirhamsToCentimes(value) : 0);
-      }, 0),
+    () => tenders.reduce((total, tender) => total + tenderCentimes(tender), 0),
     [tenders],
   );
 
@@ -281,14 +284,29 @@ export function PaymentConsole({
     );
   }
 
-  /** Fills the first tender with whatever is still unaccounted for. */
+  /**
+   * Makes the règlement add up to exactly what was ticked.
+   *
+   * Which row takes the difference is `balanceTenders`' decision — see the note
+   * there. Rows it leaves alone are returned untouched rather than rewritten,
+   * so a blank row that stays blank is not filled in with "0.00".
+   */
   function matchSelection() {
-    const remaining = selectedTotalCentimes - tenderTotalCentimes;
-    const first = tenders[0];
-    if (!first) return;
-    const current = Number(first.amount) || 0;
-    updateTender(first.key, {
-      amount: (current + centimesToDirhams(remaining)).toFixed(2),
+    setTenders((current) => {
+      const amounts = balanceTenders(
+        current.map((tender) => ({
+          method: tender.method,
+          amountCentimes: tenderCentimes(tender),
+          isBlank: tender.amount.trim() === "",
+        })),
+        selectedTotalCentimes,
+      );
+
+      return current.map((tender, index) =>
+        amounts[index] === tenderCentimes(tender)
+          ? tender
+          : { ...tender, amount: centimesToDirhams(amounts[index]).toFixed(2) },
+      );
     });
   }
 
