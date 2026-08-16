@@ -151,6 +151,28 @@ export async function findUser(
 }
 
 /**
+ * The fonctions of the school being worked in.
+ *
+ * Active ones only: `isActive` is how a merged or misspelt entry stops being
+ * offered without rewriting who held it, so an inactive one must not come back
+ * through the picker. Whoever already holds it keeps it — the form reads the
+ * name off the row, not off this list.
+ *
+ * Its own export because the hire form needs it too, and `StaffFunction` is
+ * this module's table: `modules/hr` reaching for `db.staffFunction` itself
+ * would be the cross-module raw read the layering rules forbid.
+ */
+export async function listJobFunctionChoices(
+  context: AuthContext,
+): Promise<{ id: string; name: string }[]> {
+  return db.staffFunction.findMany({
+    where: { schoolId: context.currentSchool?.id ?? "", isActive: true },
+    orderBy: [{ position: "asc" }, { name: "asc" }],
+    select: { id: true, name: true },
+  });
+}
+
+/**
  * The choices the user form needs. Shared by the create and edit routes so the
  * two can never drift apart in what they offer.
  */
@@ -166,19 +188,7 @@ export async function loadUserFormChoices(context: AuthContext) {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
-    /*
-      The fonctions of the school being worked in.
-
-      Active ones only: `isActive` is how a merged or misspelt entry stops being
-      offered without rewriting who held it, so an inactive one must not come
-      back through the picker. Whoever already holds it keeps it — the form
-      reads the name off the row, not off this list.
-    */
-    db.staffFunction.findMany({
-      where: { schoolId: context.currentSchool?.id ?? "", isActive: true },
-      orderBy: [{ position: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
-    }),
+    listJobFunctionChoices(context),
   ]);
 
   return {

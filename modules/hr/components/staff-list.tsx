@@ -27,23 +27,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatAmount, interpolate } from "@/lib/i18n/format";
 import { deleteStaffAction } from "@/modules/hr/actions";
-import { StaffDialog } from "@/modules/hr/components/staff-dialog";
 import { DEPARTMENTS, JOB_ROLES, STAFF_STATUSES } from "@/modules/hr/enums";
 import type { StaffRow } from "@/modules/hr/queries";
 
 export function StaffList({
   staff,
-  linkableUsers,
-  schoolRoles,
-  canCreateAccount,
   permissions,
 }: {
   staff: StaffRow[];
-  linkableUsers: { id: string; label: string }[];
-  /** School-scoped roles a newly created login may be granted. */
-  schoolRoles: { id: string; name: string }[];
-  /** USER_CREATE — whether this reader may mint a login at all. */
-  canCreateAccount: boolean;
   permissions: {
     canManage: boolean;
     canPayroll: boolean;
@@ -52,7 +43,6 @@ export function StaffList({
 }) {
   const t = useT();
   const locale = useLocale();
-  const [creating, setCreating] = React.useState(false);
   const [removing, setRemoving] = React.useState<StaffRow | null>(null);
 
   const columns = React.useMemo<ColumnDef<StaffRow, unknown>[]>(() => {
@@ -241,10 +231,20 @@ export function StaffList({
     [t],
   );
 
+  /*
+    Hiring is its own page, not a dialog on this one.
+
+    Taking somebody on writes an employment record, a login, a contract, the
+    subjects a teacher may be given and the bus a driver takes — five things
+    that outgrew a modal, and three of which used to be found on three other
+    screens or not at all. See `HireForm`.
+  */
   const newButton = permissions.canManage ? (
-    <Button onClick={() => setCreating(true)}>
-      <PlusIcon />
-      {t.hr.newStaff}
+    <Button asChild>
+      <Link href="/hr/staff/new">
+        <PlusIcon />
+        {t.hr.newStaff}
+      </Link>
     </Button>
   ) : undefined;
 
@@ -264,17 +264,6 @@ export function StaffList({
         }
         toolbar={newButton}
       />
-
-      {creating ? (
-        <StaffDialog
-          person={null}
-          linkableUsers={linkableUsers}
-          schoolRoles={schoolRoles}
-          canCreateAccount={canCreateAccount}
-          canPayroll={permissions.canPayroll}
-          onClose={() => setCreating(false)}
-        />
-      ) : null}
 
       <ConfirmDelete
         open={removing !== null}

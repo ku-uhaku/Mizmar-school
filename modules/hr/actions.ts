@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { failure, success, type ActionState } from "@/lib/action-state";
 import { withCodeRetry } from "@/lib/allocation";
@@ -29,6 +30,7 @@ import {
   payAdvance,
   saveAdvance,
   allocateStaffCode,
+  declareQualifications,
   decideLeave,
   endContract,
   markAttendance,
@@ -44,6 +46,7 @@ import {
   advanceSchema,
   attendanceSchema,
   contractSchema,
+  hireSchema,
   leaveSchema,
   salaryPayoutSchema,
   salarySchema,
@@ -312,6 +315,332 @@ export async function saveStaffAction(
 
     refresh();
     return success(id ? t.hr.staffUpdated : t.hr.staffCreated);
+  });
+}
+
+/**
+ * Hiring somebody — the employment record, the login, the contract, the
+ * subjects and the bus, in one submit.
+ *
+ * ── Why this is not `saveStaffAction` with more fields ──────────────────────
+ * `saveStaffAction` writes one row and is used to *correct* it. This one writes
+ * across four modules and is used once per person, which changes what each
+ * failure means: a half-applied correction is a bad edit, a half-applied hire
+ * is somebody on the payroll with no contract, or a login nobody can trace to
+ * an employee. So the order below is deliberate — the account first, because it
+ * is the only step whose failure the director can still act on (a taken
+ * username), and everything after it is written against ids already checked.
+ *
+ * It is **not** one transaction, and that is a limit rather than an oversight:
+ * `createLoginAccount`, `saveContract` and `declareQualifications` each open
+ * their own, and threading a client through all three would be a refactor of
+ * three service layers for a window this ordering already narrows. Every
+ * expected failure — a taken e-mail, a taken username, a matricule somebody
+ * typed — is settled before the first row is written, so what is left is a
+ * genuine bug, and the row it would strand is an account with no employment
+ * record: visible on `/users`, linkable from the fiche, and deletable. The
+ * reverse order would strand the employee instead, with a login nobody knows.
+ *
+ * Each opt-in section asserts its **own** module's permission rather than
+ * riding on `HR_MANAGE`. Hiring a teacher is not authority to redraw who may
+ * take maths, and hiring a driver is not authority to reassign the fleet — a
+ * school that lets its secretary keep the staff file has not said either. All
+ * three are asserted with `authorizeSchool` and not read off the context, so a
+ * refusal lands in the trail: this is the action a probe would be most
+ * interested in.
+ */
+export async function hireStaffAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, context, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.HR_MANAGE);
+
+    const parsed = hireSchema(t).safeParse({
+      code: field(formData, "code"),
+      firstName: field(formData, "firstName"),
+      lastName: field(formData, "lastName"),
+      firstNameAr: field(formData, "firstNameAr"),
+      lastNameAr: field(formData, "lastNameAr"),
+      gender: field(formData, "gender"),
+      birthDate: field(formData, "birthDate"),
+      birthPlace: field(formData, "birthPlace"),
+      nationalId: field(formData, "nationalId"),
+      cnssNumber: field(formData, "cnssNumber"),
+      bankRib: field(formData, "bankRib"),
+      phone: field(formData, "phone"),
+      email: field(formData, "email"),
+      address: field(formData, "address"),
+      jobRole: field(formData, "jobRole"),
+      jobTitle: field(formData, "jobTitle"),
+      status: field(formData, "status"),
+      hiredOn: field(formData, "hiredOn"),
+      leftOn: "",
+      // Linking an account that already exists belongs to the fiche, where the
+      // record's own screen has read what it is currently linked to. Hiring
+      // mints one or does without.
+      userId: "",
+      createAccount: boolField(formData, "createAccount"),
+      accountUsername: field(formData, "accountUsername"),
+      accountPassword: formData.get("accountPassword") ?? "",
+      accountRoleId: optionalId(formData, "accountRoleId"),
+      notes: field(formData, "notes"),
+
+      maxWeeklyMinutes: field(formData, "maxWeeklyMinutes"),
+      jobFunctionId: optionalId(formData, "jobFunctionId"),
+
+      withContract: boolField(formData, "withContract"),
+      contractKind: field(formData, "contractKind") || "CDI",
+      contractStartsOn: field(formData, "contractStartsOn"),
+      contractEndsOn: field(formData, "contractEndsOn"),
+      contractTrialEndsOn: field(formData, "contractTrialEndsOn"),
+      contractBaseSalary: field(formData, "contractBaseSalary") || 0,
+      contractWeeklyHours: field(formData, "contractWeeklyHours"),
+
+      subjectIds: listField(formData, "subjectIds"),
+      qualificationCycleId: optionalId(formData, "qualificationCycleId"),
+
+      vehicleIds: listField(formData, "vehicleIds"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const hire = parsed.data;
+
+    // What each optional section will actually do, decided once: the checks
+    // below, the permissions asserted for it and the writes at the end all have
+    // to agree, and three separate readings of the same booleans is how they
+    // stop agreeing.
+    const wantsAccount = hire.createAccount;
+    const wantsSubjects = hire.subjectIds.length > 0;
+    const wantsVehicles = hire.vehicleIds.length > 0;
+
+    /*
+      A qualification hangs off the account, not the employment record — see the
+      note on TeacherSubject. Somebody with no login therefore cannot be
+      declared for a subject at all, and saying so here is kinder than writing
+      the staff row and silently dropping the half of the form that was the
+      reason it was filled in.
+    */
+    if (wantsSubjects && !wantsAccount) {
+      return failure(
+        t.hr.subjectsNeedAccount,
+        { subjectIds: t.hr.subjectsNeedAccount },
+        formValues(formData),
+      );
+    }
+
+    const schoolYearId = context.currentSchoolYear?.id;
+    if (wantsSubjects && !schoolYearId) {
+      return failure(t.errors.noSchoolYearContext);
+    }
+
+    if (wantsAccount) await authorizeSchool(schoolId, PERMISSIONS.USER_CREATE);
+    if (wantsSubjects) {
+      await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+    }
+    if (wantsVehicles) {
+      await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
+    }
+
+    // Every id from the request re-derived against the school before anything
+    // is written — a role that grants elsewhere, a fonction from a sibling
+    // school's list, a cycle or a subject that is not this school's cursus.
+    const [role, jobFunction, cycle, subjects, vehicles] = await Promise.all([
+      hire.accountRoleId
+        ? db.role.findFirst({
+            where: {
+              id: hire.accountRoleId,
+              organizationId: context.user.organizationId,
+              scope: "SCHOOL",
+            },
+            select: { id: true },
+          })
+        : null,
+      hire.jobFunctionId
+        ? db.staffFunction.findFirst({
+            where: { id: hire.jobFunctionId, schoolId },
+            select: { id: true },
+          })
+        : null,
+      hire.qualificationCycleId
+        ? db.educationLevel.findFirst({
+            where: { id: hire.qualificationCycleId, schoolId },
+            select: { id: true },
+          })
+        : null,
+      wantsSubjects
+        ? db.subject.findMany({
+            where: { id: { in: hire.subjectIds }, schoolId },
+            select: { id: true },
+          })
+        : [],
+      wantsVehicles
+        ? db.vehicle.findMany({
+            where: { id: { in: hire.vehicleIds }, schoolId },
+            select: { id: true },
+          })
+        : [],
+    ]);
+
+    if (hire.code) {
+      const clash = await db.staff.findFirst({
+        where: { schoolId, code: hire.code },
+        select: { id: true },
+      });
+      if (clash) {
+        return failure(
+          t.hr.codeTaken,
+          { code: t.hr.codeTaken },
+          formValues(formData),
+        );
+      }
+    }
+
+    // ── Le compte ────────────────────────────────────────────────────────────
+    let userId: string | null = null;
+
+    if (wantsAccount) {
+      if (!hire.email) {
+        return failure(
+          t.hr.accountNeedsEmail,
+          { email: t.hr.accountNeedsEmail },
+          formValues(formData),
+        );
+      }
+      if (!hire.accountPassword) {
+        return failure(
+          t.hr.accountNeedsPassword,
+          { accountPassword: t.hr.accountNeedsPassword },
+          formValues(formData),
+        );
+      }
+
+      const account = await createLoginAccount({
+        organizationId: context.user.organizationId,
+        schoolId,
+        roleId: role?.id ?? null,
+        firstName: hire.firstName,
+        lastName: hire.lastName,
+        email: hire.email,
+        username: hire.accountUsername,
+        password: hire.accountPassword,
+        phone: hire.phone,
+        jobFunctionId: jobFunction?.id ?? null,
+      });
+
+      if (!account.ok) {
+        return failure(
+          account.reason === "email-taken"
+            ? t.user.emailTaken
+            : account.reason === "username-taken"
+              ? t.user.usernameTaken
+              : t.hr.accountNeedsUsername,
+          account.reason === "email-taken"
+            ? { email: t.user.emailTaken }
+            : account.reason === "username-taken"
+              ? { accountUsername: t.user.usernameTaken }
+              : { accountUsername: t.hr.accountNeedsUsername },
+          formValues(formData),
+        );
+      }
+
+      userId = account.userId;
+    }
+
+    // ── L'employé ────────────────────────────────────────────────────────────
+    const data = {
+      schoolId,
+      userId,
+      firstName: hire.firstName,
+      lastName: hire.lastName,
+      firstNameAr: hire.firstNameAr,
+      lastNameAr: hire.lastNameAr,
+      gender: hire.gender,
+      birthDate: hire.birthDate,
+      birthPlace: hire.birthPlace,
+      nationalId: hire.nationalId,
+      cnssNumber: hire.cnssNumber,
+      // Unlike the fiche, the RIB is simply not offered without HR_PAYROLL and
+      // is written as whatever was posted — a record being created has no bank
+      // details to drop, so there is nothing to protect from a blank.
+      ...(context.canInSchool(schoolId, PERMISSIONS.HR_PAYROLL)
+        ? { bankRib: hire.bankRib }
+        : {}),
+      phone: hire.phone,
+      email: hire.email,
+      address: hire.address,
+      jobRole: hire.jobRole,
+      jobTitle: hire.jobTitle,
+      maxWeeklyMinutes: hire.maxWeeklyMinutes,
+      status: hire.status,
+      hiredOn: hire.hiredOn,
+      notes: hire.notes,
+    };
+
+    // The allocation is inside the retry — see the note in `saveStaffAction`.
+    const staff = hire.code
+      ? await db.staff.create({
+          data: { ...data, code: hire.code },
+          select: { id: true },
+        })
+      : await withCodeRetry(async () =>
+          db.staff.create({
+            data: { ...data, code: await allocateStaffCode(schoolId) },
+            select: { id: true },
+          }),
+        );
+
+    // ── Le contrat ───────────────────────────────────────────────────────────
+    if (hire.withContract && hire.contractStartsOn) {
+      await saveContract(
+        {
+          staffId: staff.id,
+          kind: hire.contractKind,
+          startsOn: hire.contractStartsOn,
+          endsOn: hire.contractEndsOn,
+          trialEndsOn: hire.contractTrialEndsOn,
+          baseSalaryCentimes: hire.contractBaseSalaryCentimes,
+          weeklyHours: hire.contractWeeklyHours,
+          // Signed, not drafted: somebody being hired starts work, and a draft
+          // would leave them in the "no live contract" warning they were just
+          // given a contract to leave.
+          status: "ACTIVE",
+          notes: null,
+        },
+        null,
+      );
+    }
+
+    // ── Les matières ─────────────────────────────────────────────────────────
+    if (userId && schoolYearId && subjects.length > 0) {
+      await declareQualifications({
+        schoolId,
+        schoolYearId,
+        teacherId: userId,
+        subjectIds: subjects.map((subject) => subject.id),
+        educationLevelId: cycle?.id ?? null,
+      });
+    }
+
+    // ── Le bus ───────────────────────────────────────────────────────────────
+    if (vehicles.length > 0) {
+      await db.vehicle.updateMany({
+        where: { id: { in: vehicles.map((vehicle) => vehicle.id) }, schoolId },
+        data: { driverId: staff.id },
+      });
+    }
+
+    refresh();
+    redirect(`/hr/staff/${staff.id}`);
   });
 }
 

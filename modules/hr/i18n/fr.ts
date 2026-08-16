@@ -67,6 +67,57 @@ const fr = {
     noStaff: "Aucun employé enregistré.",
     headcount: "Effectif",
 
+    // ── Recrutement ─────────────────────────────────────────────────────────
+    hire: "Recruter",
+    hireSubtitle:
+      "La fiche employé, l'accès, le contrat et ce qu'il prend en charge — en une seule fois.",
+    hireHint: "Seul le nom est obligatoire. Le reste peut attendre.",
+    sections: "Sections",
+    identity: "Identité",
+    identityHint:
+      "Telle qu'elle figure sur la CIN — le contrat et la déclaration CNSS en sont issus.",
+    posting: "Poste",
+    postingHint: "Ce pour quoi il a été recruté, et où cela se situe.",
+    contact: "Coordonnées",
+    contactHint: "Comment l'école le joint.",
+    contract: "Contrat",
+    contractSectionHint:
+      "Ce sur quoi il est engagé. Un renouvellement plus tard sera un nouveau contrat, pas une modification de celui-ci.",
+    withContract: "Signer un contrat maintenant",
+    withContractHint:
+      "Sans cela, il est employé sans rien de signé — c'est le manque que relève une inspection.",
+    access: "Accès",
+    accessHint: "S'il se connecte, et ce qu'il pourra faire une fois connecté.",
+    accountNotPermitted: "Vous n'êtes pas autorisé à créer des accès.",
+    noPermissions: "Un accès sans permission",
+    emailIsLogin: "C'est aussi l'adresse sur laquelle son compte est ouvert.",
+    jobFunctionNeedsAccount:
+      "La fonction est portée par l'accès — activez-en un pour la renseigner.",
+    maxWeeklyMinutes: "Charge hebdomadaire maximale",
+    maxWeeklyMinutesHint:
+      "En minutes. Le générateur ne lui donnera pas une vingt-cinquième heure. Vide, c'est le plafond de la semaine qui s'applique.",
+    teaching: "Matières",
+    teachingHint:
+      "Ce que cet enseignant peut prendre — la base sur laquelle le générateur d'emploi du temps établit ses affectations.",
+    subjects: "Matières qu'il peut prendre",
+    subjectsHint:
+      "Ce qu'il pourrait enseigner, non ce qui lui a été confié. La préférence et les niveaux précis se règlent ensuite, sous Configuration.",
+    subjectsNeedAccount:
+      "Une habilitation est portée par l'accès — activez-en un pour déclarer des matières.",
+    subjectsNotPermitted:
+      "Vous n'êtes pas autorisé à déclarer qui enseigne quoi.",
+    noSubjects: "L'école n'a encore aucune matière dans son cursus.",
+    qualificationCycle: "Cycle",
+    qualificationCycleHint:
+      "Où l'habilitation s'applique. Laissez sur tous les cycles pour quelqu'un qui prend la matière partout où elle est enseignée.",
+    everyCycle: "Tous les cycles",
+    busSection: "Bus",
+    busHint: "Les véhicules que ce chauffeur conduit.",
+    buses: "Bus conduits",
+    busesHint: "L'affecter ici remplace celui qui y était désigné.",
+    busesNotPermitted: "Vous n'êtes pas autorisé à réaffecter le parc.",
+    noVehicles: "L'école n'a aucun véhicule dans son parc.",
+
     // ── Tableau de bord de la section ───────────────────────────────────────
     staffHint: "Tous ceux que l'école paie, et le contrat de chacun.",
     attendanceHint:

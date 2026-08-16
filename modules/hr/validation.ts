@@ -41,9 +41,17 @@ function moneyField(v: V, { max = 1_000_000 } = {}) {
     .max(max, { error: v.invalidNumber });
 }
 
-export function staffSchema(t: Dictionary) {
+/**
+ * The employment record's own columns, as both forms post them.
+ *
+ * Extracted from `staffSchema` so `hireSchema` can build on it rather than
+ * restate it: the fiche and the hire page ask for the same identity, and two
+ * lists of the same twenty fields is how one of them comes to accept a
+ * hundred-character CIN the other refuses.
+ */
+function staffFields(t: Dictionary) {
   const v = t.validation;
-  return z.object({
+  return {
     // Blank means "generate one" — see `allocateStaffCode` in service.ts.
     code: optionalText(30),
     firstName: requiredText(v, { max: 80 }),
@@ -88,7 +96,88 @@ export function staffSchema(t: Dictionary) {
       .transform((value) => value || null),
     accountRoleId: optionalText(40),
     notes: optionalText(1000),
-  });
+  };
+}
+
+export function staffSchema(t: Dictionary) {
+  return z.object(staffFields(t));
+}
+
+/**
+ * Hiring somebody, in one submit.
+ *
+ * ── Why this is not `staffSchema` with a few more boxes ─────────────────────
+ * `staffSchema` describes one row. This describes an *act*: an employment
+ * record, the account they sign in with, the contract they are engaged on, what
+ * a teacher may be given and which bus a driver takes. Four modules' tables,
+ * and each of the last three is opt-in — a caretaker gets none of them.
+ *
+ * The opt-ins are what the refinements below are about. A section that is
+ * switched off must not validate its own empty boxes (a blank start date is not
+ * an invalid one when no contract is being signed), and a section that is
+ * switched on must not be allowed through half-filled — which is precisely the
+ * hole a plain `optionalDate` would leave, since the action would then write a
+ * contract starting at the epoch.
+ *
+ * `maxWeeklyMinutes` and `jobFunctionId` are on the staff/account rows rather
+ * than in a section of their own: both are answered by hiring somebody, and
+ * neither has anything to switch off.
+ */
+export function hireSchema(t: Dictionary) {
+  const v = t.validation;
+
+  return z
+    .object({
+      ...staffFields(t),
+
+      /** A term of the engagement — see the note on `Staff.maxWeeklyMinutes`. */
+      maxWeeklyMinutes: optionalPositiveInt(v),
+      /** La fonction on the login's profile — a row of the school's own list. */
+      jobFunctionId: optionalText(40),
+
+      // ── Le contrat ─────────────────────────────────────────────────────────
+      withContract: z.boolean(),
+      contractKind: enumField(CONTRACT_KINDS, v),
+      contractStartsOn: optionalDate(v),
+      contractEndsOn: optionalDate(v),
+      contractTrialEndsOn: optionalDate(v),
+      contractBaseSalary: moneyField(v),
+      contractWeeklyHours: optionalPositiveInt(v),
+
+      // ── Ce qu'un enseignant peut prendre ───────────────────────────────────
+      /*
+        The subjects, and the one cycle they are declared for. Blank is the
+        ordinary case and means the whole school — see the level-scope note on
+        `TeacherSubject`. Naming individual niveaux stays on the Configuration
+        screen: a school hiring somebody knows the cycle, and rarely more.
+      */
+      subjectIds: z.array(z.string().max(40)),
+      qualificationCycleId: optionalText(40),
+
+      // ── Le bus ─────────────────────────────────────────────────────────────
+      vehicleIds: z.array(z.string().max(40)),
+    })
+    /*
+      A contract with no start date is not a contract. Checked here rather than
+      in the service because it is a property of the form's own two fields, and
+      reported against the box the director has to go and fill in.
+    */
+    .refine((data) => !data.withContract || data.contractStartsOn !== null, {
+      error: v.required,
+      path: ["contractStartsOn"],
+    })
+    .refine(
+      (data) =>
+        !data.withContract ||
+        data.contractEndsOn === null ||
+        data.contractStartsOn === null ||
+        data.contractEndsOn >= data.contractStartsOn,
+      { error: t.hr.endBeforeStart, path: ["contractEndsOn"] },
+    )
+    .transform((data) => ({
+      ...data,
+      contractBaseSalaryCentimes: Math.round(data.contractBaseSalary * 100),
+    }));
 }
 
 /**

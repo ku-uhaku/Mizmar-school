@@ -307,9 +307,22 @@ export function UsersManager({
     [t, locale, permissions.canUpdate, permissions.canDelete],
   );
 
+  /*
+    An account is opened by hiring somebody, not on its own.
+
+    Every login this school issues belongs to a member of staff, and creating
+    the two separately is what produced the pair this list is full of: an
+    account with no employment record behind it, and an employee whose account
+    somebody has to go and find to link. `/hr/staff/new` writes both.
+
+    `/users/new` is still there and still works — a stagiaire, an auditor, an
+    inspector needs a login and no payslip — it is simply no longer the door.
+    This screen keeps everything else an account needs afterwards: its role, its
+    fonction, deactivating it, resetting its password.
+  */
   const newButton = permissions.canCreate ? (
     <Button asChild>
-      <Link href="/users/new">
+      <Link href="/hr/staff/new">
         <PlusIcon />
         {t.user.newUser}
       </Link>

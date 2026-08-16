@@ -171,6 +171,62 @@ export async function saveContract(
   });
 }
 
+// ── What a teacher may be given ──────────────────────────────────────────────
+
+export type QualificationInput = {
+  schoolId: string;
+  schoolYearId: string;
+  /** The **account**, not the staff row — see the note on `TeacherSubject`. */
+  teacherId: string;
+  subjectIds: string[];
+  /** The cycle the whole declaration is scoped to. Null means the school. */
+  educationLevelId: string | null;
+};
+
+/**
+ * Declares what somebody may be given, for one year.
+ *
+ * Upserts on `[schoolYearId, teacherId, subjectId]` rather than creating, for
+ * the reason every seed here does: the unique index is what makes "one
+ * judgement per subject per year" true, and a `create` would throw the moment a
+ * school re-declared a teacher it had already declared. Re-declaring is the
+ * ordinary case — somebody is hired, and September comes round again.
+ *
+ * It only ever *adds*: rows already on file for subjects not named here are
+ * left alone rather than deleted. Withdrawing a qualification is deactivating
+ * it (`isActive`), which is a decision made on the Configuration screen with
+ * the grids that booked it in view — not a side effect of somebody opening a
+ * hire form and ticking one fewer box.
+ */
+export async function declareQualifications(
+  input: QualificationInput,
+): Promise<void> {
+  for (const subjectId of input.subjectIds) {
+    await db.teacherSubject.upsert({
+      where: {
+        schoolYearId_teacherId_subjectId: {
+          schoolYearId: input.schoolYearId,
+          teacherId: input.teacherId,
+          subjectId,
+        },
+      },
+      create: {
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        teacherId: input.teacherId,
+        subjectId,
+        educationLevelId: input.educationLevelId,
+      },
+      // A re-declaration re-activates: a school ticking the box again means the
+      // teacher takes the subject, whatever last year's withdrawal said.
+      update: {
+        educationLevelId: input.educationLevelId,
+        isActive: true,
+      },
+    });
+  }
+}
+
 /** Ends a contract without writing a replacement — somebody simply left. */
 export async function endContract(contractId: string): Promise<void> {
   await db.employmentContract.update({

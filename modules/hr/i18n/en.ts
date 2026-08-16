@@ -71,6 +71,57 @@ const en = {
     noStaff: "Nobody on the payroll yet.",
     headcount: "Headcount",
 
+    // ── Hiring ──────────────────────────────────────────────────────────────
+    /** The whole act — see modules/hr/components/hire-form.tsx. */
+    hire: "Hire",
+    hireSubtitle:
+      "The employment record, the login, the contract and what they take on — in one go.",
+    hireHint: "Only the name is required. Everything else can wait.",
+    sections: "Sections",
+    identity: "Identity",
+    identityHint:
+      "As it appears on the CIN — the contract and the CNSS declaration are issued from it.",
+    posting: "Post",
+    postingHint: "What they were taken on to do, and where it sits.",
+    contact: "Contact",
+    contactHint: "How the school reaches them.",
+    contract: "Contract",
+    contractSectionHint:
+      "What they are engaged on. A renewal later is a new contract, not an edit to this one.",
+    withContract: "Sign a contract now",
+    withContractHint:
+      "Leave it off and they are employed with nothing signed — the gap an inspection finds.",
+    access: "Login",
+    accessHint: "Whether they sign in, and what they may do once they have.",
+    accountNotPermitted: "You may not create login accounts.",
+    noPermissions: "A login with no permissions",
+    emailIsLogin: "Also the address their account is opened on.",
+    jobFunctionNeedsAccount:
+      "La fonction sits on the login — turn one on to set it.",
+    maxWeeklyMinutes: "Weekly teaching cap",
+    maxWeeklyMinutesHint:
+      "In minutes. The generator will not give them a twenty-fifth hour. Blank uses the week's own ceiling.",
+    teaching: "Subjects",
+    teachingHint:
+      "What this teacher may be given — the input the timetable generator makes its assignments from.",
+    subjects: "Subjects they may take",
+    subjectsHint:
+      "What they could teach, not what they have been given. Preference and individual niveaux are set later, under Configuration.",
+    subjectsNeedAccount:
+      "A qualification hangs off the login — turn one on to declare subjects.",
+    subjectsNotPermitted: "You may not declare who teaches what.",
+    noSubjects: "The school has no subjects in its cursus yet.",
+    qualificationCycle: "Cycle",
+    qualificationCycleHint:
+      "Where the qualification applies. Leave it on every cycle for somebody who takes the subject wherever it is taught.",
+    everyCycle: "Every cycle",
+    busSection: "Bus",
+    busHint: "The vehicles this driver takes out.",
+    buses: "Buses driven",
+    busesHint: "Assigning one here replaces whoever was named on it.",
+    busesNotPermitted: "You may not reassign the fleet.",
+    noVehicles: "The school has no vehicle on its fleet.",
+
     // ── Section dashboard ───────────────────────────────────────────────────
     staffHint: "Everybody the school pays, and the contract each one is on.",
     attendanceHint: "Who came in today, and who nobody has marked yet.",
