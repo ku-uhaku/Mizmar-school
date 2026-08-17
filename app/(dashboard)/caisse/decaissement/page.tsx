@@ -8,8 +8,8 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { DisbursementForm } from "@/modules/treasury/components/disbursement-form";
 import { SUPPLIER_KINDS } from "@/modules/treasury/enums";
 import {
-  findOpenSession,
   listBanks,
+  listOpenDrawers,
   listOperationCategories,
   listOperationMotifs,
   listSuppliers,
@@ -25,12 +25,14 @@ export default async function DecaissementPage() {
     return <ForbiddenState />;
   }
 
-  const [categories, motifs, banks, openSession, suppliers] = await Promise.all([
+  const [categories, motifs, banks, drawers, suppliers] = await Promise.all([
     // Only the rubriques money may actually go out under — see categoryKindsFor.
     listOperationCategories(context, "OUT"),
     listOperationMotifs(context),
     listBanks(context),
-    findOpenSession(context),
+    // Every till open today, not merely the caller's: a cash payout names the
+    // drawer the notes came out of — see `listOpenDrawers`.
+    listOpenDrawers(context),
     // Every declared fournisseur, whatever its kind: this one screen covers the
     // lot now, so narrowing it would hide half the catalogue.
     listSuppliers(context, SUPPLIER_KINDS),
@@ -48,7 +50,7 @@ export default async function DecaissementPage() {
         motifs={motifs}
         banks={banks}
         suppliers={suppliers}
-        hasOpenSession={openSession !== null}
+        drawers={drawers}
       />
     </>
   );

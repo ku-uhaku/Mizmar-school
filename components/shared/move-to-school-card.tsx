@@ -4,16 +4,17 @@ import * as React from "react";
 import { Loader2Icon, SchoolIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { FormField } from "@/components/form/form-field";
 import { useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -93,11 +94,14 @@ export function MoveToSchoolCard({
         <CardDescription>{description}</CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-        <div className="grid min-w-56 flex-1 gap-1.5">
-          <Label htmlFor="moveToSchool">{label}</Label>
+      <CardContent>
+        {/* The same FormField every other picker in the app sits in, so the
+          label, the width and the spacing come from one place. Not inside a
+          `<form>`: the action takes an id rather than a FormData, which is what
+          lets one card serve two modules. */}
+        <FormField name="moveToSchool" label={label} className="sm:max-w-sm">
           <Select value={schoolId} onValueChange={setSchoolId}>
-            <SelectTrigger id="moveToSchool">
+            <SelectTrigger id="moveToSchool" className="w-full">
               <SelectValue placeholder={t.common.select} />
             </SelectTrigger>
             <SelectContent>
@@ -108,8 +112,10 @@ export function MoveToSchoolCard({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
+      </CardContent>
 
+      <CardFooter>
         <Button
           type="button"
           variant="outline"
@@ -119,7 +125,7 @@ export function MoveToSchoolCard({
           {pending ? <Loader2Icon className="animate-spin" /> : null}
           {confirmLabel}
         </Button>
-      </CardContent>
+      </CardFooter>
     </Card>
   );
 }

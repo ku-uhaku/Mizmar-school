@@ -61,31 +61,110 @@ export function categoryKindsFor(
 }
 
 /**
- * How money changed hands.
+ * How money changed hands — the forms a Moroccan school actually deals in.
  *
- *   CASH           espèces
+ *   CASH           espèces, over the desk
  *   CHEQUE         chèque — not money until it clears, see the Cheque table
+ *   TRAITE         traite / LCN — a bill drawn on a bank, due on a date
  *   BANK_TRANSFER  virement bancaire
- *   MIXED          several of the above on one receipt, itemised in its tenders
+ *   VERSEMENT      versement: cash paid in over the bank's own counter
+ *   PRELEVEMENT    prélèvement automatique — the bank takes it on a standing order
+ *   TPE            carte bancaire, on the school's terminal
+ *   MANDAT         mandat, Cash Plus, Wafacash — money order collected at a counter
  *
- * MIXED is a summary for the ledger, never a tender in its own right — see
- * `TENDER_METHODS`.
+ * The list is deliberately code and not configuration. Each value carries rules
+ * the app has to know — whether it moves the drawer (`cashImpactOf`), what the
+ * operator must be asked for (`METHOD_DETAILS`) — so a school inventing a ninth
+ * from a settings screen would produce movements no screen knew how to handle.
+ * Adding one is three edits: here, `METHOD_DETAILS`, and the label in all three
+ * i18n files. The typecheck names the two you forgot.
  */
-export const PAYMENT_METHODS = [
+export const TENDER_METHODS = [
   "CASH",
   "CHEQUE",
+  "TRAITE",
   "BANK_TRANSFER",
-  "MIXED",
+  "VERSEMENT",
+  "PRELEVEMENT",
+  "TPE",
+  "MANDAT",
 ] as const;
+export type TenderMethod = (typeof TENDER_METHODS)[number];
+
+/**
+ * The same list plus MIXED, which is what a receipt paid in two forms records.
+ *
+ * Derived rather than restated: the two used to be written out separately, and a
+ * method added to one and not the other is a value the ledger can hold and the
+ * filters cannot show. MIXED is a summary and never a tender in its own right —
+ * a receipt is mixed by *having several tenders*, so a tender calling itself
+ * mixed would be a row that failed to say what it actually was.
+ */
+export const PAYMENT_METHODS = [...TENDER_METHODS, "MIXED"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /**
- * The methods a single tender may use. MIXED is excluded by construction: a
- * receipt is mixed by *having several tenders*, so a tender that called itself
- * mixed would be a row that failed to say what it actually was.
+ * What the operator has to be asked for, once they have chosen how the money
+ * moved.
+ *
+ *   DRAWER     nothing extra, but it has to come out of an open till
+ *   CHEQUE     the cheque's number and the bank it is drawn on — tracked paper,
+ *              so a Cheque row is written and followed up to its end
+ *   REFERENCE  a reference and, optionally, the bank: the transaction number on
+ *              the TPE slip, the virement's ref, the traite's number
+ *
+ * A table rather than a chain of `if`s in each form, for the same reason as
+ * `CHEQUE_TRANSITIONS` below: the décaissement, the encaissement console and the
+ * validation all read it, so a screen cannot ask for a field the schema does not
+ * require, nor skip one it does.
+ *
+ * TRAITE is REFERENCE and not CHEQUE, which is a real limitation and not an
+ * oversight: the Cheque table has no column saying which of the two a row is, so
+ * tracking traites there would print them as chèques on the suivi screen. A
+ * traite is therefore recorded with its number and left untracked — if a school
+ * needs the PENDING → CASHED / BOUNCED life for them, that is a `kind` column on
+ * Cheque and a migration.
  */
-export const TENDER_METHODS = ["CASH", "CHEQUE", "BANK_TRANSFER"] as const;
-export type TenderMethod = (typeof TENDER_METHODS)[number];
+export const METHOD_DETAILS = {
+  CASH: "DRAWER",
+  CHEQUE: "CHEQUE",
+  TRAITE: "REFERENCE",
+  BANK_TRANSFER: "REFERENCE",
+  VERSEMENT: "REFERENCE",
+  PRELEVEMENT: "REFERENCE",
+  TPE: "REFERENCE",
+  MANDAT: "REFERENCE",
+  // `satisfies` keeps the literal types *and* makes a method added above
+  // without a rule here a compile error, which is the whole point of the table.
+} as const satisfies Record<TenderMethod, "DRAWER" | "CHEQUE" | "REFERENCE">;
+
+export type MethodDetail = (typeof METHOD_DETAILS)[TenderMethod];
+
+/**
+ * What a method needs, from the column's plain `string`.
+ *
+ * Narrowed here so neither the form nor the action has to cast: a method the
+ * code does not know asks for nothing rather than being asserted into the union
+ * and indexing off the end.
+ */
+export function methodDetail(method: string): MethodDetail {
+  return (
+    METHOD_DETAILS[method as TenderMethod] ??
+    // Unknown methods are treated as the safest of the three: it asks for
+    // nothing and, crucially, claims no cash left the drawer.
+    "REFERENCE"
+  );
+}
+
+/** Whether this method needs an open till to post into. */
+export function methodNeedsDrawer(method: string): boolean {
+  return methodDetail(method) === "DRAWER";
+}
+
+/** Whether the cheque's own fields — number, bank — apply. */
+export function methodIsCheque(method: string): boolean {
+  return methodDetail(method) === "CHEQUE";
+}
 
 /** Whether a till is open for business. */
 export const SESSION_STATUSES = ["OPEN", "CLOSED"] as const;
@@ -372,7 +451,12 @@ export function cashImpactOf(
   method: PaymentMethod,
   cashPortionCentimes: number,
 ): number {
-  if (method !== "CASH" && method !== "MIXED") return 0;
+  // Read off METHOD_DETAILS rather than naming CASH here, so a method added to
+  // the list is silently harmless to the drawer instead of silently wrong.
+  // MIXED is the exception the table cannot hold: it is not a form of money, but
+  // it carries a cash *portion* — the receipt's cash tender — and that portion
+  // does move the till.
+  if (method !== "MIXED" && !methodNeedsDrawer(method)) return 0;
   return kind === "ENCAISSEMENT" ? cashPortionCentimes : -cashPortionCentimes;
 }
 

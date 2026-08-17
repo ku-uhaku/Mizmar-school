@@ -124,6 +124,13 @@ const en = {
     cashImpact: "Cash",
     label: "Description",
     reference: "Reference",
+    /** The chosen till, on the forms that pay cash out of one. */
+    drawer: "Till",
+    drawerHint: "Which till the cash comes out of.",
+    drawerMine: "yours",
+    /** The disclosure holding the fields the ordinary payout does not need. */
+    moreDetails: "More details",
+    moreDetailsHint: "Supplier, category, motif, date, notes — all optional.",
     occurredAt: "Date",
     beneficiary: "Paid to",
     category: "Category",
@@ -328,7 +335,12 @@ const en = {
     methods: {
       CASH: "Cash",
       CHEQUE: "Cheque",
+      TRAITE: "Bill of exchange",
       BANK_TRANSFER: "Bank transfer",
+      VERSEMENT: "Bank deposit",
+      PRELEVEMENT: "Direct debit",
+      TPE: "Card (terminal)",
+      MANDAT: "Money order",
       MIXED: "Mixed",
     },
     sessionStatuses: {

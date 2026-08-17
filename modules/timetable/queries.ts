@@ -4,7 +4,12 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { displayName } from "@/lib/dal";
 import { teachingDaysOf } from "@/lib/school-settings";
-import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
+import {
+  currentSchoolId,
+  currentSchoolYearId,
+  staffOfSchool,
+  yearScope,
+} from "@/lib/scope";
 import {
   bilingual,
   cycleChoiceLabel,
@@ -403,14 +408,13 @@ export async function loadTimetableChoices(
       },
     }),
     db.user.findMany({
+      // Membership *or* employment record — see `staffOfSchool`. A membership
+      // alone hid every teacher hired without a role.
       where: {
         organizationId: context.organization.id,
-        isActive: true,
-        memberships: {
-          some: { schoolId: currentSchoolId(context) },
-        },
+        ...staffOfSchool(currentSchoolId(context)),
       },
-      orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+      orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
       select: {
         id: true,
         username: true,
@@ -905,16 +909,14 @@ export async function listTeacherOptions(
   context: AuthContext,
   scheduleKind = "STANDARD",
 ): Promise<TeacherOption[]> {
-  const schoolId = currentSchoolId(context);
   const schoolYearId = currentSchoolYearId(context);
 
   const teachers = await db.user.findMany({
     where: {
       organizationId: context.organization.id,
-      isActive: true,
-      memberships: { some: { schoolId } },
+      ...staffOfSchool(currentSchoolId(context)),
     },
-    orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+    orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
     select: {
       id: true,
       username: true,
@@ -965,8 +967,9 @@ export async function loadTeacherAvailability(
   const schoolYearId = currentSchoolYearId(context);
 
   // The teacher must belong to this school; one from elsewhere reads as absent.
+  // Belonging, not holding permissions — see `staffOfSchool`.
   const teacher = await db.user.findFirst({
-    where: { id: teacherId, memberships: { some: { schoolId } } },
+    where: { id: teacherId, ...staffOfSchool(schoolId) },
     select: { id: true },
   });
   if (!teacher) return null;

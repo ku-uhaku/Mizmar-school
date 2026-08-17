@@ -56,6 +56,11 @@ export function periodRange(
    * means the year they are running, and a calendar year would cut it in half.
    */
   schoolYear?: { startDate: Date; endDate: Date } | null,
+  /**
+   * Every year the school in context has, so "année" can reach back to the
+   * morning after the previous one closed. See the `year` case.
+   */
+  schoolYears?: readonly { startDate: Date; endDate: Date }[],
 ): { from: Date; to: Date } {
   const midnight = startOfDay(now);
 
@@ -81,19 +86,95 @@ export function periodRange(
       };
     }
 
-    case "year":
-      return schoolYear
-        ? {
-            from: startOfDay(schoolYear.startDate),
-            // The year's last day is inclusive as the school states it, so the
-            // exclusive bound is the morning after it.
-            to: addDays(startOfDay(schoolYear.endDate), 1),
-          }
-        : {
-            from: new Date(now.getFullYear(), 0, 1),
-            to: new Date(now.getFullYear() + 1, 0, 1),
-          };
+    case "year": {
+      if (!schoolYear) {
+        return {
+          from: new Date(now.getFullYear(), 0, 1),
+          to: new Date(now.getFullYear() + 1, 0, 1),
+        };
+      }
+
+      const stated = {
+        from: startOfDay(schoolYear.startDate),
+        // The year's last day is inclusive as the school states it, so the
+        // exclusive bound is the morning after it.
+        to: addDays(startOfDay(schoolYear.endDate), 1),
+      };
+
+      /*
+        The teaching dates are not the whole year's worth of money.
+
+        A school takes money for September all through July and August — the
+        frais d'inscription, the first instalment, a re-enrolment settled over
+        the summer — and every one of those receipts is stamped with the year it
+        is *for*, not the year the calendar happened to be in. Reading "année"
+        over 1 September → 30 June alone dropped them, so a receipt written in
+        August showed under "jour" and vanished under "année": the wider control
+        printed the smaller number. Same story at the far end, for a receipt
+        taken after the year closes.
+
+        So the window is the administrative year, not the teaching one: it runs
+        from the morning after the previous year closed to the evening this one
+        does, and it always contains today. That leaves no day of the twelve
+        belonging to no year, and nothing the four controls can hide between
+        them: "année" is now a superset of "jour", "semaine" and "mois" whatever
+        the date, which is the invariant the segmented control implies.
+      */
+      const previousEnd = previousYearEnd(schoolYears, stated.from);
+      const from = previousEnd
+        ? addDays(startOfDay(previousEnd), 1)
+        : stated.from;
+
+      return union({ from, to: stated.to }, {
+        // Whatever "day", "week" and "month" can reach from here. The year is a
+        // superset of the three narrower windows by definition, and a summer
+        // spent taking next year's fees is exactly when that stops being true
+        // of the teaching dates alone.
+        from: minDate(
+          periodRange("week", now).from,
+          periodRange("month", now).from,
+        ),
+        to: maxDate(periodRange("week", now).to, periodRange("month", now).to),
+      });
+    }
   }
+}
+
+/**
+ * The end of the latest year that closed before this one opened, if the school
+ * has one.
+ *
+ * Deliberately the *previous* year rather than simply "the beginning of time":
+ * extending the first year's window backwards without a bound would sweep in
+ * whatever a school entered while it was still setting itself up, and
+ * extending a later year's would double-count the year before it — the two
+ * windows must not overlap, or a receipt is in the takings of two years.
+ */
+function previousYearEnd(
+  schoolYears: readonly { startDate: Date; endDate: Date }[] | undefined,
+  currentStart: Date,
+): Date | null {
+  let latest: Date | null = null;
+  for (const year of schoolYears ?? []) {
+    const end = startOfDay(year.endDate);
+    if (end < currentStart && (latest === null || end > latest)) latest = end;
+  }
+  return latest;
+}
+
+function union(
+  a: { from: Date; to: Date },
+  b: { from: Date; to: Date },
+): { from: Date; to: Date } {
+  return { from: minDate(a.from, b.from), to: maxDate(a.to, b.to) };
+}
+
+function minDate(a: Date, b: Date): Date {
+  return a <= b ? a : b;
+}
+
+function maxDate(a: Date, b: Date): Date {
+  return a >= b ? a : b;
 }
 
 function startOfDay(date: Date): Date {

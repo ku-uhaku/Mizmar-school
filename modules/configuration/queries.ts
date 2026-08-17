@@ -3,7 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
-import { currentSchoolYearId } from "@/lib/scope";
+import { currentSchoolId, currentSchoolYearId, staffOfSchool } from "@/lib/scope";
 import {
   cycleChoiceLabel,
   levelChoiceLabel,
@@ -95,7 +95,13 @@ export async function loadChoices(
 ): Promise<Choice[]> {
   if (referenceTo === "@teachers") {
     const users = await db.user.findMany({
-      where: { organizationId: context.organization.id, isActive: true },
+      // School-scoped, like the resources that reference it: every one of them
+      // is a school's or a year's row, so offering another school's staff was
+      // both wrong and wider than `isUnreachable` below now accepts.
+      where: {
+        organizationId: context.organization.id,
+        ...staffOfSchool(currentSchoolId(context)),
+      },
       select: {
         id: true,
         username: true,
@@ -368,8 +374,15 @@ async function isUnreachable(
   value: string,
 ): Promise<boolean> {
   if (referenceTo === "@teachers") {
+    // The same test the picker offers from. A crafted POST could otherwise put
+    // another school's teacher on this school's row — the list and the write
+    // must agree, which is the point of having one filter for both.
     const user = await db.user.findFirst({
-      where: { id: value, organizationId: context.organization.id },
+      where: {
+        id: value,
+        organizationId: context.organization.id,
+        ...staffOfSchool(currentSchoolId(context)),
+      },
       select: { id: true },
     });
     return !user;

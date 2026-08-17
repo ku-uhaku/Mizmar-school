@@ -7,6 +7,7 @@ import { authorizeSchool } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
+import { staffOfSchool } from "@/lib/scope";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { assignmentScopeKey } from "@/modules/classes/enums";
@@ -93,14 +94,18 @@ export async function setClassSubjectTeacherAction(
       return success(t.schoolClass.teacherCleared);
     }
 
-    // Never trust a teacher id from the request: it has to be an active
-    // account with a membership in this class's own school.
+    /*
+      Never trust a teacher id from the request: it has to be an active account
+      belonging to *this class's* own school, which was re-derived from the
+      session a line above rather than taken from the form.
+
+      Belonging, not holding permissions — see `staffOfSchool`. The membership
+      test that used to be here refused every teacher hired without a role, and
+      refused them as "introuvable": the picker offered the name and the save
+      then denied the person existed.
+    */
     const teacher = await db.user.findFirst({
-      where: {
-        id: teacherId,
-        isActive: true,
-        memberships: { some: { schoolId: schoolClass.schoolId } },
-      },
+      where: { id: teacherId, ...staffOfSchool(schoolClass.schoolId) },
       select: { id: true },
     });
     if (!teacher) return failure(t.errors.notFound);
@@ -190,11 +195,11 @@ export async function saveTeachingAssignmentAction(
         where: { id: parsed.data.subjectId, schoolId: schoolClass.schoolId },
         select: { id: true },
       }),
+      // Same test as the picker offers from — see `staffOfSchool`.
       db.user.findFirst({
         where: {
           id: parsed.data.teacherId,
-          isActive: true,
-          memberships: { some: { schoolId: schoolClass.schoolId } },
+          ...staffOfSchool(schoolClass.schoolId),
         },
         select: { id: true },
       }),

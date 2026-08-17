@@ -10,6 +10,7 @@ import { formatAmount, formatDate, interpolate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
+import { staffOfSchool } from "@/lib/scope";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { fieldErrors } from "@/lib/validation";
@@ -17,7 +18,9 @@ import {
   canMoveCheque,
   categoryKindsFor,
   chequeUndoesReceipt,
+  methodNeedsDrawer,
   recordedAt,
+  startOfDay,
 } from "@/modules/treasury/enums";
 import {
   availableIfShortOf,
@@ -124,6 +127,48 @@ async function requireDrawer(
   }
 
   return { ok: false, message: t.treasury.noOpenSession };
+}
+
+/**
+ * The drawer a movement goes into when the operator named one.
+ *
+ * Wraps `requireDrawer` rather than replacing it: an unnamed till still means
+ * "mine", which is the ordinary case and the one that must not need a click.
+ *
+ * ── Why the named one is re-derived and not trusted ─────────────────────────
+ * A session id from the request is an id from the request. It is re-looked-up
+ * here against this school, against `status: OPEN`, and against today — so a
+ * crafted id cannot pay money out of the sister school's till, and a stale one
+ * cannot post today's payout into yesterday's counted drawer. The picker on the
+ * form is filtered by exactly these clauses (`listOpenDrawers`); this is the
+ * guard, and the filtering is the convenience.
+ */
+async function requireChosenDrawer(
+  t: Dictionary,
+  locale: Locale,
+  schoolId: string,
+  userId: string,
+  cashSessionId: string | null,
+): Promise<{ ok: true; sessionId: string } | { ok: false; message: string }> {
+  if (!cashSessionId) return requireDrawer(t, locale, schoolId, userId);
+
+  const chosen = await db.cashSession.findFirst({
+    where: {
+      id: cashSessionId,
+      status: "OPEN",
+      cashRegister: { schoolId },
+      openedAt: { gte: startOfDay(new Date()) },
+    },
+    select: { id: true },
+  });
+
+  // The same sentence as having no till at all: from the bursar's side the
+  // drawer they picked is not one they may post into, and why it is not — closed
+  // overnight, closed by somebody else while the form sat open — is a question
+  // the tills screen answers and this message cannot.
+  return chosen
+    ? { ok: true, sessionId: chosen.id }
+    : { ok: false, message: t.treasury.noOpenSession };
 }
 
 /**
@@ -350,9 +395,10 @@ export async function recordPaymentAction(
       : null;
     if (parsed.data.familyId && !family) return failure(t.errors.notFound);
 
-    // Cash needs a drawer to go into; the other methods do not.
-    const takesCash = parsed.data.tenders.some(
-      (tender) => tender.method === "CASH",
+    // Cash needs a drawer to go into; the other seven methods do not — asked of
+    // METHOD_DETAILS so this screen and the décaissement agree about which.
+    const takesCash = parsed.data.tenders.some((tender) =>
+      methodNeedsDrawer(tender.method),
     );
     let cashSessionId: string | null = null;
     if (takesCash) {
@@ -555,6 +601,7 @@ export async function recordDisbursementAction(
       motifId: optionalId(formData, "motifId"),
       bankId: optionalId(formData, "bankId"),
       supplierId: optionalId(formData, "supplierId"),
+      cashSessionId: optionalId(formData, "cashSessionId"),
       beneficiaryName: field(formData, "beneficiaryName"),
       label: field(formData, "label"),
       method: field(formData, "method"),
@@ -644,9 +691,21 @@ export async function recordDisbursementAction(
       return failure(t.errors.notFound);
     }
 
+    /*
+      Only a payout in notes needs a till — a virement never comes near one, and
+      neither does a card on the terminal. Asked of METHOD_DETAILS rather than
+      of `=== "CASH"`, so the eight methods the caisse now offers each need a
+      drawer exactly when they actually move one.
+    */
     let cashSessionId: string | null = null;
-    if (parsed.data.method === "CASH") {
-      const resolved = await requireDrawer(t, locale, schoolId, context.user.id);
+    if (methodNeedsDrawer(parsed.data.method)) {
+      const resolved = await requireChosenDrawer(
+        t,
+        locale,
+        schoolId,
+        context.user.id,
+        parsed.data.cashSessionId,
+      );
       if (!resolved.ok) return failure(resolved.message);
       cashSessionId = resolved.sessionId;
     }
@@ -674,7 +733,11 @@ export async function recordDisbursementAction(
       // Staff are paid through the RH screens now — see the note on the form.
       beneficiaryStaffId: null,
       supplierId: supplier?.id ?? null,
-      beneficiaryName: parsed.data.beneficiaryName,
+      // Falls back to the libellé. The column is "always set" by design — see
+      // the note on it — and the form no longer insists on a separate line for
+      // it, so "Facture Lydec août" is both what the movement is and who it went
+      // to rather than an empty cell in the ledger.
+      beneficiaryName: parsed.data.beneficiaryName || parsed.data.label,
       label: parsed.data.label,
       method: parsed.data.method,
       amountCentimes: parsed.data.amountCentimes,
@@ -1046,17 +1109,14 @@ export async function saveCashRegisterAction(
 
       Never taken from the form on trust: a user id from another organisation
       would hand somebody outside the school a drawer, and `holderId` is exactly
-      what the posting rules are checked against. A membership of this school is
-      the test, not merely that the user exists.
+      what the posting rules are checked against. Belonging to this school is the
+      test, not merely that the user exists — and it is the same `staffOfSchool`
+      the picker offers from, so the list and the write cannot drift.
     */
     let holderId: string | null = null;
     if (parsed.data.holderId) {
       const holder = await db.user.findFirst({
-        where: {
-          id: parsed.data.holderId,
-          isActive: true,
-          memberships: { some: { schoolId } },
-        },
+        where: { id: parsed.data.holderId, ...staffOfSchool(schoolId) },
         select: { id: true },
       });
       if (!holder) return failure(t.errors.notFound);

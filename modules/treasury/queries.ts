@@ -3,7 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { DEFAULT_PERIOD, periodRange, type Period } from "@/lib/period";
-import { currentSchoolYearId, schoolScope } from "@/lib/scope";
+import { currentSchoolYearId, schoolScope, staffOfSchool } from "@/lib/scope";
 import { bilingual } from "@/modules/academics/labels";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import {
@@ -189,6 +189,85 @@ export async function findOpenSession(context: AuthContext) {
   });
 }
 
+export type DrawerChoice = {
+  /** The session's id — what the décaissement posts into. */
+  id: string;
+  cashRegisterId: string;
+  label: string;
+  /** Who opened it, for the two tills a school runs side by side. */
+  openedByName: string;
+  /** What it holds right now, so a payout that cannot fit is visible up front. */
+  availableCentimes: number;
+  /** The caller's own shift: what the forms default to. */
+  isMine: boolean;
+};
+
+/**
+ * The tills a cash movement may be posted into: every session open in the school
+ * today.
+ *
+ * ── Why this is wider than `findOpenSession` ─────────────────────────────────
+ * `findOpenSession` answers "which drawer is *mine*", and that is deliberately
+ * narrow — a receipt landing in a colleague's drawer by accident is what made
+ * the evening count unanswerable for both of them. But a décaissement is not an
+ * accident: the bursar paying a supplier in cash is *saying* which till the
+ * notes came out of, and on a school running a caisse principale next to a
+ * caisse annexe that is a question only they can answer. So the choice is
+ * offered, and it defaults to their own (`isMine`).
+ *
+ * Yesterday's shifts are left out rather than shown and refused. A stale session
+ * is not a drawer anybody may post into — see `resolveCashSession` — and listing
+ * it would offer a choice the action exists to reject.
+ */
+export async function listOpenDrawers(
+  context: AuthContext,
+  now: Date = new Date(),
+): Promise<DrawerChoice[]> {
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return [];
+
+  const sessions = await db.cashSession.findMany({
+    where: {
+      status: "OPEN",
+      cashRegister: { schoolId },
+      // Opened today. The same day rule the writing path enforces, expressed as
+      // a `where` so a stale shift never reaches the screen in the first place.
+      openedAt: { gte: startOfDay(now) },
+    },
+    orderBy: [{ cashRegister: { position: "asc" } }, { openedAt: "desc" }],
+    select: {
+      id: true,
+      cashRegisterId: true,
+      openedById: true,
+      openingFloatCentimes: true,
+      cashRegister: { select: { name: true, code: true, holderId: true } },
+      openedBy: {
+        select: {
+          username: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      operations: { where: POSTED, select: { cashImpactCentimes: true } },
+    },
+  });
+
+  return sessions.map((session) => ({
+    id: session.id,
+    cashRegisterId: session.cashRegisterId,
+    label: `${session.cashRegister.name} (${session.cashRegister.code})`,
+    openedByName: displayName(session.openedBy),
+    availableCentimes: expectedDrawerTotal(
+      session.openingFloatCentimes,
+      session.operations.map((operation) => operation.cashImpactCentimes),
+    ),
+    // Mine if I opened it or I hold the till — the same two clauses
+    // `findOpenSession` scopes by, so "my caisse" means one thing everywhere.
+    isMine:
+      session.openedById === context.user.id ||
+      session.cashRegister.holderId === context.user.id,
+  }));
+}
+
 export type CashierChoice = { id: string; label: string };
 
 /**
@@ -207,8 +286,10 @@ export async function listCashierChoices(
   if (!schoolId) return [];
 
   const users = await db.user.findMany({
-    where: { isActive: true, memberships: { some: { schoolId } } },
-    orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+    // Membership *or* employment record — see `staffOfSchool`. A bursar hired
+    // without a role holds no membership and was unofferable a drawer.
+    where: staffOfSchool(schoolId),
+    orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
     select: {
       id: true,
       username: true,
@@ -1436,6 +1517,9 @@ export async function treasurySummary(
     period,
     new Date(),
     context.currentSchoolYear,
+    // The other years too: "année" spans the administrative year, which starts
+    // the morning after the previous one closed — see `lib/period.ts`.
+    context.schoolYears,
   );
 
   const [openSessions, windowOperations, pendingCheques, bouncedCount] =

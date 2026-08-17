@@ -124,6 +124,14 @@ const fr = {
     cashImpact: "Espèces",
     label: "Libellé",
     reference: "Référence",
+    /** La caisse choisie, sur les écrans qui sortent des espèces. */
+    drawer: "Caisse",
+    drawerHint: "La caisse d'où sortent les espèces.",
+    drawerMine: "la vôtre",
+    /** Le volet qui contient ce dont un décaissement ordinaire n'a pas besoin. */
+    moreDetails: "Plus de détails",
+    moreDetailsHint:
+      "Fournisseur, rubrique, motif, date, notes — tous facultatifs.",
     occurredAt: "Date",
     beneficiary: "Bénéficiaire",
     category: "Rubrique",
@@ -326,7 +334,12 @@ const fr = {
     methods: {
       CASH: "Espèces",
       CHEQUE: "Chèque",
+      TRAITE: "Traite / LCN",
       BANK_TRANSFER: "Virement bancaire",
+      VERSEMENT: "Versement bancaire",
+      PRELEVEMENT: "Prélèvement automatique",
+      TPE: "Carte bancaire (TPE)",
+      MANDAT: "Mandat",
       MIXED: "Mixte",
     },
     sessionStatuses: {

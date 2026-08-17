@@ -1,6 +1,6 @@
 "use client";
 
-import { BanknoteArrowUpIcon } from "lucide-react";
+import { BanknoteArrowUpIcon, ChevronDownIcon } from "lucide-react";
 import * as React from "react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
@@ -11,8 +11,13 @@ import {
 } from "@/components/form/form-page";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
-import { useT } from "@/components/providers/i18n-provider";
+import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { Combobox } from "@/components/form/combobox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,13 +28,18 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
-import { toDateInputValue } from "@/lib/i18n/format";
+import { formatAmount, toDateInputValue } from "@/lib/i18n/format";
 import { recordDisbursementAction } from "@/modules/treasury/actions";
 import { BankPicker } from "@/modules/treasury/components/bank-picker";
-import { TENDER_METHODS, type TenderMethod } from "@/modules/treasury/enums";
+import {
+  methodDetail,
+  TENDER_METHODS,
+  type TenderMethod,
+} from "@/modules/treasury/enums";
 import type {
   BankOption,
   CategoryOption,
+  DrawerChoice,
   MotifOption,
   SupplierOption,
 } from "@/modules/treasury/queries";
@@ -41,6 +51,18 @@ const NONE = "__none__";
 /**
  * Décaissement: money out.
  *
+ * ── Four fields, and the rest on request ────────────────────────────────────
+ * A bursar paying the Lydec bill answers three questions — what, how much, how —
+ * and a fourth when it is cash: out of which till. Those are what the screen
+ * asks. The chart-of-accounts fields are still here and still written; they sit
+ * behind « Plus de détails », because they are what a *report* needs rather than
+ * what the payment needs, and nine payouts in ten are entered by somebody who
+ * has the facture in one hand and no opinion about the sub-rubrique.
+ *
+ * Nothing was removed to achieve that. Filing a décaissement under no rubrique
+ * is a hole in the finance reports, so the fields stay one click away and the
+ * supplier shortcut still fills them in — see `chooseSupplier`.
+ *
  * ── What this screen is *not* for ───────────────────────────────────────────
  * What staff are *owed* is paid where it is owed: a salary is a bulletin
  * (`/hr/payroll`) and an avance is an avance (`/hr/advances`). Both name the
@@ -48,26 +70,15 @@ const NONE = "__none__";
  * ledger is unchanged; what has gone from here is the staff picker, which made
  * this form ask a question that has a better answer two screens away.
  *
- * A one-off that is not either — a reimbursement, an indemnité — is paid here
- * as an ordinary décaissement, named in the beneficiary line. There used to be
- * a third screen for exactly that (`/hr/paiements`); it was removed as a
- * duplicate of this one, so the free-text beneficiary below is what carries
- * those payments now.
- *
- * ── The supplier is the shortcut ────────────────────────────────────────────
- * Picking a declared fournisseur fills in the beneficiary, the rubrique and the
- * sub-rubrique from its own row, which is what turns the ordinary case — the
- * Lydec bill, a box of pens — into two fields. A school still pays landlords,
- * hauliers and casual workers who are in no table at all, so the free-text
- * beneficiary stays: forcing them through a catalogue would mean inventing a row
- * for every one-off payment.
+ * A one-off that is not either — a reimbursement, an indemnité — is paid here as
+ * an ordinary décaissement, named in the libellé.
  */
 export function DisbursementForm({
   categories,
   motifs,
   banks,
   suppliers,
-  hasOpenSession,
+  drawers,
 }: {
   /** Rubriques postable on the way out, each carrying its sub-rubriques. */
   categories: CategoryOption[];
@@ -78,9 +89,14 @@ export function DisbursementForm({
    * rubrique; leaving it on "autre" is how a one-off is paid.
    */
   suppliers: SupplierOption[];
-  hasOpenSession: boolean;
+  /**
+   * The tills open today. Empty means no cash may leave at all — the submit is
+   * held and the hint says why — but a virement can still be recorded.
+   */
+  drawers: DrawerChoice[];
 }) {
   const t = useT();
+  const locale = useLocale();
   const [state, formAction] = React.useActionState(
     recordDisbursementAction,
     IDLE,
@@ -92,7 +108,13 @@ export function DisbursementForm({
   const [subcategoryId, setSubcategoryId] = React.useState(NONE);
   const [motifId, setMotifId] = React.useState(NONE);
   const [label, setLabel] = React.useState("");
+  const [showDetails, setShowDetails] = React.useState(false);
   const formRef = React.useRef<HTMLFormElement>(null);
+
+  /** The cashier's own drawer, which is what a payout ordinarily comes out of. */
+  const defaultDrawer =
+    drawers.find((drawer) => drawer.isMine)?.id ?? drawers[0]?.id ?? "";
+  const [cashSessionId, setCashSessionId] = React.useState(defaultDrawer);
 
   useActionFeedback(state, {
     onSuccess: () => {
@@ -104,16 +126,24 @@ export function DisbursementForm({
       setSubcategoryId(NONE);
       setMotifId(NONE);
       setLabel("");
+      setCashSessionId(defaultDrawer);
+      // The disclosure stays as the bursar left it: somebody entering a run of
+      // invoices under the same rubrique should not have to reopen it each time.
     },
   });
 
   const errors = state.fieldErrors ?? {};
 
   /**
-   * Picking an employee writes their name into the text field rather than
-   * hiding it. The ledger's `beneficiaryName` is always set — see the note on
-   * the column — and showing what will be written beats writing it invisibly.
+   * What the chosen method needs asking about, from the one table both this form
+   * and the action read — see `METHOD_DETAILS`. The eight methods therefore fall
+   * into three shapes of form rather than eight branches here.
    */
+  const detail = methodDetail(method);
+  const needsDrawer = detail === "DRAWER";
+  /** No till open, and this payout wants one. */
+  const drawerMissing = needsDrawer && drawers.length === 0;
+
   /**
    * Picking a fournisseur fills in everything its row already knows.
    *
@@ -183,132 +213,6 @@ export function DisbursementForm({
         title={t.treasury.decaissement}
         description={t.treasury.decaissementSubtitle}
       >
-        {suppliers.length > 0 ? (
-          <FormField
-            name="supplierId"
-            label={t.treasury.supplier}
-            hint={t.treasury.supplierHint}
-          >
-            <Combobox
-              id="supplierId"
-              name="supplierId"
-              value={supplierId}
-              onValueChange={chooseSupplier}
-              emptyOption={{
-                value: NO_SUPPLIER,
-                label: t.treasury.beneficiaryExternal,
-              }}
-              options={suppliers.map((option) => ({
-                value: option.id,
-                label: option.label,
-                // Searchable by the account number too — a bursar holding the
-                // facture has the police number in front of them, not the name.
-                keywords: `${option.code} ${option.accountRef ?? ""}`,
-              }))}
-            />
-          </FormField>
-        ) : null}
-
-        <FormGrid cols={2}>
-          <FormField
-            name="beneficiaryName"
-            label={t.treasury.beneficiaryName}
-            hint={t.treasury.beneficiaryHint}
-            error={errors.beneficiaryName}
-            required
-          >
-            <Input
-              {...controlProps(
-                "beneficiaryName",
-                errors.beneficiaryName,
-                t.treasury.beneficiaryHint,
-              )}
-              value={beneficiaryName}
-              onChange={(event) => setBeneficiaryName(event.target.value)}
-              required
-            />
-          </FormField>
-
-          <FormField
-            name="categoryId"
-            label={t.treasury.operationCategory}
-            error={errors.categoryId}
-          >
-            <Select
-              name="categoryId"
-              value={categoryId}
-              onValueChange={chooseCategory}
-            >
-              <SelectTrigger id="categoryId" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t.common.none}</SelectItem>
-                {categories.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-        </FormGrid>
-
-        <FormGrid cols={2}>
-          {/* Only offered once a rubrique is chosen, and only its own children:
-              a sub-rubrique means nothing on its own. */}
-          <FormField
-            name="subcategoryId"
-            label={t.treasury.operationSubcategory}
-            hint={
-              category && category.subcategories.length === 0
-                ? t.treasury.noSubcategories
-                : undefined
-            }
-            error={errors.subcategoryId}
-          >
-            <Select
-              name="subcategoryId"
-              value={subcategoryId}
-              onValueChange={setSubcategoryId}
-              disabled={!category || category.subcategories.length === 0}
-            >
-              <SelectTrigger id="subcategoryId" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t.common.none}</SelectItem>
-                {(category?.subcategories ?? []).map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-
-          <FormField
-            name="motifId"
-            label={t.treasury.motif}
-            hint={t.treasury.motifHint}
-            error={errors.motifId}
-          >
-            <Select name="motifId" value={motifId} onValueChange={chooseMotif}>
-              <SelectTrigger id="motifId" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{t.common.none}</SelectItem>
-                {availableMotifs.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-        </FormGrid>
-
         <FormField
           name="label"
           label={t.treasury.label}
@@ -324,7 +228,24 @@ export function DisbursementForm({
           />
         </FormField>
 
-        <FormGrid cols={3}>
+        <FormGrid cols={needsDrawer ? 3 : 2}>
+          <FormField
+            name="amount"
+            label={t.treasury.amount}
+            error={errors.amount}
+            required
+          >
+            <Input
+              {...controlProps("amount", errors.amount)}
+              type="number"
+              step="0.01"
+              min="0"
+              dir="ltr"
+              placeholder="0.00"
+              required
+            />
+          </FormField>
+
           <FormField
             name="method"
             label={t.treasury.method}
@@ -348,38 +269,43 @@ export function DisbursementForm({
             </Select>
           </FormField>
 
-          <FormField
-            name="amount"
-            label={t.treasury.amount}
-            error={errors.amount}
-            required
-          >
-            <Input
-              {...controlProps("amount", errors.amount)}
-              type="number"
-              step="0.01"
-              min="0"
-              dir="ltr"
-              placeholder="0.00"
-              required
-            />
-          </FormField>
-
-          <FormField
-            name="occurredAt"
-            label={t.treasury.occurredAt}
-            error={errors.occurredAt}
-          >
-            <Input
-              {...controlProps("occurredAt", errors.occurredAt)}
-              type="date"
-              defaultValue={toDateInputValue(new Date())}
-              dir="ltr"
-            />
-          </FormField>
+          {/* Only when notes actually leave a drawer. A virement has no till,
+              and offering one would invite the bursar to answer a question the
+              movement does not have. */}
+          {needsDrawer && drawers.length > 0 ? (
+            <FormField
+              name="cashSessionId"
+              label={t.treasury.drawer}
+              hint={t.treasury.drawerHint}
+              error={errors.cashSessionId}
+            >
+              <Select
+                name="cashSessionId"
+                value={cashSessionId}
+                onValueChange={setCashSessionId}
+              >
+                <SelectTrigger id="cashSessionId" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {drawers.map((drawer) => (
+                    <SelectItem key={drawer.id} value={drawer.id}>
+                      {/* What it holds, beside its name: a payout the till
+                          cannot cover is refused on the server, and reading the
+                          figure here is what stops that being a surprise. */}
+                      {drawer.label} —{" "}
+                      {formatAmount(drawer.availableCentimes, locale)}
+                      {drawer.isMine ? ` (${t.treasury.drawerMine})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          ) : null}
         </FormGrid>
 
-        {method === "CHEQUE" ? (
+        {/* The cheque's own fields, for the one method that is tracked paper. */}
+        {detail === "CHEQUE" ? (
           <FormGrid cols={2}>
             <FormField
               name="chequeNumber"
@@ -397,7 +323,10 @@ export function DisbursementForm({
           </FormGrid>
         ) : null}
 
-        {method === "BANK_TRANSFER" ? (
+        {/* Everything else that is not cash: the traite's number, the virement's
+            reference, the transaction number off the TPE slip. One shape of form
+            for the six of them, because it is one question. */}
+        {detail === "REFERENCE" ? (
           <FormGrid cols={2}>
             <FormField name="reference" label={t.treasury.reference}>
               <Input {...controlProps("reference")} dir="ltr" />
@@ -406,19 +335,176 @@ export function DisbursementForm({
           </FormGrid>
         ) : null}
 
-        <FormField name="notes" label={t.treasury.notes}>
-          <Textarea {...controlProps("notes")} rows={2} />
-        </FormField>
+        <Collapsible open={showDetails} onOpenChange={setShowDetails}>
+          <CollapsibleTrigger className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-sm">
+            <ChevronDownIcon
+              className={`size-4 transition-transform ${showDetails ? "rotate-180" : ""}`}
+            />
+            {t.treasury.moreDetails}
+          </CollapsibleTrigger>
+
+          {/* `forceMount`, and it is load-bearing: Radix unmounts the content
+              when shut, and an unmounted input is not submitted. The supplier
+              shortcut fills in the rubrique behind this panel, so without it a
+              bursar who never opened it would file every payout under nothing.
+              Shut, the content carries `hidden` — out of the layout, still in
+              the form. */}
+          <CollapsibleContent forceMount className="grid gap-5 pt-5">
+            <p className="text-muted-foreground text-xs">
+              {t.treasury.moreDetailsHint}
+            </p>
+
+            {suppliers.length > 0 ? (
+              <FormField
+                name="supplierId"
+                label={t.treasury.supplier}
+                hint={t.treasury.supplierHint}
+              >
+                <Combobox
+                  id="supplierId"
+                  name="supplierId"
+                  value={supplierId}
+                  onValueChange={chooseSupplier}
+                  emptyOption={{
+                    value: NO_SUPPLIER,
+                    label: t.treasury.beneficiaryExternal,
+                  }}
+                  options={suppliers.map((option) => ({
+                    value: option.id,
+                    label: option.label,
+                    // Searchable by the account number too — a bursar holding
+                    // the facture has the police number in front of them, not
+                    // the name.
+                    keywords: `${option.code} ${option.accountRef ?? ""}`,
+                  }))}
+                />
+              </FormField>
+            ) : null}
+
+            <FormGrid cols={2}>
+              <FormField
+                name="beneficiaryName"
+                label={t.treasury.beneficiaryName}
+                hint={t.treasury.beneficiaryHint}
+                error={errors.beneficiaryName}
+              >
+                <Input
+                  {...controlProps(
+                    "beneficiaryName",
+                    errors.beneficiaryName,
+                    t.treasury.beneficiaryHint,
+                  )}
+                  value={beneficiaryName}
+                  onChange={(event) => setBeneficiaryName(event.target.value)}
+                />
+              </FormField>
+
+              <FormField
+                name="occurredAt"
+                label={t.treasury.occurredAt}
+                error={errors.occurredAt}
+              >
+                <Input
+                  {...controlProps("occurredAt", errors.occurredAt)}
+                  type="date"
+                  defaultValue={toDateInputValue(new Date())}
+                  dir="ltr"
+                />
+              </FormField>
+            </FormGrid>
+
+            <FormGrid cols={2}>
+              <FormField
+                name="categoryId"
+                label={t.treasury.operationCategory}
+                error={errors.categoryId}
+              >
+                <Select
+                  name="categoryId"
+                  value={categoryId}
+                  onValueChange={chooseCategory}
+                >
+                  <SelectTrigger id="categoryId" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>{t.common.none}</SelectItem>
+                    {categories.map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              {/* Only offered once a rubrique is chosen, and only its own
+                  children: a sub-rubrique means nothing on its own. */}
+              <FormField
+                name="subcategoryId"
+                label={t.treasury.operationSubcategory}
+                hint={
+                  category && category.subcategories.length === 0
+                    ? t.treasury.noSubcategories
+                    : undefined
+                }
+                error={errors.subcategoryId}
+              >
+                <Select
+                  name="subcategoryId"
+                  value={subcategoryId}
+                  onValueChange={setSubcategoryId}
+                  disabled={!category || category.subcategories.length === 0}
+                >
+                  <SelectTrigger id="subcategoryId" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>{t.common.none}</SelectItem>
+                    {(category?.subcategories ?? []).map((option) => (
+                      <SelectItem key={option.id} value={option.id}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </FormGrid>
+
+            <FormField
+              name="motifId"
+              label={t.treasury.motif}
+              hint={t.treasury.motifHint}
+              error={errors.motifId}
+            >
+              <Select
+                name="motifId"
+                value={motifId}
+                onValueChange={chooseMotif}
+              >
+                <SelectTrigger id="motifId" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>{t.common.none}</SelectItem>
+                  {availableMotifs.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField name="notes" label={t.treasury.notes}>
+              <Textarea {...controlProps("notes")} rows={2} />
+            </FormField>
+          </CollapsibleContent>
+        </Collapsible>
       </FormSection>
 
-      <FormActions
-        hint={
-          method === "CASH" && !hasOpenSession
-            ? t.treasury.noOpenSession
-            : undefined
-        }
-      >
-        <SubmitButton size="lg" disabled={method === "CASH" && !hasOpenSession}>
+      <FormActions hint={drawerMissing ? t.treasury.noOpenSession : undefined}>
+        <SubmitButton size="lg" disabled={drawerMissing}>
           <BanknoteArrowUpIcon className="size-4" />
           {t.treasury.recordDisbursement}
         </SubmitButton>

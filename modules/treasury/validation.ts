@@ -184,11 +184,24 @@ export function disbursementSchema(t: Dictionary) {
       motifId: optionalText(40),
       bankId: optionalText(40),
       /**
+       * The till the notes came out of, chosen on the form. Optional here and
+       * resolved by the action: only a cash payout needs one at all, and the
+       * ordinary case is the cashier's own drawer, which the form does not have
+       * to name for them.
+       */
+      cashSessionId: optionalText(40),
+      /**
        * The fournisseur paid, when it is a declared one. The name is required
        * regardless — a one-off goes to somebody who has no row at all.
        */
       supplierId: optionalText(40),
-      beneficiaryName: requiredText(v, { max: 160 }),
+      /**
+       * Who was paid. Optional since the form was simplified: the screen asks
+       * for a libellé and an amount, and a bursar paying "Facture Lydec août"
+       * has already said who it went to. The action falls back to the label so
+       * the ledger's column stays populated — see the note on it.
+       */
+      beneficiaryName: optionalText(160),
       label: requiredText(v, { max: 200 }),
       method: enumField(TENDER_METHODS, v),
       amount: moneyField(v, { min: 0.01 }),

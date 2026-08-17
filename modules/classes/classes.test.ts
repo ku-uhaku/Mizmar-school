@@ -360,11 +360,23 @@ describe("saveTeachingAssignmentAction", () => {
     expect(only("subject", "findFirst").args).toMatchObject({
       where: { id: "maths", schoolId: "school-1" },
     });
+    /*
+      The teacher is checked for *belonging* to the class's school, which is a
+      membership in it or an employment record in it — see `staffOfSchool`.
+
+      Not the membership alone, which is what this asserted before: a membership
+      grants permissions, and a teacher hired without a role has none. Under that
+      test the picker offered their name and the save answered "introuvable"
+      about the person it had just offered.
+    */
     expect(only("user", "findFirst").args).toMatchObject({
       where: {
         id: "teacher-1",
         isActive: true,
-        memberships: { some: { schoolId: "school-1" } },
+        OR: [
+          { memberships: { some: { schoolId: "school-1" } } },
+          { staffRecord: { schoolId: "school-1" } },
+        ],
       },
     });
     expect(only("classGroup", "findFirst").args).toMatchObject({
