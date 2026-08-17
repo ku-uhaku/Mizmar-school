@@ -7,7 +7,7 @@ import { teachingDaysOf } from "@/lib/school-settings";
 import {
   currentSchoolId,
   currentSchoolYearId,
-  staffOfSchool,
+  teacherOfSchool,
   yearScope,
 } from "@/lib/scope";
 import {
@@ -408,11 +408,11 @@ export async function loadTimetableChoices(
       },
     }),
     db.user.findMany({
-      // Membership *or* employment record — see `staffOfSchool`. A membership
-      // alone hid every teacher hired without a role.
+      // Teachers, not the payroll — see `teacherOfSchool`. The wider test put
+      // the manager and the secretary on the timetable's teacher select.
       where: {
         organizationId: context.organization.id,
-        ...staffOfSchool(currentSchoolId(context)),
+        ...teacherOfSchool(currentSchoolId(context)),
       },
       orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
       select: {
@@ -912,9 +912,11 @@ export async function listTeacherOptions(
   const schoolYearId = currentSchoolYearId(context);
 
   const teachers = await db.user.findMany({
+    // Only the people who may actually be given a lesson — see
+    // `teacherOfSchool`.
     where: {
       organizationId: context.organization.id,
-      ...staffOfSchool(currentSchoolId(context)),
+      ...teacherOfSchool(currentSchoolId(context)),
     },
     orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
     select: {
@@ -967,9 +969,10 @@ export async function loadTeacherAvailability(
   const schoolYearId = currentSchoolYearId(context);
 
   // The teacher must belong to this school; one from elsewhere reads as absent.
-  // Belonging, not holding permissions — see `staffOfSchool`.
+  // And must be a teacher: an availability grid for the concierge is a week of
+  // lessons nobody was ever going to give — see `teacherOfSchool`.
   const teacher = await db.user.findFirst({
-    where: { id: teacherId, ...staffOfSchool(schoolId) },
+    where: { id: teacherId, ...teacherOfSchool(schoolId) },
     select: { id: true },
   });
   if (!teacher) return null;

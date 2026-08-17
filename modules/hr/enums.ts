@@ -69,6 +69,32 @@ export function departmentOf(jobRole: string): Department {
 }
 
 /**
+ * The jobs that may be put in front of a class.
+ *
+ * ── Why this is not `departmentOf(role) === "TEACHING"` ──────────────────────
+ * SUPERVISOR is in the teaching *department* — a surveillant général's work is
+ * academic and the payroll groups them with the teachers — but they do not take
+ * lessons. Reusing the department here is what put the school's manager in every
+ * teacher picker: on a class, on a timetable slot, on the availability grid, and
+ * on any `@teachers` reference in the configuration.
+ *
+ * The two questions are genuinely different, so they get two lists. "Which
+ * service does this job belong to" is `departmentOf`; "may this person be given a
+ * lesson" is this. A school that wants its surveillant to teach adds them here,
+ * which is a code change on purpose: it changes who may be handed a class.
+ *
+ * Written as a list rather than `=== "TEACHER"` because a school with vacataires
+ * or a teaching director is the obvious next request, and a one-item list is the
+ * honest place to put the second entry.
+ */
+export const TEACHING_JOB_ROLES = ["TEACHER"] as const satisfies readonly JobRole[];
+
+/** Whether somebody in this job may be given a lesson. */
+export function isTeachingRole(jobRole: string): boolean {
+  return (TEACHING_JOB_ROLES as readonly string[]).includes(jobRole);
+}
+
+/**
  * Where an employee stands.
  *
  *   ACTIVE      on the payroll and expected in

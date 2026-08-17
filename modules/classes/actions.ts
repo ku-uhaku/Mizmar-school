@@ -7,7 +7,7 @@ import { authorizeSchool } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
-import { staffOfSchool } from "@/lib/scope";
+import { teacherOfSchool } from "@/lib/scope";
 import { boolField, field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
 import { assignmentScopeKey } from "@/modules/classes/enums";
@@ -99,13 +99,14 @@ export async function setClassSubjectTeacherAction(
       belonging to *this class's* own school, which was re-derived from the
       session a line above rather than taken from the form.
 
-      Belonging, not holding permissions — see `staffOfSchool`. The membership
-      test that used to be here refused every teacher hired without a role, and
-      refused them as "introuvable": the picker offered the name and the save
-      then denied the person existed.
+      A teacher of that school, and not merely somebody on its payroll — see
+      `teacherOfSchool`. Two tests have been wrong here in turn: the membership
+      one refused every teacher hired without a role, and the payroll one that
+      replaced it offered the manager and the driver. Both are what the picker
+      now shows, so the save and the select agree.
     */
     const teacher = await db.user.findFirst({
-      where: { id: teacherId, ...staffOfSchool(schoolClass.schoolId) },
+      where: { id: teacherId, ...teacherOfSchool(schoolClass.schoolId) },
       select: { id: true },
     });
     if (!teacher) return failure(t.errors.notFound);
@@ -195,11 +196,11 @@ export async function saveTeachingAssignmentAction(
         where: { id: parsed.data.subjectId, schoolId: schoolClass.schoolId },
         select: { id: true },
       }),
-      // Same test as the picker offers from — see `staffOfSchool`.
+      // Same test as the picker offers from — see `teacherOfSchool`.
       db.user.findFirst({
         where: {
           id: parsed.data.teacherId,
-          ...staffOfSchool(schoolClass.schoolId),
+          ...teacherOfSchool(schoolClass.schoolId),
         },
         select: { id: true },
       }),

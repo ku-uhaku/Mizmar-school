@@ -1,6 +1,6 @@
 import "server-only";
 
-import { generatePassword } from "@/lib/auth";
+import { generatePassword } from "@/lib/password";
 import { db } from "@/lib/db";
 import {
   codePrefixOf,

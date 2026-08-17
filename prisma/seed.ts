@@ -9,6 +9,9 @@ import {
   seedPartTimeContracts,
   seedTeacherSubjects,
 } from "@/modules/hr/seed";
+// The pairings a school actually makes, shared with `db:staff-classes` — see
+// modules/hr/presets.ts.
+import { SECOND_SUBJECTS } from "@/modules/hr/presets";
 import { seedPayments } from "@/modules/treasury/seed";
 import { seedEvents } from "@/modules/events/seed";
 import { seedTransport, seedTransportRidership } from "@/modules/transport/seed";
@@ -314,45 +317,6 @@ function subjectDemand(): Map<string, number> {
 const TEACHERS_PER_SUBJECT = 2;
 /** A subject that needs more than one service, and so a third pair of hands. */
 const TEACHERS_PER_BUSY_SUBJECT = 3;
-/**
- * The second subject a teacher of each subject may cover, best first.
- *
- * The doublings a Moroccan private school actually makes, not every pair that
- * is arithmetically possible: a professeur de maths covers physique-chimie and
- * l'informatique, an enseignant d'arabe takes l'éducation islamique and, in the
- * qualifying cycle, la philosophie — which is taught in Arabic. Nobody covers
- * l'EPS, which is why it has no entry.
- *
- * It is read in both directions on purpose. The small subjects — histoire-géo,
- * informatique, philosophie — are sized at one teacher by `teacherPlan`, and
- * appearing in a bigger subject's list is what gives them a second qualified
- * person without inventing a post the programme does not pay for.
- *
- * Only the teachers `seedUsers` picks out actually get one; this says what they
- * would take, not that they all do.
- */
-const SECOND_SUBJECTS: Record<string, string[]> = {
-  AR: ["ISL", "PHILO"],
-  FR: ["EN", "HG"],
-  MATH: ["PC", "INFO"],
-  PC: ["MATH", "SI"],
-  SVT: ["PC", "AS"],
-  ISL: ["AR"],
-  EN: ["FR"],
-  HG: ["ISL"],
-  AMZ: ["AR"],
-  INFO: ["MATH", "SI"],
-  PHILO: ["HG"],
-  // The primaire's own science and its dessin, and the filière SM-B's atelier.
-  // Each is one post on its own, so the pairing is what gives it a second
-  // qualified person: the SVT teacher takes activités scientifiques, and
-  // sciences de l'ingénieur is covered by physique and by informatique.
-  AS: ["SVT"],
-  ART: ["EPS"],
-  SI: ["PC", "INFO"],
-  EPS: ["ART"],
-};
-
 function teacherPlan(): TeacherRequirement[] {
   const labels = new Map(
     MOROCCAN_CURSUS.subjects.map((subject) => [

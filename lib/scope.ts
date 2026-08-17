@@ -1,4 +1,5 @@
 import type { AuthContext } from "@/lib/dal";
+import { EMPLOYED_STATUSES, TEACHING_JOB_ROLES } from "@/modules/hr/enums";
 
 /**
  * The two `where` fragments every module's reads are built on.
@@ -84,5 +85,52 @@ export function staffOfSchool(schoolId: string): {
       { memberships: { some: { schoolId } } },
       { staffRecord: { schoolId } },
     ],
+  };
+}
+
+/**
+ * The `where` for "somebody this school may put in front of a class": every
+ * teacher picker, and every write that re-derives a teacher id from a request.
+ *
+ * ── Why it is narrower than `staffOfSchool` ─────────────────────────────────
+ * `staffOfSchool` answers "does this person work here", and that is the right
+ * test for a till's holder or a cashier. It is the wrong one for a teacher: it
+ * admits the whole payroll, so the school's manager, the secretary and the
+ * driver were all offered on a class, on a timetable slot and on the
+ * availability grid. A surveillant général is the one that actually got picked,
+ * because the payroll files them under the teaching department — see
+ * `TEACHING_JOB_ROLES`, which is why "who may teach" is its own list.
+ *
+ * ── Why the membership branch is gone ───────────────────────────────────────
+ * Deliberately, and it is the whole point. `jobRole` lives on the employment
+ * record, so somebody with a membership and no `Staff` row cannot be said to
+ * teach anything — that describes an administrator's login, not a teacher. A
+ * teacher hired without a role still qualifies, which is the case
+ * `staffOfSchool` exists for: they have the `Staff` row, and it says TEACHER.
+ *
+ * TERMINATED is excluded and the other three employment statuses are not. Only
+ * "has left" means somebody may not be given next week's lessons; a teacher on
+ * leave or suspended is still on the books, still on the timetable, and whether
+ * they take their classes is the school's business rather than a filter's.
+ *
+ * Takes a bare id for the same reason `staffOfSchool` does: the stricter callers
+ * check against *the class's* own school, re-derived from the session, and not
+ * against whatever the context happens to have selected.
+ */
+export function teacherOfSchool(schoolId: string): {
+  isActive: true;
+  staffRecord: {
+    schoolId: string;
+    jobRole: { in: string[] };
+    status: { in: string[] };
+  };
+} {
+  return {
+    isActive: true,
+    staffRecord: {
+      schoolId,
+      jobRole: { in: [...TEACHING_JOB_ROLES] },
+      status: { in: [...EMPLOYED_STATUSES] },
+    },
   };
 }

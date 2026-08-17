@@ -3,7 +3,11 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
-import { currentSchoolId, currentSchoolYearId, staffOfSchool } from "@/lib/scope";
+import {
+  currentSchoolId,
+  currentSchoolYearId,
+  teacherOfSchool,
+} from "@/lib/scope";
 import {
   cycleChoiceLabel,
   levelChoiceLabel,
@@ -98,9 +102,12 @@ export async function loadChoices(
       // School-scoped, like the resources that reference it: every one of them
       // is a school's or a year's row, so offering another school's staff was
       // both wrong and wider than `isUnreachable` below now accepts.
+      // `@teachers` means teachers — see `teacherOfSchool`. It used to mean
+      // "anybody on the payroll", so every resource referencing it offered the
+      // driver and the femme de ménage alongside the staff who take lessons.
       where: {
         organizationId: context.organization.id,
-        ...staffOfSchool(currentSchoolId(context)),
+        ...teacherOfSchool(currentSchoolId(context)),
       },
       select: {
         id: true,
@@ -381,7 +388,7 @@ async function isUnreachable(
       where: {
         id: value,
         organizationId: context.organization.id,
-        ...staffOfSchool(currentSchoolId(context)),
+        ...teacherOfSchool(currentSchoolId(context)),
       },
       select: { id: true },
     });

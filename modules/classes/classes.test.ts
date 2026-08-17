@@ -361,22 +361,25 @@ describe("saveTeachingAssignmentAction", () => {
       where: { id: "maths", schoolId: "school-1" },
     });
     /*
-      The teacher is checked for *belonging* to the class's school, which is a
-      membership in it or an employment record in it — see `staffOfSchool`.
+      The teacher is checked for being a *teacher of that school* — an employment
+      record in it whose `jobRole` may take lessons. See `teacherOfSchool`.
 
-      Not the membership alone, which is what this asserted before: a membership
-      grants permissions, and a teacher hired without a role has none. Under that
-      test the picker offered their name and the save answered "introuvable"
-      about the person it had just offered.
+      Two earlier versions of this assertion were both wrong, in opposite
+      directions, which is why it is pinned. The membership alone refused every
+      teacher hired without a role: the picker offered their name and the save
+      answered "introuvable" about the person it had just offered. Widening it to
+      the whole payroll fixed that and offered the manager, the secretary and the
+      driver a class instead.
     */
     expect(only("user", "findFirst").args).toMatchObject({
       where: {
         id: "teacher-1",
         isActive: true,
-        OR: [
-          { memberships: { some: { schoolId: "school-1" } } },
-          { staffRecord: { schoolId: "school-1" } },
-        ],
+        staffRecord: {
+          schoolId: "school-1",
+          jobRole: { in: ["TEACHER"] },
+          status: { in: ["ACTIVE", "ON_LEAVE", "SUSPENDED"] },
+        },
       },
     });
     expect(only("classGroup", "findFirst").args).toMatchObject({

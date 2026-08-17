@@ -18,6 +18,7 @@
     "db:reset": "prisma migrate reset",
     "db:carry-marks": "tsx scripts/carry-stranded-marks.ts",
     "db:move-misfiled": "tsx --conditions=react-server scripts/move-misfiled-to-school.ts",
+    "db:staff-classes": "tsx --conditions=react-server scripts/staff-the-classes.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest"

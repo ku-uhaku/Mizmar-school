@@ -1,6 +1,6 @@
 import "server-only";
 
-import { hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {

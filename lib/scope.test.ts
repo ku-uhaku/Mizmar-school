@@ -6,6 +6,7 @@ import {
   currentSchoolYearId,
   schoolScope,
   staffOfSchool,
+  teacherOfSchool,
   yearScope,
 } from "@/lib/scope";
 
@@ -97,6 +98,50 @@ describe("staffOfSchool", () => {
     expect(Object.keys(staffOfSchool("school-1")).sort()).toEqual([
       "OR",
       "isActive",
+    ]);
+  });
+});
+
+describe("teacherOfSchool", () => {
+  /*
+    Narrower than `staffOfSchool`, and the two must not be confused: one answers
+    "does this person work here", which is the right test for a till's holder,
+    and the other "may this person be given a lesson".
+
+    The bug this closes is the school's manager — a SUPERVISOR, whom the payroll
+    files under the teaching department — appearing in every teacher picker: on a
+    class, on a timetable slot, on the availability grid, and on any `@teachers`
+    reference in the configuration.
+  */
+  it("asks the employment record's jobRole, not the membership", () => {
+    const where = teacherOfSchool("school-1");
+
+    expect(where.staffRecord.schoolId).toBe("school-1");
+    expect(where.staffRecord.jobRole.in).toEqual(["TEACHER"]);
+    // No membership branch at all: `jobRole` lives on the employment record, so
+    // an account with a membership and no Staff row cannot be said to teach
+    // anything — that describes an administrator's login.
+    expect(where).not.toHaveProperty("OR");
+  });
+
+  it("excludes only the employment status that means they have left", () => {
+    const statuses = teacherOfSchool("school-1").staffRecord.status.in;
+
+    expect(statuses).not.toContain("TERMINATED");
+    // Still on the books, still on the timetable: whether a teacher on leave
+    // takes their classes is the school's business rather than a filter's.
+    expect(statuses).toContain("ON_LEAVE");
+    expect(statuses).toContain("SUSPENDED");
+  });
+
+  it("never offers a deactivated account, like its wider sibling", () => {
+    expect(teacherOfSchool("school-1").isActive).toBe(true);
+  });
+
+  it("leaves the organisation to the caller, like its wider sibling", () => {
+    expect(Object.keys(teacherOfSchool("school-1")).sort()).toEqual([
+      "isActive",
+      "staffRecord",
     ]);
   });
 });

@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
-import { staffOfSchool } from "@/lib/scope";
+import { teacherOfSchool } from "@/lib/scope";
 import {
   boolField,
   field,
@@ -159,13 +159,14 @@ export async function saveTimetableEntryAction(
 
     if (!subject) return failure(t.errors.notFound);
 
-    // Belonging to the class's school, not holding permissions in it — see
-    // `staffOfSchool`.
+    // A teacher of the class's own school — see `teacherOfSchool`. The same
+    // test the picker offers from, so the slot cannot be saved with somebody the
+    // select would not have shown.
     const teacher = parsed.data.teacherId
       ? await db.user.findFirst({
           where: {
             id: parsed.data.teacherId,
-            ...staffOfSchool(schoolClass.schoolId),
+            ...teacherOfSchool(schoolClass.schoolId),
           },
           select: { id: true },
         })
@@ -508,7 +509,7 @@ export async function saveTimetableExceptionAction(
         ? db.user.findFirst({
             where: {
               id: parsed.data.teacherId,
-              ...staffOfSchool(schoolClass.schoolId),
+              ...teacherOfSchool(schoolClass.schoolId),
             },
             select: { id: true },
           })
@@ -880,9 +881,9 @@ export async function setTeacherAvailabilityAction(
 
     // The teacher must be one of this school's — an id from elsewhere reaches
     // nothing rather than having their week rewritten. Same test as the picker
-    // on the availability screen — see `staffOfSchool`.
+    // on the availability screen — see `teacherOfSchool`.
     const teacher = await db.user.findFirst({
-      where: { id: field(formData, "teacherId"), ...staffOfSchool(schoolId) },
+      where: { id: field(formData, "teacherId"), ...teacherOfSchool(schoolId) },
       select: { id: true },
     });
     if (!teacher) return failure(t.errors.notFound);

@@ -4,6 +4,7 @@ import { recordEvent } from "@/lib/audit";
 import { auditClient, db } from "@/lib/db";
 import type { TxClient } from "@/modules/treasury/service";
 import { teachingDaysOf } from "@/lib/school-settings";
+import { teacherOfSchool } from "@/lib/scope";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import { LAB_ROOM_KINDS } from "@/modules/facilities/enums";
 import {
@@ -792,7 +793,12 @@ export async function buildTimetableDraft(
         schoolId,
         schoolYearId,
         isActive: true,
-        teacher: { isActive: true },
+        // A teacher of this school, and not merely an active account with a
+        // declaration on file — see `teacherOfSchool`. Somebody whose job has
+        // changed since September keeps their qualification rows, and the grid
+        // is drawn from those rows: without this the surveillant général went on
+        // being handed lessons by every generated timetable.
+        teacher: teacherOfSchool(schoolId),
       },
       orderBy: [{ preferenceRank: "asc" }],
       select: {
@@ -805,7 +811,22 @@ export async function buildTimetableDraft(
     // Scoped through the offering, which is what carries the year — a class
     // belongs to a year only by way of the niveau it was opened under.
     db.teachingAssignment.findMany({
-      where: { schoolClass: { schoolId, levelOffering: { schoolYearId } } },
+      where: {
+        schoolClass: { schoolId, levelOffering: { schoolYearId } },
+        /*
+          The same test as the declarations above, and it is the one that was
+          actually letting the manager in.
+
+          Inference reads *last* year's decisions forward: anybody already on an
+          assignment counts as qualified for that subject at that cycle. So a
+          non-teacher who was put on a class once — before the pickers were
+          narrowed, or by a hand-written assignment — was re-proposed by every
+          generated grid afterwards, for ever, without any declaration existing
+          anywhere. The rows stay in the ledger of who taught what; they just no
+          longer nominate somebody the school would not offer today.
+        */
+        teacher: teacherOfSchool(schoolId),
+      },
       select: {
         subjectId: true,
         teacherId: true,
