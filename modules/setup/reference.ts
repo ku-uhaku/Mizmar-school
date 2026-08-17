@@ -9,6 +9,7 @@ import {
   cityCodeByName,
 } from "@/modules/geography/presets";
 import { REQUEST_TYPE_SEEDS } from "@/modules/requests/presets";
+import { idFor, upsertMany } from "@/modules/setup/bulk";
 import { SUPPLY_ARTICLE_SEEDS } from "@/modules/supplies/presets";
 import {
   BANK_SEEDS,
@@ -49,6 +50,10 @@ import type { TxClient } from "@/modules/treasury/service";
  * unique key, and never delete. Re-running over a school that has trimmed its
  * lists puts back the presets and leaves its own rows alone — with the two
  * exceptions noted below, where a school's edit would otherwise be undone.
+ *
+ * Written in bulk rather than a row at a time — see `bulk.ts` for why. These
+ * lists are two hundred rows on their own, and they are written whatever the
+ * school ticked, so they were a fifth of what expired the transaction.
  */
 
 export type ReferenceCounts = {
@@ -89,71 +94,85 @@ export async function writeReferenceData(
   // for the same reason: a town already typed into a pupil's file was backfilled
   // under a code derived from its name, and matching on the name hands that row
   // its proper code instead of colliding with it.
-  const cityIdByCode: Record<string, string> = {};
-  for (const town of MOROCCAN_CITIES) {
-    const row = await tx.city.upsert({
-      where: { schoolId_name: { schoolId, name: town.name } },
-      update: { code: town.code, nameAr: town.nameAr, region: town.region },
-      create: {
-        schoolId,
-        code: town.code,
-        name: town.name,
-        nameAr: town.nameAr,
-        region: town.region,
-      },
-      select: { id: true },
-    });
-    cityIdByCode[town.code] = row.id;
-    counts.cities += 1;
-  }
+  const cityIdByName = await upsertMany(tx.city, {
+    where: { schoolId },
+    key: ["name"],
+    update: ["code", "nameAr", "region"],
+    withIds: true,
+    rows: MOROCCAN_CITIES.map((town) => ({
+      schoolId,
+      code: town.code,
+      name: town.name,
+      nameAr: town.nameAr,
+      region: town.region,
+    })),
+  });
+  counts.cities = MOROCCAN_CITIES.length;
 
   // Only the school's own town's quartiers: a birthplace is anywhere, but an
   // address is where the pupils live. See `seedNeighbourhoods`.
   const cityCode = cityCodeByName(city);
+  const cityNameByCode = new Map(MOROCCAN_CITIES.map((town) => [town.code, town.name]));
   const quartiers = cityCode
     ? MOROCCAN_NEIGHBOURHOODS.filter((quartier) => quartier.cityCode === cityCode)
     : [];
-  for (const quartier of quartiers) {
-    const cityId = cityIdByCode[quartier.cityCode];
-    if (!cityId) continue;
-
-    await tx.neighbourhood.upsert({
-      where: { schoolId_code: { schoolId, code: quartier.code } },
-      update: { cityId, name: quartier.name, nameAr: quartier.nameAr },
-      create: {
+  const quartierRows = quartiers.flatMap((quartier) => {
+    const cityId = idFor(cityIdByName, cityNameByCode.get(quartier.cityCode));
+    if (!cityId) return [];
+    return [
+      {
         schoolId,
         cityId,
         code: quartier.code,
         name: quartier.name,
         nameAr: quartier.nameAr,
       },
-    });
-    counts.neighbourhoods += 1;
-  }
+    ];
+  });
+  await upsertMany(tx.neighbourhood, {
+    where: { schoolId },
+    key: ["code"],
+    update: ["cityId", "name", "nameAr"],
+    rows: quartierRows,
+  });
+  counts.neighbourhoods = quartierRows.length;
 
   // ── The dossier d'inscription ──────────────────────────────────────────────
-  for (const [index, piece] of DOCUMENT_TYPE_SEEDS.entries()) {
-    const data = {
+  await upsertMany(tx.documentType, {
+    where: { schoolId },
+    key: ["code"],
+    // `isActive` is deliberately absent from the update: a pièce the school
+    // stopped asking for must stay withdrawn through a re-run.
+    update: ["name", "nameAr", "isRequired", "copies", "notes", "position"],
+    rows: DOCUMENT_TYPE_SEEDS.map((piece, index) => ({
+      schoolId,
+      code: piece.code,
       name: piece.name,
       nameAr: piece.nameAr,
       isRequired: piece.isRequired,
       copies: piece.copies ?? null,
       notes: piece.notes ?? null,
       position: index,
-    };
-    await tx.documentType.upsert({
-      where: { schoolId_code: { schoolId, code: piece.code } },
-      // `isActive` is deliberately absent from the update: a pièce the school
-      // stopped asking for must stay withdrawn through a re-run.
-      update: data,
-      create: { schoolId, code: piece.code, ...data },
-    });
-    counts.documentTypes += 1;
-  }
+    })),
+  });
+  counts.documentTypes = DOCUMENT_TYPE_SEEDS.length;
 
   // ── What a family may ask the school to issue ──────────────────────────────
-  for (const type of REQUEST_TYPE_SEEDS) {
-    const data = {
+  await upsertMany(tx.documentRequestType, {
+    where: { schoolId },
+    key: ["code"],
+    update: [
+      "name",
+      "nameAr",
+      "description",
+      "descriptionAr",
+      "usualDelayDays",
+      "requiresReason",
+      "position",
+    ],
+    rows: REQUEST_TYPE_SEEDS.map((type) => ({
+      schoolId,
+      code: type.code,
       name: type.name,
       nameAr: type.nameAr,
       description: type.description,
@@ -161,18 +180,28 @@ export async function writeReferenceData(
       usualDelayDays: type.usualDelayDays,
       requiresReason: type.requiresReason,
       position: type.position,
-    };
-    await tx.documentRequestType.upsert({
-      where: { schoolId_code: { schoolId, code: type.code } },
-      update: data,
-      create: { schoolId, code: type.code, ...data },
-    });
-    counts.requestTypes += 1;
-  }
+    })),
+  });
+  counts.requestTypes = REQUEST_TYPE_SEEDS.length;
 
   // ── The kinds of contrôle, and the wording beside a mark ───────────────────
-  for (const type of ASSESSMENT_TYPE_SEEDS) {
-    const data = {
+  await upsertMany(tx.assessmentType, {
+    where: { schoolId },
+    key: ["code"],
+    update: [
+      "name",
+      "nameAr",
+      "defaultCoefficient",
+      "defaultMaxScore",
+      "countsTowardAverage",
+      "gradesWholeSubject",
+      "allowTeacherCreate",
+      "colorHex",
+      "position",
+    ],
+    rows: ASSESSMENT_TYPE_SEEDS.map((type) => ({
+      schoolId,
+      code: type.code,
       name: type.name,
       nameAr: type.nameAr,
       defaultCoefficient: type.defaultCoefficient,
@@ -182,14 +211,9 @@ export async function writeReferenceData(
       allowTeacherCreate: type.allowTeacherCreate,
       colorHex: type.colorHex,
       position: type.position,
-    };
-    await tx.assessmentType.upsert({
-      where: { schoolId_code: { schoolId, code: type.code } },
-      update: data,
-      create: { schoolId, code: type.code, ...data },
-    });
-    counts.assessmentTypes += 1;
-  }
+    })),
+  });
+  counts.assessmentTypes = ASSESSMENT_TYPE_SEEDS.length;
 
   /*
     The appréciation scale, written only into a school that has none.
@@ -215,23 +239,23 @@ export async function writeReferenceData(
   }
 
   // ── The articles a liste de fournitures may name ───────────────────────────
-  for (const [index, article] of SUPPLY_ARTICLE_SEEDS.entries()) {
-    const data = {
+  await upsertMany(tx.supplyArticle, {
+    where: { schoolId },
+    key: ["code"],
+    // `isActive` absent for the same reason as the dossier above.
+    update: ["name", "nameAr", "category", "defaultQuantity", "notes", "position"],
+    rows: SUPPLY_ARTICLE_SEEDS.map((article, index) => ({
+      schoolId,
+      code: article.code,
       name: article.name,
       nameAr: article.nameAr,
       category: article.category,
       defaultQuantity: article.defaultQuantity,
       notes: article.notes ?? null,
       position: index,
-    };
-    await tx.supplyArticle.upsert({
-      where: { schoolId_code: { schoolId, code: article.code } },
-      // `isActive` absent for the same reason as the dossier above.
-      update: data,
-      create: { schoolId, code: article.code, ...data },
-    });
-    counts.supplyArticles += 1;
-  }
+    })),
+  });
+  counts.supplyArticles = SUPPLY_ARTICLE_SEEDS.length;
 
   /*
     ── The caisse ─────────────────────────────────────────────────────────────
@@ -240,119 +264,125 @@ export async function writeReferenceData(
     nobody to hold one, and `holderId` is left null exactly as it is for the
     coffre. A school gives its cashiers their own tills under /configuration.
   */
-  for (const register of REGISTER_SEEDS) {
-    const data = {
+  await upsertMany(tx.cashRegister, {
+    where: { schoolId },
+    key: ["code"],
+    // Never `holderId`: a till already handed to a cashier keeps its holder.
+    update: ["name", "nameAr", "position"],
+    rows: REGISTER_SEEDS.map((register) => ({
+      schoolId,
+      code: register.code,
       name: register.name,
       nameAr: register.nameAr,
       position: register.position,
-    };
-    await tx.cashRegister.upsert({
-      where: { schoolId_code: { schoolId, code: register.code } },
-      // Never `holderId`: a till already handed to a cashier keeps its holder.
-      update: data,
-      create: { schoolId, code: register.code, ...data },
-    });
-    counts.registers += 1;
-  }
+    })),
+  });
+  counts.registers = REGISTER_SEEDS.length;
 
-  const categoryIdByCode: Record<string, string> = {};
-  /** Keyed `RUBRIQUE:SOUS-RUBRIQUE` — sub-codes are only unique within a parent. */
-  const subcategoryIdByCode: Record<string, string> = {};
+  const categoryIds = await upsertMany(tx.operationCategory, {
+    where: { schoolId },
+    key: ["code"],
+    update: ["name", "nameAr", "kind", "position"],
+    withIds: true,
+    rows: CATEGORY_SEEDS.map((category) => ({
+      schoolId,
+      code: category.code,
+      name: category.name,
+      nameAr: category.nameAr,
+      kind: category.kind,
+      position: category.position,
+    })),
+  });
+  counts.categories = CATEGORY_SEEDS.length;
 
-  for (const category of CATEGORY_SEEDS) {
-    const row = await tx.operationCategory.upsert({
-      where: { schoolId_code: { schoolId, code: category.code } },
-      update: {
-        name: category.name,
-        nameAr: category.nameAr,
-        kind: category.kind,
-        position: category.position,
-      },
-      create: {
-        schoolId,
-        code: category.code,
-        name: category.name,
-        nameAr: category.nameAr,
-        kind: category.kind,
-        position: category.position,
-      },
-      select: { id: true },
-    });
-    categoryIdByCode[category.code] = row.id;
-    counts.categories += 1;
-
-    for (const [index, sub] of (category.subcategories ?? []).entries()) {
-      const subRow = await tx.operationSubcategory.upsert({
-        where: { categoryId_code: { categoryId: row.id, code: sub.code } },
-        update: { name: sub.name, nameAr: sub.nameAr, position: index + 1 },
-        create: {
-          categoryId: row.id,
-          code: sub.code,
-          name: sub.name,
-          nameAr: sub.nameAr,
-          position: index + 1,
-        },
-        select: { id: true },
-      });
-      subcategoryIdByCode[`${category.code}:${sub.code}`] = subRow.id;
-      counts.subcategories += 1;
-    }
-  }
+  // One write for every rubrique's sous-rubriques at once. The parent id is
+  // part of the key rather than the scope, because a sub-code is only unique
+  // within its own rubrique — "Divers" exists under several.
+  const subcategoryRows = CATEGORY_SEEDS.flatMap((category) => {
+    const categoryId = idFor(categoryIds, category.code);
+    if (!categoryId) return [];
+    return (category.subcategories ?? []).map((sub, index) => ({
+      categoryId,
+      code: sub.code,
+      name: sub.name,
+      nameAr: sub.nameAr,
+      position: index + 1,
+    }));
+  });
+  const subcategoryIds = await upsertMany(tx.operationSubcategory, {
+    where: { category: { schoolId } },
+    key: ["categoryId", "code"],
+    update: ["name", "nameAr", "position"],
+    withIds: true,
+    rows: subcategoryRows,
+  });
+  counts.subcategories = subcategoryRows.length;
 
   // Les fournisseurs, each pointing at the rubrique its payments post under —
   // the link that makes the factures screen one select instead of two.
-  for (const supplier of SUPPLIER_SEEDS) {
-    const data = {
-      name: supplier.name,
-      nameAr: supplier.nameAr,
-      kind: supplier.kind,
-      defaultCategoryId: supplier.categoryCode
-        ? (categoryIdByCode[supplier.categoryCode] ?? null)
-        : null,
-      defaultSubcategoryId:
-        supplier.categoryCode && supplier.subcategoryCode
-          ? (subcategoryIdByCode[
-              `${supplier.categoryCode}:${supplier.subcategoryCode}`
-            ] ?? null)
-          : null,
-      accountRef: supplier.accountRef ?? null,
-      position: supplier.position,
-    };
-    await tx.supplier.upsert({
-      where: { schoolId_code: { schoolId, code: supplier.code } },
-      // `isActive` absent: a fournisseur the school stopped using stays retired.
-      update: data,
-      create: { schoolId, code: supplier.code, ...data },
-    });
-    counts.suppliers += 1;
-  }
+  await upsertMany(tx.supplier, {
+    where: { schoolId },
+    key: ["code"],
+    // `isActive` absent: a fournisseur the school stopped using stays retired.
+    update: [
+      "name",
+      "nameAr",
+      "kind",
+      "defaultCategoryId",
+      "defaultSubcategoryId",
+      "accountRef",
+      "position",
+    ],
+    rows: SUPPLIER_SEEDS.map((supplier) => {
+      const categoryId = supplier.categoryCode
+        ? (idFor(categoryIds, supplier.categoryCode) ?? null)
+        : null;
+      return {
+        schoolId,
+        code: supplier.code,
+        name: supplier.name,
+        nameAr: supplier.nameAr,
+        kind: supplier.kind,
+        defaultCategoryId: categoryId,
+        defaultSubcategoryId:
+          categoryId && supplier.subcategoryCode
+            ? (idFor(subcategoryIds, categoryId, supplier.subcategoryCode) ?? null)
+            : null,
+        accountRef: supplier.accountRef ?? null,
+        position: supplier.position,
+      };
+    }),
+  });
+  counts.suppliers = SUPPLIER_SEEDS.length;
 
-  for (const motif of MOTIF_SEEDS) {
-    const data = {
+  await upsertMany(tx.operationMotif, {
+    where: { schoolId },
+    key: ["code"],
+    update: ["name", "nameAr", "categoryId", "position"],
+    rows: MOTIF_SEEDS.map((motif) => ({
+      schoolId,
+      code: motif.code,
       name: motif.name,
       nameAr: motif.nameAr,
-      categoryId: motif.categoryCode
-        ? (categoryIdByCode[motif.categoryCode] ?? null)
-        : null,
+      categoryId: motif.categoryCode ? (idFor(categoryIds, motif.categoryCode) ?? null) : null,
       position: motif.position,
-    };
-    await tx.operationMotif.upsert({
-      where: { schoolId_code: { schoolId, code: motif.code } },
-      update: data,
-      create: { schoolId, code: motif.code, ...data },
-    });
-    counts.motifs += 1;
-  }
+    })),
+  });
+  counts.motifs = MOTIF_SEEDS.length;
 
-  for (const bank of BANK_SEEDS) {
-    const data = { name: bank.name, nameAr: bank.nameAr, position: bank.position };
-    await tx.bank.upsert({
-      where: { schoolId_code: { schoolId, code: bank.code } },
-      update: data,
-      create: { schoolId, code: bank.code, ...data },
-    });
-    counts.banks += 1;
-  }
+  await upsertMany(tx.bank, {
+    where: { schoolId },
+    key: ["code"],
+    update: ["name", "nameAr", "position"],
+    rows: BANK_SEEDS.map((bank) => ({
+      schoolId,
+      code: bank.code,
+      name: bank.name,
+      nameAr: bank.nameAr,
+      position: bank.position,
+    })),
+  });
+  counts.banks = BANK_SEEDS.length;
 
   return counts;
 }

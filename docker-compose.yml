@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Mizmar School — the whole stack.
+#
+#      cp docker/env.example .env.docker    # then fill in the three secrets
+#      docker compose up -d --build
+#
+#  Three services, in order: `db` comes up and passes its health check, then
+#  `migrate` runs once and exits, then `app` starts. The app therefore never
+#  serves a request against a schema older than the code it is running.
+#
+#  ── The point of running it this way ────────────────────────────────────────
+#  The app and MySQL share a Docker network, so a query costs a loopback
+#  round-trip rather than a trip across the internet. That is the whole reason
+#  this file exists: against a remote MySQL each statement measured ~112 ms, and
+#  a page issuing thirty of them spent three seconds doing nothing but waiting.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    # utf8mb4 is not optional — the app stores Arabic throughout — and
+    # utf8mb4_unicode_ci is what makes the `contains` searches in queries.ts
+    # case- and accent-insensitive without a `mode` Prisma does not offer on
+    # MySQL. Set on the server so the database MYSQL_DATABASE creates inherits
+    # them; there is no CREATE DATABASE of our own to put them on.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    env_file: .env.docker
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mizmar_school}
+      MYSQL_USER: ${MYSQL_USER:-mizmar}
+    volumes:
+      - db-data:/var/lib/mysql
+    ports:
+      # Bound to the loopback interface deliberately. On a cloud box `3306:3306`
+      # would publish MySQL to the whole internet, past any security-list rule,
+      # because Docker writes its own iptables entries. This form reaches
+      # `prisma studio` or a `mysql` client on the host and nothing else — and
+      # the app does not use it at all, it goes over the compose network.
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
+    healthcheck:
+      # `$$` escapes the `$` so compose passes it through for the shell in the
+      # container to expand, rather than interpolating it here.
+      test: ["CMD-SHELL", 'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      # MySQL initialises the data directory on first boot and restarts itself
+      # partway through; failures before this elapses do not count.
+      start_period: 60s
+
+  # One-shot: applies migrations, seeds according to SEED_MODE, exits 0.
+  # Built from the `builder` stage because the seeds are TypeScript importing
+  # from modules/ — see the Dockerfile.
+  migrate:
+    build:
+      context: .
+      target: builder
+    restart: "no"
+    env_file: .env.docker
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mizmar_school}
+      MYSQL_USER: ${MYSQL_USER:-mizmar}
+      SEED_MODE: ${SEED_MODE:-config}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mizmar_school}
+      MYSQL_USER: ${MYSQL_USER:-mizmar}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      # /login is the one page that renders without a session.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  # Named, so `docker compose down` keeps the school's data. Only
+  # `docker compose down -v` destroys it.
+  db-data:

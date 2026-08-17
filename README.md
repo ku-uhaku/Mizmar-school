@@ -44,6 +44,20 @@ Generate a session secret with:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
+### With Docker instead
+
+Brings up MySQL, migrates, seeds and starts the app in one command:
+
+```bash
+cp docker/env.example .env.docker    # fill in AUTH_SECRET and the two passwords
+docker compose up -d --build
+```
+
+This is also how the app should be **deployed**: the app and the database on
+one machine, so a query is a loopback hop. Across the internet each statement
+costs ~112 ms, and a page issuing thirty of them spends three seconds waiting.
+See [docker/README.md](docker/README.md).
+
 ### Seeded accounts
 
 All share the password `Admin123!`. Each one exercises a different permission

@@ -61,6 +61,15 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  /*
+    Emits `.next/standalone` — a server plus only the node_modules files the
+    route trace actually reached. It is what lets the Docker runtime image drop
+    the Prisma CLI, `tsx` and the rest of the dev dependencies the build needed,
+    and it is read at build time, so it must be set here rather than passed to
+    `next build`. Harmless outside Docker: `next dev` and `next start` ignore it.
+  */
+  output: "standalone",
+
   // Volunteers the framework and its version to anyone scanning. No reason to.
   poweredByHeader: false,
 

@@ -1,0 +1,44 @@
+# Build context — keep it small and keep secrets out of the image.
+#
+# `.env` in particular: it holds AUTH_SECRET and a database password, and a
+# COPY . . would bake both into a layer that survives in the image history.
+# The container gets its configuration from compose instead.
+.env
+.env.*
+!.env.example
+
+node_modules
+.next
+out
+build
+coverage
+
+# A separate Expo project with its own package.json — excluded from the root
+# tsconfig and from the web build, so it has no business in the context.
+mobile
+
+.git
+.gitignore
+.github
+
+# Local SQLite left over from an earlier setup; nothing reads it.
+dev.db
+dev.db-shm
+dev.db-wal
+
+# Agent and editor scratch.
+.claude
+.agents
+.windsurf
+.vscode
+.idea
+
+*.log
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml

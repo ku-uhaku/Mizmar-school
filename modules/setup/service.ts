@@ -5,6 +5,7 @@ import { auditClient } from "@/lib/db";
 import type { SchoolSettingsValues } from "@/lib/school-settings";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
 import { slotsForBell, type BellPlan } from "@/modules/setup/bell";
+import { idFor, upsertMany, type IdsByKey } from "@/modules/setup/bulk";
 import {
   NO_REFERENCE_COUNTS,
   writeReferenceData,
@@ -42,6 +43,13 @@ import type { TxClient } from "@/modules/treasury/service";
  * removes anything: upsert on the table's own unique key, and leave out of the
  * `update` half anything a school may have decided for itself — `isActive`
  * everywhere, and a class's room and titulaire.
+ *
+ * ── Why the upserts are batched ─────────────────────────────────────────────
+ * Those are the semantics; `upsertMany` in `bulk.ts` is how they are issued.
+ * One statement per row is what expired this transaction twice over against a
+ * managed database — the round trips, not the work — so each table is now read
+ * once, created once, and updated only where the plan actually differs from
+ * what is stored.
  */
 
 export type SchoolColumns = {
@@ -223,39 +231,22 @@ async function writeCursus(
   schoolId: string,
   plan: SetupPlan,
   counts: SetupCounts,
-): Promise<{
-  levelIdByCode: Record<string, string>;
-  trackIdByCode: Record<string, string>;
-  subjectIdByCode: Record<string, string>;
-}> {
-  const cycleIdByCode: Record<string, string> = {};
-  for (const cycle of plan.cycles) {
-    const row = await tx.educationLevel.upsert({
-      where: { schoolId_cycle: { schoolId, cycle: cycle.cycle } },
-      update: { name: cycle.name, nameAr: cycle.nameAr, position: cycle.position },
-      create: { schoolId, ...cycle },
-      select: { id: true },
-    });
-    cycleIdByCode[cycle.cycle] = row.id;
-    counts.cycles += 1;
-  }
+): Promise<{ levelIds: IdsByKey; trackIds: IdsByKey }> {
+  const cycleIds = await upsertMany(tx.educationLevel, {
+    where: { schoolId },
+    key: ["cycle"],
+    update: ["name", "nameAr", "position"],
+    withIds: true,
+    rows: plan.cycles.map((cycle) => ({ schoolId, ...cycle })),
+  });
+  counts.cycles = plan.cycles.length;
 
-  const levelIdByCode: Record<string, string> = {};
-  for (const [index, level] of plan.levels.entries()) {
-    const educationLevelId = cycleIdByCode[level.cycle];
+  const levelRows = plan.levels.flatMap((level, index) => {
+    const educationLevelId = idFor(cycleIds, level.cycle);
     // A level whose cycle was not ticked has nowhere to hang.
-    if (!educationLevelId) continue;
-
-    const row = await tx.level.upsert({
-      where: { schoolId_code: { schoolId, code: level.code } },
-      update: {
-        name: level.name,
-        nameAr: level.nameAr,
-        gradeYear: level.gradeYear,
-        massarCode: level.massarCode,
-        position: index,
-      },
-      create: {
+    if (!educationLevelId) return [];
+    return [
+      {
         // Denormalised, and taken from the transaction rather than the form:
         // the invariant is that it equals the cycle's school.
         schoolId,
@@ -267,26 +258,24 @@ async function writeCursus(
         massarCode: level.massarCode,
         position: index,
       },
-      select: { id: true },
-    });
-    levelIdByCode[level.code] = row.id;
-    counts.levels += 1;
-  }
+    ];
+  });
+  const levelIds = await upsertMany(tx.level, {
+    where: { schoolId },
+    key: ["code"],
+    update: ["name", "nameAr", "gradeYear", "massarCode", "position"],
+    withIds: true,
+    rows: levelRows,
+  });
+  counts.levels = levelRows.length;
 
-  const trackIdByCode: Record<string, string> = {};
-  for (const [index, track] of plan.tracks.entries()) {
-    const levelId = levelIdByCode[track.levelCode];
-    if (!levelId) continue;
-
-    const row = await tx.track.upsert({
-      where: { levelId_code: { levelId, code: track.code } },
-      update: {
-        name: track.name,
-        nameAr: track.nameAr,
-        massarCode: track.massarCode,
-        position: index,
-      },
-      create: {
+  // Keyed on the track's code alone, as the plan refers to it — the read is
+  // scoped through the level, since `Track` carries no `schoolId` of its own.
+  const trackRows = plan.tracks.flatMap((track, index) => {
+    const levelId = idFor(levelIds, track.levelCode);
+    if (!levelId) return [];
+    return [
+      {
         levelId,
         code: track.code,
         name: track.name,
@@ -294,70 +283,101 @@ async function writeCursus(
         massarCode: track.massarCode,
         position: index,
       },
-      select: { id: true },
-    });
-    trackIdByCode[track.code] = row.id;
-    counts.tracks += 1;
+    ];
+  });
+  const trackIdsByLevel = await upsertMany(tx.track, {
+    where: { level: { schoolId } },
+    key: ["levelId", "code"],
+    update: ["name", "nameAr", "massarCode", "position"],
+    withIds: true,
+    rows: trackRows,
+  });
+  counts.tracks = trackRows.length;
+
+  // The plan names a filière by its code alone, so flatten the composite key
+  // back to what the programme and the offerings actually refer to.
+  const trackIds: IdsByKey = new Map();
+  for (const track of trackRows) {
+    const id = idFor(trackIdsByLevel, track.levelId, track.code);
+    if (id) trackIds.set(track.code, id);
   }
 
-  // Parents first, so a component always finds its parent id.
-  const subjectIdByCode: Record<string, string> = {};
-  const ordered = [
-    ...plan.subjects.filter((subject) => !subject.parent),
-    ...plan.subjects.filter((subject) => subject.parent),
-  ];
-  for (const subject of ordered) {
-    const data = {
-      name: subject.name,
-      nameAr: subject.nameAr,
-      shortName: subject.shortName,
-      massarCode: subject.massarCode,
-      parentId: subject.parent ? (subjectIdByCode[subject.parent] ?? null) : null,
-      isLanguage: subject.isLanguage,
-      requiresLab: subject.requiresLab,
-      colorHex: subject.colorHex,
-    };
-    const row = await tx.subject.upsert({
-      where: { schoolId_code: { schoolId, code: subject.code } },
-      update: data,
-      create: { schoolId, code: subject.code, ...data },
-      select: { id: true },
-    });
-    subjectIdByCode[subject.code] = row.id;
-    counts.subjects += 1;
-  }
+  // Parents in the first pass, so a component always finds its parent id.
+  const subjectRow = (subject: SubjectPlan, parentId: string | null): Record<string, unknown> => ({
+    schoolId,
+    code: subject.code,
+    name: subject.name,
+    nameAr: subject.nameAr,
+    shortName: subject.shortName,
+    massarCode: subject.massarCode,
+    parentId,
+    isLanguage: subject.isLanguage,
+    requiresLab: subject.requiresLab,
+    colorHex: subject.colorHex,
+  });
+  const subjectColumns = [
+    "name",
+    "nameAr",
+    "shortName",
+    "massarCode",
+    "parentId",
+    "isLanguage",
+    "requiresLab",
+    "colorHex",
+  ] as const;
 
-  for (const [index, entry] of plan.programme.entries()) {
-    const levelId = levelIdByCode[entry.levelCode];
-    const subjectId = subjectIdByCode[entry.subjectCode];
-    if (!levelId || !subjectId) continue;
-    const trackId = entry.trackCode ? (trackIdByCode[entry.trackCode] ?? null) : null;
+  const parents = plan.subjects.filter((subject) => !subject.parent);
+  const subjectIds = await upsertMany(tx.subject, {
+    where: { schoolId },
+    key: ["code"],
+    update: subjectColumns,
+    withIds: true,
+    rows: parents.map((subject) => subjectRow(subject, null)),
+  });
+
+  const components = plan.subjects.filter((subject) => subject.parent);
+  const componentIds = await upsertMany(tx.subject, {
+    where: { schoolId },
+    key: ["code"],
+    update: subjectColumns,
+    withIds: true,
+    rows: components.map((subject) =>
+      subjectRow(subject, subject.parent ? (idFor(subjectIds, subject.parent) ?? null) : null),
+    ),
+  });
+  for (const [code, id] of componentIds) subjectIds.set(code, id);
+  counts.subjects = plan.subjects.length;
+
+  const programmeRows = plan.programme.flatMap((entry, index) => {
+    const levelId = idFor(levelIds, entry.levelCode);
+    const subjectId = idFor(subjectIds, entry.subjectCode);
+    if (!levelId || !subjectId) return [];
+    const trackId = entry.trackCode ? (idFor(trackIds, entry.trackCode) ?? null) : null;
     // A row naming a filière the school did not take is not this school's
     // programme — writing it against every track would be a different rule.
-    if (entry.trackCode && !trackId) continue;
+    if (entry.trackCode && !trackId) return [];
 
-    const scopeKey = levelSubjectScopeKey(trackId);
-    await tx.levelSubject.upsert({
-      where: { levelId_subjectId_scopeKey: { levelId, subjectId, scopeKey } },
-      update: {
-        coefficient: entry.coefficient,
-        weeklyMinutes: entry.weeklyMinutes,
-        position: index,
-      },
-      create: {
+    return [
+      {
         levelId,
         trackId,
         subjectId,
-        scopeKey,
+        scopeKey: levelSubjectScopeKey(trackId),
         coefficient: entry.coefficient,
         weeklyMinutes: entry.weeklyMinutes,
         position: index,
       },
-    });
-    counts.programme += 1;
-  }
+    ];
+  });
+  await upsertMany(tx.levelSubject, {
+    where: { level: { schoolId } },
+    key: ["levelId", "subjectId", "scopeKey"],
+    update: ["coefficient", "weeklyMinutes", "position"],
+    rows: programmeRows,
+  });
+  counts.programme = programmeRows.length;
 
-  return { levelIdByCode, trackIdByCode, subjectIdByCode };
+  return { levelIds, trackIds };
 }
 
 export async function applySetup(
@@ -485,67 +505,50 @@ async function writeSetup(
         schoolYearId = year.id;
 
         const now = new Date();
-        for (const [index, term] of plan.year.terms.entries()) {
-          const status = termStatus(
-            plan.year.status,
-            { start: term.startDate, end: term.endDate },
-            index === 0,
-            now,
-          );
-          const data = {
+        const yearStatus = plan.year.status;
+        await upsertMany(tx.term, {
+          where: { schoolYearId },
+          key: ["number"],
+          update: ["name", "nameAr", "startDate", "endDate", "status"],
+          rows: plan.year.terms.map((term, index) => ({
+            schoolYearId,
+            number: term.number,
             name: term.name,
             nameAr: term.nameAr,
             startDate: term.startDate,
             endDate: term.endDate,
-            status,
-          };
-          await tx.term.upsert({
-            where: { schoolYearId_number: { schoolYearId, number: term.number } },
-            update: data,
-            create: { schoolYearId, number: term.number, ...data },
-          });
-          counts.terms += 1;
-        }
+            status: termStatus(
+              yearStatus,
+              { start: term.startDate, end: term.endDate },
+              index === 0,
+              now,
+            ),
+          })),
+        });
+        counts.terms = plan.year.terms.length;
       }
 
       // ── 4–9. The cursus ───────────────────────────────────────────────────
-      const { levelIdByCode, trackIdByCode } = await writeCursus(tx, schoolId, plan, counts);
+      const { levelIds, trackIds } = await writeCursus(tx, schoolId, plan, counts);
 
       // ── 10. Rooms ─────────────────────────────────────────────────────────
-      for (const room of plan.rooms) {
-        await tx.room.upsert({
-          where: { schoolId_code: { schoolId, code: room.code } },
-          update: {
-            name: room.name,
-            kind: room.kind,
-            building: room.building,
-            floor: room.floor,
-            capacity: room.capacity,
-          },
-          create: { schoolId, ...room },
-        });
-        counts.rooms += 1;
-      }
+      await upsertMany(tx.room, {
+        where: { schoolId },
+        key: ["code"],
+        update: ["name", "kind", "building", "floor", "capacity"],
+        rows: plan.rooms.map((room) => ({ schoolId, ...room })),
+      });
+      counts.rooms = plan.rooms.length;
 
       // ── 11. The fee catalogue ─────────────────────────────────────────────
-      const feeTypeIdByCode: Record<string, string> = {};
-      for (const [index, fee] of plan.feeTypes.entries()) {
-        const row = await tx.feeType.upsert({
-          where: { schoolId_code: { schoolId, code: fee.code } },
-          update: {
-            name: fee.name,
-            nameAr: fee.nameAr,
-            kind: fee.kind,
-            billingCycle: fee.billingCycle,
-            isMandatory: fee.isMandatory,
-            position: index,
-          },
-          create: { schoolId, ...fee, position: index },
-          select: { id: true },
-        });
-        feeTypeIdByCode[fee.code] = row.id;
-        counts.feeTypes += 1;
-      }
+      const feeTypeIds = await upsertMany(tx.feeType, {
+        where: { schoolId },
+        key: ["code"],
+        update: ["name", "nameAr", "kind", "billingCycle", "isMandatory", "position"],
+        withIds: true,
+        rows: plan.feeTypes.map((fee, index) => ({ schoolId, ...fee, position: index })),
+      });
+      counts.feeTypes = plan.feeTypes.length;
 
       // Everything past here is year-scoped and has nowhere to go without one.
       if (!schoolYearId || !plan.year) {
@@ -554,208 +557,212 @@ async function writeSetup(
 
       // ── 12. The bell schedule ─────────────────────────────────────────────
       if (plan.bell) {
-        for (const slot of slotsForBell(plan.bell)) {
-          await tx.timeSlot.upsert({
-            where: {
-              schoolYearId_scheduleKind_dayOfWeek_startTime: {
-                schoolYearId,
-                scheduleKind: slot.scheduleKind,
-                dayOfWeek: slot.dayOfWeek,
-                startTime: slot.startTime,
-              },
-            },
-            update: {
-              endTime: slot.endTime,
-              session: slot.session,
-              position: slot.position,
-              isBreak: slot.isBreak ?? false,
-            },
-            create: {
-              schoolYearId,
-              dayOfWeek: slot.dayOfWeek,
-              session: slot.session,
-              startTime: slot.startTime,
-              endTime: slot.endTime,
-              scheduleKind: slot.scheduleKind,
-              position: slot.position,
-              isBreak: slot.isBreak ?? false,
-            },
-          });
-          counts.slots += 1;
-        }
+        const slots = slotsForBell(plan.bell);
+        await upsertMany(tx.timeSlot, {
+          where: { schoolYearId },
+          key: ["scheduleKind", "dayOfWeek", "startTime"],
+          update: ["endTime", "session", "position", "isBreak"],
+          rows: slots.map((slot) => ({
+            schoolYearId,
+            dayOfWeek: slot.dayOfWeek,
+            session: slot.session,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            scheduleKind: slot.scheduleKind,
+            position: slot.position,
+            isBreak: slot.isBreak ?? false,
+          })),
+        });
+        counts.slots = slots.length;
       }
 
       // ── 13. Holidays, before the weeks that depend on them ────────────────
-      for (const holiday of plan.year.holidays) {
-        // No natural unique key — a school may legitimately declare two
-        // closures with the same name — so idempotency is a find-then-write on
-        // (year, name), exactly as `seedHolidays` does it.
-        const existing = await tx.schoolHoliday.findFirst({
-          where: { schoolYearId, name: holiday.name },
-          select: { id: true },
-        });
-        const data = {
+      // No natural unique key — a school may legitimately declare two closures
+      // with the same name — so idempotency is a match on (year, name), exactly
+      // as `seedHolidays` does it.
+      await upsertMany(tx.schoolHoliday, {
+        where: { schoolYearId },
+        key: ["name"],
+        update: ["nameAr", "kind", "startDate", "endDate"],
+        rows: plan.year.holidays.map((holiday) => ({
+          schoolYearId,
+          name: holiday.name,
           nameAr: holiday.nameAr,
           kind: holiday.kind,
           startDate: holiday.startDate,
           endDate: holiday.endDate,
-        };
-        if (existing) {
-          await tx.schoolHoliday.update({ where: { id: existing.id }, data });
-        } else {
-          await tx.schoolHoliday.create({
-            data: { schoolYearId, name: holiday.name, ...data },
-          });
-        }
-        counts.holidays += 1;
-      }
+        })),
+      });
+      counts.holidays = plan.year.holidays.length;
 
       // ── 14. The teaching weeks ────────────────────────────────────────────
       const holidays = await tx.schoolHoliday.findMany({
         where: { schoolYearId },
         select: { startDate: true, endDate: true },
       });
-      for (const week of planSchoolWeeks({
+      const weeks = planSchoolWeeks({
         yearStart: plan.year.startDate,
         yearEnd: plan.year.endDate,
         holidays,
         firstParity: "A",
-      })) {
-        const data = {
+      });
+      await upsertMany(tx.schoolWeek, {
+        where: { schoolYearId },
+        key: ["number"],
+        update: ["startsOn", "endsOn", "isTeaching", "parity"],
+        rows: weeks.map((week) => ({
+          schoolYearId,
+          number: week.number,
           startsOn: week.startsOn,
           endsOn: week.endsOn,
           isTeaching: week.isTeaching,
           parity: week.parity,
-        };
-        await tx.schoolWeek.upsert({
-          where: { schoolYearId_number: { schoolYearId, number: week.number } },
-          update: data,
-          create: { schoolYearId, number: week.number, ...data },
-        });
-        counts.weeks += 1;
-      }
+        })),
+      });
+      counts.weeks = weeks.length;
 
       // ── 15. The price list ────────────────────────────────────────────────
-      for (const rate of plan.feeRates) {
-        const feeTypeId = feeTypeIdByCode[rate.feeCode];
-        if (!feeTypeId) continue;
-        const levelId = rate.levelCode ? (levelIdByCode[rate.levelCode] ?? null) : null;
+      const rateRows = plan.feeRates.flatMap((rate) => {
+        const feeTypeId = idFor(feeTypeIds, rate.feeCode);
+        if (!feeTypeId) return [];
+        const levelId = rate.levelCode ? (idFor(levelIds, rate.levelCode) ?? null) : null;
         // A level-specific price for a level this school does not run is skipped.
-        if (rate.levelCode && !levelId) continue;
+        if (rate.levelCode && !levelId) return [];
 
-        const scopeKey = feeRateScopeKey(levelId);
-        await tx.feeRate.upsert({
-          where: { schoolYearId_feeTypeId_scopeKey: { schoolYearId, feeTypeId, scopeKey } },
-          update: { amountCentimes: rate.amountCentimes },
-          create: {
+        return [
+          {
             schoolYearId,
             feeTypeId,
             levelId,
-            scopeKey,
+            scopeKey: feeRateScopeKey(levelId),
             amountCentimes: rate.amountCentimes,
           },
-        });
-        counts.feeRates += 1;
-      }
+        ];
+      });
+      await upsertMany(tx.feeRate, {
+        where: { schoolYearId },
+        key: ["feeTypeId", "scopeKey"],
+        update: ["amountCentimes"],
+        rows: rateRows,
+      });
+      counts.feeRates = rateRows.length;
 
       // ── 16. The réductions ────────────────────────────────────────────────
-      for (const discount of plan.discounts) {
-        const feeTypeId = discount.feeCode
-          ? (feeTypeIdByCode[discount.feeCode] ?? null)
-          : null;
-        if (discount.feeCode && !feeTypeId) continue;
+      const discountRows = plan.discounts.flatMap((discount) => {
+        const feeTypeId = discount.feeCode ? (idFor(feeTypeIds, discount.feeCode) ?? null) : null;
+        if (discount.feeCode && !feeTypeId) return [];
 
-        const data = {
-          name: discount.name,
-          nameAr: discount.nameAr,
-          kind: discount.kind,
-          percentBps: discount.percentBps,
-          amountCentimes: discount.amountCentimes,
-          reason: discount.reason,
-          feeTypeId,
-          isStackable: discount.isStackable,
-        };
-        await tx.discount.upsert({
-          where: { schoolYearId_code: { schoolYearId, code: discount.code } },
-          update: data,
-          create: { schoolYearId, code: discount.code, ...data },
-        });
-        counts.discounts += 1;
-      }
+        return [
+          {
+            schoolYearId,
+            code: discount.code,
+            name: discount.name,
+            nameAr: discount.nameAr,
+            kind: discount.kind,
+            percentBps: discount.percentBps,
+            amountCentimes: discount.amountCentimes,
+            reason: discount.reason,
+            feeTypeId,
+            isStackable: discount.isStackable,
+          },
+        ];
+      });
+      await upsertMany(tx.discount, {
+        where: { schoolYearId },
+        key: ["code"],
+        update: [
+          "name",
+          "nameAr",
+          "kind",
+          "percentBps",
+          "amountCentimes",
+          "reason",
+          "feeTypeId",
+          "isStackable",
+        ],
+        rows: discountRows,
+      });
+      counts.discounts = discountRows.length;
 
       // ── 17–19. What the year actually opens ───────────────────────────────
-      for (const offering of plan.offerings) {
-        const levelId = levelIdByCode[offering.levelCode];
-        if (!levelId) continue;
-        const trackId = offering.trackCode
-          ? (trackIdByCode[offering.trackCode] ?? null)
-          : null;
-        if (offering.trackCode && !trackId) continue;
+      const offerings = plan.offerings.flatMap((offering) => {
+        const levelId = idFor(levelIds, offering.levelCode);
+        if (!levelId) return [];
+        const trackId = offering.trackCode ? (idFor(trackIds, offering.trackCode) ?? null) : null;
+        if (offering.trackCode && !trackId) return [];
 
-        const scopeKey = offeringScopeKey(trackId);
-        const row = await tx.levelOffering.upsert({
-          where: { schoolYearId_levelId_scopeKey: { schoolYearId, levelId, scopeKey } },
-          update: { plannedCapacity: offering.capacity },
-          create: {
-            schoolYearId,
-            levelId,
-            trackId,
-            scopeKey,
-            plannedCapacity: offering.capacity,
-          },
-          select: { id: true },
-        });
-        counts.offerings += 1;
+        return [{ offering, levelId, trackId, scopeKey: offeringScopeKey(trackId) }];
+      });
+      const offeringIds = await upsertMany(tx.levelOffering, {
+        where: { schoolYearId },
+        key: ["levelId", "scopeKey"],
+        update: ["plannedCapacity"],
+        withIds: true,
+        rows: offerings.map(({ offering, levelId, trackId, scopeKey }) => ({
+          schoolYearId,
+          levelId,
+          trackId,
+          scopeKey,
+          plannedCapacity: offering.capacity,
+        })),
+      });
+      counts.offerings = offerings.length;
 
-        for (const code of offering.classCodes) {
-          const schoolClass = await tx.schoolClass.upsert({
-            where: { levelOfferingId_code: { levelOfferingId: row.id, code } },
-            // Never the room or the titulaire: a class somebody has already
-            // staffed and seated keeps both when the wizard is run again.
-            update: { capacity: offering.capacity },
-            create: {
-              levelOfferingId: row.id,
-              // Denormalised, and from the transaction rather than the form.
-              schoolId,
-              code,
-              capacity: offering.capacity,
-            },
-            select: { id: true },
-          });
-          counts.classes += 1;
+      const classRows = offerings.flatMap(({ offering, levelId, scopeKey }) => {
+        const levelOfferingId = idFor(offeringIds, levelId, scopeKey);
+        if (!levelOfferingId) return [];
+        return offering.classCodes.map((code) => ({
+          levelOfferingId,
+          // Denormalised, and from the transaction rather than the form.
+          schoolId,
+          code,
+          capacity: offering.capacity,
+        }));
+      });
+      const classIds = await upsertMany(tx.schoolClass, {
+        where: { schoolId, levelOffering: { schoolYearId } },
+        key: ["levelOfferingId", "code"],
+        // Never the room or the titulaire: a class somebody has already staffed
+        // and seated keeps both when the wizard is run again.
+        update: ["capacity"],
+        withIds: true,
+        rows: classRows,
+      });
+      counts.classes = classRows.length;
 
-          for (let index = 1; index <= plan.groupsPerClass; index += 1) {
-            await tx.classGroup.upsert({
-              where: {
-                schoolClassId_code: { schoolClassId: schoolClass.id, code: `G${index}` },
-              },
-              update: { purpose: plan.groupPurpose },
-              create: {
-                schoolClassId: schoolClass.id,
-                code: `G${index}`,
-                purpose: plan.groupPurpose,
-              },
-            });
-            counts.groups += 1;
-          }
-        }
-      }
+      const groupRows = classRows.flatMap((schoolClass) => {
+        const schoolClassId = idFor(classIds, schoolClass.levelOfferingId, schoolClass.code);
+        if (!schoolClassId) return [];
+        return Array.from({ length: plan.groupsPerClass }, (_, index) => ({
+          schoolClassId,
+          code: `G${index + 1}`,
+          purpose: plan.groupPurpose,
+        }));
+      });
+      await upsertMany(tx.classGroup, {
+        where: { schoolClass: { schoolId } },
+        key: ["schoolClassId", "code"],
+        update: ["purpose"],
+        rows: groupRows,
+      });
+      counts.groups = groupRows.length;
 
       return { schoolId, schoolYearId, counts };
     },
     /*
-      A full cursus with classes and a fee grid is several hundred upserts, and
-      an upsert is two statements — so the default five-second budget does not
-      survive the largest school, and sixty seconds does not survive a managed
-      database across the internet, where every one of those statements is a
-      round trip. `prisma/seed/client.ts` reached the same figure writing the
-      same rows, for the same reason; when this one expires it does so at
-      whichever statement happened to be in flight, which is why the error names
-      an innocent table (`tx.supplier.upsert`) rather than the slow part.
+      Raising this is what did *not* fix the timeout, twice: the default five
+      seconds, then sixty, then a hundred and twenty, each expiring at whichever
+      statement happened to be in flight — which is why the error named an
+      innocent table (`tx.supplier.upsert`) rather than the slow part. The cost
+      was never the work, it was a round trip per statement to a managed
+      database and two statements per row. `upsertMany` writes the same rows in
+      a fixed handful of statements per table, and the largest school now lands
+      well inside this.
 
-      Two minutes and not "no limit": the wizard writes one school once and
-      nothing contends with it, but a transaction that hangs should still give
-      up rather than hold its locks until the process is killed.
+      Kept at two minutes rather than lowered to fit the new figure: a school
+      whose lists a director has grown by hand still has more to read back, and
+      the ceiling is only there so a transaction that hangs gives up rather than
+      holding its locks until the process is killed.
     */
     { timeout: 120_000, maxWait: 30_000 },
   );

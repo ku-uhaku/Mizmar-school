@@ -30,8 +30,9 @@ import { slotsForBell, weeklyTeachingMinutes } from "@/modules/setup/bell";
  * file exists. The parallel arrays the programme step posts must zip by index
  * or every coefficient lands on the wrong subject. The denormalised `schoolId`
  * and the three `scopeKey`s must come from the transaction and their helpers,
- * never from the form. Every write must be an upsert, because the wizard is
- * re-runnable on a school somebody has already started editing. And the
+ * never from the form. Every write must have upsert semantics — `upsertMany`
+ * now, rather than one upsert per row — because the wizard is re-runnable on a
+ * school somebody has already started editing. And the
  * reference lists must land whatever was ticked, without undoing the two
  * things a school edits in place — its appréciation scale and who holds a till.
  */
@@ -46,6 +47,18 @@ let answers: Record<string, unknown> = {};
 /** Ids the fake client hands back, so the applier's own maps are exercised. */
 let nextId = 0;
 
+/**
+ * What `createMany` has laid down, so `findMany` hands it back.
+ *
+ * The applier writes in bulk — read the table, `createMany` what is missing,
+ * read back for the ids (see `bulk.ts`) — so a client that answered every
+ * `findMany` with `[]` would hand it an empty id map and the whole cursus below
+ * a level would silently write nothing. The double therefore has to remember.
+ * The `where` is ignored: scoping is a query concern and these tests are about
+ * what gets written.
+ */
+const stored: Record<string, Record<string, unknown>[]> = {};
+
 const client = new Proxy(
   {},
   {
@@ -57,10 +70,19 @@ const client = new Proxy(
             calls.push({ model, op, args });
             const key = `${model}.${op}`;
             if (key in answers) return answers[key];
-            if (op === "findMany") return [];
-            if (op === "count") return 0;
+            if (op === "findMany") return stored[model] ?? [];
+            if (op === "count") return (stored[model] ?? []).length;
             if (op === "findFirst" || op === "findUnique") return null;
             if (op === "updateMany") return { count: 0 };
+            if (op === "createMany") {
+              const rows = (args.data as Record<string, unknown>[]) ?? [];
+              const table = (stored[model] ??= []);
+              for (const row of rows) {
+                nextId += 1;
+                table.push({ ...row, id: `${model}-${nextId}` });
+              }
+              return { count: rows.length };
+            }
             nextId += 1;
             return { id: `${model}-${nextId}` };
           },
@@ -156,6 +178,10 @@ const { runSetupAction } = await import("@/modules/setup/actions");
 const of = (model: string, op: string) =>
   calls.filter((call) => call.model === model && call.op === op);
 
+/** Every row `createMany` was handed for a table, in the order it was written. */
+const created = (model: string): Record<string, unknown>[] =>
+  of(model, "createMany").flatMap((call) => (call.args.data as Record<string, unknown>[]) ?? []);
+
 const IDLE = { status: "idle" } as never;
 
 beforeEach(() => {
@@ -166,6 +192,7 @@ beforeEach(() => {
   answers = {};
   granted.clear();
   nextId = 0;
+  for (const model of Object.keys(stored)) delete stored[model];
 });
 
 // ── The catalogue is the only source of truth ────────────────────────────────
@@ -513,10 +540,7 @@ describe("the posted form", () => {
 
     await expect(runSetupAction(IDLE, form)).rejects.toBeInstanceOf(RedirectError);
 
-    const written = of("levelSubject", "upsert").map(
-      (call) => (call.args.create as Record<string, unknown>).coefficient,
-    );
-    expect(written).toEqual([6, 5, 4]);
+    expect(created("levelSubject").map((row) => row.coefficient)).toEqual([6, 5, 4]);
   });
 
   it("refuses a ragged table rather than shifting every coefficient", async () => {
@@ -536,7 +560,7 @@ describe("the posted form", () => {
     const result = await runSetupAction(IDLE, form);
     expect(result.status).toBe("error");
     expect(result.fieldErrors?.programme).toBe(t.setup.rowsMisaligned);
-    expect(of("levelSubject", "upsert")).toHaveLength(0);
+    expect(created("levelSubject")).toHaveLength(0);
   });
 
   it("drops an unticked row but keeps its slot", async () => {
@@ -550,11 +574,8 @@ describe("the posted form", () => {
 
     await expect(runSetupAction(IDLE, form)).rejects.toBeInstanceOf(RedirectError);
 
-    const written = of("levelSubject", "upsert").map(
-      (call) => (call.args.create as Record<string, unknown>).coefficient,
-    );
     // The dropped row did not take the next row's coefficient with it.
-    expect(written).toEqual([6, 4]);
+    expect(created("levelSubject").map((row) => row.coefficient)).toEqual([6, 4]);
   });
 
   it("ignores a code the catalogue does not know", async () => {
@@ -566,20 +587,17 @@ describe("the posted form", () => {
 
     await expect(runSetupAction(IDLE, form)).rejects.toBeInstanceOf(RedirectError);
 
-    const levels = of("level", "upsert").map(
-      (call) => (call.args.create as Record<string, unknown>).code,
-    );
-    expect(levels).toEqual(["1AP"]);
-    expect(of("educationLevel", "upsert")).toHaveLength(1);
+    expect(created("level").map((row) => row.code)).toEqual(["1AP"]);
+    expect(created("educationLevel")).toHaveLength(1);
   });
 
   it("takes a level's name from the catalogue, never from the form", async () => {
     const form = baseForm({ cycle: ["PRIMARY"], levelCode: ["1AP"], name: "École de test" });
     await expect(runSetupAction(IDLE, form)).rejects.toBeInstanceOf(RedirectError);
 
-    const created = of("level", "upsert")[0]!.args.create as Record<string, unknown>;
-    expect(created.name).toBe("1ère année primaire");
-    expect(created.massarCode).toBe("P1");
+    const level = created("level")[0]!;
+    expect(level.name).toBe("1ère année primaire");
+    expect(level.massarCode).toBe("P1");
   });
 
   it("gives a hand-typed level no MASSAR code", async () => {
@@ -594,11 +612,11 @@ describe("the posted form", () => {
     });
     await expect(runSetupAction(IDLE, form)).rejects.toBeInstanceOf(RedirectError);
 
-    const created = of("level", "upsert")[0]!.args.create as Record<string, unknown>;
-    expect(created.code).toBe("7AP");
+    const level = created("level")[0]!;
+    expect(level.code).toBe("7AP");
     // Nullable-unique on (school, massarCode): a typed code is how two levels
     // collide, so an invented level carries none.
-    expect(created.massarCode).toBeNull();
+    expect(level.massarCode).toBeNull();
   });
 });
 
@@ -742,7 +760,7 @@ describe("applySetup", () => {
     } as never);
 
     const order = calls
-      .filter((call) => call.op === "upsert" || call.op === "create")
+      .filter((call) => call.op === "createMany" || call.op === "upsert" || call.op === "create")
       .map((call) => call.model);
 
     const first = (model: string) => order.indexOf(model);
@@ -772,8 +790,8 @@ describe("applySetup", () => {
     const schoolId = "school-1";
     expect(of("school", "create")).toHaveLength(1);
 
-    for (const call of [...of("level", "upsert"), ...of("schoolClass", "upsert")]) {
-      expect((call.args.create as Record<string, unknown>).schoolId).toBe(schoolId);
+    for (const row of [...created("level"), ...created("schoolClass")]) {
+      expect(row.schoolId).toBe(schoolId);
     }
   });
 
@@ -783,29 +801,35 @@ describe("applySetup", () => {
       ...FULL_PLAN,
     } as never);
 
-    const programmeKey = (of("levelSubject", "upsert")[0]!.args.create as Record<string, unknown>)
-      .scopeKey;
-    expect(programmeKey).toBe(levelSubjectScopeKey(null));
+    expect(created("levelSubject")[0]!.scopeKey).toBe(levelSubjectScopeKey(null));
+    expect(created("levelOffering")[0]!.scopeKey).toBe(offeringScopeKey(null));
 
-    const offeringKey = (of("levelOffering", "upsert")[0]!.args.create as Record<string, unknown>)
-      .scopeKey;
-    expect(offeringKey).toBe(offeringScopeKey(null));
-
-    const levelId = (of("feeRate", "upsert")[0]!.args.create as Record<string, unknown>).levelId;
-    const rateKey = (of("feeRate", "upsert")[0]!.args.create as Record<string, unknown>).scopeKey;
-    expect(rateKey).toBe(feeRateScopeKey(levelId as string));
+    const rate = created("feeRate")[0]!;
+    expect(rate.scopeKey).toBe(feeRateScopeKey(rate.levelId as string));
   });
 
-  it("upserts everything except the school itself", async () => {
+  it("never lays a second copy of a row it already wrote", async () => {
     await applySetup("org-1", {
       school: { mode: "new", data: { code: "T" } as never },
       ...FULL_PLAN,
     } as never);
 
-    const created = calls.filter((call) => call.op === "create").map((call) => call.model);
-    // Only the School row is a bare create; a re-run must correct the rest in
-    // place rather than lay a second copy over it.
-    expect([...new Set(created)]).toEqual(["school"]);
+    // Only the School row is a bare create; everything else goes through
+    // `upsertMany`, which reads first.
+    const bare = calls.filter((call) => call.op === "create").map((call) => call.model);
+    expect([...new Set(bare)]).toEqual(["school"]);
+
+    // And the second run writes nothing at all, because the double remembers
+    // what the first one laid down — which is the whole idempotency claim.
+    calls.length = 0;
+    answers["school.findFirst"] = { id: "school-1", city: null };
+    await applySetup("org-1", {
+      school: { mode: "existing", id: "school-1" },
+      ...FULL_PLAN,
+    } as never);
+
+    expect(calls.filter((call) => call.op === "createMany")).toHaveLength(0);
+    expect(calls.filter((call) => call.op === "update")).toHaveLength(0);
   });
 
   it("never clears a class's room or titulaire on a re-run", async () => {
@@ -814,10 +838,23 @@ describe("applySetup", () => {
       ...FULL_PLAN,
     } as never);
 
-    const update = of("schoolClass", "upsert")[0]!.args.update as Record<string, unknown>;
-    expect(update).not.toHaveProperty("roomId");
-    expect(update).not.toHaveProperty("mainTeacherId");
-    expect(update).not.toHaveProperty("isActive");
+    // The school has since staffed and seated the class, and changed its size.
+    const schoolClass = stored.schoolClass![0]!;
+    schoolClass.roomId = "room-9";
+    schoolClass.mainTeacherId = "staff-9";
+    schoolClass.capacity = 99;
+
+    calls.length = 0;
+    answers["school.findFirst"] = { id: "school-1", city: null };
+    await applySetup("org-1", {
+      school: { mode: "existing", id: "school-1" },
+      ...FULL_PLAN,
+    } as never);
+
+    // The capacity is corrected back to the plan's; the two the school decided
+    // are not in the statement at all.
+    const update = of("schoolClass", "update")[0]!.args.data as Record<string, unknown>;
+    expect(update).toEqual({ capacity: 30 });
   });
 
   it("writes nothing year-scoped when the year step was skipped", async () => {
@@ -827,14 +864,15 @@ describe("applySetup", () => {
       year: null,
     } as never);
 
-    for (const model of ["schoolYear", "term", "timeSlot", "schoolWeek", "feeRate", "levelOffering", "schoolClass", "classGroup"]) {
-      expect(of(model, "upsert"), model).toHaveLength(0);
+    for (const model of ["term", "timeSlot", "schoolWeek", "feeRate", "levelOffering", "schoolClass", "classGroup"]) {
+      expect(created(model), model).toHaveLength(0);
     }
+    expect(of("schoolYear", "upsert")).toHaveLength(0);
     // The school, its settings and its cursus still land.
     expect(of("school", "create")).toHaveLength(1);
     expect(of("schoolSettings", "upsert")).toHaveLength(1);
-    expect(of("level", "upsert")).toHaveLength(1);
-    expect(of("feeType", "upsert")).toHaveLength(1);
+    expect(created("level")).toHaveLength(1);
+    expect(created("feeType")).toHaveLength(1);
   });
 
   /*
@@ -908,18 +946,22 @@ describe("applySetup", () => {
       ...EMPTY_PLAN,
     } as never);
 
-    expect(of("city", "upsert")).toHaveLength(REFERENCE_SIZES.cities);
-    expect(of("documentType", "upsert")).toHaveLength(REFERENCE_SIZES.documentTypes);
-    expect(of("documentRequestType", "upsert")).toHaveLength(REFERENCE_SIZES.requestTypes);
-    expect(of("assessmentType", "upsert")).toHaveLength(REFERENCE_SIZES.assessmentTypes);
-    expect(of("supplyArticle", "upsert")).toHaveLength(REFERENCE_SIZES.supplyArticles);
-    expect(of("cashRegister", "upsert")).toHaveLength(REFERENCE_SIZES.registers);
-    expect(of("operationCategory", "upsert")).toHaveLength(REFERENCE_SIZES.categories);
-    expect(of("operationSubcategory", "upsert")).toHaveLength(REFERENCE_SIZES.subcategories);
-    expect(of("operationMotif", "upsert")).toHaveLength(REFERENCE_SIZES.motifs);
-    expect(of("supplier", "upsert")).toHaveLength(REFERENCE_SIZES.suppliers);
-    expect(of("bank", "upsert")).toHaveLength(REFERENCE_SIZES.banks);
+    expect(created("city")).toHaveLength(REFERENCE_SIZES.cities);
+    expect(created("documentType")).toHaveLength(REFERENCE_SIZES.documentTypes);
+    expect(created("documentRequestType")).toHaveLength(REFERENCE_SIZES.requestTypes);
+    expect(created("assessmentType")).toHaveLength(REFERENCE_SIZES.assessmentTypes);
+    expect(created("supplyArticle")).toHaveLength(REFERENCE_SIZES.supplyArticles);
+    expect(created("cashRegister")).toHaveLength(REFERENCE_SIZES.registers);
+    expect(created("operationCategory")).toHaveLength(REFERENCE_SIZES.categories);
+    expect(created("operationSubcategory")).toHaveLength(REFERENCE_SIZES.subcategories);
+    expect(created("operationMotif")).toHaveLength(REFERENCE_SIZES.motifs);
+    expect(created("supplier")).toHaveLength(REFERENCE_SIZES.suppliers);
+    expect(created("bank")).toHaveLength(REFERENCE_SIZES.banks);
     expect(of("appreciationBand", "createMany")).toHaveLength(1);
+
+    // And the two hundred rows above cost a handful of statements, not two per
+    // row — which is what the 120 s transaction kept expiring on.
+    expect(calls.filter((call) => call.op === "createMany").length).toBeLessThan(30);
   });
 
   it("lays down only the quartiers of the town the school typed", async () => {
@@ -932,9 +974,7 @@ describe("applySetup", () => {
       ...EMPTY_PLAN,
     } as never);
 
-    const codes = of("neighbourhood", "upsert").map(
-      (call) => (call.args.create as Record<string, unknown>).code,
-    );
+    const codes = created("neighbourhood").map((row) => row.code);
     expect(codes.length).toBeGreaterThan(0);
     for (const code of codes) {
       const quartier = MOROCCAN_NEIGHBOURHOODS.find((row) => row.code === code);
@@ -950,9 +990,9 @@ describe("applySetup", () => {
       ...EMPTY_PLAN,
     } as never);
 
-    expect(of("neighbourhood", "upsert")).toHaveLength(0);
+    expect(created("neighbourhood")).toHaveLength(0);
     // The towns themselves are still laid in full — a birthplace is anywhere.
-    expect(of("city", "upsert")).toHaveLength(REFERENCE_SIZES.cities);
+    expect(created("city")).toHaveLength(REFERENCE_SIZES.cities);
   });
 
   it("never rewrites an appreciation scale the school has edited", async () => {
@@ -974,8 +1014,21 @@ describe("applySetup", () => {
       ...EMPTY_PLAN,
     } as never);
 
-    const update = of("cashRegister", "upsert")[0]!.args.update as Record<string, unknown>;
+    // The coffre has since been handed to a cashier, and renamed.
+    const till = stored.cashRegister![0]!;
+    till.holderId = "staff-9";
+    till.name = "Caisse du directeur";
+
+    calls.length = 0;
+    answers["school.findFirst"] = { id: "school-1", city: null };
+    await applySetup("org-1", {
+      school: { mode: "existing", id: "school-1" },
+      ...EMPTY_PLAN,
+    } as never);
+
+    const update = of("cashRegister", "update")[0]!.args.data as Record<string, unknown>;
     expect(update).not.toHaveProperty("holderId");
+    expect(update).toHaveProperty("name");
   });
 
   it("opens one class per section and the groups under it", async () => {
@@ -984,9 +1037,8 @@ describe("applySetup", () => {
       ...FULL_PLAN,
     } as never);
 
-    expect(of("schoolClass", "upsert").map((call) => (call.args.create as Record<string, unknown>).code))
-      .toEqual(["1AP-A", "1AP-B"]);
+    expect(created("schoolClass").map((row) => row.code)).toEqual(["1AP-A", "1AP-B"]);
     // Two groups each.
-    expect(of("classGroup", "upsert")).toHaveLength(4);
+    expect(created("classGroup")).toHaveLength(4);
   });
 });

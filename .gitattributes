@@ -1,0 +1,11 @@
+# Shell scripts must keep LF endings even when checked out on Windows.
+#
+# A CRLF checkout of docker/entrypoint.sh reaches the Linux container with a
+# trailing carriage return on the shebang, and the container dies with
+# "/usr/local/bin/entrypoint.sh: not found" — which names the file that plainly
+# does exist and points nowhere near the cause.
+*.sh text eol=lf
+
+# Same reasoning: both are read by tools inside the image.
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
