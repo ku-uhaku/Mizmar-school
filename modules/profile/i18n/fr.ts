@@ -18,6 +18,8 @@ const fr = {
     avatarUrl: "URL de l'avatar",
     email: "Adresse e-mail",
     emailReadonly: "Contactez un administrateur pour changer votre adresse e-mail.",
+    usernameReadonly:
+      "Votre identifiant de connexion. Contactez un administrateur pour le changer.",
     updated: "Profil mis à jour.",
     security: "Sécurité",
     changePassword: "Changer le mot de passe",

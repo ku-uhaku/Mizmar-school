@@ -40,6 +40,24 @@ export default async function FamilyPage({
   // The school's own list, for the guardian dialog's profession picker.
   const parentJobs = await listParentJobs(context);
 
+  /*
+    Where this dossier could be moved to, if it was filed against the wrong
+    school. Filtered here rather than queried: the schools are already on the
+    context, and the filter is the same pair of conditions
+    `transferFamilyAction` re-derives for itself — visible to this session, and
+    `family.update` inside it. A reader with reach in one school only sees no
+    card at all.
+  */
+  const transferTargets = context.can(PERMISSIONS.FAMILY_UPDATE)
+    ? context.schools
+        .filter(
+          (school) =>
+            school.id !== context.currentSchool?.id &&
+            context.canInSchool(school.id, PERMISSIONS.FAMILY_UPDATE),
+        )
+        .map((school) => ({ id: school.id, name: school.name }))
+    : [];
+
   return (
     <>
       <PageHeader
@@ -57,6 +75,7 @@ export default async function FamilyPage({
         family={family}
         receipts={receipts}
         parentJobs={parentJobs}
+        transferTargets={transferTargets}
         canManage={context.can(PERMISSIONS.FAMILY_UPDATE)}
         canManagePortal={context.can(PERMISSIONS.FAMILY_PORTAL)}
       />

@@ -3,26 +3,37 @@ model User {
   organizationId String       @db.VarChar(30)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  email String @unique
+  /// A mailbox for this person, when the school knows of one. Optional, and
+  /// nothing signs in with it — see `username` below. A parent handed a portal
+  /// login at the counter usually has no address the school holds, and a
+  /// caretaker who needs the staff chat and nothing else has none either;
+  /// inventing `parent.f2025-0142@famille.ma` to satisfy a NOT NULL only put a
+  /// fiction in a column reports then printed.
+  ///
+  /// Unique where present, which is what nullable-unique means in MySQL: many
+  /// accounts may have none, no two may share one.
+  ///
+  /// Always lowercase — the form lowercases it on the way in, so the unique
+  /// index means what it looks like it means.
+  email String? @unique
 
-  /// What staff type to sign in. Null for accounts that do not — a guardian is
-  /// identified by their email and their phone in the dossier familial, and a
-  /// username would be one more thing for a parent to forget.
+  /// What this account types to sign in. The only credential there is: the web
+  /// form and the phone both ask for a username, and `checkCredentials` looks in
+  /// this column and no other.
   ///
-  /// ── Why nullable, given the login form asks for one ─────────────────────
-  /// Because the two audiences sign in at different doors. The web dashboard is
-  /// a staff surface — a guardian who reaches it holds no membership and every
-  /// page answers ForbiddenState — so its form asks for a username. The phone's
-  /// login serves both, and a parent still gives their email there.
-  ///
-  /// Unique where present, which is what nullable-unique means in MySQL and is
-  /// the behaviour wanted here: many accounts may have none, no two may share
-  /// one. (Contrast lib/db-keys.ts, where that same behaviour is the bug.)
+  /// ── Why it is required ──────────────────────────────────────────────────
+  /// Every row in this table is a login — `passwordHash` is not nullable — so an
+  /// account with no username is an account nobody can reach. It was nullable
+  /// while a parent still signed in with their email address; once the email
+  /// stopped being a credential, a NULL here stopped meaning "signs in
+  /// elsewhere" and started meaning "locked out", which is not a state a form
+  /// should be able to save.
   ///
   /// Always lowercase and always `USERNAME_PATTERN` — see modules/users/enums.ts.
-  /// Suggested from the name when staff are created, and editable, so a school
-  /// keeps a consistent shape without being unable to spell an awkward one.
-  username String? @unique
+  /// Suggested from the name when an account is created, and editable, so a
+  /// school keeps a consistent shape without being unable to spell an awkward
+  /// one.
+  username String @unique
 
   passwordHash String
   isActive     Boolean @default(true)

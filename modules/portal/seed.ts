@@ -19,13 +19,17 @@ import { seedStaffFunctions } from "@/modules/users/seed";
  *
  * Seeded here rather than in `modules/users/seed.ts` because what makes these
  * accounts exist is a portal being opened, not a post being filled. They are
- * upserted on the email like every other seeded account, so re-running changes
- * nothing.
+ * upserted on the username — what they sign in with, and the only column every
+ * account has — so re-running changes nothing.
+ *
+ * Neither kind gets an email address. Nothing signs in with one, and the
+ * `parent.f2025-0142@famille.ma` this used to mint was a mailbox that does not
+ * exist sitting in a column the reports print. See User.email.
  */
 
 export type SeededPortalAccounts = {
-  driverEmail: string | null;
-  parentEmails: string[];
+  driverUsername: string | null;
+  parentUsernames: string[];
 };
 
 export async function seedPortalAccounts(
@@ -49,7 +53,7 @@ export async function seedPortalAccounts(
 ): Promise<SeededPortalAccounts> {
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const driverEmail = await seedDriverAccount(db, {
+  const driverUsername = await seedDriverAccount(db, {
     organizationId,
     schoolId,
     schoolYearId,
@@ -57,14 +61,14 @@ export async function seedPortalAccounts(
     passwordHash,
   });
 
-  const parentEmails = await seedParentAccounts(db, {
+  const parentUsernames = await seedParentAccounts(db, {
     organizationId,
     schoolId,
     passwordHash,
     parentCount,
   });
 
-  return { driverEmail, parentEmails };
+  return { driverUsername, parentUsernames };
 }
 
 async function seedDriverAccount(
@@ -99,14 +103,16 @@ async function seedDriverAccount(
   // than duplicated: the chauffeur's fonction is the same row the office sees.
   const functions = await seedStaffFunctions(db, schoolId);
 
-  const email = `${slug(driver.firstName)}.${slug(driver.lastName)}@almanar.ma`;
+  // The same shape the staff seed derives, so a chauffeur types what everybody
+  // else types: `firstname.lastname`.
+  const username = `${slug(driver.firstName)}.${slug(driver.lastName)}`;
 
   const user = await db.user.upsert({
-    where: { email },
+    where: { username },
     update: {},
     create: {
       organizationId,
-      email,
+      username,
       passwordHash,
       currentSchoolId: schoolId,
       currentSchoolYearId: schoolYearId,
@@ -137,7 +143,7 @@ async function seedDriverAccount(
     data: { userId: user.id },
   });
 
-  return email;
+  return username;
 }
 
 async function seedParentAccounts(
@@ -177,20 +183,21 @@ async function seedParentAccounts(
     },
   });
 
-  const emails: string[] = [];
+  const usernames: string[] = [];
 
   for (const guardian of guardians) {
     // Keyed on the dossier, not the surname: two families called Bennani would
-    // otherwise fight over one address, and the upsert would hand the second
-    // one the first one's children.
-    const email = `parent.${guardian.family.code.toLowerCase()}@famille.ma`;
+    // otherwise fight over one username, and the upsert would hand the second
+    // one the first one's children. A code like `f-2025-0142` satisfies
+    // USERNAME_PATTERN as it stands — see modules/users/enums.ts.
+    const username = guardian.family.code.toLowerCase();
 
     const user = await db.user.upsert({
-      where: { email },
+      where: { username },
       update: {},
       create: {
         organizationId,
-        email,
+        username,
         passwordHash,
         // No membership and no role, deliberately: a parent is not staff, and
         // everything they may read is scoped by the household instead. See
@@ -212,13 +219,13 @@ async function seedParentAccounts(
       data: { userId: user.id },
     });
 
-    emails.push(email);
+    usernames.push(username);
   }
 
-  return emails;
+  return usernames;
 }
 
-/** Strips accents so a name becomes a usable local part. */
+/** Strips accents so a name becomes a usable username. */
 function slug(value: string): string {
   return value
     .normalize("NFD")

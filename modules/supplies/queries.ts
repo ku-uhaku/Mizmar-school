@@ -73,10 +73,10 @@ const listInclude = {
   },
   subject: { select: { id: true, name: true } },
   author: {
-    select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+    select: { username: true, profile: { select: { firstName: true, lastName: true } } },
   },
   reviewedBy: {
-    select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+    select: { username: true, profile: { select: { firstName: true, lastName: true } } },
   },
   items: { orderBy: [{ position: "asc" as const }, { label: "asc" as const }] },
 };

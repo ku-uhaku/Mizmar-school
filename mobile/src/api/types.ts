@@ -12,7 +12,10 @@ export type MobileSpace = "family" | "teacher" | "driver" | "director";
 
 export type Identity = {
   userId: string;
-  email: string;
+  /** What this account signs in with. */
+  username: string;
+  /** Null when the school holds no address for this person. */
+  email: string | null;
   fullName: string;
   organizationName: string;
   schoolName: string | null;

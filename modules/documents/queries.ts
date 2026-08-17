@@ -79,7 +79,7 @@ export async function loadStudentDossier(
         notes: true,
         recordedBy: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },

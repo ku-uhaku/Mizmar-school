@@ -56,6 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { MoveToSchoolCard } from "@/components/shared/move-to-school-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IDLE } from "@/lib/action-state";
@@ -67,7 +68,11 @@ import {
   interpolate,
   toDateInputValue,
 } from "@/lib/i18n/format";
-import { endContractAction, saveContractAction } from "@/modules/hr/actions";
+import {
+  endContractAction,
+  saveContractAction,
+  transferStaffAction,
+} from "@/modules/hr/actions";
 import { StaffDialog } from "@/modules/hr/components/staff-dialog";
 import {
   CONTRACT_KINDS,
@@ -91,6 +96,7 @@ export function StaffPanel({
   person,
   linkableUsers,
   schoolRoles,
+  transferTargets,
   canCreateAccount,
   canPayroll,
   canManage,
@@ -100,6 +106,11 @@ export function StaffPanel({
   linkableUsers: { id: string; label: string }[];
   /** School-scoped roles a newly created login may be granted. */
   schoolRoles: { id: string; name: string }[];
+  /**
+   * The other schools this file may be moved to — already filtered to the ones
+   * the reader holds `hr.manage` in. Empty hides the card; see the page.
+   */
+  transferTargets: { id: string; name: string }[];
   /** USER_CREATE — whether this reader may mint a login at all. */
   canCreateAccount: boolean;
   canPayroll: boolean;
@@ -294,7 +305,7 @@ export function StaffPanel({
               />
               <Fact
                 label={t.hr.account}
-                value={person.userEmail ?? t.hr.noAccount}
+                value={person.userUsername ?? t.hr.noAccount}
                 ltr
               />
               {canPayroll ? (
@@ -302,6 +313,20 @@ export function StaffPanel({
               ) : null}
             </CardContent>
           </Card>
+
+          {/* Last on the dossier tab: the answer to "I hired them into the
+            wrong school", which is realised while reading the file rather than
+            being what somebody came here for. */}
+          {canManage ? (
+            <MoveToSchoolCard
+              title={t.hr.transfer}
+              description={t.hr.transferHint}
+              label={t.hr.transferSchool}
+              confirmLabel={t.hr.transferConfirm}
+              schools={transferTargets}
+              action={(schoolId) => transferStaffAction(person.id, schoolId)}
+            />
+          ) : null}
         </TabsContent>
 
         {/* ── Duties ───────────────────────────────────────────────────── */}

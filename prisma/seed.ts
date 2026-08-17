@@ -669,8 +669,8 @@ async function main() {
       });
 
       console.log(
-        `  portail ✓ (${portal.driverEmail ? "1 chauffeur" : "aucun chauffeur"}, ` +
-          `${portal.parentEmails.length} familles)`,
+        `  portail ✓ (${portal.driverUsername ? "1 chauffeur" : "aucun chauffeur"}, ` +
+          `${portal.parentUsernames.length} familles)`,
       );
       portalLogins.push(portal);
     }
@@ -716,14 +716,13 @@ async function main() {
     );
   }
 
-  const driverLogin = portalLogins.find((entry) => entry.driverEmail);
-  const parentLogin = portalLogins.flatMap((entry) => entry.parentEmails)[0];
+  const driverLogin = portalLogins.find((entry) => entry.driverUsername);
+  const parentLogin = portalLogins.flatMap((entry) => entry.parentUsernames)[0];
   if (driverLogin || parentLogin) {
-    // The phone still takes an email: a guardian has no username, and the
-    // driver may give either. See the note on the mobile login route.
+    // A username here too: the phone and the dashboard ask for the same thing.
     console.log(
-      "Application mobile (courriel) :\n" +
-        (driverLogin ? `  chauffeur — ${driverLogin.driverEmail}\n` : "") +
+      "Application mobile (identifiant) :\n" +
+        (driverLogin ? `  chauffeur — ${driverLogin.driverUsername}\n` : "") +
         (parentLogin ? `  famille   — ${parentLogin}\n` : ""),
     );
   }

@@ -18,6 +18,7 @@ const ar = {
     avatarUrl: "رابط الصورة الرمزية",
     email: "البريد الإلكتروني",
     emailReadonly: "اتصل بالمسؤول لتغيير بريدك الإلكتروني.",
+    usernameReadonly: "ما تلج به. اتصل بالمسؤول لتغييره.",
     updated: "تم تحديث الملف الشخصي.",
     security: "الأمان",
     changePassword: "تغيير كلمة المرور",

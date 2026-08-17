@@ -22,7 +22,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const t = useT();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,12 +32,12 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      await login(email.trim(), password);
+      await login(identifier.trim(), password);
       router.replace("/home");
     } catch (caught) {
       // The server's own message, which is already the localised one and
       // already says the same thing for a wrong password as for an unknown
-      // address. The one worth expanding on is the lockout, which has a number
+      // username. The one worth expanding on is the lockout, which has a number
       // attached the parent needs.
       if (caught instanceof ApiError && caught.retryAfterSeconds) {
         const minutes = Math.ceil(caught.retryAfterSeconds / 60);
@@ -87,17 +87,19 @@ export default function LoginScreen() {
 
         <View style={{ gap: spacing.xs }}>
           <Text style={{ color: theme.muted, fontSize: 13 }}>
-            {t.login.emailLabel}
+            {t.login.identifierLabel}
           </Text>
           <TextInput
-            value={email}
-            onChangeText={setEmail}
+            value={identifier}
+            onChangeText={setIdentifier}
             style={inputStyle}
-            placeholder={t.login.emailPlaceholder}
+            placeholder={t.login.identifierPlaceholder}
             placeholderTextColor={theme.muted}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
+            // `default`, not `email-address`: the keyboard's `@` key is no use
+            // for a username and its layout hides the dot.
+            keyboardType="default"
             textContentType="username"
             returnKeyType="next"
           />
@@ -122,7 +124,7 @@ export default function LoginScreen() {
           label={t.login.submit}
           onPress={submit}
           busy={busy}
-          disabled={!email.trim() || !password}
+          disabled={!identifier.trim() || !password}
         />
       </ScrollView>
     </KeyboardAvoidingView>

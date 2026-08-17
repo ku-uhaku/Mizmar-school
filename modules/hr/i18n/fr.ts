@@ -48,8 +48,6 @@ const fr = {
     accountPassword: "Mot de passe initial",
     accountPasswordHint:
       "Remettez-le en main propre ; il pourra le changer depuis son profil.",
-    accountNeedsEmail:
-      "Une adresse électronique est nécessaire pour créer un accès.",
     accountNeedsPassword:
       "Définissez un mot de passe initial pour le nouvel accès.",
     accountNeedsUsername:
@@ -90,7 +88,6 @@ const fr = {
     accessHint: "S'il se connecte, et ce qu'il pourra faire une fois connecté.",
     accountNotPermitted: "Vous n'êtes pas autorisé à créer des accès.",
     noPermissions: "Un accès sans permission",
-    emailIsLogin: "C'est aussi l'adresse sur laquelle son compte est ouvert.",
     jobFunctionNeedsAccount:
       "La fonction est portée par l'accès — activez-en un pour la renseigner.",
     maxWeeklyMinutes: "Charge hebdomadaire maximale",
@@ -330,8 +327,27 @@ const fr = {
     lastNet: "Dernier net",
     noPayslipYet: "Aucun bulletin émis.",
     leaveDaysTaken: "{count} jours de congé cette année",
+
+    transfer: "Transférer vers une autre école",
+    transferHint:
+      "Pour un dossier ouvert dans la mauvaise école. Ses contrats le suivent ; ce qui s'est déjà passé ici ne le suit pas.",
+    transferSchool: "Nouvelle école",
+    transferConfirm: "Transférer cet employé",
+    transferred: "Employé transféré.",
+    transferredRecoded:
+      "Employé transféré. Son matricule est désormais {code} — l'ancien était déjà utilisé dans cette école.",
+    transferBlocked: "Cet employé ne peut pas être transféré : {reasons}.",
+    transferSameSchool: "Il travaille déjà dans cette école.",
+    transferOtherOrganisation: "Cette école appartient à une autre organisation.",
   },
   hrOptions: {
+    transferBlockers: {
+      payroll: "il a déjà été payé ici",
+      register: "son pointage ou ses congés y sont enregistrés",
+      teaching: "il enseigne ou est habilité ici",
+      transport: "il fait partie du parc de cette école",
+      caisse: "il tient une caisse ici",
+    },
     jobRoles: {
       TEACHER: "Enseignant",
       DIRECTOR: "Directeur",

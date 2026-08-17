@@ -39,6 +39,7 @@ import {
   refreshStaffLeaveStatus,
   saveContract,
   saveSalary,
+  transferStaff,
 } from "@/modules/hr/service";
 import {
   advanceDecisionSchema,
@@ -191,11 +192,10 @@ export async function saveStaffAction(
     if (parsed.data.createAccount && userId === null) {
       await authorizeSchool(schoolId, PERMISSIONS.USER_CREATE);
 
-      if (!parsed.data.email) {
-        return failure(t.hr.accountNeedsEmail, {
-          email: t.hr.accountNeedsEmail,
-        });
-      }
+      // No email gate: an address is optional on an account and is not what
+      // anybody signs in with — see User.email. A username is what is needed,
+      // and `createLoginAccount` builds one from the name when the form left it
+      // blank.
       if (!parsed.data.accountPassword) {
         return failure(t.hr.accountNeedsPassword, {
           accountPassword: t.hr.accountNeedsPassword,
@@ -509,13 +509,7 @@ export async function hireStaffAction(
     let userId: string | null = null;
 
     if (wantsAccount) {
-      if (!hire.email) {
-        return failure(
-          t.hr.accountNeedsEmail,
-          { email: t.hr.accountNeedsEmail },
-          formValues(formData),
-        );
-      }
+      // As above: no email is needed to open an account.
       if (!hire.accountPassword) {
         return failure(
           t.hr.accountNeedsPassword,
@@ -678,6 +672,75 @@ export async function deleteStaffAction(staffId: string): Promise<ActionState> {
 
     refresh();
     return success(t.hr.staffDeleted);
+  });
+}
+
+// ── Moving somebody to another school ────────────────────────────────────────
+
+/**
+ * Moves an employee's file opened against the wrong school.
+ *
+ * ── Authorized in *both* schools, not one ───────────────────────────────────
+ * Every other endpoint in this file takes the school from the working context and
+ * re-derives the employee against it. That cannot hold on its own here, because
+ * the point is to write into a school the context does not name — so the target
+ * is asserted as its own authority. `authorizeSchool` refuses a school this
+ * session cannot see, then refuses it again without `hr.manage` there. Somebody
+ * who runs Casablanca's payroll therefore cannot post one of its employees into
+ * Rabat, which is the leak this module's own note calls the worst kind it can
+ * have.
+ *
+ * What follows the person and what refuses to is decided by `transferStaff` —
+ * see the note there.
+ */
+export async function transferStaffAction(
+  staffId: string,
+  toSchoolId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await schoolContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.HR_MANAGE);
+    await authorizeSchool(toSchoolId, PERMISSIONS.HR_MANAGE);
+
+    const result = await transferStaff({
+      staffId,
+      fromSchoolId: schoolId,
+      toSchoolId,
+    });
+
+    if (!result.ok) {
+      if (result.reason === "blocked") {
+        return failure(
+          interpolate(t.hr.transferBlocked, {
+            reasons: result.blockers
+              .map((blocker) => t.hrOptions.transferBlockers[blocker])
+              .join(", "),
+          }),
+        );
+      }
+      return failure(
+        result.reason === "not-found"
+          ? t.errors.notFound
+          : result.reason === "same-school"
+            ? t.hr.transferSameSchool
+            : t.hr.transferOtherOrganisation,
+      );
+    }
+
+    /*
+      The matricule is in the message because it may have just changed: it is
+      unique per school, so an employee moving into a school that already issued
+      their number is renumbered — and that number is written on their contract
+      and on every attestation the school has printed.
+    */
+    refresh();
+    return success(
+      result.recoded
+        ? interpolate(t.hr.transferredRecoded, { code: result.code })
+        : t.hr.transferred,
+    );
   });
 }
 

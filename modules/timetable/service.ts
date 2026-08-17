@@ -621,7 +621,7 @@ export async function buildTimetableDraft(
           isPrimary: true,
           teacher: {
             select: {
-              email: true,
+              username: true,
               profile: { select: { firstName: true, lastName: true } },
             },
           },
@@ -1056,7 +1056,7 @@ export async function buildTimetableDraft(
         assignment.teacherId,
         profile
           ? `${profile.firstName} ${profile.lastName}`.trim()
-          : assignment.teacher.email,
+          : assignment.teacher.username,
       );
     }
   }
@@ -1073,7 +1073,7 @@ export async function buildTimetableDraft(
       where: { id: { in: chosenIds } },
       select: {
         id: true,
-        email: true,
+        username: true,
         profile: { select: { firstName: true, lastName: true } },
       },
     });
@@ -1082,7 +1082,7 @@ export async function buildTimetableDraft(
         user.id,
         user.profile
           ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
-          : user.email,
+          : user.username,
       );
     }
   }

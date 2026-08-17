@@ -13,15 +13,14 @@ import { issueTokens } from "@/lib/mobile-token";
  * and the constant-time answer for an unknown account are enforced in there,
  * and a second credential path would quietly opt mobile out of both.
  *
- * ── Why this one still says "email" ─────────────────────────────────────────
- * The web form asks staff for a username; this one serves guardians too, and a
- * parent has no username — they are identified by the address the school holds
- * for them. Both go to the same resolver, which picks the column by whether
- * there is an `@` in what arrived, so a teacher may give either here.
- *
- * `email` is kept as an accepted field name because a copy of the app already
- * installed on somebody's phone sends it, and a rename would sign them all out
- * with no way back. `identifier` is the name to use from here on.
+ * ── Why `email` is still an accepted field name ─────────────────────────────
+ * What arrives is a username — the same credential the web dashboard asks for,
+ * for a guardian as much as for a teacher. But a copy of this app already
+ * installed on somebody's phone sends the value under the key `email`, and
+ * refusing that key would sign every one of them out with no way back. So both
+ * names are read and neither says anything about which column is looked in:
+ * `checkCredentials` resolves a username and nothing else. `identifier` is the
+ * name to use from here on.
  */
 
 const schema = z
@@ -41,7 +40,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!parsed.success) {
     return apiError(
       "invalid_request",
-      "An identifier and a password are required.",
+      "A username and a password are required.",
       400,
     );
   }
@@ -78,7 +77,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // an account is real.
     return apiError(
       "invalid_credentials",
-      "Incorrect identifier or password.",
+      "Incorrect username or password.",
       401,
     );
   }

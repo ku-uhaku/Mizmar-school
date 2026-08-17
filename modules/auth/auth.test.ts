@@ -8,9 +8,9 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
  * `/api/mobile/v1/auth/login` — so everything the login has to promise is
  * promised here or nowhere:
  *
- *   * a wrong address and a wrong password are indistinguishable to the caller,
- *   * a locked address costs no bcrypt work,
- *   * the counter is keyed on the *normalised* address, so varying the casing
+ *   * a wrong username and a wrong password are indistinguishable to the caller,
+ *   * a locked username costs no bcrypt work,
+ *   * the counter is keyed on the *normalised* username, so varying the casing
  *     is not a way around it.
  *
  * The database is faked rather than mocked call-by-call: the throttle's whole
@@ -21,7 +21,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 // ── An in-memory stand-in for the two tables this path touches ───────────────
 
 type AttemptRow = {
-  email: string;
+  identifier: string;
   failedCount: number;
   lastFailedAt: Date | null;
   lockedUntil: Date | null;
@@ -29,7 +29,7 @@ type AttemptRow = {
 
 type UserRow = {
   id: string;
-  email: string;
+  username: string;
   passwordHash: string;
   isActive: boolean;
 };
@@ -39,32 +39,32 @@ const users = new Map<string, UserRow>();
 
 const fakeDb = {
   loginAttempt: {
-    findUnique: async ({ where }: { where: { email: string } }) =>
-      attempts.get(where.email) ?? null,
+    findUnique: async ({ where }: { where: { identifier: string } }) =>
+      attempts.get(where.identifier) ?? null,
     upsert: async ({
       where,
       create,
       update,
     }: {
-      where: { email: string };
+      where: { identifier: string };
       create: AttemptRow;
       update: Partial<AttemptRow>;
     }) => {
-      const existing = attempts.get(where.email);
+      const existing = attempts.get(where.identifier);
       attempts.set(
-        where.email,
+        where.identifier,
         existing ? { ...existing, ...update } : { ...create },
       );
-      return attempts.get(where.email);
+      return attempts.get(where.identifier);
     },
-    deleteMany: async ({ where }: { where: { email: string } }) => {
-      attempts.delete(where.email);
+    deleteMany: async ({ where }: { where: { identifier: string } }) => {
+      attempts.delete(where.identifier);
       return { count: 1 };
     },
   },
   user: {
-    findUnique: async ({ where }: { where: { email: string } }) =>
-      users.get(where.email) ?? null,
+    findUnique: async ({ where }: { where: { username: string } }) =>
+      users.get(where.username) ?? null,
   },
 };
 
@@ -82,10 +82,10 @@ const { checkCredentials, hashPassword } = await import("@/lib/auth");
 const MINUTE = 60 * 1000;
 
 /** Drives the throttle the way a caller does: check, and only then record. */
-async function attemptLogin(email: string): Promise<"tried" | "blocked"> {
-  const verdict = await checkLoginThrottle(email);
+async function attemptLogin(username: string): Promise<"tried" | "blocked"> {
+  const verdict = await checkLoginThrottle(username);
   if (verdict.locked) return "blocked";
-  await recordFailedLogin(email);
+  await recordFailedLogin(username);
   return "tried";
 }
 
@@ -102,140 +102,140 @@ afterEach(() => {
 // ── The throttle ─────────────────────────────────────────────────────────────
 
 describe("login throttle", () => {
-  it("lets an unknown address through", async () => {
+  it("lets an unknown username through", async () => {
     expect(await checkLoginThrottle("nobody@school.ma")).toEqual({
       locked: false,
     });
   });
 
   it("locks on the fifth consecutive failure, not the fourth", async () => {
-    const email = "bursar@school.ma";
+    const username = "a.bursar";
 
     for (let i = 0; i < MAX_FAILED_ATTEMPTS - 1; i++) {
-      await recordFailedLogin(email);
-      expect(await checkLoginThrottle(email)).toEqual({ locked: false });
+      await recordFailedLogin(username);
+      expect(await checkLoginThrottle(username)).toEqual({ locked: false });
     }
 
-    await recordFailedLogin(email);
-    const verdict = await checkLoginThrottle(email);
+    await recordFailedLogin(username);
+    const verdict = await checkLoginThrottle(username);
     expect(verdict.locked).toBe(true);
   });
 
   it("rounds the wait up, so nobody is told to wait zero minutes", async () => {
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
 
     // 100ms into a one-minute lock: 59.9s remaining must not round to 59.
     vi.advanceTimersByTime(100);
-    const verdict = await checkLoginThrottle(email);
+    const verdict = await checkLoginThrottle(username);
     expect(verdict.locked && verdict.retryAfterSeconds).toBe(60);
   });
 
   it("clears itself once the lock has run out", async () => {
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
-    expect((await checkLoginThrottle(email)).locked).toBe(true);
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
+    expect((await checkLoginThrottle(username)).locked).toBe(true);
 
     vi.advanceTimersByTime(1 * MINUTE + 1);
-    expect(await checkLoginThrottle(email)).toEqual({ locked: false });
+    expect(await checkLoginThrottle(username)).toEqual({ locked: false });
   });
 
   it("forgets a stale run, so two typos in March and three in June do not add up", async () => {
-    const email = "bursar@school.ma";
-    await recordFailedLogin(email);
-    await recordFailedLogin(email);
+    const username = "a.bursar";
+    await recordFailedLogin(username);
+    await recordFailedLogin(username);
 
     // Past the 15-minute window that makes a run "consecutive".
     vi.advanceTimersByTime(16 * MINUTE);
 
     for (let i = 0; i < MAX_FAILED_ATTEMPTS - 1; i++) {
-      await recordFailedLogin(email);
+      await recordFailedLogin(username);
     }
     // Four in the new run: the two old ones must not have counted.
-    expect(await checkLoginThrottle(email)).toEqual({ locked: false });
+    expect(await checkLoginThrottle(username)).toEqual({ locked: false });
 
-    await recordFailedLogin(email);
-    expect((await checkLoginThrottle(email)).locked).toBe(true);
+    await recordFailedLogin(username);
+    expect((await checkLoginThrottle(username)).locked).toBe(true);
   });
 
   it("escalates the second lock beyond the first", async () => {
-    const email = "bursar@school.ma";
+    const username = "a.bursar";
 
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
-    const first = await checkLoginThrottle(email);
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
+    const first = await checkLoginThrottle(username);
     expect(first.locked && first.retryAfterSeconds).toBe(60);
 
     vi.advanceTimersByTime(1 * MINUTE + 1);
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
-    const second = await checkLoginThrottle(email);
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
+    const second = await checkLoginThrottle(username);
     expect(second.locked && second.retryAfterSeconds).toBe(5 * 60);
   });
 
   it("keeps counting through a lock rather than resetting on the way out", async () => {
     // A grind that waits out its lock and carries on must escalate, not start
     // over — that is what `stillLocked` is for in recordFailedLogin.
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
 
     // One more while still inside the lock.
-    await recordFailedLogin(email);
+    await recordFailedLogin(username);
     vi.advanceTimersByTime(1 * MINUTE + 1);
 
     // Four more reaches ten, which is the second lock.
-    for (let i = 0; i < 4; i++) await recordFailedLogin(email);
-    const verdict = await checkLoginThrottle(email);
+    for (let i = 0; i < 4; i++) await recordFailedLogin(username);
+    const verdict = await checkLoginThrottle(username);
     expect(verdict.locked && verdict.retryAfterSeconds).toBe(5 * 60);
   });
 
   it("a correct password forgets the run entirely", async () => {
-    const email = "bursar@school.ma";
+    const username = "a.bursar";
     for (let i = 0; i < MAX_FAILED_ATTEMPTS - 1; i++) {
-      await recordFailedLogin(email);
+      await recordFailedLogin(username);
     }
-    await clearLoginAttempts(email);
+    await clearLoginAttempts(username);
 
     for (let i = 0; i < MAX_FAILED_ATTEMPTS - 1; i++) {
-      await recordFailedLogin(email);
+      await recordFailedLogin(username);
     }
-    expect(await checkLoginThrottle(email)).toEqual({ locked: false });
+    expect(await checkLoginThrottle(username)).toEqual({ locked: false });
   });
 
-  it("counts addresses that match no user, so the lockout does not answer 'does this person work here?'", async () => {
-    const email = "not-a-real-address@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
-    expect((await checkLoginThrottle(email)).locked).toBe(true);
+  it("counts usernames that match no user, so the lockout does not answer 'does this person work here?'", async () => {
+    const username = "nobody.here";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
+    expect((await checkLoginThrottle(username)).locked).toBe(true);
   });
 
   it("never locks permanently: every lock has a finite wait", async () => {
-    const email = "bursar@school.ma";
+    const username = "a.bursar";
     for (let round = 0; round < 8; round++) {
       for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
-        await attemptLogin(email);
+        await attemptLogin(username);
       }
-      const verdict = await checkLoginThrottle(email);
+      const verdict = await checkLoginThrottle(username);
       if (verdict.locked) {
         expect(verdict.retryAfterSeconds).toBeGreaterThan(0);
         expect(verdict.retryAfterSeconds).toBeLessThanOrEqual(60 * 60);
         vi.advanceTimersByTime(verdict.retryAfterSeconds * 1000 + 1);
       }
     }
-    expect((await checkLoginThrottle(email)).locked).toBe(false);
+    expect((await checkLoginThrottle(username)).locked).toBe(false);
   });
 
   it("escalates all the way to the longest lock the ladder declares", async () => {
     // A patient attacker waits out each lock and keeps going. The ladder tops
     // out at an hour, and the run must actually reach it: an attacker whose
     // counter resets on the way is one the ladder never slows down.
-    const email = "bursar@school.ma";
+    const username = "a.bursar";
     const waits: number[] = [];
 
     for (let round = 0; round < 4; round++) {
       let guard = 0;
       // Fail until this round produces a lock.
-      while (!(await checkLoginThrottle(email)).locked && guard++ < 50) {
-        await recordFailedLogin(email);
+      while (!(await checkLoginThrottle(username)).locked && guard++ < 50) {
+        await recordFailedLogin(username);
       }
-      const verdict = await checkLoginThrottle(email);
+      const verdict = await checkLoginThrottle(username);
       if (!verdict.locked) break;
       waits.push(verdict.retryAfterSeconds);
       vi.advanceTimersByTime(verdict.retryAfterSeconds * 1000 + 1);
@@ -254,137 +254,137 @@ describe("checkCredentials", () => {
   beforeEach(async () => {
     vi.useRealTimers();
     hash ??= await hashPassword(PASSWORD);
-    users.set("bursar@school.ma", {
+    users.set("a.bursar", {
       id: "user-1",
-      email: "bursar@school.ma",
+      username: "a.bursar",
       passwordHash: hash,
       isActive: true,
     });
   });
 
   it("accepts the right password", async () => {
-    const result = await checkCredentials("bursar@school.ma", PASSWORD);
+    const result = await checkCredentials("a.bursar", PASSWORD);
     expect(result).toEqual({ ok: true, userId: "user-1" });
   });
 
-  it("gives an unknown address and a wrong password the same answer", async () => {
-    const unknown = await checkCredentials("ghost@school.ma", "whatever");
-    const wrong = await checkCredentials("bursar@school.ma", "whatever");
+  it("gives an unknown username and a wrong password the same answer", async () => {
+    const unknown = await checkCredentials("a.ghost", "whatever");
+    const wrong = await checkCredentials("a.bursar", "whatever");
 
     expect(unknown).toEqual({ ok: false, reason: "invalid" });
     expect(wrong).toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("does the bcrypt work even for an address with no account", async () => {
-    // Skipping the compare would make "unknown address" measurably faster and
+  it("does the bcrypt work even for a username with no account", async () => {
+    // Skipping the compare would make "unknown username" measurably faster and
     // turn the login form into an employee directory. DUMMY_HASH is what keeps
     // the two paths comparable; this pins that the compare still happens.
     const started = performance.now();
-    await checkCredentials("ghost@school.ma", "whatever");
+    await checkCredentials("a.ghost", "whatever");
     const elapsed = performance.now() - started;
     // A skipped bcrypt(12) compare would come back in single-digit ms.
     expect(elapsed).toBeGreaterThan(20);
   });
 
-  it("normalises the address, so casing and padding are not a way around the counter", async () => {
+  it("normalises the username, so casing and padding are not a way around the counter", async () => {
     for (const spelling of [
-      "  bursar@school.ma  ",
-      "BURSAR@SCHOOL.MA",
-      "Bursar@School.Ma",
+      "  a.bursar  ",
+      "A.BURSAR",
+      "A.Bursar",
     ]) {
       const result = await checkCredentials(spelling, PASSWORD);
       expect(result, spelling).toEqual({ ok: true, userId: "user-1" });
     }
   });
 
-  it("counts a failure once per attempt, however the address was spelled", async () => {
-    await checkCredentials("BURSAR@school.ma", "wrong");
-    await checkCredentials("  bursar@SCHOOL.ma ", "wrong");
-    await checkCredentials("Bursar@School.Ma", "wrong");
+  it("counts a failure once per attempt, however the username was spelled", async () => {
+    await checkCredentials("A.bursar", "wrong");
+    await checkCredentials("  a.BURSAR ", "wrong");
+    await checkCredentials("A.Bursar", "wrong");
 
-    expect(attempts.get("bursar@school.ma")?.failedCount).toBe(3);
+    expect(attempts.get("a.bursar")?.failedCount).toBe(3);
     expect(attempts.size).toBe(1);
   });
 
   it("refuses a deactivated account even with the right password", async () => {
-    users.set("bursar@school.ma", {
+    users.set("a.bursar", {
       id: "user-1",
-      email: "bursar@school.ma",
+      username: "a.bursar",
       passwordHash: hash,
       isActive: false,
     });
 
-    expect(await checkCredentials("bursar@school.ma", PASSWORD)).toEqual({
+    expect(await checkCredentials("a.bursar", PASSWORD)).toEqual({
       ok: false,
       reason: "disabled",
     });
   });
 
   it("distinguishes a deactivated account from a wrong password only when the password was right", async () => {
-    // Otherwise "deactivated" would confirm an address exists to anyone typing
+    // Otherwise "deactivated" would confirm a username exists to anyone typing
     // a guess at it.
-    users.set("bursar@school.ma", {
+    users.set("a.bursar", {
       id: "user-1",
-      email: "bursar@school.ma",
+      username: "a.bursar",
       passwordHash: hash,
       isActive: false,
     });
 
-    expect(await checkCredentials("bursar@school.ma", "wrong")).toEqual({
+    expect(await checkCredentials("a.bursar", "wrong")).toEqual({
       ok: false,
       reason: "invalid",
     });
   });
 
   it("clears the counter for a deactivated account that got the password right", async () => {
-    users.set("bursar@school.ma", {
+    users.set("a.bursar", {
       id: "user-1",
-      email: "bursar@school.ma",
+      username: "a.bursar",
       passwordHash: hash,
       isActive: false,
     });
-    await checkCredentials("bursar@school.ma", "wrong");
-    expect(attempts.has("bursar@school.ma")).toBe(true);
+    await checkCredentials("a.bursar", "wrong");
+    expect(attempts.has("a.bursar")).toBe(true);
 
-    await checkCredentials("bursar@school.ma", PASSWORD);
-    expect(attempts.has("bursar@school.ma")).toBe(false);
+    await checkCredentials("a.bursar", PASSWORD);
+    expect(attempts.has("a.bursar")).toBe(false);
   });
 
-  it("refuses a locked address before touching the hash", async () => {
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
+  it("refuses a locked username before touching the hash", async () => {
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
 
     const started = performance.now();
-    const result = await checkCredentials(email, PASSWORD);
+    const result = await checkCredentials(username, PASSWORD);
     const elapsed = performance.now() - started;
 
     expect(result).toMatchObject({ ok: false, reason: "throttled" });
-    // No bcrypt work: a locked address must not be a way to burn the CPU.
+    // No bcrypt work: a locked username must not be a way to burn the CPU.
     expect(elapsed).toBeLessThan(20);
   });
 
-  it("keeps the right password from being spent while the address is locked", async () => {
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
+  it("keeps the right password from being spent while the username is locked", async () => {
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
 
-    const result = await checkCredentials(email, PASSWORD);
+    const result = await checkCredentials(username, PASSWORD);
     expect(result.ok).toBe(false);
     // Still locked afterwards — a correct password does not lift the lock.
-    expect((await checkLoginThrottle(email)).locked).toBe(true);
+    expect((await checkLoginThrottle(username)).locked).toBe(true);
   });
 
   it("does not count a blocked attempt again, so a lock cannot be extended by hammering it", async () => {
-    const email = "bursar@school.ma";
-    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(email);
-    const before = attempts.get(email)?.failedCount;
+    const username = "a.bursar";
+    for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) await recordFailedLogin(username);
+    const before = attempts.get(username)?.failedCount;
 
-    for (let i = 0; i < 20; i++) await checkCredentials(email, "wrong");
+    for (let i = 0; i < 20; i++) await checkCredentials(username, "wrong");
 
-    expect(attempts.get(email)?.failedCount).toBe(before);
+    expect(attempts.get(username)?.failedCount).toBe(before);
   });
 
   it("rejects an empty password against a real account", async () => {
-    expect(await checkCredentials("bursar@school.ma", "")).toEqual({
+    expect(await checkCredentials("a.bursar", "")).toEqual({
       ok: false,
       reason: "invalid",
     });

@@ -99,6 +99,33 @@ services:
       retries: 3
       start_period: 40s
 
+  # Not part of the stack. `profiles` keeps it out of a plain `docker compose
+  # up`, so a deployment never quietly gains a database administration UI — it
+  # starts only when asked for by name:
+  #
+  #     docker compose --profile tools up -d phpmyadmin
+  #
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    profiles: ["tools"]
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      # Reached over the compose network, so this is the service name and not
+      # the published 127.0.0.1 port.
+      PMA_HOST: db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 256M
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Loopback for the same reason as MySQL above: Docker writes its own
+      # iptables entries, so a bare `8080:80` would publish an admin panel to
+      # the whole internet, past any security-list rule. Tunnel in over SSH
+      # (`ssh -L 8080:127.0.0.1:8080 host`) to reach it remotely.
+      - "127.0.0.1:${PMA_PORT_HOST:-8080}:80"
+
 volumes:
   # Named, so `docker compose down` keeps the school's data. Only
   # `docker compose down -v` destroys it.

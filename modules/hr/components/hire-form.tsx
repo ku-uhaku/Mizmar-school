@@ -457,19 +457,14 @@ export function HireForm({
                 defaultValue={valueOf(state, "phone", "")}
               />
             </FormField>
-            <FormField
-              label={t.hr.email}
-              name="email"
-              hint={createAccount ? t.hr.emailIsLogin : undefined}
-              error={errors.email}
-              required={createAccount}
-            >
+            {/* Optional whether or not a login is opened: the account signs in
+              with the username below — see User.email. */}
+            <FormField label={t.hr.email} name="email" error={errors.email}>
               <Input
                 id="email"
                 name="email"
                 type="email"
                 dir="ltr"
-                required={createAccount}
                 defaultValue={valueOf(state, "email", "")}
               />
             </FormField>

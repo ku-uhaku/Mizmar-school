@@ -345,7 +345,7 @@ export async function submitList(
       schoolClass: { select: { code: true } },
       author: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -375,7 +375,7 @@ type SubmittedList = {
   school: { organizationId: string };
   schoolClass: { code: string };
   author: {
-    email: string;
+    username: string;
     profile: { firstName: string; lastName: string } | null;
   } | null;
 };

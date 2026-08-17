@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CakeIcon, GraduationCapIcon, UsersIcon } from "lucide-react";
 
 import { useI18n } from "@/components/providers/i18n-provider";
+import { MoveToSchoolCard } from "@/components/shared/move-to-school-card";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/i18n/format";
+import { transferFamilyAction } from "@/modules/families/actions";
 import { FamilyForm } from "@/modules/families/components/family-form";
 import { GuardiansPanel } from "@/modules/families/components/guardians-panel";
 import { FamilyReceipts } from "@/modules/treasury/components/family-receipts";
@@ -34,6 +36,7 @@ export function FamilyDetail({
   family,
   receipts,
   parentJobs,
+  transferTargets,
   canManage,
   canManagePortal,
 }: {
@@ -45,6 +48,11 @@ export function FamilyDetail({
   receipts: PaymentRow[] | null;
   /** The school's own professions, active ones only — see ParentJob. */
   parentJobs: { id: string; name: string }[];
+  /**
+   * The other schools this dossier may be moved to — already filtered to the
+   * ones the reader may write in. Empty hides the card; see the page.
+   */
+  transferTargets: { id: string; name: string }[];
   canManage: boolean;
   canManagePortal: boolean;
 }) {
@@ -77,7 +85,23 @@ export function FamilyDetail({
       </TabsList>
 
       <TabsContent value="details">
-        <FamilyForm family={family} />
+        <div className="grid gap-4">
+          <FamilyForm family={family} />
+
+          {/* Under the form, not beside it: it is the answer to "I opened this
+            in the wrong school", which is a thing somebody realises while
+            reading the dossier rather than something they come here to do. */}
+          {canManage ? (
+            <MoveToSchoolCard
+              title={t.family.transfer}
+              description={t.family.transferHint}
+              label={t.family.transferSchool}
+              confirmLabel={t.family.transferConfirm}
+              schools={transferTargets}
+              action={(schoolId) => transferFamilyAction(family.id, schoolId)}
+            />
+          ) : null}
+        </div>
       </TabsContent>
 
       {receipts ? (

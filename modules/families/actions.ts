@@ -28,6 +28,7 @@ import {
   openPortalAccessFor,
   refreshPortalAccess,
   relationshipTaken,
+  transferFamily,
   type IssuedPortalCredentials,
 } from "@/modules/families/service";
 import {
@@ -37,7 +38,6 @@ import {
 } from "@/modules/families/validation";
 import { suggestUsername } from "@/modules/users/enums";
 import {
-  allocateAccountEmail,
   allocateUsername,
   createLoginAccount,
 } from "@/modules/users/service";
@@ -498,12 +498,6 @@ export async function openPortalAccountAction(
     const username = await allocateUsername("", "", base);
     if (!username) return failure(t.family.portalNoUsername);
 
-    // Required and unique on the column even though the parent signs in with the
-    // username — see `allocateAccountEmail`.
-    const email = await allocateAccountEmail(
-      `parent.${guardian.family.code.toLowerCase()}@famille.ma`,
-    );
-
     const account = await createLoginAccount({
       organizationId: context.organization.id,
       schoolId: guardian.family.schoolId,
@@ -512,7 +506,8 @@ export async function openPortalAccountAction(
       roleId: null,
       firstName: guardian.firstName,
       lastName: guardian.lastName,
-      email,
+      // No address on the account — see `openPortalAccessFor` in service.ts.
+      email: null,
       username,
       password,
       phone: guardian.phone,
@@ -646,5 +641,74 @@ export async function setPrimaryContactAction(
 
     refresh();
     return success(t.family.guardianUpdated);
+  });
+}
+
+// ── Moving a dossier to another school ───────────────────────────────────────
+
+/**
+ * Moves a dossier opened against the wrong school.
+ *
+ * ── Authorized in *both* schools, not one ───────────────────────────────────
+ * The rule the rest of this file follows — take the school from the working
+ * context, never from the form — cannot hold on its own here, because the whole
+ * point is to write into a school that is not in the context. So the target is
+ * asserted as its own authority: `authorizeSchool` refuses a school the session
+ * cannot see at all, and then refuses it again without `family.update` in that
+ * school. A secretary who may edit dossiers in Casablanca therefore cannot post
+ * one of them into Rabat, which is exactly the leak the pattern exists to stop.
+ *
+ * What can and cannot follow the dossier is decided by `transferFamily` — see
+ * the note there, which is where the invariants live.
+ */
+export async function transferFamilyAction(
+  familyId: string,
+  toSchoolId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+    const context = await requireAuth();
+    const fromSchoolId = context.currentSchool?.id;
+    if (!fromSchoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(fromSchoolId, PERMISSIONS.FAMILY_UPDATE);
+    await authorizeSchool(toSchoolId, PERMISSIONS.FAMILY_UPDATE);
+
+    const result = await transferFamily({ familyId, fromSchoolId, toSchoolId });
+
+    if (!result.ok) {
+      if (result.reason === "blocked") {
+        return failure(
+          interpolate(t.family.transferBlocked, {
+            reasons: result.blockers
+              .map((blocker) => t.familyOptions.transferBlockers[blocker])
+              .join(", "),
+          }),
+        );
+      }
+      return failure(
+        result.reason === "not-found"
+          ? t.errors.notFound
+          : result.reason === "same-school"
+            ? t.family.transferSameSchool
+            : t.family.transferOtherOrganisation,
+      );
+    }
+
+    /*
+      The new dossier number is in the message, and the count of what had to be
+      re-picked with it. Both are things the office has to know and neither is
+      visible on the screen it lands back on: a matricule written on a paper file
+      has just changed, and a town the new school does not keep has just been
+      emptied.
+    */
+    refresh();
+    return success(
+      interpolate(t.family.transferred, {
+        code: result.code,
+        children: String(result.childCount),
+        cleared: String(result.clearedReferences),
+      }),
+    );
   });
 }

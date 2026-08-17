@@ -496,7 +496,7 @@ export async function listRemarks(
       authorId: true,
       author: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -573,7 +573,7 @@ export async function listRemarkFilterChoices(
         authorId: true,
         author: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -811,7 +811,7 @@ export async function loadPupilAttendance(
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: {
       subject: { select: { name: true } },
-      recordedBy: { select: { email: true, profile: true } },
+      recordedBy: { select: { username: true, profile: true } },
     },
   });
 
@@ -870,7 +870,7 @@ export async function loadPupilRemarks(
     orderBy: [{ occurredOn: "desc" }, { createdAt: "desc" }],
     include: {
       subject: { select: { name: true } },
-      author: { select: { email: true, profile: true } },
+      author: { select: { username: true, profile: true } },
     },
   });
 
@@ -1005,7 +1005,7 @@ export async function loadClassroomActivity(
               timeSlot: { select: { startTime: true } },
               recordedBy: {
                 select: {
-                  email: true,
+                  username: true,
                   profile: { select: { firstName: true, lastName: true } },
                 },
               },
@@ -1058,7 +1058,7 @@ export async function loadClassroomActivity(
               isVisibleToFamily: true,
               author: {
                 select: {
-                  email: true,
+                  username: true,
                   profile: { select: { firstName: true, lastName: true } },
                 },
               },

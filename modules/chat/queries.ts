@@ -73,12 +73,14 @@ export type ChatMessageRow = {
 };
 
 function displayName(user: {
-  email: string;
+  username: string;
   profile: { firstName: string; lastName: string } | null;
 } | null): string {
   if (!user) return "—";
-  if (!user.profile) return user.email;
-  return `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.email;
+  if (!user.profile) return user.username;
+  return (
+    `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.username
+  );
 }
 
 /**
@@ -110,13 +112,13 @@ export async function listMessages(
       deletedAt: true,
       author: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
       deletedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

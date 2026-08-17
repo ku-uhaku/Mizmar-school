@@ -1258,3 +1258,233 @@ export async function detachPayrollFromOperations(
     data: { status: "APPROVED", paidOn: null, cashOperationId: null },
   });
 }
+
+// ── Moving somebody to another school ────────────────────────────────────────
+
+/**
+ * What is keeping an employee where they are.
+ *
+ * Five buckets rather than one blocker per table, because each names a screen
+ * the office has to clear before the move — and "3 payslips" is a sentence
+ * somebody can act on where "salaries" is not.
+ */
+export type StaffTransferBlocker =
+  | "payroll"
+  | "register"
+  | "teaching"
+  | "transport"
+  | "caisse";
+
+export type StaffTransferResult =
+  | {
+      ok: true;
+      /** The matricule they now hold — reissued when the old one was taken. */
+      code: string;
+      /** Whether the matricule had to change, which the office must write down. */
+      recoded: boolean;
+      /** True when their login's membership moved with them. */
+      membershipMoved: boolean;
+    }
+  | { ok: false; reason: "not-found" | "same-school" | "other-organisation" }
+  | { ok: false; reason: "blocked"; blockers: StaffTransferBlocker[] };
+
+/**
+ * Moves an employee's file to another school of the same organisation.
+ *
+ * ── Why this refuses so much ────────────────────────────────────────────────
+ * A `Staff` row is identity and employment, and everything else about the person
+ * is scoped to the school it happened in: a payslip was paid out of *that*
+ * school's caisse, a register was taken against *that* school's calendar, a
+ * qualification names a subject of *that* school's cursus, a bus belongs to
+ * *that* school's fleet. Re-pointing `schoolId` under any of those would leave a
+ * row whose parents disagree about which school it belongs to — the payroll
+ * would still show the money and the new school would show the employee, and
+ * nothing would reconcile.
+ *
+ * So this is deliberately for the case it was built for: a file opened against
+ * the wrong school and noticed before it was used. Anything that has actually
+ * happened to the person makes them history where it happened, and the honest
+ * move is then to end their file there and hire them here — which is also what
+ * keeps the two payrolls separable (see the note on Staff).
+ *
+ * The contracts *do* follow. They hang off the staff row with no school of their
+ * own, they are the terms of this employment rather than an event in a school's
+ * year, and a transfer that dropped them would leave somebody employed on
+ * nothing.
+ *
+ * Both schools must belong to one organisation. Nothing here re-derives the
+ * caller's reach — the action does that for both schools before calling, and
+ * must, since this writes into a school that was never in the request's context.
+ */
+export async function transferStaff(input: {
+  staffId: string;
+  /** Re-derived from the session by the caller, never taken from the request. */
+  fromSchoolId: string;
+  toSchoolId: string;
+}): Promise<StaffTransferResult> {
+  if (input.fromSchoolId === input.toSchoolId) {
+    return { ok: false, reason: "same-school" };
+  }
+
+  const person = await db.staff.findFirst({
+    where: { id: input.staffId, schoolId: input.fromSchoolId },
+    select: {
+      id: true,
+      code: true,
+      userId: true,
+      school: { select: { organizationId: true } },
+      _count: {
+        select: {
+          salaries: true,
+          advances: true,
+          paidOperations: true,
+          attendance: true,
+          leaveRequests: true,
+          vehiclesDriven: true,
+          vehiclesAttended: true,
+          fuelRequests: true,
+        },
+      },
+    },
+  });
+  if (!person) return { ok: false, reason: "not-found" };
+
+  const target = await db.school.findUnique({
+    where: { id: input.toSchoolId },
+    select: { organizationId: true },
+  });
+  if (!target || target.organizationId !== person.school.organizationId) {
+    return { ok: false, reason: "other-organisation" };
+  }
+
+  /*
+    The two halves of the file are reached by two different ids, as they are
+    everywhere else in this module: what somebody is *paid* hangs off the Staff
+    row, and what somebody *teaches* hangs off their User — see the note on
+    Staff.userId. A transfer has to look at both or it silently leaves a teacher
+    with classes in a school they no longer work at.
+  */
+  const account = person.userId
+    ? await db.user.findUnique({
+        where: { id: person.userId },
+        select: {
+          id: true,
+          currentSchoolId: true,
+          _count: {
+            select: {
+              subjectsQualified: { where: { schoolId: input.fromSchoolId } },
+              teachingAssignments: {
+                where: { schoolClass: { schoolId: input.fromSchoolId } },
+              },
+            },
+          },
+          // A to-one relation — at most one drawer per holder — so it is read
+          // rather than counted.
+          cashRegisterHeld: { select: { schoolId: true } },
+          memberships: {
+            where: { schoolId: { in: [input.fromSchoolId, input.toSchoolId] } },
+            select: { id: true, schoolId: true },
+          },
+        },
+      })
+    : null;
+
+  const blockers: StaffTransferBlocker[] = [];
+  if (
+    person._count.salaries > 0 ||
+    person._count.advances > 0 ||
+    person._count.paidOperations > 0
+  ) {
+    blockers.push("payroll");
+  }
+  if (person._count.attendance > 0 || person._count.leaveRequests > 0) {
+    blockers.push("register");
+  }
+  if (
+    (account?._count.subjectsQualified ?? 0) > 0 ||
+    (account?._count.teachingAssignments ?? 0) > 0
+  ) {
+    blockers.push("teaching");
+  }
+  if (
+    person._count.vehiclesDriven > 0 ||
+    person._count.vehiclesAttended > 0 ||
+    person._count.fuelRequests > 0
+  ) {
+    blockers.push("transport");
+  }
+  if (account?.cashRegisterHeld?.schoolId === input.fromSchoolId) {
+    blockers.push("caisse");
+  }
+
+  if (blockers.length > 0) return { ok: false, reason: "blocked", blockers };
+
+  /*
+    The matricule is unique per school and carries the old school's numbering, so
+    it is kept only when it happens to be free in the new one. Reissuing quietly
+    would be worse than either: it is written on a contract and an attestation,
+    and the office has to know it changed.
+  */
+  const clash = await db.staff.findFirst({
+    where: { schoolId: input.toSchoolId, code: person.code },
+    select: { id: true },
+  });
+  const code = clash
+    ? await allocateStaffCode(input.toSchoolId)
+    : person.code;
+
+  const oldMembership = account?.memberships.find(
+    (membership) => membership.schoolId === input.fromSchoolId,
+  );
+  const targetMembership = account?.memberships.find(
+    (membership) => membership.schoolId === input.toSchoolId,
+  );
+
+  await db.$transaction(async (tx) => {
+    await tx.staff.update({
+      where: { id: person.id },
+      data: { schoolId: input.toSchoolId, code },
+    });
+
+    if (oldMembership) {
+      /*
+        A role is organisation-wide with a SCHOOL scope — the same Role row is
+        held in every school of the group — so the membership only has to change
+        which school it names, and the person keeps the reach they had. Dropped
+        rather than moved when they already hold one in the target school, which
+        the unique on [userId, schoolId] would otherwise refuse.
+      */
+      if (targetMembership) {
+        await tx.membership.delete({ where: { id: oldMembership.id } });
+      } else {
+        await tx.membership.update({
+          where: { id: oldMembership.id },
+          data: { schoolId: input.toSchoolId },
+        });
+      }
+    }
+
+    /*
+      Their working context, if it was pointing at the school they have just
+      left. The year goes with it and is not replaced: school years belong to a
+      school, so the one they had selected does not exist here — and null is
+      exactly what `getAuthContext` already handles by falling back.
+    */
+    if (account && account.currentSchoolId === input.fromSchoolId) {
+      await tx.user.update({
+        where: { id: account.id },
+        data: {
+          currentSchoolId: input.toSchoolId,
+          currentSchoolYearId: null,
+        },
+      });
+    }
+  });
+
+  return {
+    ok: true,
+    code,
+    recoded: code !== person.code,
+    membershipMoved: Boolean(oldMembership),
+  };
+}

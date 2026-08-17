@@ -9,9 +9,9 @@ import {
 } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { isSingularRelationship } from "@/modules/families/enums";
+import { allocateStudentCode } from "@/modules/students/service";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import {
-  allocateAccountEmail,
   allocateUsername,
   createLoginAccount,
 } from "@/modules/users/service";
@@ -264,9 +264,6 @@ export async function openPortalAccessFor(
   const username = await allocateUsername("", "", base);
   if (!username) return null;
 
-  const email = await allocateAccountEmail(
-    `parent.${guardian.family.code.toLowerCase()}@famille.ma`,
-  );
   const password = generatePassword();
 
   const account = await createLoginAccount({
@@ -277,7 +274,13 @@ export async function openPortalAccessFor(
     roleId: null,
     firstName: guardian.firstName,
     lastName: guardian.lastName,
-    email,
+    /*
+      No address on the account. The dossier already holds whatever the school
+      knows of the guardian's — see Guardian.email — and nothing signs in with
+      this column, so the `parent.f2025-0142@famille.ma` that used to be minted
+      here only put a mailbox that does not exist into the reports that print it.
+    */
+    email: null,
     username,
     password,
     phone: guardian.phone,
@@ -436,4 +439,343 @@ export async function refreshSchoolPortalAccess(
       data: { isActive: false },
     });
   }
+}
+
+// ── Moving a dossier to another school ───────────────────────────────────────
+
+/**
+ * What is keeping a dossier where it is.
+ *
+ * Each names a screen the office has to clear first, rather than a table: a
+ * secretary can act on "this child is enrolled" and cannot act on "enrollments".
+ */
+export type FamilyTransferBlocker =
+  | "enrolments"
+  | "payments"
+  | "requests"
+  | "documents";
+
+export type FamilyTransferResult =
+  | {
+      ok: true;
+      /** The dossier number it now carries — reissued when the old one was taken. */
+      code: string;
+      recoded: boolean;
+      /** Children moved with it, and how many matricules had to change. */
+      childCount: number;
+      recodedChildren: number;
+      /**
+       * References to the old school's own lists — the town somebody was born
+       * in, a quartier, a parent's profession — that had no counterpart in the
+       * new school and were therefore cleared. The office is told the number so
+       * it knows to go and re-pick them; leaving them pointing at the other
+       * school's rows would put one school's list on another school's screen.
+       */
+      clearedReferences: number;
+    }
+  | { ok: false; reason: "not-found" | "same-school" | "other-organisation" }
+  | { ok: false; reason: "blocked"; blockers: FamilyTransferBlocker[] };
+
+/**
+ * Moves a household, its adults and its children to another school of the same
+ * organisation.
+ *
+ * ── What may move, and what may not ─────────────────────────────────────────
+ * A dossier is *identity*: who the household is, which adults are on it, which
+ * children belong to it. None of that is a fact about a school year, which is
+ * why it can move at all. Everything year-bound cannot: an `Enrollment` names a
+ * level of one school's cursus, a class of its own drawing-up and a whole fee
+ * schedule written at admission, and a `Payment` was taken into one school's
+ * caisse. Re-pointing the dossier under either would leave a receipt in one
+ * school's till made out to another school's family, and no reconciliation would
+ * ever balance.
+ *
+ * So this is for the mistake it is named after — a dossier opened against the
+ * wrong school and caught before the child was enrolled. Once a child is
+ * enrolled the honest move is a transfer proper: withdraw here, admit there,
+ * which is a decision with dates that both schools' registers record.
+ *
+ * ── The school's own lists ──────────────────────────────────────────────────
+ * `City`, `Neighbourhood`, `ParentJob` and `DocumentType` are each school-scoped
+ * — two schools keep their own towns and their own professions, deliberately, so
+ * one cannot rename the other's. Every reference to one is therefore re-matched
+ * **by name** in the target school's list, and cleared when it has no
+ * counterpart. A pupil's pièces are the exception: `StudentDocument.documentTypeId`
+ * is required, so a dossier holding a document of a type the new school does not
+ * keep is refused rather than silently emptied.
+ *
+ * Both schools must belong to one organisation, and the caller authorizes in
+ * both before calling — this writes into a school that was never in the
+ * request's context.
+ */
+export async function transferFamily(input: {
+  familyId: string;
+  /** Re-derived from the session by the caller, never taken from the request. */
+  fromSchoolId: string;
+  toSchoolId: string;
+}): Promise<FamilyTransferResult> {
+  if (input.fromSchoolId === input.toSchoolId) {
+    return { ok: false, reason: "same-school" };
+  }
+
+  const family = await db.family.findFirst({
+    where: { id: input.familyId, schoolId: input.fromSchoolId },
+    select: {
+      id: true,
+      code: true,
+      school: { select: { organizationId: true } },
+      _count: { select: { payments: true } },
+      guardians: { select: { id: true, parentJobId: true, userId: true } },
+      children: {
+        select: {
+          id: true,
+          code: true,
+          birthCityId: true,
+          previousSchoolCityId: true,
+          neighbourhoodId: true,
+          _count: { select: { enrollments: true, documentRequests: true } },
+          documents: { select: { id: true, documentTypeId: true } },
+        },
+      },
+    },
+  });
+  if (!family) return { ok: false, reason: "not-found" };
+
+  const target = await db.school.findUnique({
+    where: { id: input.toSchoolId },
+    select: { organizationId: true },
+  });
+  if (!target || target.organizationId !== family.school.organizationId) {
+    return { ok: false, reason: "other-organisation" };
+  }
+
+  const blockers: FamilyTransferBlocker[] = [];
+  if (family.children.some((child) => child._count.enrollments > 0)) {
+    blockers.push("enrolments");
+  }
+  if (family._count.payments > 0) blockers.push("payments");
+  if (family.children.some((child) => child._count.documentRequests > 0)) {
+    blockers.push("requests");
+  }
+
+  // ── The lists the new school keeps, matched by name ─────────────────────────
+  const referencedCityIds = unique(
+    family.children.flatMap((child) =>
+      [child.birthCityId, child.previousSchoolCityId].filter(isId),
+    ),
+  );
+  const referencedNeighbourhoodIds = unique(
+    family.children.map((child) => child.neighbourhoodId).filter(isId),
+  );
+  const referencedJobIds = unique(
+    family.guardians.map((guardian) => guardian.parentJobId).filter(isId),
+  );
+  const referencedTypeIds = unique(
+    family.children.flatMap((child) =>
+      child.documents.map((document) => document.documentTypeId),
+    ),
+  );
+
+  const [oldCities, oldNeighbourhoods, oldJobs, oldTypes] = await Promise.all([
+    db.city.findMany({
+      where: { id: { in: referencedCityIds } },
+      select: { id: true, name: true },
+    }),
+    db.neighbourhood.findMany({
+      where: { id: { in: referencedNeighbourhoodIds } },
+      select: { id: true, name: true, city: { select: { name: true } } },
+    }),
+    db.parentJob.findMany({
+      where: { id: { in: referencedJobIds } },
+      select: { id: true, name: true },
+    }),
+    db.documentType.findMany({
+      where: { id: { in: referencedTypeIds } },
+      select: { id: true, code: true },
+    }),
+  ]);
+
+  const [newCities, newNeighbourhoods, newJobs, newTypes] = await Promise.all([
+    db.city.findMany({
+      where: { schoolId: input.toSchoolId },
+      select: { id: true, name: true },
+    }),
+    db.neighbourhood.findMany({
+      where: { schoolId: input.toSchoolId },
+      select: { id: true, name: true, city: { select: { name: true } } },
+    }),
+    db.parentJob.findMany({
+      where: { schoolId: input.toSchoolId },
+      select: { id: true, name: true },
+    }),
+    db.documentType.findMany({
+      where: { schoolId: input.toSchoolId },
+      select: { id: true, code: true },
+    }),
+  ]);
+
+  const cityMap = matchByKey(oldCities, newCities, (row) => row.name);
+  // Keyed on the town as well as the quartier: two schools may both keep a
+  // "Centre", and they are not the same place.
+  const neighbourhoodMap = matchByKey(
+    oldNeighbourhoods,
+    newNeighbourhoods,
+    (row) => `${row.city.name}/${row.name}`,
+  );
+  const jobMap = matchByKey(oldJobs, newJobs, (row) => row.name);
+  // On the code, not the name: it is what a school files a pièce under and the
+  // stable half of the row — see DocumentType.
+  const typeMap = matchByKey(oldTypes, newTypes, (row) => row.code);
+
+  // A required column, so an unmatched type has nothing to fall back to.
+  if ([...typeMap.values()].some((id) => id === null)) {
+    blockers.push("documents");
+  }
+
+  if (blockers.length > 0) return { ok: false, reason: "blocked", blockers };
+
+  // ── Codes ──────────────────────────────────────────────────────────────────
+  const codeClash = await db.family.findFirst({
+    where: { schoolId: input.toSchoolId, code: family.code },
+    select: { id: true },
+  });
+  const code = codeClash
+    ? await allocateFamilyCode(input.toSchoolId)
+    : family.code;
+
+  const takenChildCodes = new Set(
+    (
+      await db.student.findMany({
+        where: {
+          schoolId: input.toSchoolId,
+          code: { in: family.children.map((child) => child.code) },
+        },
+        select: { code: true },
+      })
+    ).map((row) => row.code),
+  );
+
+  /*
+    Matricules are reissued from the target school's own sequence, and reserved
+    as we go: the allocator reads a table this loop has not written to yet, so
+    two children of one dossier both clashing would otherwise be handed the same
+    next number — and the unique index would refuse the second half of the move
+    after the first half had been written.
+  */
+  const childCodes = new Map<string, string>();
+  if (takenChildCodes.size > 0) {
+    const issued = new Set<string>();
+    for (const child of family.children) {
+      if (!takenChildCodes.has(child.code)) continue;
+      let next = await allocateStudentCode(input.toSchoolId);
+      while (issued.has(next)) next = bumpSequence(next);
+      issued.add(next);
+      childCodes.set(child.id, next);
+    }
+  }
+
+  let clearedReferences = 0;
+  const resolve = (
+    map: Map<string, string | null>,
+    id: string | null,
+  ): string | null => {
+    if (id === null) return null;
+    const mapped = map.get(id) ?? null;
+    if (mapped === null) clearedReferences += 1;
+    return mapped;
+  };
+
+  await db.$transaction(async (tx) => {
+    await tx.family.update({
+      where: { id: family.id },
+      data: { schoolId: input.toSchoolId, code },
+    });
+
+    for (const child of family.children) {
+      await tx.student.update({
+        where: { id: child.id },
+        data: {
+          schoolId: input.toSchoolId,
+          code: childCodes.get(child.id) ?? child.code,
+          birthCityId: resolve(cityMap, child.birthCityId),
+          previousSchoolCityId: resolve(cityMap, child.previousSchoolCityId),
+          neighbourhoodId: resolve(neighbourhoodMap, child.neighbourhoodId),
+        },
+      });
+
+      for (const document of child.documents) {
+        await tx.studentDocument.update({
+          where: { id: document.id },
+          // Non-null: an unmatched type is a blocker above.
+          data: {
+            documentTypeId: typeMap.get(document.documentTypeId) as string,
+          },
+        });
+      }
+    }
+
+    for (const guardian of family.guardians) {
+      if (guardian.parentJobId === null) continue;
+      await tx.guardian.update({
+        where: { id: guardian.id },
+        data: { parentJobId: resolve(jobMap, guardian.parentJobId) },
+      });
+    }
+
+    /*
+      The household's portal login, when it has one. A guardian holds no
+      membership — everything they read is scoped by the household instead — so
+      the only thing pointing at the old school is their working context, and the
+      year inside it belongs to a school this account no longer touches.
+    */
+    const holders = family.guardians.map((guardian) => guardian.userId).filter(isId);
+    if (holders.length > 0) {
+      await tx.user.updateMany({
+        where: { id: { in: holders }, currentSchoolId: input.fromSchoolId },
+        data: { currentSchoolId: input.toSchoolId, currentSchoolYearId: null },
+      });
+    }
+  });
+
+  return {
+    ok: true,
+    code,
+    recoded: code !== family.code,
+    childCount: family.children.length,
+    recodedChildren: childCodes.size,
+    clearedReferences,
+  };
+}
+
+function isId(value: string | null): value is string {
+  return value !== null;
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+/**
+ * Old id → the new school's row of the same key, or null when it keeps none.
+ *
+ * By key rather than by id because the two lists are genuinely separate rows:
+ * matching "Oujda" to "Oujda" is the whole point, and a school that has never
+ * heard of the town gives null.
+ */
+function matchByKey<T extends { id: string }>(
+  old: T[],
+  fresh: T[],
+  keyOf: (row: T) => string,
+): Map<string, string | null> {
+  const byKey = new Map(fresh.map((row) => [keyOf(row), row.id]));
+  return new Map(old.map((row) => [row.id, byKey.get(keyOf(row)) ?? null]));
+}
+
+/** The next code in a series, for the one case the allocator cannot see. */
+function bumpSequence(code: string): string {
+  const match = code.match(/(\d+)(\D*)$/);
+  if (!match || match.index === undefined) return `${code}-2`;
+  const [, digits, tail] = match;
+  const next = String(Number(digits) + 1).padStart(digits.length, "0");
+  return code.slice(0, match.index) + next + tail;
 }

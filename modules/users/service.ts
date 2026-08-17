@@ -42,45 +42,9 @@ export async function allocateUsername(
     has hundreds of accounts, not millions, so reading the column is cheaper
     than being clever about it and cannot be wrong.
   */
-  const held = await db.user.findMany({
-    where: { username: { not: null } },
-    select: { username: true },
-  });
+  const held = await db.user.findMany({ select: { username: true } });
 
-  return uniqueUsername(
-    base,
-    new Set(held.map((row) => row.username as string)),
-  );
-}
-
-/**
- * A free address in a series: `parent.f2025-0142@famille.ma`, then
- * `parent.f2025-0142.2@famille.ma`.
- *
- * `User.email` is required and unique, so an account needs one even when the
- * person signs in with a username and has no mailbox the school knows of — a
- * parent, typically. The base is keyed on the dossier rather than the surname
- * (see modules/portal/seed.ts, which builds the same shape), and the suffix
- * covers the case where a revoked account still holds the plain address:
- * revoking deactivates rather than deletes, so the old row keeps its email.
- */
-export async function allocateAccountEmail(base: string): Promise<string> {
-  const [local, domain] = base.toLowerCase().split("@");
-
-  const held = await db.user.findMany({
-    where: { email: { startsWith: `${local}` } },
-    select: { email: true },
-  });
-  const taken = new Set(held.map((row) => row.email));
-
-  if (!taken.has(base.toLowerCase())) return base.toLowerCase();
-
-  for (let suffix = 2; suffix < 1000; suffix += 1) {
-    const candidate = `${local}.${suffix}@${domain}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-
-  throw new Error(`No free email address for ${base}`);
+  return uniqueUsername(base, new Set(held.map((row) => row.username)));
 }
 
 export type LoginAccountInput = {
@@ -92,7 +56,9 @@ export type LoginAccountInput = {
   roleId: string | null;
   firstName: string;
   lastName: string;
-  email: string;
+  /** A mailbox, when the school knows of one. Null is the common case for a
+   *  parent's portal login, and nothing signs in with it — see User.email. */
+  email: string | null;
   /** Blank to have one built from the name — see `allocateUsername`. */
   username: string | null;
   password: string;
@@ -122,13 +88,19 @@ export type LoginAccountResult =
 export async function createLoginAccount(
   input: LoginAccountInput,
 ): Promise<LoginAccountResult> {
-  const email = input.email.trim().toLowerCase();
+  // Lowercased like every other email column in the app, so the unique index
+  // only ever holds one spelling of an address.
+  const email = input.email ? input.email.trim().toLowerCase() : null;
 
-  const emailTaken = await db.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-  if (emailTaken) return { ok: false, reason: "email-taken" };
+  // Only when one was given: the column is nullable-unique, so any number of
+  // accounts may have no address at all.
+  if (email) {
+    const emailTaken = await db.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (emailTaken) return { ok: false, reason: "email-taken" };
+  }
 
   // A username the school typed is honoured exactly, so a clash is reported
   // rather than silently renamed to `k.bennis2` behind their back. Only a

@@ -21,9 +21,10 @@ import { toDateInputValue } from "@/lib/utils";
 /** The shape the users table and the user form both render. */
 export type UserRow = {
   id: string;
-  email: string;
-  /** Null for accounts that do not sign in at the dashboard — see User.username. */
-  username: string | null;
+  /** A mailbox, when the school holds one. Never a credential — see User.email. */
+  email: string | null;
+  /** What this account signs in with — see User.username. */
+  username: string;
   firstName: string;
   lastName: string;
   phone: string | null;
@@ -110,7 +111,9 @@ export async function listUsers(context: AuthContext): Promise<UserRow[]> {
           organizationId: context.organization.id,
           memberships: { some: { schoolId: { in: visibleSchoolIds } } },
         },
-    orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+    // The username, not the address: every account has one, and it is what the
+    // list falls back to for somebody with no profile yet.
+    orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
     include: includeFor(visibleSchoolIds, hasOrgReach),
   });
 

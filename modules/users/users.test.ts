@@ -30,6 +30,7 @@ const t = getDictionaryFor("en");
 type UserRow = {
   id: string;
   organizationId: string;
+  username: string;
   email: string;
   isActive: boolean;
   isSuperAdmin: boolean;
@@ -86,6 +87,7 @@ function seed() {
   users.set("u-director", {
     id: "u-director",
     organizationId: ORG,
+    username: "director",
     email: "director@school.ma",
     isActive: true,
     isSuperAdmin: false,
@@ -95,6 +97,7 @@ function seed() {
   users.set("u-teacher", {
     id: "u-teacher",
     organizationId: ORG,
+    username: "teacher",
     email: "teacher@school.ma",
     isActive: true,
     isSuperAdmin: false,
@@ -104,6 +107,7 @@ function seed() {
   users.set("u-superadmin", {
     id: "u-superadmin",
     organizationId: ORG,
+    username: "boss",
     email: "boss@school.ma",
     isActive: true,
     isSuperAdmin: true,
@@ -113,6 +117,7 @@ function seed() {
   users.set("u-orgadmin", {
     id: "u-orgadmin",
     organizationId: ORG,
+    username: "orgadmin",
     email: "orgadmin@school.ma",
     isActive: true,
     isSuperAdmin: false,
@@ -123,6 +128,7 @@ function seed() {
   users.set("u-elsewhere", {
     id: "u-elsewhere",
     organizationId: ORG,
+    username: "elsewhere",
     email: "elsewhere@school.ma",
     isActive: true,
     isSuperAdmin: false,
@@ -132,6 +138,7 @@ function seed() {
   users.set("u-foreign", {
     id: "u-foreign",
     organizationId: OTHER_ORG,
+    username: "foreign",
     email: "foreign@other.ma",
     isActive: true,
     isSuperAdmin: false,
@@ -152,6 +159,9 @@ function userMatches(row: UserRow, where: Record<string, unknown>): boolean {
     return false;
   }
   if (where["email"] !== undefined && where["email"] !== row.email) return false;
+  if (where["username"] !== undefined && where["username"] !== row.username) {
+    return false;
+  }
   if (
     where["isSuperAdmin"] !== undefined &&
     where["isSuperAdmin"] !== row.isSuperAdmin
@@ -401,6 +411,7 @@ function userForm(overrides: Record<string, string | string[]> = {}) {
   form.set("firstName", "Amine");
   form.set("lastName", "Benali");
   form.set("email", "amine@school.ma");
+  form.set("username", "a.benali");
   form.set("password", "corr3ct-horse");
   form.set("isActive", "on");
 
@@ -666,6 +677,7 @@ describe("resolveOrgRoleId", () => {
     users.set("u-plain-orgrole", {
       id: "u-plain-orgrole",
       organizationId: ORG,
+      username: "plain",
       email: "plain@school.ma",
       isActive: true,
       isSuperAdmin: false,
@@ -798,13 +810,13 @@ describe("resolveMemberships", () => {
 
 // ── Identity ─────────────────────────────────────────────────────────────────
 
-describe("email and password", () => {
+describe("the username, the address and the password", () => {
   /** The minimum a user form has to send for the schema to have an opinion. */
   const base = {
     firstName: "A",
     lastName: "B",
     email: "a@b.ma",
-    username: "",
+    username: "a.b",
     phone: "",
     jobFunctionId: "",
     birthDate: "",
@@ -884,18 +896,31 @@ describe("email and password", () => {
     expect(edit.success && edit.data.password).toBeNull();
   });
 
-  it("treats a blank username as an account that does not sign in", () => {
-    // A guardian has none — they sign in on the phone with their email. Blank
-    // has to reach the column as null, not as an empty string, or the unique
-    // index would let exactly one account hold "".
+  it("refuses a blank username", () => {
+    // It is the only credential there is, so an account without one is an
+    // account nobody can reach — see User.username.
     const parsed = userSchema(t, { requirePassword: true }).safeParse({
       ...base,
       password: "correct horse",
       username: "",
     });
 
+    expect(parsed.success).toBe(false);
+  });
+
+  it("takes an account with no address at all", () => {
+    // Common, and not a half-finished record: a parent handed a portal login at
+    // the counter has no mailbox the school knows of. Blank has to reach the
+    // column as null, not as "", or the unique index would let exactly one
+    // account hold the empty string.
+    const parsed = userSchema(t, { requirePassword: true }).safeParse({
+      ...base,
+      password: "correct horse",
+      email: "",
+    });
+
     expect(parsed.success).toBe(true);
-    expect(parsed.success && parsed.data.username).toBeNull();
+    expect(parsed.success && parsed.data.email).toBeNull();
   });
 
   it("stores one spelling of a username, whatever was typed", () => {

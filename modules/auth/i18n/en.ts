@@ -9,14 +9,13 @@ const en = {
   auth: {
     signInTitle: "Sign in",
     signInSubtitle: "Access your school administration dashboard.",
-    email: "Email address",
     identifier: "Username",
-    identifierHint: "Your school username. Parents sign in on the app with their email.",
+    identifierHint: "The username your school gave you. Not an email address.",
     password: "Password",
     signIn: "Sign in",
     signingIn: "Signing in…",
     signOut: "Sign out",
-    invalidCredentials: "Incorrect email or password.",
+    invalidCredentials: "Incorrect username or password.",
     accountDisabled: "This account has been deactivated.",
     mobileOnlyAccount:
       "Teaching accounts work on the Mizmar app, not on this dashboard. Sign in there with the same username and password.",

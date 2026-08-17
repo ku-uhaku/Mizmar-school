@@ -804,7 +804,7 @@ export async function listFuelRequests(
       requestedBy: { select: { firstName: true, lastName: true } },
       decidedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -849,7 +849,7 @@ export async function listFuelRequests(
       decidedBy: request.decidedBy
         ? (request.decidedBy.profile
             ? `${request.decidedBy.profile.firstName} ${request.decidedBy.profile.lastName}`.trim()
-            : "") || request.decidedBy.email
+            : "") || request.decidedBy.username
         : null,
       decidedAt: request.decidedAt?.toISOString() ?? null,
       cashOperationId: request.cashOperationId,
@@ -1250,13 +1250,13 @@ const tripRunInclude = {
   vehicle: { select: { registration: true } },
   startedBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },
   arrivedBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },

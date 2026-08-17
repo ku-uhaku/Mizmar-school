@@ -123,8 +123,25 @@ const ar = {
     familyColumn: "الأسرة",
     countLabel: "{count} أبناء",
     attachTitle: "الربط بأسرة",
+
+    transfer: "النقل إلى مؤسسة أخرى",
+    transferHint:
+      "لملف فُتح في المؤسسة الخطأ. الأولياء والأبناء ينتقلون معه، أما ما سُجّل أو أُدّي عنه فلا ينتقل.",
+    transferSchool: "المؤسسة الجديدة",
+    transferConfirm: "نقل هذا الملف",
+    transferred:
+      "تم نقل الملف برقم {code} مع {children} من الأبناء. وقد أُفرغت {cleared} من الإحالات إلى قوائم المؤسسة القديمة.",
+    transferBlocked: "لا يمكن نقل هذا الملف: {reasons}.",
+    transferSameSchool: "هو في تلك المؤسسة أصلًا.",
+    transferOtherOrganisation: "تلك المؤسسة تابعة لمنظمة أخرى.",
   },
   familyOptions: {
+    transferBlockers: {
+      enrolments: "أحد الأبناء مسجَّل هنا",
+      payments: "صدرت وصولات باسمه هنا",
+      requests: "طُلبت وثائق من هذه المؤسسة",
+      documents: "يحتوي وثائق من نوع لا تعتمده المؤسسة الأخرى",
+    },
     situations: {
       MARRIED: "متزوج(ة)",
       DIVORCED: "مطلق(ة)",

@@ -468,12 +468,16 @@ export function StudentDashboard({
                         className="text-muted-foreground hidden py-1.5 pe-2 text-xs sm:table-cell"
                         dir="ltr"
                       >
-                        <a
-                          href={`mailto:${row.teacherEmail}`}
-                          className="hover:underline"
-                        >
-                          {row.teacherEmail}
-                        </a>
+                        {row.teacherEmail ? (
+                          <a
+                            href={`mailto:${row.teacherEmail}`}
+                            className="hover:underline"
+                          >
+                            {row.teacherEmail}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="py-1.5 text-end tabular-nums">
                         {row.weeklyMinutes ?? "—"}

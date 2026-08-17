@@ -131,8 +131,27 @@ const en = {
     familyColumn: "Family",
     countLabel: "{count} children",
     attachTitle: "Attach to a family",
+
+    // Moving a dossier opened against the wrong school.
+    transfer: "Move to another school",
+    transferHint:
+      "For a dossier opened against the wrong school. The adults and the children move with it; nothing already enrolled or paid for can.",
+    transferSchool: "New school",
+    transferConfirm: "Move this dossier",
+    transferred:
+      "Dossier moved as {code}, with {children} children. {cleared} references to the old school's own lists were cleared.",
+    transferBlocked: "This dossier cannot be moved: {reasons}.",
+    transferSameSchool: "It is already at that school.",
+    transferOtherOrganisation: "That school belongs to another organisation.",
   },
   familyOptions: {
+    /** Why a dossier is stuck where it is — see `transferFamily`. */
+    transferBlockers: {
+      enrolments: "a child is enrolled here",
+      payments: "receipts have been made out to it here",
+      requests: "papers have been asked of this school",
+      documents: "it holds pièces of a type the other school does not keep",
+    },
     situations: {
       MARRIED: "Married",
       DIVORCED: "Divorced",

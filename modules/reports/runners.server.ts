@@ -132,14 +132,14 @@ const daysBetween = (from: Date, to: Date) =>
 const monthKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 
-/** A person's name, falling back to the address when no profile exists yet. */
+/** A person's name, falling back to the username when no profile exists yet. */
 const personName = (user: {
-  email: string;
+  username: string;
   profile: { firstName: string; lastName: string } | null;
 }) =>
   user.profile
     ? `${user.profile.firstName} ${user.profile.lastName}`.trim()
-    : user.email;
+    : user.username;
 
 /** The distinct ways one receipt was settled, translated. */
 const methods = (
@@ -1164,7 +1164,7 @@ const RUNNERS: Record<string, Runner> = {
         family: { select: { name: true } },
         tenders: { select: { method: true } },
         createdBy: {
-          select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+          select: { username: true, profile: { select: { firstName: true, lastName: true } } },
         },
       },
     });
@@ -1177,7 +1177,7 @@ const RUNNERS: Record<string, Runner> = {
       amount: row.totalCentimes,
       takenBy: row.createdBy.profile
         ? `${row.createdBy.profile.firstName} ${row.createdBy.profile.lastName}`.trim()
-        : row.createdBy.email,
+        : row.createdBy.username,
     }));
   },
 
@@ -1597,7 +1597,7 @@ const RUNNERS: Record<string, Runner> = {
         cashRegister: { select: { name: true } },
         openedBy: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -1942,7 +1942,7 @@ const RUNNERS: Record<string, Runner> = {
             family: { select: { name: true } },
             createdBy: {
               select: {
-                email: true,
+                username: true,
                 profile: { select: { firstName: true, lastName: true } },
               },
             },
@@ -2326,7 +2326,7 @@ const RUNNERS: Record<string, Runner> = {
         feeType: { select: { name: true } },
         cancelledBy: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -2374,7 +2374,7 @@ const RUNNERS: Record<string, Runner> = {
         family: { select: { name: true } },
         createdBy: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },

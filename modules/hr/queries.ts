@@ -75,7 +75,12 @@ export type StaffRow = {
   leftOn: string | null;
   /** The account they sign in with, when they have one. */
   userId: string | null;
-  userEmail: string | null;
+  /**
+   * What that account signs in with. The username and not the address: an
+   * account may hold no mailbox at all, and identifying it by one made a real
+   * login read as "no account" — see User.email.
+   */
+  userUsername: string | null;
   contractKind: string | null;
   /**
    * Monthly base from the live contract. Null when none is in force **and**
@@ -101,7 +106,7 @@ export async function listStaff(context: AuthContext): Promise<StaffRow[]> {
     where: schoolScope(context),
     orderBy: [{ status: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
     include: {
-      user: { select: { id: true, email: true } },
+      user: { select: { id: true, username: true } },
       contracts: ACTIVE_CONTRACT,
     },
   });
@@ -123,7 +128,7 @@ export async function listStaff(context: AuthContext): Promise<StaffRow[]> {
       hiredOn: person.hiredOn?.toISOString() ?? null,
       leftOn: person.leftOn?.toISOString() ?? null,
       userId: person.user?.id ?? null,
-      userEmail: person.user?.email ?? null,
+      userUsername: person.user?.username ?? null,
       contractKind: contract?.kind ?? null,
       baseSalaryCentimes: canSeePay
         ? (contract?.baseSalaryCentimes ?? null)
@@ -388,7 +393,7 @@ export async function findStaff(
   const person = await db.staff.findFirst({
     where: { id: staffId, ...schoolScope(context) },
     include: {
-      user: { select: { id: true, email: true } },
+      user: { select: { id: true, username: true } },
       contracts: { orderBy: [{ startsOn: "desc" }] },
       salaries: canSeePay
         ? {
@@ -403,7 +408,7 @@ export async function findStaff(
         include: {
           recordedBy: {
             select: {
-              email: true,
+              username: true,
               profile: { select: { firstName: true, lastName: true } },
             },
           },
@@ -483,7 +488,7 @@ export async function findStaff(
     hiredOn: person.hiredOn?.toISOString() ?? null,
     leftOn: person.leftOn?.toISOString() ?? null,
     userId: person.user?.id ?? null,
-    userEmail: person.user?.email ?? null,
+    userUsername: person.user?.username ?? null,
     contractKind: live?.kind ?? null,
     baseSalaryCentimes: canSeePay ? (live?.baseSalaryCentimes ?? null) : null,
     hasLiveContract: live !== undefined,
@@ -880,10 +885,10 @@ export async function listLinkableUsers(
         ...(currentUserId ? [{ id: currentUserId }] : []),
       ],
     },
-    orderBy: [{ email: "asc" }],
+    orderBy: [{ username: "asc" }],
     select: {
       id: true,
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   });
@@ -891,8 +896,8 @@ export async function listLinkableUsers(
   return users.map((user) => ({
     id: user.id,
     label: user.profile
-      ? `${user.profile.firstName} ${user.profile.lastName} · ${user.email}`
-      : user.email,
+      ? `${user.profile.firstName} ${user.profile.lastName} · ${user.username}`
+      : user.username,
   }));
 }
 
@@ -1052,7 +1057,7 @@ export async function listAdvances(
       },
       approvedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

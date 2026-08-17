@@ -40,6 +40,7 @@ export default async function ProfilePage() {
               bio: profile?.bio ?? null,
               avatarUrl: profile?.avatarUrl ?? null,
               birthDate: toDateInputValue(profile?.birthDate),
+              username: context.user.username,
               email: context.user.email,
             }}
           />

@@ -1054,7 +1054,7 @@ async function tellTheOfficeAboutNewDevoir(
       school: { select: { organizationId: true } },
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -1104,7 +1104,7 @@ async function tellTheOffice(assessmentId: string): Promise<void> {
       school: { select: { organizationId: true } },
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

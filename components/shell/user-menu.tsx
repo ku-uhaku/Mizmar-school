@@ -19,12 +19,14 @@ import {
 
 export function UserMenu({
   name,
-  email,
+  identifier,
   avatarUrl,
   initials,
 }: {
   name: string;
-  email: string;
+  /** What this account is known by under its name — its address when the school
+   *  holds one, its username otherwise. See User.email. */
+  identifier: string;
   avatarUrl: string | null;
   initials: string;
 }) {
@@ -47,7 +49,7 @@ export function UserMenu({
           <div className="grid gap-0.5">
             <span className="truncate font-medium">{name}</span>
             <span className="text-muted-foreground truncate text-xs" dir="ltr">
-              {email}
+              {identifier}
             </span>
           </div>
         </DropdownMenuLabel>

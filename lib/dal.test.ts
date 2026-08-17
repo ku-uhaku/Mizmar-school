@@ -560,14 +560,16 @@ describe("displayName", () => {
     expect(
       displayName({
         profile: { firstName: "Karim", lastName: "Alaoui" },
-        email: "k@school.ma",
+        username: "k.alaoui",
       }),
     ).toBe("Karim Alaoui");
   });
 
-  it("falls back to the address for an account with no profile yet", () => {
-    expect(displayName({ profile: null, email: "k@school.ma" })).toBe(
-      "k@school.ma",
+  it("falls back to the username for an account with no profile yet", () => {
+    // The username and not the address: every account has one, and plenty have
+    // no mailbox the school was ever given. See User.email.
+    expect(displayName({ profile: null, username: "k.alaoui" })).toBe(
+      "k.alaoui",
     );
   });
 
@@ -575,8 +577,8 @@ describe("displayName", () => {
     expect(
       displayName({
         profile: { firstName: "", lastName: "" },
-        email: "k@school.ma",
+        username: "k.alaoui",
       }),
-    ).toBe("k@school.ma");
+    ).toBe("k.alaoui");
   });
 });

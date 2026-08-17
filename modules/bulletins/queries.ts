@@ -92,7 +92,7 @@ const BULLETIN_SELECT = {
   publishedAt: true,
   publishedBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },

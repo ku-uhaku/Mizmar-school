@@ -52,10 +52,10 @@ export async function seedTreasury(
         },
       },
     },
-    orderBy: { email: "asc" },
+    orderBy: { username: "asc" },
     select: {
       id: true,
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   });
@@ -64,11 +64,12 @@ export async function seedTreasury(
     (cashier, index) => {
       const name = cashier.profile
         ? `${cashier.profile.firstName} ${cashier.profile.lastName}`.trim()
-        : cashier.email;
+        : cashier.username;
       return {
         // Keyed on the account rather than on the name: two colleagues may share
-        // a surname, and a code has to stay unique and stable.
-        code: `CAISSE-${cashier.email.split("@")[0].toUpperCase()}`,
+        // a surname, and a code has to stay unique and stable. The username, not
+        // the address — see User.email.
+        code: `CAISSE-${cashier.username.toUpperCase()}`,
         name: `Caisse ${name}`,
         nameAr: `صندوق ${name}`,
         position: 10 + index,

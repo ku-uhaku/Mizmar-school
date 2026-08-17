@@ -441,7 +441,7 @@ async function tellTheOfficeAboutRemark(
       },
       author: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

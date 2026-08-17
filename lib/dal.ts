@@ -305,12 +305,18 @@ export async function authorizeSchool(
   return context;
 }
 
-/** Display name helper used across the shell and tables. */
+/**
+ * Display name helper used across the shell and tables.
+ *
+ * Falls back to the username rather than the address: every account has one and
+ * it is what the person signs in with, whereas `User.email` is a mailbox the
+ * school may never have been given — see User.email.
+ */
 export function displayName(user: {
   profile: { firstName: string; lastName: string } | null;
-  email: string;
+  username: string;
 }): string {
-  if (!user.profile) return user.email;
+  if (!user.profile) return user.username;
   const full = `${user.profile.firstName} ${user.profile.lastName}`.trim();
-  return full === "" ? user.email : full;
+  return full === "" ? user.username : full;
 }

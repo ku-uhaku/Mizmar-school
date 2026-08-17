@@ -43,9 +43,10 @@ import { ageFrom } from "@/lib/utils";
 
 export type UserRow = {
   id: string;
-  email: string;
-  /** What they sign in with. Null for an account that does not — see User.username. */
-  username: string | null;
+  /** A mailbox, when the school holds one. Never a credential — see User.email. */
+  email: string | null;
+  /** What they sign in with — see User.username. */
+  username: string;
   firstName: string;
   lastName: string;
   phone: string | null;
@@ -95,7 +96,8 @@ export function UsersManager({
     () => [
       {
         id: "name",
-        accessorFn: (row) => `${row.firstName} ${row.lastName} ${row.email}`,
+        accessorFn: (row) =>
+          `${row.firstName} ${row.lastName} ${row.username} ${row.email ?? ""}`,
         header: t.user.nameColumn,
         cell: ({ row }) => {
           const user = row.original;
@@ -141,8 +143,10 @@ export function UsersManager({
                     </Tooltip>
                   ) : null}
                 </div>
+                {/* The username, not the address: it is what this person signs
+                  in with, and plenty of accounts have no mailbox at all. */}
                 <p className="text-muted-foreground truncate text-xs" dir="ltr">
-                  {user.email}
+                  {user.username}
                 </p>
               </div>
             </div>

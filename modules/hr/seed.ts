@@ -144,7 +144,9 @@ const OFFICE_SALARY = 9000;
 export type SeedStaffInput = {
   schoolId: string;
   /** The teaching accounts, so their employment record links to their login. */
-  teachers: { id: string; email: string }[];
+  /** The address goes onto the staff record where the account has one — both
+   *  columns are optional, see User.email. */
+  teachers: { id: string; email: string | null }[];
 };
 
 /**
@@ -322,9 +324,13 @@ export async function seedHr(
       id: { notIn: [...teacherIds] },
       staffRecord: null,
     },
-    orderBy: { email: "asc" },
+    // The username, not the address: every account has one, so the order is
+    // stable even for an account with no mailbox.
+    orderBy: { username: "asc" },
     select: {
       id: true,
+      // The staff record keeps the person's own address where the account has
+      // one — Staff.email is nullable and takes null where it does not.
       email: true,
       profile: {
         select: {

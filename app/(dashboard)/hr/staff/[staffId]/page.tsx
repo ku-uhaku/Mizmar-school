@@ -45,6 +45,22 @@ export default async function StaffPage({
       ? await listSchoolRoles(context)
       : [];
 
+  /*
+    Where this file could be moved to, if the person was hired into the wrong
+    school. Filtered off the context rather than queried, and by the same pair of
+    conditions `transferStaffAction` re-derives for itself: visible to this
+    session, and `hr.manage` inside it.
+  */
+  const transferTargets = canManage
+    ? context.schools
+        .filter(
+          (school) =>
+            school.id !== context.currentSchool?.id &&
+            context.canInSchool(school.id, PERMISSIONS.HR_MANAGE),
+        )
+        .map((school) => ({ id: school.id, name: school.name }))
+    : [];
+
   return (
     <>
       <PageHeader
@@ -66,6 +82,7 @@ export default async function StaffPage({
         person={person}
         linkableUsers={linkableUsers}
         schoolRoles={schoolRoles}
+        transferTargets={transferTargets}
         canCreateAccount={context.can(PERMISSIONS.USER_CREATE)}
         canPayroll={context.can(PERMISSIONS.HR_PAYROLL)}
         canManage={canManage}

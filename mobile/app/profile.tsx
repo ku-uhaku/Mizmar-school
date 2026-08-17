@@ -81,7 +81,9 @@ export default function ProfileScreen() {
           <>
             <Card>
               <Heading>{identity.data.fullName}</Heading>
-              <Row label={t.profile.account} value={identity.data.email} />
+              {/* The username: it is what this account signs in with, and an
+                address is optional and often absent. */}
+              <Row label={t.profile.account} value={identity.data.username} />
               <Divider />
               <Row
                 label={t.profile.establishment}

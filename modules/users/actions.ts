@@ -174,26 +174,28 @@ export async function createUserAction(
       );
     }
 
-    const existing = await db.user.findUnique({
-      where: { email: parsed.data.email },
-      select: { id: true },
-    });
-    if (existing) {
-      return failure(t.user.emailTaken, { email: t.user.emailTaken });
-    }
-
-    // Checked before the write so the form can name the field, rather than
-    // letting the unique index refuse it as an unexplained failure.
-    if (parsed.data.username) {
-      const held = await db.user.findUnique({
-        where: { username: parsed.data.username },
+    // Both checked before the write so the form can name the field, rather than
+    // letting the unique index refuse it as an unexplained failure. The email
+    // only when one was given: the column is nullable-unique, so any number of
+    // accounts may have none.
+    if (parsed.data.email) {
+      const existing = await db.user.findUnique({
+        where: { email: parsed.data.email },
         select: { id: true },
       });
-      if (held) {
-        return failure(t.user.usernameTaken, {
-          username: t.user.usernameTaken,
-        });
+      if (existing) {
+        return failure(t.user.emailTaken, { email: t.user.emailTaken });
       }
+    }
+
+    const held = await db.user.findUnique({
+      where: { username: parsed.data.username },
+      select: { id: true },
+    });
+    if (held) {
+      return failure(t.user.usernameTaken, {
+        username: t.user.usernameTaken,
+      });
     }
 
     // Only an existing super admin may mint another one.
@@ -280,26 +282,26 @@ export async function updateUserAction(
       );
     }
 
-    const duplicate = await db.user.findFirst({
-      where: { email: parsed.data.email, NOT: { id: userId } },
-      select: { id: true },
-    });
-    if (duplicate) {
-      return failure(t.user.emailTaken, { email: t.user.emailTaken });
-    }
-
     // Same reason as on create: the form should name the field rather than
     // report an unexplained constraint failure.
-    if (parsed.data.username) {
-      const heldByAnother = await db.user.findFirst({
-        where: { username: parsed.data.username, NOT: { id: userId } },
+    if (parsed.data.email) {
+      const duplicate = await db.user.findFirst({
+        where: { email: parsed.data.email, NOT: { id: userId } },
         select: { id: true },
       });
-      if (heldByAnother) {
-        return failure(t.user.usernameTaken, {
-          username: t.user.usernameTaken,
-        });
+      if (duplicate) {
+        return failure(t.user.emailTaken, { email: t.user.emailTaken });
       }
+    }
+
+    const heldByAnother = await db.user.findFirst({
+      where: { username: parsed.data.username, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (heldByAnother) {
+      return failure(t.user.usernameTaken, {
+        username: t.user.usernameTaken,
+      });
     }
 
     // Guard against locking yourself out of the organisation.

@@ -7,6 +7,7 @@ import {
 } from "@/modules/users/enums";
 import {
   birthDateField,
+  optionalEmail,
   optionalText,
   password,
   requiredText,
@@ -31,10 +32,16 @@ export function userSchema(
   return z.object({
     firstName: requiredText(v, { max: 80 }),
     lastName: requiredText(v, { max: 80 }),
-    email: z.email({ error: v.email }).transform((value) => value.toLowerCase()),
     /*
-      What this account signs in with. Optional, because not every account is
-      staff — a guardian has none and signs in on the phone with their email.
+      A mailbox, not a credential. Optional because plenty of accounts have no
+      address the school knows of — a parent handed a portal login at the
+      counter, a caretaker who needs the staff chat — and nothing signs in with
+      it either way. See User.email.
+    */
+    email: optionalEmail(v),
+    /*
+      What this account signs in with, and therefore required: an account with no
+      username is one nobody can reach. See User.username.
 
       Lowercased before it is checked, so the pattern only ever has one spelling
       to accept and the unique index only ever one to store. See
@@ -44,10 +51,10 @@ export function userSchema(
       .string()
       .trim()
       .transform(normalizeUsername)
+      .refine((value) => value !== "", { error: v.required })
       .refine((value) => value === "" || isValidUsername(value), {
         error: v.invalidUsername,
-      })
-      .transform((value) => (value === "" ? null : value)),
+      }),
     // Blank on edit means "keep the existing password".
     password: requirePassword
       ? password(v)

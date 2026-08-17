@@ -15,6 +15,8 @@ const fr = {
     firstName: "Prénom",
     lastName: "Nom",
     email: "Adresse e-mail",
+    emailHint:
+      "Facultative. Personne ne s'y connecte — c'est le nom d'utilisateur qui sert d'identifiant.",
     password: "Mot de passe",
     passwordHint: "Au moins 8 caractères.",
     passwordEditHint: "Laissez vide pour conserver le mot de passe actuel.",

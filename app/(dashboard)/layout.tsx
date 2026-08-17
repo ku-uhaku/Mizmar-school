@@ -29,12 +29,12 @@ import {
 import { displayName, requireAuth } from "@/lib/dal";
 import { PERMISSIONS } from "@/lib/permissions";
 
-function initialsOf(name: string, email: string): string {
+function initialsOf(name: string, username: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
-  return (parts[0]?.[0] ?? email[0] ?? "?").toUpperCase();
+  return (parts[0]?.[0] ?? username[0] ?? "?").toUpperCase();
 }
 
 export default async function DashboardLayout({
@@ -162,9 +162,12 @@ export default async function DashboardLayout({
               <ThemeModeToggle />
               <UserMenu
                 name={name}
-                email={context.user.email}
+                /* The username under the name, and the address only when there
+                   is one: it is what this person signs in with, and plenty of
+                   accounts have no mailbox at all — see User.email. */
+                identifier={context.user.email ?? context.user.username}
                 avatarUrl={context.user.profile?.avatarUrl ?? null}
-                initials={initialsOf(name, context.user.email)}
+                initials={initialsOf(name, context.user.username)}
               />
             </div>
           </header>

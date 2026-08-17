@@ -52,7 +52,7 @@ export function StaffList({
         // The matricule and the account e-mail are searchable but not sorted
         // on: somebody hunting for "P-2025-0007" has the code, not the name.
         accessorFn: (row) =>
-          `${row.fullName} ${row.code} ${row.userEmail ?? ""}`,
+          `${row.fullName} ${row.code} ${row.userUsername ?? ""}`,
         header: t.hr.employee,
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -64,7 +64,9 @@ export function StaffList({
             </Link>
             <p className="text-muted-foreground truncate text-xs" dir="ltr">
               {row.original.code}
-              {row.original.userEmail ? ` · ${row.original.userEmail}` : ""}
+              {row.original.userUsername
+                ? ` · ${row.original.userUsername}`
+                : ""}
             </p>
           </div>
         ),

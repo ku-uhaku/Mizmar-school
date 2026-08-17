@@ -49,19 +49,21 @@ export type EventRow = {
 };
 
 function displayName(user: {
-  email: string;
+  username: string;
   profile: { firstName: string; lastName: string } | null;
 } | null): string | null {
   if (!user) return null;
-  if (!user.profile) return user.email;
-  return `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.email;
+  if (!user.profile) return user.username;
+  return (
+    `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.username
+  );
 }
 
 const EVENT_INCLUDE = {
   audiences: { select: { levelId: true, schoolClassId: true } },
   publishedBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },

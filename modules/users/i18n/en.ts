@@ -15,6 +15,7 @@ const en = {
     firstName: "First name",
     lastName: "Last name",
     email: "Email address",
+    emailHint: "Optional. Nothing signs in with it — the username is the login.",
     password: "Password",
     passwordHint: "At least 8 characters.",
     passwordEditHint: "Leave blank to keep the current password.",

@@ -33,7 +33,10 @@ export type ProfileValues = {
   avatarUrl: string | null;
   /** `YYYY-MM-DD`, or "" when unset. */
   birthDate: string;
-  email: string;
+  /** What this account signs in with — see User.username. */
+  username: string;
+  /** Null when the school holds no address for this person. */
+  email: string | null;
 };
 
 export function ProfileDetailsForm({ profile }: { profile: ProfileValues }) {
@@ -82,21 +85,37 @@ export function ProfileDetailsForm({ profile }: { profile: ProfileValues }) {
             </FormField>
           </div>
 
-          {/* Changing your own email would change your sign-in identity, so it
-              is administrator-only. */}
-          <FormField
-            name="emailDisplay"
-            label={t.profile.email}
-            hint={t.profile.emailReadonly}
-          >
-            <Input
-              id="emailDisplay"
-              value={profile.email}
-              readOnly
-              disabled
-              dir="ltr"
-            />
-          </FormField>
+          {/* Both read-only. Changing the username would change what this
+              person signs in with, and both are administrator-only. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              name="usernameDisplay"
+              label={t.user.username}
+              hint={t.profile.usernameReadonly}
+            >
+              <Input
+                id="usernameDisplay"
+                value={profile.username}
+                readOnly
+                disabled
+                dir="ltr"
+              />
+            </FormField>
+
+            <FormField
+              name="emailDisplay"
+              label={t.profile.email}
+              hint={t.profile.emailReadonly}
+            >
+              <Input
+                id="emailDisplay"
+                value={profile.email ?? ""}
+                readOnly
+                disabled
+                dir="ltr"
+              />
+            </FormField>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField

@@ -187,7 +187,7 @@ export async function loadClassTimetable(
           select: { name: true, shortName: true, code: true, colorHex: true },
         },
         teacher: {
-          select: { email: true, profile: { select: { firstName: true, lastName: true } } },
+          select: { username: true, profile: { select: { firstName: true, lastName: true } } },
         },
         room: { select: { code: true } },
         classGroup: { select: { code: true, name: true } },
@@ -367,7 +367,7 @@ export async function loadTimetableChoices(
           teacherId: true,
           teacher: {
             select: {
-              email: true,
+              username: true,
               profile: { select: { firstName: true, lastName: true } },
             },
           },
@@ -413,7 +413,7 @@ export async function loadTimetableChoices(
       orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
       select: {
         id: true,
-        email: true,
+        username: true,
         profile: { select: { firstName: true, lastName: true } },
       },
     }),
@@ -822,7 +822,7 @@ export async function loadWeekOverlay(
         room: { select: { code: true } },
         teacher: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -843,13 +843,13 @@ export async function loadWeekOverlay(
         endDate: true,
         teacher: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
         substitute: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -917,7 +917,7 @@ export async function listTeacherOptions(
     orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
     select: {
       id: true,
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
       unavailability: {
         where: { timeSlot: { schoolYearId, scheduleKind } },

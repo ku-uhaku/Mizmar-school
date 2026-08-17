@@ -473,7 +473,10 @@ describe("loadMobileIdentity", () => {
     return {
       user: {
         id: USER,
-        email: "parent@school.ma",
+        username: "f-2025-0142",
+        // Null far more often than not: a guardian handed a portal login at the
+        // counter has no address the school knows of — see User.email.
+        email: null,
         profile: { firstName: "Nadia", lastName: "Alami" },
       },
       organization: { name: "Groupe Scolaire" },
@@ -537,12 +540,14 @@ describe("loadMobileIdentity", () => {
     expect(identity.spaces).toEqual(["director"]);
   });
 
-  it("falls back to the email when the profile has no name", async () => {
+  it("falls back to the username when the profile has no name", async () => {
+    // Not to the address: an account may well have none, and the username is
+    // what this person types to get here in the first place.
     const bare = context({ guardian: 1 });
     (bare as unknown as { user: { profile: unknown } }).user.profile = null;
 
     const identity = await loadMobileIdentity(bare);
-    expect(identity.fullName).toBe("parent@school.ma");
+    expect(identity.fullName).toBe("f-2025-0142");
   });
 
   it("grants nothing by itself — every endpoint still authorizes", async () => {

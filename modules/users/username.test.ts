@@ -3,18 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   USERNAME_MAX_LENGTH,
   isValidUsername,
-  looksLikeEmail,
   normalizeUsername,
   suggestUsername,
   uniqueUsername,
 } from "@/modules/users/enums";
 
 /**
- * What staff sign in with.
+ * What everybody signs in with.
  *
- * The login identifier is the one string in the app that decides *whose*
- * account a request is acting as, so what is tested here is the handful of
- * rules that keep it unambiguous —
+ * The username is the one string in the app that decides *whose* account a
+ * request is acting as, so what is tested here is the handful of rules that keep
+ * it unambiguous —
  *
  *   * **one spelling reaches the column.** `K.Bennis` and `k.bennis` are the
  *     same login, and storing both would make the unique index a lie;
@@ -22,10 +21,8 @@ import {
  *     accents folded rather than dropped;
  *   * **two people of the same name both get an account**, which in a school of
  *     two hundred is a Tuesday;
- *   * **an `@` decides which column is looked in**, so a username can never
- *     shadow somebody else's email address at the login box;
- *   * **an account with no username still signs in by email**, which is what
- *     makes the rollout safe on a school whose accounts predate the column.
+ *   * **only the username column is ever looked in**, so an email address can
+ *     neither reach an account nor shadow one at the login box.
  */
 
 // ── The shape ────────────────────────────────────────────────────────────────
@@ -138,15 +135,6 @@ describe("two people of the same name", () => {
   });
 });
 
-// ── Which column a login looks in ────────────────────────────────────────────
-
-describe("telling a username from an email", () => {
-  it("decides on the @", () => {
-    expect(looksLikeEmail("karim.bennis@almanar.ma")).toBe(true);
-    expect(looksLikeEmail("k.bennis")).toBe(false);
-  });
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Call = { model: string; op: string; args: Record<string, unknown> };
@@ -194,36 +182,30 @@ describe("resolving a login", () => {
     expect(lookup()?.args).toMatchObject({ where: { username: "k.bennis" } });
   });
 
-  it("looks an address up in the email column", async () => {
-    // The phone still sends one, and a guardian has no username at all.
+  it("never looks in the email column, whatever was typed", async () => {
+    /*
+      An address is not a credential. Looking it up as one would let somebody
+      reach an account through a mailbox the school merely recorded, and — since
+      a username may equal another account's email local part — would make it
+      ambiguous whose account was found.
+    */
     await checkCredentials("parent@famille.ma", "secret");
     expect(lookup()?.args).toMatchObject({
-      where: { email: "parent@famille.ma" },
+      where: { username: "parent@famille.ma" },
     });
   });
 
-  it("never tries the other column as a fallback", async () => {
-    /*
-      Two lookups would leak, twice over: the timing difference would tell a
-      caller whether a username exists, and somebody could register a username
-      equal to another account's email local part and shadow them at the login
-      box. One identifier, one column.
-    */
+  it("makes exactly one lookup", async () => {
+    // Two would leak by timing whether the first column held a match.
     await checkCredentials("k.bennis", "secret");
     expect(
       calls.filter((call) => call.model === "user" && call.op === "findUnique"),
     ).toHaveLength(1);
   });
 
-  it("lowercases whichever column it uses", async () => {
+  it("lowercases and trims what was typed", async () => {
     await checkCredentials("  K.Bennis  ", "secret");
     expect(lookup()?.args).toMatchObject({ where: { username: "k.bennis" } });
-
-    calls.length = 0;
-    await checkCredentials("Parent@Famille.MA", "secret");
-    expect(lookup()?.args).toMatchObject({
-      where: { email: "parent@famille.ma" },
-    });
   });
 
   it("answers the same way for an unknown username as a wrong password", async () => {

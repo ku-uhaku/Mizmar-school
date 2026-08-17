@@ -27,8 +27,8 @@ const fr: Dictionary = {
   login: {
     title: "Al Manar",
     tagline: "Espace familles, enseignants et transport.",
-    emailLabel: "Adresse e-mail",
-    emailPlaceholder: "nom@ecole.ma",
+    identifierLabel: "Nom d’utilisateur",
+    identifierPlaceholder: "k.bennis",
     passwordLabel: "Mot de passe",
     submit: "Se connecter",
     tooManyAttempts: "Trop de tentatives. Réessayez dans {minutes} minutes.",

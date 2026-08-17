@@ -175,15 +175,21 @@ export async function changePassword(
   await saveTokens(tokens);
 }
 
-/** Sign-in. The only call that carries no token. */
+/**
+ * Sign-in. The only call that carries no token.
+ *
+ * A username, the same one the web dashboard asks for — a guardian's address is
+ * no longer a credential. Sent as `identifier`; the route still accepts the old
+ * `email` field name for copies of this app already on somebody's phone.
+ */
 export async function login(
-  email: string,
+  identifier: string,
   password: string,
 ): Promise<void> {
   const response = await fetch(`${BASE}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
 
   if (!response.ok) {

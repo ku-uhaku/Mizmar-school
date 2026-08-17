@@ -40,8 +40,9 @@ docker compose up -d --build
 That brings up MySQL, waits for it to pass its health check, applies every
 migration, seeds, and starts the app on <http://localhost:3000>.
 
-Sign in with `SEED_ADMIN_EMAIL`'s local part — `admin@groupescolaire.ma` means
-signing in as **`admin`** — and `SEED_ADMIN_PASSWORD`.
+Sign in with a username: `SEED_ADMIN_EMAIL`'s local part — so
+`admin@groupescolaire.ma` means signing in as **`admin`** — and
+`SEED_ADMIN_PASSWORD`. An address is never a credential here.
 
 Watch it come up:
 
@@ -104,6 +105,29 @@ docker compose up -d --build
 ```
 
 `migrate` runs again automatically and `app` waits for it.
+
+### Browsing the database
+
+Not part of the stack — `profiles: ["tools"]` keeps phpMyAdmin out of a plain
+`docker compose up`, so a deployment never gains an admin panel by accident:
+
+```bash
+docker compose --profile tools up -d phpmyadmin     # http://localhost:8080
+docker compose stop phpmyadmin
+```
+
+Sign in as `root` / `MYSQL_ROOT_PASSWORD`, or `mizmar` / `MYSQL_PASSWORD` for
+just the one database. It reaches MySQL over the compose network
+(`PMA_HOST=db`), not the published port.
+
+Published on `127.0.0.1:8080` for the same reason MySQL is — forward the port to
+reach it on a remote box, never open it:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 user@host
+```
+
+`npm run db:studio` from the host is the alternative, and needs no container.
 
 ### Backups
 

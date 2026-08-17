@@ -30,7 +30,10 @@ export type MobileSpace = (typeof MOBILE_SPACES)[number];
 
 export type MobileIdentity = {
   userId: string;
-  email: string;
+  /** What this account signs in with — see User.username. */
+  username: string;
+  /** Null when the school holds no address for this person. */
+  email: string | null;
   fullName: string;
   organizationName: string;
   schoolName: string | null;
@@ -75,7 +78,7 @@ export async function loadMobileIdentity(
   const fullName =
     profile && (profile.firstName || profile.lastName)
       ? `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim()
-      : context.user.email;
+      : context.user.username;
 
   // Ordered by how much the space carries, so a director who also teaches lands
   // on the dashboard rather than on their own timetable.
@@ -83,6 +86,7 @@ export async function loadMobileIdentity(
 
   return {
     userId,
+    username: context.user.username,
     email: context.user.email,
     fullName,
     organizationName: context.organization.name,

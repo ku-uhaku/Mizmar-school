@@ -30,8 +30,8 @@ const en = {
   login: {
     title: "Al Manar",
     tagline: "Space for families, teachers and transport.",
-    emailLabel: "Email address",
-    emailPlaceholder: "name@school.ma",
+    identifierLabel: "Username",
+    identifierPlaceholder: "k.bennis",
     passwordLabel: "Password",
     submit: "Sign in",
     tooManyAttempts: "Too many attempts. Try again in {minutes} minutes.",

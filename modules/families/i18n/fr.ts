@@ -125,8 +125,25 @@ const fr = {
     familyColumn: "Famille",
     countLabel: "{count} enfants",
     attachTitle: "Rattacher à une famille",
+
+    transfer: "Transférer vers une autre école",
+    transferHint:
+      "Pour un dossier ouvert dans la mauvaise école. Les adultes et les enfants le suivent ; ce qui est déjà inscrit ou payé ne le suit pas.",
+    transferSchool: "Nouvelle école",
+    transferConfirm: "Transférer ce dossier",
+    transferred:
+      "Dossier transféré sous le numéro {code}, avec {children} enfants. {cleared} références aux listes de l'ancienne école ont été vidées.",
+    transferBlocked: "Ce dossier ne peut pas être transféré : {reasons}.",
+    transferSameSchool: "Il est déjà dans cette école.",
+    transferOtherOrganisation: "Cette école appartient à une autre organisation.",
   },
   familyOptions: {
+    transferBlockers: {
+      enrolments: "un enfant y est inscrit",
+      payments: "des reçus y ont été établis à son nom",
+      requests: "des documents ont été demandés à cette école",
+      documents: "il contient des pièces d'un type que l'autre école ne tient pas",
+    },
     situations: {
       MARRIED: "Marié(e)",
       DIVORCED: "Divorcé(e)",

@@ -18,6 +18,8 @@ const en = {
     avatarUrl: "Avatar URL",
     email: "Email address",
     emailReadonly: "Contact an administrator to change your email address.",
+    usernameReadonly:
+      "What you sign in with. Contact an administrator to change it.",
     updated: "Profile updated.",
     security: "Security",
     changePassword: "Change password",

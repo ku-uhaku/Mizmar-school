@@ -44,7 +44,6 @@ const ar = {
       "ما يمكنه القيام به بعد الولوج. اتركه فارغًا لولوج بدون أي صلاحية.",
     accountPassword: "كلمة السر الأولى",
     accountPasswordHint: "سلّمها له مباشرة؛ بإمكانه تغييرها من ملفه الشخصي.",
-    accountNeedsEmail: "لا بد من بريد إلكتروني لإنشاء ولوج.",
     accountNeedsPassword: "حدّد كلمة سر أولى للولوج الجديد.",
     accountNeedsUsername: "اكتب اسم مستخدم — يتعذّر اشتقاق واحد من هذا الاسم.",
     accountCreated: "تم حفظ الموظف وإنشاء ولوجه.",
@@ -81,7 +80,6 @@ const ar = {
     accessHint: "هل يلج النظام، وما الذي يمكنه فعله بعد الولوج.",
     accountNotPermitted: "لا تملك صلاحية إنشاء حسابات ولوج.",
     noPermissions: "ولوج بدون أي صلاحية",
-    emailIsLogin: "وهو أيضًا العنوان الذي يُفتح عليه حسابه.",
     jobFunctionNeedsAccount: "الوظيفة مرتبطة بالولوج — فعّل ولوجًا لتحديدها.",
     maxWeeklyMinutes: "السقف الأسبوعي للتدريس",
     maxWeeklyMinutesHint:
@@ -320,8 +318,27 @@ const ar = {
     lastNet: "آخر صافٍ",
     noPayslipYet: "لم تُصدر أي ورقة أجر بعد.",
     leaveDaysTaken: "{count} يوم عطلة هذه السنة",
+
+    transfer: "النقل إلى مؤسسة أخرى",
+    transferHint:
+      "لملف فُتح في المؤسسة الخطأ. عقوده تنتقل معه، أما ما وقع هنا فلا ينتقل.",
+    transferSchool: "المؤسسة الجديدة",
+    transferConfirm: "نقل هذا الموظف",
+    transferred: "تم نقل الموظف.",
+    transferredRecoded:
+      "تم نقل الموظف. رقم تسجيله الآن {code} — القديم مستعمل في تلك المؤسسة.",
+    transferBlocked: "لا يمكن نقل هذا الموظف: {reasons}.",
+    transferSameSchool: "هو يعمل في تلك المؤسسة أصلًا.",
+    transferOtherOrganisation: "تلك المؤسسة تابعة لمنظمة أخرى.",
   },
   hrOptions: {
+    transferBlockers: {
+      payroll: "قد تسلّم أجرًا هنا",
+      register: "حضوره أو رُخصه مسجلة هنا",
+      teaching: "يدرّس أو مؤهَّل هنا",
+      transport: "هو ضمن أسطول هذه المؤسسة",
+      caisse: "يتولى صندوقًا هنا",
+    },
     jobRoles: {
       TEACHER: "أستاذ",
       DIRECTOR: "مدير",

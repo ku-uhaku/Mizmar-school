@@ -96,14 +96,19 @@ export async function loadChoices(
   if (referenceTo === "@teachers") {
     const users = await db.user.findMany({
       where: { organizationId: context.organization.id, isActive: true },
-      select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } },
-      orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
+      select: {
+        id: true,
+        username: true,
+        profile: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: [{ profile: { lastName: "asc" } }, { username: "asc" }],
     });
     return users.map((user) => ({
       id: user.id,
       label: user.profile
-        ? `${user.profile.firstName} ${user.profile.lastName}`.trim() || user.email
-        : user.email,
+        ? `${user.profile.firstName} ${user.profile.lastName}`.trim() ||
+          user.username
+        : user.username,
     }));
   }
 

@@ -44,33 +44,162 @@ Generate a session secret with:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-### With Docker instead
+## Running with Docker
 
-Brings up MySQL, migrates, seeds and starts the app in one command:
+The app and MySQL in one stack, on one machine. This is also how the app should
+be **deployed**: across the internet each statement costs ~112 ms, and a page
+issuing thirty of them spends three seconds doing nothing but waiting. On one
+machine the same query is a loopback hop, and the only traffic left on the slow
+link is the HTTP response to the browser.
+
+You need Docker with Compose v2. Nothing else — no Node, no MySQL, no
+`npm install` on the host.
+
+### First run
 
 ```bash
-cp docker/env.example .env.docker    # fill in AUTH_SECRET and the two passwords
+cp docker/env.example .env.docker
+```
+
+Fill in the three required values. Generate them:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # AUTH_SECRET
+node -e "console.log(require('crypto').randomBytes(18).toString('hex'))"     # MYSQL_ROOT_PASSWORD
+node -e "console.log(require('crypto').randomBytes(18).toString('hex'))"     # MYSQL_PASSWORD
+```
+
+Keep the two MySQL passwords to letters and digits. They are interpolated into a
+connection URL, so a `@`, `:`, `/` or `#` would need percent-encoding and would
+otherwise silently truncate it.
+
+Then build the images and start everything:
+
+```bash
 docker compose up -d --build
 ```
 
-This is also how the app should be **deployed**: the app and the database on
-one machine, so a query is a loopback hop. Across the internet each statement
-costs ~112 ms, and a page issuing thirty of them spends three seconds waiting.
-See [docker/README.md](docker/README.md).
+The first build takes a few minutes; later ones reuse the cached `npm ci` layer.
 
-### Seeded accounts
+### What that does
+
+Three services, in order:
+
+| Service | Image stage | Role |
+|---|---|---|
+| `db` | `mysql:8.4` | utf8mb4 / utf8mb4_unicode_ci, data in the `db-data` volume |
+| `migrate` | `builder` | one-shot: `prisma migrate deploy`, then the seed, then exits |
+| `app` | `runner` | the standalone Next server, on <http://localhost:3000> |
+
+`migrate` waits for `db` to pass its health check, and `app` waits for `migrate`
+to exit successfully — so the app never serves a request against a schema older
+than the code it is running. Watch it come up:
+
+```bash
+docker compose logs -f migrate   # migrations and seeding
+docker compose logs -f app
+```
+
+`migrate` is built from the `builder` stage rather than `runner` because the
+seeds are TypeScript that imports from `modules/`, so they need the full source,
+`tsx` and the Prisma CLI — all of which `runner` drops.
+
+### Signing in
+
+Everybody signs in with a **username** — the dashboard and the phone ask for the
+same one, and an email address is never a credential. The seeded administrator's
+is the local part of `SEED_ADMIN_EMAIL`, so `admin@groupescolaire.ma` means
+signing in as `admin`. The password is `SEED_ADMIN_PASSWORD`, `Admin123!` unless
+you changed it.
+
+Set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` *before* the first
+`docker compose up`: the seeds upsert on the username derived from it, so
+changing it later adds a second administrator rather than renaming the first.
+
+### Choosing what gets seeded
+
+`SEED_MODE` in `.env.docker` decides what `migrate` does after the migrations:
+
+| Value | What you get |
+|---|---|
+| `config` *(default)* | years and calendar, cursus, rooms, fee catalogue, roles, one administrator |
+| `demo` | all of the above plus pupils, staff, classes, timetable, a year of receipts |
+| `empty` | an organisation and nothing else |
+| `none` | migrations only |
+
+All four are safe on every `up` — the seeds are idempotent and never delete, so
+a school you added by hand survives. Set `none` once the school has real data
+in it, purely to save the few seconds. To seed differently without a restart:
+
+```bash
+docker compose run --rm -e SEED_MODE=demo migrate
+```
+
+### Browsing the database
+
+phpMyAdmin is available but deliberately **not** part of the stack — it sits
+behind a Compose profile, so a plain `docker compose up` never quietly gains a
+database administration UI:
+
+```bash
+docker compose --profile tools up -d phpmyadmin
+```
+
+Then <http://localhost:8080>, signing in as either `root` /
+`MYSQL_ROOT_PASSWORD` or `mizmar` / `MYSQL_PASSWORD` from `.env.docker`. Stop it
+again with `docker compose stop phpmyadmin`.
+
+Like MySQL, it is published on loopback only. To reach it on a remote box,
+forward the port rather than opening it:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 user@host
+```
+
+`npm run db:studio` is the other option, and needs no container — it reaches the
+published `127.0.0.1:3306` from the host.
+
+### Everyday commands
+
+```bash
+docker compose up -d                  # start
+docker compose down                   # stop, keep the data
+docker compose down -v                # stop and DESTROY the database volume
+docker compose up -d --build          # rebuild after a code change
+docker compose logs -f app
+docker compose exec app sh            # a shell in the app container
+```
+
+Pulling new code with new migrations needs nothing special: `docker compose up
+-d --build` runs `migrate` again and `app` waits for it.
+
+Your own `.env` is not used and not copied into the image — `.dockerignore`
+excludes it, and `docker/entrypoint.sh` builds `DATABASE_URL` inside the
+container from the `MYSQL_*` values so the app can only reach the database
+standing next to it. Local `npm run dev` is therefore unaffected.
+
+[docker/README.md](docker/README.md) covers backups, building on a small cloud
+instance, and troubleshooting.
+
+## Seeded accounts
+
+These come from the full demonstration seed — `npm run db:seed`, or
+`SEED_MODE=demo` under Docker. The `config` seed creates only the administrator.
 
 All share the password `Admin123!`. Each one exercises a different permission
 level, which makes the role system easy to see in action.
 
-| Email | Access |
+| Username | Access |
 |---|---|
-| `admin@groupescolaire.ma` | Super administrator — everything |
-| `pedagogie@almanar.ma` | Org role: sees all schools, manages school years |
-| `directeur.casa@almanar.ma` | Directeur — Casablanca only |
-| `directeur.rabat@almanar.ma` | Directeur — Rabat only |
-| `secretariat.casa@almanar.ma` | Secrétaire — Casablanca, read-mostly |
-| `prof.marrakech@almanar.ma` | Enseignant — Marrakech, read-only |
+| `admin` | Super administrator — everything |
+| `pedagogie` | Org role: sees all schools, manages school years |
+| `directeur.casa` | Directeur — Casablanca only |
+| `directeur.rabat` | Directeur — Rabat only |
+| `secretariat.casa` | Secrétaire — Casablanca, read-mostly |
+| `prof.marrakech` | Enseignant — Marrakech, read-only |
+
+Teachers sign in as `firstname.lastname`, and a family's portal login is the
+dossier number — the seed prints both when it finishes.
 
 ## Scripts
 

@@ -94,7 +94,7 @@ export async function listRegisters(
     include: {
       holder: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -104,7 +104,7 @@ export async function listRegisters(
         include: {
           openedBy: {
             select: {
-              email: true,
+              username: true,
               profile: { select: { firstName: true, lastName: true } },
             },
           },
@@ -180,7 +180,7 @@ export async function findOpenSession(context: AuthContext) {
       cashRegister: { select: { id: true, name: true, code: true } },
       openedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -211,7 +211,7 @@ export async function listCashierChoices(
     orderBy: [{ profile: { lastName: "asc" } }, { email: "asc" }],
     select: {
       id: true,
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   });
@@ -259,13 +259,13 @@ export async function findSessionDetail(
       cashRegister: { select: { code: true, name: true } },
       openedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
       closedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -308,13 +308,13 @@ export async function listSessions(
       cashRegister: { select: { name: true } },
       openedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
       closedBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -513,7 +513,7 @@ const OPERATION_INCLUDE = {
   subcategory: { select: { name: true } },
   createdBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },
@@ -1204,13 +1204,13 @@ const paymentRowInclude = {
   family: { select: { name: true } },
   createdBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },
   cancelledBy: {
     select: {
-      email: true,
+      username: true,
       profile: { select: { firstName: true, lastName: true } },
     },
   },
@@ -1600,13 +1600,13 @@ export async function findReceipt(
       family: { select: { name: true, code: true } },
       createdBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
       cancelledBy: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

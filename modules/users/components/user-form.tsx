@@ -296,27 +296,14 @@ export function UserForm({
 
         <FormSection title={t.profile.security}>
           <FormGrid>
-            <FormField
-              name="email"
-              label={t.user.email}
-              error={errors.email}
-              required
-            >
-              <Input
-                {...controlProps("email", errors.email)}
-                type="email"
-                defaultValue={valueOf(state, "email", user?.email)}
-                dir="ltr"
-                autoComplete="off"
-                required
-              />
-            </FormField>
-
+            {/* The username first: it is what this account signs in with, and
+              the address below it is optional and not a credential. */}
             <FormField
               name="username"
               label={t.user.username}
               hint={t.user.usernameHint}
               error={errors.username}
+              required
             >
               <Input
                 {...controlProps("username", errors.username)}
@@ -328,6 +315,22 @@ export function UserForm({
                 dir="ltr"
                 autoComplete="off"
                 spellCheck={false}
+                required
+              />
+            </FormField>
+
+            <FormField
+              name="email"
+              label={t.user.email}
+              hint={t.user.emailHint}
+              error={errors.email}
+            >
+              <Input
+                {...controlProps("email", errors.email)}
+                type="email"
+                defaultValue={valueOf(state, "email", user?.email)}
+                dir="ltr"
+                autoComplete="off"
               />
             </FormField>
 

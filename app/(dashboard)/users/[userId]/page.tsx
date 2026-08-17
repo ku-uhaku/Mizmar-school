@@ -32,7 +32,7 @@ export default async function EditUserPage(props: PageProps<"/users/[userId]">) 
   return (
     <>
       <PageHeader
-        title={`${user.firstName} ${user.lastName}`.trim() || user.email}
+        title={`${user.firstName} ${user.lastName}`.trim() || user.username}
         description={t.user.editUser}
         backHref="/users"
         backLabel={t.nav.users}

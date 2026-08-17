@@ -9,14 +9,14 @@ const fr = {
   auth: {
     signInTitle: "Connexion",
     signInSubtitle: "Accédez au tableau de bord d'administration scolaire.",
-    email: "Adresse e-mail",
     identifier: "Nom d’utilisateur",
-    identifierHint: "Votre identifiant d’école. Les parents se connectent sur l’application avec leur courriel.",
+    identifierHint:
+      "Le nom d’utilisateur remis par votre école. Ce n’est pas une adresse e-mail.",
     password: "Mot de passe",
     signIn: "Se connecter",
     signingIn: "Connexion…",
     signOut: "Se déconnecter",
-    invalidCredentials: "E-mail ou mot de passe incorrect.",
+    invalidCredentials: "Nom d’utilisateur ou mot de passe incorrect.",
     accountDisabled: "Ce compte a été désactivé.",
     mobileOnlyAccount:
       "Les comptes enseignants s'utilisent sur l'application Mizmar, pas sur ce tableau de bord. Connectez-vous-y avec les mêmes identifiants.",

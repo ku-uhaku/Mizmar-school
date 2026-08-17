@@ -28,8 +28,8 @@ const ar: Dictionary = {
   login: {
     title: "المنار",
     tagline: "فضاء الأسر والأساتذة والنقل المدرسي.",
-    emailLabel: "البريد الإلكتروني",
-    emailPlaceholder: "name@ecole.ma",
+    identifierLabel: "اسم المستخدم",
+    identifierPlaceholder: "k.bennis",
     passwordLabel: "كلمة السر",
     submit: "تسجيل الدخول",
     tooManyAttempts: "محاولات كثيرة جدًا. أعد المحاولة بعد {minutes} دقيقة.",

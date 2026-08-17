@@ -54,7 +54,6 @@ const en = {
     accountPassword: "Initial password",
     accountPasswordHint:
       "Give it to them in person; they can change it from their profile.",
-    accountNeedsEmail: "An email address is required to create a login.",
     accountNeedsPassword: "Set an initial password for the new login.",
     accountNeedsUsername:
       "Type a username — one cannot be built from this name.",
@@ -95,7 +94,6 @@ const en = {
     accessHint: "Whether they sign in, and what they may do once they have.",
     accountNotPermitted: "You may not create login accounts.",
     noPermissions: "A login with no permissions",
-    emailIsLogin: "Also the address their account is opened on.",
     jobFunctionNeedsAccount:
       "La fonction sits on the login — turn one on to set it.",
     maxWeeklyMinutes: "Weekly teaching cap",
@@ -327,8 +325,29 @@ const en = {
     lastNet: "Last net pay",
     noPayslipYet: "No payslip issued yet.",
     leaveDaysTaken: "{count} leave days this year",
+
+    // Moving somebody whose file was opened against the wrong school.
+    transfer: "Move to another school",
+    transferHint:
+      "For a file opened against the wrong school. Their contracts move with them; anything that has already happened here does not.",
+    transferSchool: "New school",
+    transferConfirm: "Move this employee",
+    transferred: "Employee moved.",
+    transferredRecoded:
+      "Employee moved. Their matricule is now {code} — the old one was already used in that school.",
+    transferBlocked: "This employee cannot be moved: {reasons}.",
+    transferSameSchool: "They already work at that school.",
+    transferOtherOrganisation: "That school belongs to another organisation.",
   },
   hrOptions: {
+    /** Why an employee's file is stuck where it is — see `transferStaff`. */
+    transferBlockers: {
+      payroll: "they have been paid here",
+      register: "their register or leave is recorded here",
+      teaching: "they teach or are qualified here",
+      transport: "they are on this school's fleet",
+      caisse: "they hold a till here",
+    },
     jobRoles: {
       TEACHER: "Teacher",
       DIRECTOR: "Head",

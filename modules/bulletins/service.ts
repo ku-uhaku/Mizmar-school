@@ -396,7 +396,7 @@ async function loadTeacherNames(
     orderBy: [{ isPrimary: "desc" }],
     select: {
       subjectId: true,
-      teacher: { select: { email: true, profile: true } },
+      teacher: { select: { username: true, profile: true } },
     },
   });
 

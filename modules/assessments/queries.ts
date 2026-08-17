@@ -248,7 +248,7 @@ export async function listDevoirTargets(
     select: {
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -382,7 +382,7 @@ export async function loadProgrammesByClass(
       subjectId: true,
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -667,7 +667,7 @@ export async function listAssessmentFilterChoices(
         teacherId: true,
         teacher: {
           select: {
-            email: true,
+            username: true,
             profile: { select: { firstName: true, lastName: true } },
           },
         },
@@ -834,7 +834,7 @@ export async function listAssessments(
       term: { select: { id: true, name: true, nameAr: true } },
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -1129,7 +1129,7 @@ export async function findMarkSheet(
       },
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },

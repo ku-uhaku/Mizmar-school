@@ -73,7 +73,8 @@ export type TeacherRequirement = {
 /** A teacher account, and what they are qualified to take. */
 export type SeededTeacher = {
   id: string;
-  email: string;
+  /** Copied onto the staff record, which holds it as an optional column too. */
+  email: string | null;
   /**
    * Their subjects, main one first.
    *
@@ -189,15 +190,19 @@ export async function seedAdmin(
     ? await db.schoolYear.findFirst({ where: { schoolId, isDefault: true } })
     : null;
 
+  // Keyed on the username, which is what the account signs in with and the only
+  // column guaranteed to be there — see User.email.
+  const adminUsername = usernameFromEmail(adminEmail);
+
   await db.user.upsert({
-    where: { email: adminEmail },
+    where: { username: adminUsername },
     update: {
       profile: { update: { ...DEFAULT_PREFS, birthDate: new Date("1978-04-12") } },
     },
     create: {
       organizationId,
       email: adminEmail,
-      username: usernameFromEmail(adminEmail),
+      username: adminUsername,
       passwordHash,
       isSuperAdmin: true,
       orgRoleId: roles["Administrateur"],
@@ -216,7 +221,7 @@ export async function seedAdmin(
     },
   });
 
-  log("administrator", adminEmail);
+  log("administrator", adminUsername);
 }
 
 /** The nth distinct name in the pool. */
@@ -238,12 +243,12 @@ function nameFor(index: number): { first: string; last: string } {
  * The username a seeded account signs in with: the local part of its email.
  *
  * `karim.bennis@almanar.ma` becomes `karim.bennis`, which is exactly what the
- * migration that added the column derived for accounts that predate it — so a
- * seeded school and a migrated one agree about what everybody types, and the
- * demo credentials printed at the end of the seed stay true.
+ * migration deriving usernames for accounts that predate the column produced —
+ * so a seeded school and a migrated one agree about what everybody types, and
+ * the demo credentials printed at the end of the seed stay true.
  *
- * Set on create only. A re-seed must not reset a username an administrator has
- * since changed, which is why it is absent from every `update` below.
+ * The addresses themselves are seeded as well, because a demonstration school
+ * reads better with them, but nothing signs in with one — see User.email.
  */
 function usernameFromEmail(email: string): string {
   return email.split("@")[0]!.toLowerCase();

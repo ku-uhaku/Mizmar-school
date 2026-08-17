@@ -13,7 +13,7 @@ import {
   recordFailedLogin,
 } from "@/lib/login-throttle";
 import { SESSION_ENTITY } from "@/modules/audit/enums";
-import { looksLikeEmail } from "@/modules/users/enums";
+import { normalizeUsername } from "@/modules/users/enums";
 import { hasWebAccess } from "@/modules/access/web-access";
 
 /**
@@ -23,7 +23,7 @@ import { hasWebAccess } from "@/modules/access/web-access";
  * role takes effect on their next request rather than when their token expires.
  */
 
-/** Compared against when no user matches, so a wrong email costs the same
+/** Compared against when no user matches, so an unknown username costs the same
  *  amount of time as a wrong password and cannot be distinguished by timing. */
 const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEe.NgW7ZzGvXhZWjBmxJmLTk1TF.4LcJ2W";
 
@@ -59,18 +59,17 @@ export async function verifyPassword(
 }
 
 /**
- * Verifies an identifier and a password.
+ * Verifies a username and a password.
  *
- * ── Why one function takes both a username and an email ─────────────────────
- * The two audiences sign in at different doors. The web dashboard is a staff
- * surface, so its form asks for a username; the phone serves guardians too, and
- * a parent gives the email address the school already holds for them. Both
- * arrive here, and which column to look in is decided by whether there is an
- * `@` in what was typed — see `looksLikeEmail`.
+ * ── One credential, one column ──────────────────────────────────────────────
+ * Every account signs in with its username — staff at the web dashboard,
+ * guardians and drivers on the phone. `User.email` is a mailbox the school may
+ * or may not hold and is never looked at here, so an address cannot be used to
+ * reach an account and an account with no address is not shut out.
  *
- * An account with no username is therefore not locked out: nothing about the
- * email path changed, which is what makes the username rollout safe on a school
- * whose accounts predate it.
+ * It used to depend on whether there was an `@` in what was typed, which meant a
+ * username equal to another account's email local part could shadow it at the
+ * login box. There is now nothing to disambiguate.
  *
  * Returns the user id on success, or a reason the caller can turn into a
  * localised message.
@@ -88,15 +87,15 @@ export async function checkCredentials(
   | { ok: false; reason: "invalid" | "disabled" }
   | { ok: false; reason: "throttled"; retryAfterSeconds: number }
 > {
-  // Lowercased for both columns: an email is case-insensitive by convention and
-  // a username is by rule, so one normalisation serves and the throttle counter
-  // cannot be reset by varying the capitals.
-  const normalizedEmail = identifier.trim().toLowerCase();
+  // Lowercased by the same helper the column is written through, so the lookup
+  // cannot miss a row over capitals and the throttle counter cannot be reset by
+  // varying them.
+  const username = normalizeUsername(identifier);
 
   // Before the hash comparison, so a locked identifier costs no bcrypt work.
-  const throttle = await checkLoginThrottle(normalizedEmail);
+  const throttle = await checkLoginThrottle(username);
   if (throttle.locked) {
-    await recordAttempt(normalizedEmail, "LOGIN_BLOCKED", {
+    await recordAttempt(username, "LOGIN_BLOCKED", {
       retryAfterSeconds: throttle.retryAfterSeconds,
     });
     return {
@@ -106,18 +105,8 @@ export async function checkCredentials(
     };
   }
 
-  /*
-    An `@` decides which column, rather than trying one and then the other.
-
-    Two lookups would let an attacker tell a real username from a real email by
-    timing, and — worse — would let somebody register a username that happens to
-    equal another account's email local part and shadow them at the login box.
-    One identifier, one column, no ambiguity about whose account was found.
-  */
   const user = await db.user.findUnique({
-    where: looksLikeEmail(normalizedEmail)
-      ? { email: normalizedEmail }
-      : { username: normalizedEmail },
+    where: { username },
     select: {
       id: true,
       passwordHash: true,
@@ -128,18 +117,18 @@ export async function checkCredentials(
 
   if (!user) {
     await bcrypt.compare(plainPassword, DUMMY_HASH);
-    await recordFailedLogin(normalizedEmail);
-    // Recorded as an address, not as an account: there is no account. Which is
-    // itself worth having in the trail — a run of these against invented
-    // addresses is somebody guessing who works here.
-    await recordAttempt(normalizedEmail, "LOGIN_FAILED", { reason: "unknown" });
+    await recordFailedLogin(username);
+    // Recorded as what was typed, not as an account: there is no account. Which
+    // is itself worth having in the trail — a run of these against invented
+    // names is somebody guessing who works here.
+    await recordAttempt(username, "LOGIN_FAILED", { reason: "unknown" });
     return { ok: false, reason: "invalid" };
   }
 
   const matches = await verifyPassword(plainPassword, user.passwordHash);
   if (!matches) {
-    await recordFailedLogin(normalizedEmail);
-    await recordAttempt(normalizedEmail, "LOGIN_FAILED", {
+    await recordFailedLogin(username);
+    await recordAttempt(username, "LOGIN_FAILED", {
       reason: "password",
     });
     return { ok: false, reason: "invalid" };
@@ -147,10 +136,10 @@ export async function checkCredentials(
 
   // The password was right, so this is not the grind the counter guards
   // against — clear it even when the account turns out to be deactivated.
-  await clearLoginAttempts(normalizedEmail);
+  await clearLoginAttempts(username);
 
   if (!user.isActive) {
-    await recordAttempt(normalizedEmail, "LOGIN_FAILED", { reason: "disabled" });
+    await recordAttempt(username, "LOGIN_FAILED", { reason: "disabled" });
     return { ok: false, reason: "disabled" };
   }
 
@@ -188,10 +177,15 @@ export async function accountMayOpenWebApp(userId: string): Promise<boolean> {
 /**
  * Puts a refused sign-in in the trail.
  *
- * The actor is the address that was typed, because that is all there is — there
- * is no session, and often no account either. `checkCredentials` is the one
- * funnel both sign-in paths go through, which is why the recording sits here
+ * The actor is the username that was typed, because that is all there is —
+ * there is no session, and often no account either. `checkCredentials` is the
+ * one funnel both sign-in paths go through, which is why the recording sits here
  * rather than in the login action.
+ *
+ * `actorEmail` stays null: what arrived is a username, and putting it in a
+ * column called an address would make the audit list lie about which of the two
+ * somebody typed. The username is searchable through `actorLabel` — see the
+ * search in modules/audit/queries.ts.
  *
  * Successes are *not* recorded here: this function runs twice for one
  * successful sign-in — once from the action and once from Auth.js re-verifying
@@ -199,16 +193,16 @@ export async function accountMayOpenWebApp(userId: string): Promise<boolean> {
  * success is recorded in `authorize` below, which runs once.
  */
 async function recordAttempt(
-  email: string,
+  username: string,
   action: "LOGIN_FAILED" | "LOGIN_BLOCKED",
   metadata: Record<string, unknown>,
 ): Promise<void> {
   await recordEvent({
     action,
     entity: SESSION_ENTITY,
-    entityLabel: email,
+    entityLabel: username,
     metadata,
-    actor: { actorId: null, actorLabel: email, actorEmail: email },
+    actor: { actorId: null, actorLabel: username, actorEmail: null },
   });
 }
 
@@ -227,8 +221,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        // `text`, not `email`: staff sign in with a username, and the browser
-        // must not refuse one for lacking an `@`.
+        // `text`, not `email`: everybody signs in with a username, and the
+        // browser must not refuse one for lacking an `@`.
         identifier: { label: "Identifier", type: "text" },
         password: { label: "Password", type: "password" },
       },
@@ -253,7 +247,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           native app a second later, which is where their work is.
         */
         if (!(await accountMayOpenWebApp(result.userId))) {
-          await recordAttempt(identifier.trim().toLowerCase(), "LOGIN_BLOCKED", {
+          await recordAttempt(normalizeUsername(identifier), "LOGIN_BLOCKED", {
             reason: "web_access_denied",
           });
           return null;
@@ -275,13 +269,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           action: "LOGIN",
           entity: SESSION_ENTITY,
           entityId: account.id,
-          entityLabel: account.email,
+          entityLabel: account.username,
           actor: {
             actorId: account.id,
             actorLabel: account.profile
               ? `${account.profile.firstName} ${account.profile.lastName}`.trim() ||
-                account.email
-              : account.email,
+                account.username
+              : account.username,
             actorEmail: account.email,
             organizationId: account.organizationId,
             schoolId: account.currentSchoolId,

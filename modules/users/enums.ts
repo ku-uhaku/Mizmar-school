@@ -108,16 +108,3 @@ export function uniqueUsername(
   // index refuse it honestly rather than looping for ever.
   return normalized;
 }
-
-/**
- * Whether what somebody typed at the login box looks like an email.
- *
- * The web form asks for a username, but the same credential check serves the
- * phone — where a parent gives their email — so the resolver has to tell the
- * two apart. An `@` is the whole test, which is all that is needed to decide
- * *which column to look in*; whether the address is well-formed is settled by
- * whether it matches a row.
- */
-export function looksLikeEmail(identifier: string): boolean {
-  return identifier.includes("@");
-}

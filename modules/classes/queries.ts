@@ -157,7 +157,7 @@ export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
       },
       mainTeacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -225,7 +225,7 @@ export async function findClass(
       },
       mainTeacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
@@ -270,7 +270,7 @@ export async function findClass(
           subject: { select: { code: true, name: true } },
           teacher: {
             select: {
-              email: true,
+              username: true,
               profile: { select: { firstName: true, lastName: true } },
             },
           },
@@ -356,7 +356,9 @@ export type PupilTeacherRow = {
   subjectCode: string;
   teacherId: string;
   teacherName: string;
-  teacherEmail: string;
+  /** For the mailto in the pupil's file. Null when the school holds no address
+   *  for this teacher — see User.email. */
+  teacherEmail: string | null;
   /** Set only for a subject split by group — "the other half's teacher". */
   groupLabel: string | null;
   /** Answerable for the marks when a subject is co-taught. */
@@ -405,6 +407,7 @@ export async function listPupilTeachers(
       teacher: {
         select: {
           id: true,
+          username: true,
           email: true,
           profile: { select: { firstName: true, lastName: true } },
         },
@@ -691,7 +694,7 @@ export async function loadTeachingGrid(
       teacherId: true,
       teacher: {
         select: {
-          email: true,
+          username: true,
           profile: { select: { firstName: true, lastName: true } },
         },
       },
