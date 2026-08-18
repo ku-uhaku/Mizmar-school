@@ -988,6 +988,15 @@ html.dark[data-accent="teal"] {
   background: #f4f4f4;
 }
 
+/* A refusal with something to enumerate — the tables still pointing at a row
+   somebody tried to delete — travels as one `\n`-separated message and is split
+   into title and description by components/form/toast-error.ts. The description
+   would collapse those newlines like any other element, so the list only reads
+   as a list because of this rule. */
+.cn-toast [data-description] {
+  white-space: pre-line;
+}
+
 @media print {
   /* Nothing of the application chrome survives — only the document. */
   .print-toolbar,

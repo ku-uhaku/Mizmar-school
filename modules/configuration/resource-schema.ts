@@ -558,9 +558,13 @@ function delegateOf(modelName: string): Delegate | undefined {
   return (db as unknown as Record<string, Delegate>)[key];
 }
 
+/** One table still pointing at the row, and how many of its rows do. */
+export type BlockingReference = { model: string; count: number };
+
 /**
- * Whether some other row still points at the one about to be deleted — and if
- * so, which model and how many, so the refusal can say what is in the way.
+ * Every table that still points at the row about to be deleted, with how many
+ * of its rows do — so the refusal can name all of them rather than the first
+ * one it happened to find.
  *
  * Walks the model's own relation fields rather than a resource-by-resource
  * list: a field the model holds the foreign key for (`school` beside its own
@@ -570,21 +574,31 @@ function delegateOf(modelName: string): Delegate | undefined {
  * (LevelSubject) and the like, with no `id`-suffixed sibling for `subject`, is
  * exactly that: rows in `level_subjects` are what block deleting a `Subject`.
  *
+ * Two relations can land on the same table — a `Student` points at a `City`
+ * from both `birthCityId` and `previousSchoolCityId` — so the columns are
+ * gathered per table and counted once with an `OR`. Counting each relation
+ * separately would report four pupils where three exist, and a number the
+ * secretary cannot reconcile with the list they are sent to go and fix is
+ * worse than no number.
+ *
  * One row deep only: what deleting *this* row would immediately orphan, not
  * the whole tree beneath it — same as the hand-written guards elsewhere in the
  * app (`deleteStudentAction`'s enrolment count, `hasChildren` on a family).
  */
-export async function findBlockingReference(
+export async function findBlockingReferences(
   modelName: string,
   id: string,
-): Promise<{ model: string; count: number } | null> {
+): Promise<BlockingReference[]> {
   const models = runtimeDataModel().models;
   const model = models[modelName];
-  if (!model) return null;
+  if (!model) return [];
 
   const ownScalars = new Set(
     model.fields.filter((f) => f.kind === "scalar").map((f) => f.name),
   );
+
+  /** Foreign key columns pointing back here, keyed by the table holding them. */
+  const columnsByModel = new Map<string, string[]>();
 
   for (const field of model.fields) {
     if (field.kind !== "object") continue;
@@ -601,15 +615,26 @@ export async function findBlockingReference(
       (f) => f.kind === "object" && f.relationName === field.relationName,
     );
     if (!backField) continue;
+    if (!delegateOf(field.type)) continue;
 
-    const delegate = delegateOf(field.type);
-    if (!delegate) continue;
-
-    const count = await delegate.count({
-      where: { [`${backField.name}Id`]: id },
-    });
-    if (count > 0) return { model: field.type, count };
+    const columns = columnsByModel.get(field.type) ?? [];
+    columns.push(`${backField.name}Id`);
+    columnsByModel.set(field.type, columns);
   }
 
-  return null;
+  // Counted in parallel: this runs while somebody waits on a confirm dialog,
+  // and a table like `SchoolClass` has ten relations pointing back at it.
+  const counted = await Promise.all(
+    [...columnsByModel].map(async ([relatedModel, columns]) => ({
+      model: relatedModel,
+      count: await delegateOf(relatedModel)!.count({
+        where: { OR: columns.map((column) => ({ [column]: id })) },
+      }),
+    })),
+  );
+
+  // Heaviest first: what is most in the way is what to go and deal with first.
+  return counted
+    .filter((reference) => reference.count > 0)
+    .sort((a, b) => b.count - a.count);
 }

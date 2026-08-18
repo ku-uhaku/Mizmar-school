@@ -77,6 +77,7 @@ export function GenerateDialog({
   defaultClassId,
   defaultTermId,
   defaultDate: initialDate,
+  scopes = GENERATE_SCOPES,
 }: {
   classes: ClassOption[];
   terms: TermOption[];
@@ -91,6 +92,17 @@ export function GenerateDialog({
    * belongs to no term at all. See lib/school-year.ts.
    */
   defaultDate: string;
+  /**
+   * The scopes this instance offers. Every one of them by default.
+   *
+   * The class screen passes `["CLASS", "LEVEL"]`: it is opened *from* a class, so
+   * "this class or its niveau" is the decision being made there. YEAR would
+   * quietly generate for the whole school from a button on 3AP-A, which is not
+   * what anybody clicking it means — and, unlike the other two, `classes` there
+   * holds one niveau's classes, so the picker could not even show what it would
+   * be doing.
+   */
+  scopes?: readonly GenerateScope[];
 }) {
   const t = useT();
   const [open, setOpen] = React.useState(false);
@@ -128,7 +140,11 @@ export function GenerateDialog({
    * contrôle n°1 in all three of its classes — and generating class by class is
    * the same dialog filled in eight times, which is where a date gets mistyped.
    */
-  const [scope, setScope] = React.useState<GenerateScope>("LEVEL");
+  // LEVEL is how a round is actually set — see GENERATE_SCOPES — so it leads
+  // wherever it is offered, and the narrowest on offer stands in where it is not.
+  const [scope, setScope] = React.useState<GenerateScope>(
+    scopes.includes("LEVEL") ? "LEVEL" : (scopes[0] ?? "CLASS"),
+  );
 
   /**
    * The levels, derived from the classes rather than fetched again. Headed by
@@ -529,7 +545,7 @@ export function GenerateDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {GENERATE_SCOPES.map((option) => (
+                    {scopes.map((option) => (
                       <SelectItem key={option} value={option}>
                         {option === "CLASS"
                           ? t.assessment.scopeClass

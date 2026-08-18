@@ -6,6 +6,7 @@ import * as z from "zod";
 
 import { failure, type ActionState } from "@/lib/action-state";
 import { recordEvent } from "@/lib/audit";
+import { preferenceCookieOptions } from "@/lib/cookies";
 import { getAuthContext } from "@/lib/dal";
 import {
   serializeUiPrefs,
@@ -27,15 +28,6 @@ import { SESSION_ENTITY } from "@/modules/audit/enums";
 import { fieldErrors } from "@/lib/validation";
 import { field, withActionErrors } from "@/lib/server-action";
 
-const ONE_YEAR = 60 * 60 * 24 * 365;
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/",
-  maxAge: ONE_YEAR,
-  secure: process.env.NODE_ENV === "production",
-} as const;
-
 /**
  * On successful login, copy the user's stored language and appearance into
  * cookies so the very first authenticated render is already in their
@@ -46,9 +38,10 @@ async function applyStoredPreferences(userId: string) {
   if (!profile) return;
 
   const store = await cookies();
+  const options = await preferenceCookieOptions();
 
   if (isLocale(profile.locale)) {
-    store.set(LOCALE_COOKIE, profile.locale, COOKIE_OPTIONS);
+    store.set(LOCALE_COOKIE, profile.locale, options);
   }
 
   store.set(
@@ -62,7 +55,7 @@ async function applyStoredPreferences(userId: string) {
         radius: profile.radius,
       }),
     ),
-    COOKIE_OPTIONS,
+    options,
   );
 }
 

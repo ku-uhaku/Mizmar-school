@@ -7,6 +7,7 @@ import { authorizeSchool, requireAuth, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
+import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
 import { field, withActionErrors } from "@/lib/server-action";
 import { formValues } from "@/lib/form-values";
@@ -14,8 +15,9 @@ import { fieldErrors } from "@/lib/validation";
 import { findUnreachableReference } from "@/modules/configuration/queries";
 import { findResource } from "@/modules/configuration/resources";
 import {
-  findBlockingReference,
+  findBlockingReferences,
   resourceSchema,
+  type BlockingReference,
   type ChildCollection,
 } from "@/modules/configuration/resource-schema";
 import type { ResourceDef } from "@/modules/configuration/types";
@@ -376,7 +378,7 @@ export async function deleteConfigItemAction(
       Establish that the row is one this context may reach *before* asking
       anything else about it.
 
-      `findBlockingReference` counts by bare id — it has to, since it walks the
+      `findBlockingReferences` counts by bare id — it has to, since it walks the
       runtime data model rather than this resource's scope — so consulting it
       first answered "used by 12 records" for a room, a subject or a fee type
       belonging to another school in the same organisation. A director configures
@@ -395,11 +397,11 @@ export async function deleteConfigItemAction(
     // Refuse rather than let the database decide: a `Cascade` relation would
     // silently take a whole programme or price list down with one row, and a
     // `Restrict` one would surface as a raw constraint error instead of a
-    // message anybody at the guichet can act on.
-    const blocking = await findBlockingReference(schema.model, id);
-    if (blocking) {
-      return failure(interpolate(t.configuration.inUse, { count: blocking.count }));
-    }
+    // message anybody at the guichet can act on. Every blocking table is named,
+    // not just the first: a room is usually held by a class *and* a timetable,
+    // and clearing one only to be refused again teaches nothing.
+    const blocking = await findBlockingReferences(schema.model, id);
+    if (blocking.length > 0) return failure(blockingMessage(t, blocking));
 
     const deleted = await schema.table().deleteMany({
       where: { ...schema.where(context), id },
@@ -409,4 +411,46 @@ export async function deleteConfigItemAction(
     refresh();
     return success(t.configuration.deleted);
   });
+}
+
+// ── Saying what is in the way ────────────────────────────────────────────────
+
+/**
+ * The refusal, spelled out: one sentence, then one line per table still
+ * pointing at the row, then what to do about it.
+ *
+ * The newlines are load-bearing — `components/shared/confirm-delete.tsx` splits
+ * on the first one and hands the rest to the toast's description, so the tables
+ * read as a list instead of a paragraph. A message without them still reads
+ * correctly; it is only the layout that is lost.
+ */
+function blockingMessage(t: Dictionary, blocking: BlockingReference[]): string {
+  const total = blocking.reduce((sum, reference) => sum + reference.count, 0);
+
+  return [
+    interpolate(t.configuration.inUse, {
+      count: total,
+      tables: blocking.length,
+    }),
+    ...blocking.map((reference) =>
+      interpolate(t.configuration.inUseLine, {
+        table: recordLabel(t, reference.model),
+        count: reference.count,
+      }),
+    ),
+    t.configuration.inUseHint,
+  ].join("\n");
+}
+
+/**
+ * What a school calls the table a Prisma model stands for.
+ *
+ * Falls back to the model name split at its capitals rather than throwing: the
+ * relation graph is read from Prisma at runtime, so a migration can introduce a
+ * table this map has not been told about, and an ugly "Bulletin Line" beats a
+ * five-hundred in front of somebody trying to delete a subject.
+ */
+function recordLabel(t: Dictionary, model: string): string {
+  const labels: Record<string, string | undefined> = t.configuration.records;
+  return labels[model] ?? model.replace(/([a-z])([A-Z])/g, "$1 $2");
 }

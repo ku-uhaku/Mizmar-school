@@ -29,10 +29,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { clusterByGroup } from "@/components/form/option-groups";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -382,7 +385,8 @@ function NewRemarkDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pupils: ClassPupilOption[];
-  classes: { id: string; label: string }[];
+  /** Headed by cycle, exactly as the filter above — see `RemarkFilterChoices`. */
+  classes: { id: string; label: string; group?: string }[];
   defaultDate: string;
   canPublish: boolean;
 }) {
@@ -437,10 +441,17 @@ function NewRemarkDialog({
                     <SelectValue placeholder={t.classroom.chooseClass} />
                   </SelectTrigger>
                   <SelectContent>
-                    {classes.map((option) => (
-                      <SelectItem key={option.id} value={option.id}>
-                        {option.label}
-                      </SelectItem>
+                    {clusterByGroup(classes).map((cluster, index) => (
+                      <SelectGroup key={cluster.heading ?? index}>
+                        {cluster.heading ? (
+                          <SelectLabel>{cluster.heading}</SelectLabel>
+                        ) : null}
+                        {cluster.options.map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     ))}
                   </SelectContent>
                 </Select>
@@ -591,7 +602,8 @@ function FilterSelect({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  options: { id: string; label: string }[];
+  /** `group` heads the option; set it on all of them or on none. */
+  options: { id: string; label: string; group?: string }[];
   allLabel: string;
 }) {
   if (options.length === 0) return null;
@@ -603,10 +615,18 @@ function FilterSelect({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL}>{allLabel}</SelectItem>
-        {options.map((option) => (
-          <SelectItem key={option.id} value={option.id}>
-            {option.label}
-          </SelectItem>
+        {/* One nameless cluster is the ordinary case — the tones and the kinds
+          — and renders as a plain run of items; the classes arrive headed by
+          their cycle. */}
+        {clusterByGroup(options).map((cluster, index) => (
+          <SelectGroup key={cluster.heading ?? index}>
+            {cluster.heading ? <SelectLabel>{cluster.heading}</SelectLabel> : null}
+            {cluster.options.map((option) => (
+              <SelectItem key={option.id} value={option.id}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
         ))}
       </SelectContent>
     </Select>

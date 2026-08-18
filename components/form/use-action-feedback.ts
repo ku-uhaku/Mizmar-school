@@ -4,6 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import type { ActionState } from "@/lib/action-state";
+import { toastError } from "@/components/form/toast-error";
 
 /**
  * Turns a Server Action result into a toast, and fires `onSuccess` (used to
@@ -27,7 +28,7 @@ export function useActionFeedback(
       if (state.message) toast.success(state.message);
       onSuccessRef.current?.();
     } else if (state.status === "error" && state.message) {
-      toast.error(state.message);
+      toastError(state.message);
     }
     // `key` changes on every result; the rest of `state` is read fresh above.
     // eslint-disable-next-line react-hooks/exhaustive-deps

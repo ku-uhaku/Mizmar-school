@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { ActionState } from "@/lib/action-state";
 import { useT } from "@/components/providers/i18n-provider";
+import { toastError } from "@/components/form/toast-error";
 
 /**
  * Runs a bound Server Action from a button rather than a form, and reports it.
@@ -30,7 +31,7 @@ export function useToastedTransition(): {
         const result = await action();
         if (result.status === "success") toast.success(result.message ?? "");
         else if (result.status === "error") {
-          toast.error(result.message ?? t.errors.unexpected);
+          toastError(result.message ?? t.errors.unexpected);
         }
       });
     },

@@ -5,6 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import { toast } from "sonner";
 
 import { useT } from "@/components/providers/i18n-provider";
+import { toastError } from "@/components/form/toast-error";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +48,7 @@ export function ConfirmDelete({
         onOpenChange(false);
         onDeleted?.();
       } else {
-        toast.error(result.message ?? t.errors.unexpected);
+        toastError(result.message ?? t.errors.unexpected);
       }
     });
   }

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
 import { PERMISSIONS } from "@/lib/permissions";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
+import { cycleChoiceLabel, levelNameLabel } from "@/modules/academics/labels";
 import {
   MISSING_STATUSES,
   REMARK_PAGE_SIZE,
@@ -533,7 +534,14 @@ export async function listRemarks(
 
 export type RemarkFilterChoices = {
   teachers: { id: string; label: string }[];
-  classes: { id: string; label: string }[];
+  /**
+   * The school's classes, headed by their cycle.
+   *
+   * `group` is the heading the picker clusters on, and the rows arrive already
+   * sorted by it — `clusterByGroup` walks the list rather than bucketing it, so
+   * a heading only holds while its classes stay contiguous.
+   */
+  classes: { id: string; label: string; group: string }[];
   /** How many are still waiting on a decision, before any filter is applied. */
   pendingCount: number;
 };
@@ -581,8 +589,31 @@ export async function listRemarkFilterChoices(
     }),
     db.schoolClass.findMany({
       where: { levelOffering: yearScope(context), ...schoolScope(context) },
-      orderBy: [{ code: "asc" }],
-      select: { id: true, code: true },
+      // Cycle, then year, then the code — the same order the papers' pickers
+      // use, and the order the cycle headings depend on: a heading holds only
+      // while the classes under it are contiguous.
+      orderBy: [
+        { levelOffering: { level: { educationLevel: { position: "asc" } } } },
+        { levelOffering: { level: { gradeYear: "asc" } } },
+        { code: "asc" },
+      ],
+      select: {
+        id: true,
+        code: true,
+        levelOffering: {
+          select: {
+            level: {
+              select: {
+                code: true,
+                name: true,
+                nameAr: true,
+                educationLevel: { select: { name: true, nameAr: true } },
+              },
+            },
+            track: { select: { name: true, nameAr: true } },
+          },
+        },
+      },
     }),
     db.studentRemark.count({ where: { ...inScope, isVisibleToFamily: false } }),
   ]);
@@ -595,7 +626,19 @@ export async function listRemarkFilterChoices(
         label: displayName(row.author!),
       }))
       .sort((a, b) => a.label.localeCompare(b.label)),
-    classes: classes.map((row) => ({ id: row.id, label: row.code })),
+    /*
+      The niveau beside the code, not the code alone.
+
+      A school runs forty classes and their codes are near-identical strings —
+      1AP-A, 1AS-A, 1BAC-A — so a flat list of them is picked from by squinting.
+      The same label and the same cycle headings the papers' review already
+      uses, so the two vie scolaire screens read as one.
+    */
+    classes: classes.map((row) => ({
+      id: row.id,
+      label: `${row.code} · ${levelNameLabel(row.levelOffering.level, row.levelOffering.track)}`,
+      group: cycleChoiceLabel(row.levelOffering.level.educationLevel),
+    })),
     pendingCount,
   };
 }
@@ -1176,4 +1219,105 @@ export async function loadClassTermAttendance(
   }
 
   return tallies;
+}
+
+// ── A whole class's register, for the class's own dashboard ──────────────────
+
+export type ClassAttendance = {
+  /** Marks recorded across the whole roll this year, whatever their status. */
+  marked: number;
+  tally: { present: number; late: number; absent: number; excused: number };
+  /** Present or late over everything marked, 0–100. Null when nothing is marked. */
+  attendanceRate: number | null;
+  /** What the office chases: absences with no justification on file. */
+  unjustifiedAbsences: number;
+  /**
+   * The same rate month by month, `YYYY-MM` ascending, with the marks it rests
+   * on. The count is carried rather than dropped so the caller can refuse to
+   * plot a month nobody really marked — see the note in `ClassOverview`.
+   */
+  byMonth: { month: string; here: number; marked: number }[];
+};
+
+/**
+ * The class's year of registers, tallied.
+ *
+ * Like `loadClassTermAttendance` above, this is the office's read rather than a
+ * teacher's: it is scoped by the class asked for and by the school in context,
+ * and the permission for it (`CLASSROOM_ATTENDANCE_VIEW`) is checked by the
+ * caller. The confinement that still holds is the one that matters — the
+ * enrolment must belong to a year of the school in context, so a crafted class
+ * id reaches nothing.
+ *
+ * ── Why it groups in the database ───────────────────────────────────────────
+ * A secondary class is marked once per lesson per pupil: thirty-five pupils over
+ * a year of six-period days is some forty thousand rows, and reading them into
+ * the server to count four statuses would be forty thousand objects for eight
+ * numbers. Grouping by day and status leaves at most a few hundred rows — small
+ * enough to fold in memory, and still fine-grained enough to roll into months.
+ *
+ * The rate deliberately excludes what nobody marked, exactly as
+ * `loadPupilAttendance` does: a register that was never taken is not an absence,
+ * and counting it as one makes a class whose teacher forgets look like a class
+ * that truants.
+ */
+export async function loadClassAttendance(
+  context: AuthContext,
+  schoolClassId: string,
+): Promise<ClassAttendance> {
+  const scope = {
+    // Re-derived from the working context rather than trusted: the class id
+    // comes from the URL.
+    enrollment: { schoolClassId, schoolYear: schoolScope(context) },
+  };
+
+  const [byDay, unjustifiedAbsences] = await Promise.all([
+    db.studentAttendance.groupBy({
+      by: ["date", "status"],
+      where: scope,
+      _count: { _all: true },
+    }),
+    db.studentAttendance.count({
+      where: { ...scope, status: "ABSENT", isJustified: false },
+    }),
+  ]);
+
+  const tally = { present: 0, late: 0, absent: 0, excused: 0 };
+  const months = new Map<string, { here: number; marked: number }>();
+
+  for (const row of byDay) {
+    const count = row._count._all;
+
+    if (row.status === "PRESENT") tally.present += count;
+    else if (row.status === "LATE") tally.late += count;
+    else if (row.status === "ABSENT") tally.absent += count;
+    else if (row.status === "EXCUSED") tally.excused += count;
+
+    /*
+      Local getters rather than `toISOString`: `date` is written as local
+      midnight (see `startOfDay`), so east of Greenwich the first of the month
+      is stored as the last instant of the previous one in UTC and a slice of
+      the ISO string would file September's registers under August.
+    */
+    const key = `${row.date.getFullYear()}-${String(row.date.getMonth() + 1).padStart(2, "0")}`;
+    const month = months.get(key) ?? { here: 0, marked: 0 };
+    month.marked += count;
+    if (row.status === "PRESENT" || row.status === "LATE") month.here += count;
+    months.set(key, month);
+  }
+
+  const marked = tally.present + tally.late + tally.absent + tally.excused;
+
+  return {
+    marked,
+    tally,
+    attendanceRate:
+      marked === 0
+        ? null
+        : Math.round(((tally.present + tally.late) / marked) * 100),
+    unjustifiedAbsences,
+    byMonth: [...months.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, counts]) => ({ month, ...counts })),
+  };
 }

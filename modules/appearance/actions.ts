@@ -9,19 +9,10 @@ import {
   UI_PREFS_COOKIE,
   type UiPrefs,
 } from "@/modules/appearance/prefs";
+import { preferenceCookieOptions } from "@/lib/cookies";
 import { getAuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { isLocale, LOCALE_COOKIE, type Locale } from "@/lib/i18n/config";
-
-const ONE_YEAR = 60 * 60 * 24 * 365;
-
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/",
-  maxAge: ONE_YEAR,
-  secure: process.env.NODE_ENV === "production",
-} as const;
 
 /**
  * Persists appearance preferences.
@@ -35,7 +26,11 @@ export async function saveAppearanceAction(input: UiPrefs): Promise<void> {
   const prefs = normalizeUiPrefs(input);
 
   const store = await cookies();
-  store.set(UI_PREFS_COOKIE, serializeUiPrefs(prefs), COOKIE_OPTIONS);
+  store.set(
+    UI_PREFS_COOKIE,
+    serializeUiPrefs(prefs),
+    await preferenceCookieOptions(),
+  );
 
   const context = await getAuthContext();
   if (!context) return;
@@ -60,7 +55,7 @@ export async function setLocaleAction(locale: Locale): Promise<void> {
   if (!isLocale(locale)) return;
 
   const store = await cookies();
-  store.set(LOCALE_COOKIE, locale, COOKIE_OPTIONS);
+  store.set(LOCALE_COOKIE, locale, await preferenceCookieOptions());
 
   const context = await getAuthContext();
   if (context) {

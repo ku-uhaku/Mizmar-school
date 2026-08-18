@@ -24,7 +24,64 @@ const en = {
       "That choice does not belong to the school you are working in.",
     arrivalBeforeDeparture: "The arrival must come after the departure.",
     inUse:
-      "Can't delete this — {count} other record(s) still use it. Remove or reassign those first.",
+      "Can't delete this — {count} record(s) in {tables} other table(s) still refer to it.",
+    inUseLine: "• {table} — {count}",
+    inUseHint: "Remove or reassign them first.",
+
+    /**
+     * What a school calls each table that can stand in the way of a delete —
+     * keyed by the Prisma model name, because that is what the relation graph
+     * `findBlockingReferences` walks hands back. Only the tables that can
+     * actually block one of the configuration resources are here; anything a
+     * later migration adds falls back to its model name.
+     */
+    records: {
+      Assessment: "Assessments",
+      Bulletin: "Report cards",
+      BulletinLine: "Report card lines",
+      CashOperation: "Cash operations",
+      ChatChannel: "Conversations",
+      Cheque: "Cheques",
+      ClassGroup: "Groups",
+      Discount: "Discounts",
+      DocumentRequest: "Document requests",
+      Enrollment: "Enrolments",
+      EnrollmentFee: "Enrolment charges",
+      EnrollmentOption: "Enrolment options",
+      EventAudience: "Event audiences",
+      FeeRate: "Price list entries",
+      Guardian: "Guardians",
+      Level: "Levels",
+      LevelOffering: "Levels offered",
+      LevelSubject: "Programme entries",
+      Neighbourhood: "Neighbourhoods",
+      OperationMotif: "Operation motifs",
+      OperationSubcategory: "Operation subcategories",
+      PaymentTender: "Payment tenders",
+      Profile: "Staff records",
+      RouteNeighbourhood: "Neighbourhoods served",
+      RouteSchedule: "Route schedules",
+      RouteStop: "Route stops",
+      SchoolClass: "Classes",
+      Student: "Students",
+      StudentAttendance: "Attendance records",
+      StudentDocument: "Pupil documents",
+      StudentRemark: "Pupil remarks",
+      Subject: "Subjects",
+      Supplier: "Suppliers",
+      SupplyItem: "Supply list items",
+      SupplyList: "Supply lists",
+      TeacherSubject: "Teachers' subjects",
+      TeacherSubjectLevel: "Teachers' levels",
+      TeacherUnavailability: "Teacher unavailabilities",
+      TeachingAssignment: "Teaching assignments",
+      TimetableEntry: "Timetable lessons",
+      TimetableException: "Timetable changes",
+      Track: "Tracks",
+      TransportAttendance: "Transport registers",
+      TransportSubscription: "Transport subscriptions",
+      TripRun: "Trip runs",
+    },
 
     sections: {
       school: "Establishment",

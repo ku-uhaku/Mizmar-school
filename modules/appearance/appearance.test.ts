@@ -49,6 +49,7 @@ import {
 const cookieWrites: { name: string; value: string; options: unknown }[] = [];
 const profileWrites: unknown[] = [];
 let signedIn = true;
+let forwardedProto = "https";
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -57,6 +58,7 @@ vi.mock("next/headers", () => ({
     },
     get: () => undefined,
   }),
+  headers: async () => new Headers({ "x-forwarded-proto": forwardedProto }),
 }));
 
 vi.mock("next/cache", () => ({ refresh: () => {} }));
@@ -80,7 +82,9 @@ vi.mock("@/lib/db", () => ({
 const { AppearanceScript } = await import(
   "@/modules/appearance/components/appearance-provider"
 );
-const { saveAppearanceAction } = await import("@/modules/appearance/actions");
+const { saveAppearanceAction, setLocaleAction } = await import(
+  "@/modules/appearance/actions"
+);
 
 /** The script body `AppearanceScript` would put on the page. */
 function scriptFor(mode: UiPrefs["mode"]): string {
@@ -94,6 +98,7 @@ beforeEach(() => {
   cookieWrites.length = 0;
   profileWrites.length = 0;
   signedIn = true;
+  forwardedProto = "https";
 });
 
 // ── The script that runs before first paint ──────────────────────────────────
@@ -336,7 +341,27 @@ describe("saveAppearanceAction", () => {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
+      secure: true,
     });
+  });
+
+  it("drops `Secure` when the request did not arrive over TLS", async () => {
+    /*
+      A browser discards a `Secure` cookie that arrives over plain HTTP, so
+      deciding this from NODE_ENV cost the school every preference: a
+      production build served without TLS wrote the cookie, the browser threw
+      it away, and the next server render fell back to French — most visibly
+      right after a theme change, which is what makes Next re-render the route.
+    */
+    forwardedProto = "http";
+    await saveAppearanceAction(prefs);
+    expect(cookieWrites[0]!.options).toMatchObject({ secure: false });
+  });
+
+  it("trusts the client-facing hop of a proxy chain", async () => {
+    forwardedProto = "https, http";
+    await saveAppearanceAction(prefs);
+    expect(cookieWrites[0]!.options).toMatchObject({ secure: true });
   });
 
   it("mirrors the choice onto the caller's own profile", async () => {
@@ -375,5 +400,36 @@ describe("saveAppearanceAction", () => {
 
     expect(profileWrites[0]).toMatchObject({ where: { userId: "user-1" } });
     expect(JSON.stringify(profileWrites[0])).not.toContain("somebody-else");
+  });
+});
+
+describe("setLocaleAction", () => {
+  it("writes the language cookie the root layout reads", async () => {
+    await setLocaleAction("ar");
+
+    expect(cookieWrites[0]).toMatchObject({ name: "locale", value: "ar" });
+    expect(profileWrites[0]).toMatchObject({
+      where: { userId: "user-1" },
+      data: { locale: "ar" },
+    });
+  });
+
+  it("stores it under the same conditions as the appearance cookie", async () => {
+    // Both are read on the same render, so one of the two surviving the trip
+    // to the browser and not the other is the confusing half of the bug.
+    forwardedProto = "http";
+    await setLocaleAction("en");
+    expect(cookieWrites[0]!.options).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      secure: false,
+    });
+  });
+
+  it("refuses a language the app is not built in", async () => {
+    await setLocaleAction("es" as never);
+    expect(cookieWrites).toEqual([]);
+    expect(profileWrites).toEqual([]);
   });
 });

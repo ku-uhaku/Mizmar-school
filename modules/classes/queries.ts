@@ -740,3 +740,319 @@ export async function loadTeachingGrid(
       };
     });
 }
+
+// ── The class's own dashboard ─────────────────────────────────────────────────
+
+/** One line of the level's programme, as the overview prints it. */
+export type ProgrammeLine = {
+  subjectId: string;
+  subjectLabel: string;
+  /** The short form a school writes on a grid — what a chart axis can hold. */
+  subjectShort: string;
+  /** Null where the school has declared the subject but not its hours. */
+  weeklyMinutes: number | null;
+  coefficient: number;
+  /** Who holds it in *this* class. Null is a gap, and drawn as one. */
+  teacherName: string | null;
+};
+
+/** A sister class: the others opened at the same niveau this year. */
+export type SisterClass = {
+  id: string;
+  code: string;
+  /** The filière, where the niveau streams into them. Null where it does not. */
+  trackLabel: string | null;
+  enrolled: number;
+  capacity: number | null;
+  /** True for the class being looked at, so the row can be marked. */
+  isCurrent: boolean;
+  /**
+   * True where the class sits at the *same offering* — the same niveau and the
+   * same filière — and therefore follows the same programme.
+   *
+   * The distinction is not decoration: it is exactly the set a niveau-wide round
+   * of contrôles is generated for (`levelOfferingId`, see
+   * `generateAssessmentsAction`). 2BAC has five classes and five filières, so
+   * "every class of the niveau" and "every class this round reaches" are
+   * different lists, and a panel that showed one while the button beside it acted
+   * on the other would be inviting a mistake.
+   */
+  sharesProgramme: boolean;
+};
+
+export type ClassOverview = {
+  /** ── This class ── */
+  enrolled: number;
+  capacity: number | null;
+  girls: number;
+  boys: number;
+  repeating: number;
+  /** Whole years, derived from the birth dates — never stored. Null on an
+   *  empty class, where a mean would be a division by zero. */
+  averageAge: number | null;
+  groupCount: number;
+  /** Subjects on the programme, and how many have somebody answering for them. */
+  subjectCount: number;
+  staffedCount: number;
+  /** Periods on the week's grid, against what the programme asks for. */
+  placedPeriods: number;
+  programmeMinutes: number;
+  /**
+   * How long one period rings for, so placed periods and declared minutes can be
+   * compared at all. From the school's own settings, like everything else that
+   * turns hours into periods.
+   */
+  periodMinutes: number;
+  programme: ProgrammeLine[];
+
+  /** ── The niveau this class sits at ── */
+  levelLabel: string;
+  levelNameLabel: string;
+  cycleName: string;
+  /** What the school planned to seat at this niveau, across every class. */
+  plannedCapacity: number | null;
+  sisters: SisterClass[];
+  levelEnrolled: number;
+  levelCapacity: number | null;
+};
+
+/**
+ * The figures the class's first tab opens on: this class, and the niveau it
+ * belongs to.
+ *
+ * ── Why the niveau is on a class's screen at all ────────────────────────────
+ * Almost nothing a head of studies asks about a class is answerable by the class
+ * alone. "Is 3AP-A full?" means *compared with 3AP-B*; "is it staffed?" means
+ * against the programme the niveau declares, not against whatever assignments
+ * happen to exist; "why is the timetable short?" means against the hours the
+ * niveau asks for. Every one of those was two screens away, so the answer was
+ * usually guessed.
+ *
+ * So the tab is deliberately two panels and not one, and the second is the
+ * niveau: its programme with this class's holder beside each line, and its other
+ * classes with their fill beside this one's.
+ *
+ * ── What is derived and what is counted ─────────────────────────────────────
+ * The roll counts only enrolments still holding a place (`seated`), the same
+ * rule the list and the occupancy gauge use — a child who left in November keeps
+ * their row and is not in a chair. The age is derived from the birth dates, as
+ * everywhere else in this app. Nothing here is stored.
+ */
+export async function loadClassOverview(
+  context: AuthContext,
+  schoolClassId: string,
+): Promise<ClassOverview | null> {
+  const schoolClass = await db.schoolClass.findFirst({
+    // Scoped like `findClass`: a class from another school or year reads as
+    // absent rather than forbidden.
+    where: {
+      id: schoolClassId,
+      levelOffering: yearScope(context),
+      schoolId: currentSchoolId(context),
+    },
+    select: {
+      id: true,
+      capacity: true,
+      levelOfferingId: true,
+      levelOffering: {
+        select: {
+          plannedCapacity: true,
+          levelId: true,
+          trackId: true,
+          level: {
+            select: {
+              code: true,
+              name: true,
+              nameAr: true,
+              educationLevel: { select: { name: true, nameAr: true } },
+            },
+          },
+          track: { select: { code: true, name: true, nameAr: true } },
+        },
+      },
+      _count: { select: { groups: true, timetableEntries: true } },
+      enrollments: {
+        where: { status: { in: [...LIVE_ENROLMENT_STATUSES] } },
+        select: {
+          isRepeating: true,
+          student: { select: { gender: true, birthDate: true } },
+        },
+      },
+      assignments: {
+        select: {
+          subjectId: true,
+          isPrimary: true,
+          teacher: {
+            select: {
+              username: true,
+              profile: { select: { firstName: true, lastName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!schoolClass) return null;
+
+  const offering = schoolClass.levelOffering;
+
+  const [programmeRows, sisters] = await Promise.all([
+    db.levelSubject.findMany({
+      /*
+        Assignable matières only — a `Subject` with a parent is a *component*
+        (conjugaison inside français, إملاء inside اللغة العربية). It is marked
+        inside its parent and never taught in its own hour, which is why the
+        teaching grid filters it out too.
+
+        Load-bearing for the tile above it, not tidiness: with the components in,
+        3AP-A read "11 of 19 subjects covered" and the eight it was apparently
+        short were four components nobody teaches separately and never will. The
+        tab next door would have shown eleven of eleven at the same moment.
+      */
+      where: {
+        levelId: offering.levelId,
+        subject: { isActive: true, parentId: null },
+      },
+      orderBy: [{ position: "asc" }],
+      select: {
+        subjectId: true,
+        trackId: true,
+        weeklyMinutes: true,
+        coefficient: true,
+        subject: {
+          select: { name: true, nameAr: true, shortName: true, code: true },
+        },
+      },
+    }),
+    /*
+      Every class opened at this *niveau* this year, this one included — the
+      comparison is the point, so it is drawn beside its siblings rather than
+      apart from them.
+
+      By niveau and not by offering: 2BAC streams into five filières, so scoping
+      to the offering would show 2BAC-SM-A a table containing only itself. Which
+      of them share this class's programme is marked per row instead — see
+      `sharesProgramme`.
+    */
+    db.schoolClass.findMany({
+      where: {
+        isActive: true,
+        levelOffering: {
+          levelId: offering.levelId,
+          // Still this year's, through the same clause every read here uses. A
+          // niveau outlives a year; the classes at it do not.
+          ...yearScope(context),
+        },
+      },
+      orderBy: { code: "asc" },
+      select: {
+        id: true,
+        code: true,
+        capacity: true,
+        levelOfferingId: true,
+        levelOffering: { select: { track: { select: { code: true } } } },
+        _count: { select: { ...seated().select } },
+      },
+    }),
+  ]);
+
+  /*
+    The niveau's programme resolved for *this* class's filière.
+
+    `resolveProgrammeRows` is the same helper the teaching grid and the generator
+    use: a row naming a filière applies only to it, a row naming none applies to
+    every filière, and the specific one wins. Resolving it here rather than
+    filtering by hand is what stops this panel disagreeing with the tab next to
+    it about what the class is even meant to be taught.
+  */
+  const programme = resolveProgrammeRows(programmeRows, offering.trackId);
+
+  // Whoever answers for the marks, where the subject is co-taught — the primary
+  // holder, matching the teaching grid.
+  const holderBySubject = new Map<string, string>();
+  for (const assignment of schoolClass.assignments) {
+    if (!assignment.teacher) continue;
+    const held = holderBySubject.get(assignment.subjectId);
+    if (held && !assignment.isPrimary) continue;
+    holderBySubject.set(assignment.subjectId, displayName(assignment.teacher));
+  }
+
+  const seatedRoll = schoolClass.enrollments;
+  const birthDates = seatedRoll
+    .map((entry) => entry.student.birthDate)
+    .filter((date): date is Date => date !== null);
+
+  return {
+    enrolled: seatedRoll.length,
+    capacity: schoolClass.capacity,
+    girls: seatedRoll.filter((entry) => entry.student.gender === "FEMALE").length,
+    boys: seatedRoll.filter((entry) => entry.student.gender === "MALE").length,
+    repeating: seatedRoll.filter((entry) => entry.isRepeating).length,
+    averageAge:
+      birthDates.length === 0
+        ? null
+        : Math.round(
+            (birthDates.reduce((total, date) => total + yearsSince(date), 0) /
+              birthDates.length) *
+              10,
+          ) / 10,
+    groupCount: schoolClass._count.groups,
+    subjectCount: programme.length,
+    staffedCount: programme.filter((row) => holderBySubject.has(row.subjectId))
+      .length,
+    placedPeriods: schoolClass._count.timetableEntries,
+    programmeMinutes: programme.reduce(
+      (total, row) => total + (row.weeklyMinutes ?? 0),
+      0,
+    ),
+    periodMinutes: context.settings.periodMinutes,
+    programme: programme.map((row) => ({
+      subjectId: row.subjectId,
+      subjectLabel: bilingual(row.subject.name, row.subject.nameAr),
+      subjectShort: row.subject.shortName ?? row.subject.code,
+      weeklyMinutes: row.weeklyMinutes,
+      coefficient: row.coefficient,
+      teacherName: holderBySubject.get(row.subjectId) ?? null,
+    })),
+
+    levelLabel: offering.track
+      ? `${offering.level.code} ${offering.track.code}`
+      : offering.level.code,
+    levelNameLabel: levelNameLabel(offering.level, offering.track),
+    cycleName: cycleChoiceLabel(offering.level.educationLevel),
+    plannedCapacity: offering.plannedCapacity,
+    sisters: sisters.map((sister) => ({
+      id: sister.id,
+      code: sister.code,
+      trackLabel: sister.levelOffering.track?.code ?? null,
+      enrolled: sister._count.enrollments,
+      capacity: sister.capacity,
+      isCurrent: sister.id === schoolClass.id,
+      sharesProgramme: sister.levelOfferingId === schoolClass.levelOfferingId,
+    })),
+    levelEnrolled: sisters.reduce(
+      (total, sister) => total + sister._count.enrollments,
+      0,
+    ),
+    // Null when no class at the niveau states one: summing the ones that do
+    // would print a ceiling lower than the roll it is compared against.
+    levelCapacity: sisters.every((sister) => sister.capacity === null)
+      ? null
+      : sisters.reduce((total, sister) => total + (sister.capacity ?? 0), 0),
+  };
+}
+
+/**
+ * Whole years between a date and today.
+ *
+ * Written out rather than `(now - then) / 31_557_600_000`: that is wrong for
+ * anybody whose birthday has not come round yet this year, which is half the
+ * class, and an average age is exactly where the half-year drift shows.
+ */
+function yearsSince(date: Date): number {
+  const now = new Date();
+  let age = now.getFullYear() - date.getFullYear();
+  const month = now.getMonth() - date.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < date.getDate())) age -= 1;
+  return age;
+}

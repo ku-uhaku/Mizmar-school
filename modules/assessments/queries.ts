@@ -133,9 +133,21 @@ export type ClassOption = {
 /** The classes of the year, for the picker and the generator. */
 export async function listAssessableClasses(
   context: AuthContext,
+  /**
+   * One niveau's classes only. What the class screen asks for: the generator
+   * there offers "this class" or "its niveau", so the whole school's list would
+   * be a picker for a decision that screen is not making.
+   */
+  options: { levelOfferingId?: string } = {},
 ): Promise<ClassOption[]> {
   const classes = await db.schoolClass.findMany({
-    where: { levelOffering: yearScope(context), isActive: true },
+    where: {
+      levelOffering: yearScope(context),
+      isActive: true,
+      ...(options.levelOfferingId
+        ? { levelOfferingId: options.levelOfferingId }
+        : {}),
+    },
     // Cycle first, then the class code: the levels the generator derives from
     // this list are headed by their cycle, and a heading only holds if the
     // rows under it are contiguous.
@@ -213,12 +225,21 @@ export type DevoirTarget = {
  */
 export async function listDevoirTargets(
   context: AuthContext,
+  /**
+   * One class's pairs only, for the button on that class's own screen. Narrows
+   * what is offered and nothing else — the scoping above still decides what the
+   * reader may reach, so a class id here cannot widen it.
+   */
+  options: { schoolClassId?: string } = {},
 ): Promise<DevoirTarget[]> {
   const actsForSchool = context.can(PERMISSIONS.ASSESSMENT_MANAGE);
 
   const assignments = await db.teachingAssignment.findMany({
     where: {
       ...(actsForSchool ? {} : { teacherId: context.user.id }),
+      ...(options.schoolClassId
+        ? { schoolClassId: options.schoolClassId }
+        : {}),
       schoolClass: {
         schoolId: currentSchoolId(context),
         levelOffering: yearScope(context),
@@ -355,12 +376,26 @@ export type ProgrammeEntry = {
  */
 export async function loadProgrammesByClass(
   context: AuthContext,
+  /**
+   * The classes to load for. Every one of the year's by default — the papers
+   * screen picks a class from the whole school, so it needs them all.
+   *
+   * The class screen passes its own niveau's, which is the only scope its
+   * generator offers: loading nineteen programmes to tick from one is work the
+   * page then throws away.
+   */
+  schoolClassIds?: readonly string[],
 ): Promise<Record<string, ProgrammeEntry[]>> {
+  // An explicit empty list means "none asked for", which is not the same as
+  // "unfiltered" — dropping the clause there would load the whole school.
+  if (schoolClassIds && schoolClassIds.length === 0) return {};
+
   const classes = await db.schoolClass.findMany({
     where: {
       levelOffering: yearScope(context),
       schoolId: currentSchoolId(context),
       isActive: true,
+      ...(schoolClassIds ? { id: { in: [...schoolClassIds] } } : {}),
     },
     select: {
       id: true,

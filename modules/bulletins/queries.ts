@@ -2,7 +2,14 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { isPassingScore, passMarkOf } from "@/lib/school-settings";
 import { schoolScope, yearScope } from "@/lib/scope";
+import { bilingual } from "@/modules/academics/labels";
+// The scale's rungs and the rule for landing a mark on one belong to
+// assessments, which owns AppreciationBand — read through its own query rather
+// than against the table.
+import { appreciationFor } from "@/modules/assessments/enums";
+import { listAppreciationBands } from "@/modules/assessments/queries";
 import {
   FAMILY_VISIBLE_STATUSES,
   isPublished,
@@ -376,4 +383,271 @@ export async function findPupilBulletin(
   });
 
   return bulletin ? toDetail(bulletin) : null;
+}
+
+// ── What a class's results look like, for a dashboard ─────────────────────────
+
+/** One rung of the school's scale, with how many of the class landed on it. */
+export type BandTally = {
+  label: string;
+  /** The school's own colour for the rung — an ordered scale, not a palette. */
+  colorHex: string | null;
+  count: number;
+};
+
+export type ClassResults = {
+  termId: string;
+  termName: string;
+  /** Bulletins computed for the class, and how many have been issued. */
+  computed: number;
+  published: number;
+  /** The class's own spread, read off the rows rather than recomputed. */
+  average: number | null;
+  lowest: number | null;
+  highest: number | null;
+  /** The scale the averages are on — 20 in a Moroccan school, but not assumed. */
+  outOf: number;
+  /** Share of the marked pupils at or above the pass mark, 0–100. */
+  passRate: number | null;
+  passMark: number;
+  bands: BandTally[];
+  /**
+   * The class's average per matière, heaviest coefficient first.
+   *
+   * Both names: the chart's axis takes the short one — eleven bilingual
+   * "Mathématiques · الرياضيات" under a half-width plot collide into an
+   * unreadable band — and the full one is what a tooltip or a table can afford.
+   */
+  bySubject: {
+    subjectId: string;
+    subjectName: string;
+    subjectShort: string;
+    average: number;
+  }[];
+};
+
+/**
+ * The class's results for one term: its moyenne, its spread, and where it sits.
+ *
+ * ── Why this reads bulletins and does not recompute ─────────────────────────
+ * The moyenne a school reports *is* the bulletin. Weighting a matière by its
+ * coefficient, rolling a component up into its parent, and deciding what an
+ * unmarked subject does to the average are all settled once, in
+ * `computeBulletins` — and they are subtle enough that a second implementation
+ * would drift the first time one of them was corrected. So this reads the frozen
+ * figures: every number here has already been defended to a parent.
+ *
+ * The cost is honest and worth stating: a class whose bulletins have not been
+ * computed shows nothing rather than a provisional average nobody has approved.
+ * That is the true state of a term nobody has closed, and the class council is
+ * one screen away.
+ *
+ * `classAverage` and its two neighbours are taken off the first row rather than
+ * averaged here for the same reason: `computeBulletins` wrote them across the
+ * whole roster, including pupils whose bulletin is already published and
+ * therefore frozen. Re-deriving from the rows returned would quietly answer a
+ * different question.
+ */
+export async function loadClassResults(
+  context: AuthContext,
+  schoolClassId: string,
+  /** The term to read. Null takes the one the school is in. */
+  termId: string | null,
+): Promise<ClassResults | null> {
+  const term = termId
+    ? await db.term.findFirst({
+        where: { id: termId, ...yearScope(context) },
+        select: { id: true, name: true },
+      })
+    : /*
+         The term in play, else the latest that has bulletins.
+
+         A school in the summer is in no term at all, and falling back to the
+         last one with results is what keeps the tab answering a question over
+         the holidays instead of going blank.
+       */
+      ((await db.term.findFirst({
+        where: { ...yearScope(context), status: "ACTIVE" },
+        orderBy: { number: "asc" },
+        select: { id: true, name: true },
+      })) ??
+      (await db.term.findFirst({
+        where: { ...yearScope(context), bulletins: { some: { schoolClassId } } },
+        orderBy: { number: "desc" },
+        select: { id: true, name: true },
+      })));
+  if (!term) return null;
+
+  const [bulletins, bands] = await Promise.all([
+    db.bulletin.findMany({
+      // The class and term come from the request; the school does not.
+      where: { schoolClassId, termId: term.id, ...schoolScope(context) },
+      select: {
+        status: true,
+        generalAverage: true,
+        outOf: true,
+        classAverage: true,
+        classLowest: true,
+        classHighest: true,
+        lines: {
+          where: { parentSubjectId: null },
+          select: {
+            subjectId: true,
+            coefficient: true,
+            classAverage: true,
+            subject: {
+              select: { name: true, nameAr: true, shortName: true, code: true },
+            },
+          },
+        },
+      },
+    }),
+    listAppreciationBands(context),
+  ]);
+
+  const settings = context.settings;
+  const outOf = bulletins[0]?.outOf ?? settings.gradingMaxScore;
+
+  const marked = bulletins
+    .map((bulletin) => bulletin.generalAverage)
+    .filter((average): average is number => average !== null);
+
+  /*
+    One line per matière, from whichever bulletin carries it.
+
+    `classAverage` on a line is the class's figure for that subject, so it is the
+    same on every pupil's copy — taking the first is reading it, not sampling it.
+    Components are excluded by the `where` above: they are rolled into their
+    parent and counting both would draw français twice.
+  */
+  const bySubject = new Map<
+    string,
+    {
+      subjectId: string;
+      subjectName: string;
+      subjectShort: string;
+      average: number;
+      coefficient: number;
+    }
+  >();
+  for (const bulletin of bulletins) {
+    for (const line of bulletin.lines) {
+      if (line.classAverage === null || bySubject.has(line.subjectId)) continue;
+      bySubject.set(line.subjectId, {
+        subjectId: line.subjectId,
+        subjectName: bilingual(line.subject.name, line.subject.nameAr),
+        // The short form a school writes on a grid, falling back to the code —
+        // both are short by construction, unlike the name.
+        subjectShort: line.subject.shortName ?? line.subject.code,
+        average: line.classAverage,
+        coefficient: line.coefficient,
+      });
+    }
+  }
+
+  return {
+    termId: term.id,
+    termName: term.name,
+    computed: bulletins.length,
+    published: bulletins.filter((bulletin) => isPublished(bulletin.status)).length,
+    average: bulletins[0]?.classAverage ?? null,
+    lowest: bulletins[0]?.classLowest ?? null,
+    highest: bulletins[0]?.classHighest ?? null,
+    outOf,
+    passRate:
+      marked.length === 0
+        ? null
+        : Math.round(
+            (marked.filter((average) => isPassingScore(average, outOf, settings))
+              .length /
+              marked.length) *
+              100,
+          ),
+    passMark: passMarkOf(settings),
+    /*
+      Every rung of the scale, including the empty ones.
+
+      Dropping them would redraw the strip each time a class moved, and "nobody
+      is below average" is exactly the fact an empty rung states. The rung a mark
+      lands on is `appreciationFor`, the same function the mark sheet suggests an
+      appréciation with — so the tab and the bulletin cannot disagree about what
+      "Bien" means.
+    */
+    bands: bands.map((band) => ({
+      label: band.label,
+      colorHex: band.colorHex,
+      count: marked.filter(
+        (average) => appreciationFor(average, outOf, bands)?.id === band.id,
+      ).length,
+    })),
+    bySubject: [...bySubject.values()]
+      .sort((a, b) => b.coefficient - a.coefficient || a.subjectName.localeCompare(b.subjectName))
+      .map(({ subjectId, subjectName, subjectShort, average }) => ({
+        subjectId,
+        subjectName,
+        subjectShort,
+        average,
+      })),
+  };
+}
+
+/** One term's frozen figure for a class, as the trend plots it. */
+export type ClassTermAverage = {
+  termId: string;
+  termName: string;
+  average: number;
+  /** The scale that term was marked on — a school may change it between years. */
+  outOf: number;
+};
+
+/**
+ * The class's moyenne term by term, in term order.
+ *
+ * The companion to `loadClassResults`, and it reads the same frozen figures for
+ * the same reason: `classAverage` is what `computeBulletins` wrote and what was
+ * defended to a parent, so a second implementation here would eventually
+ * disagree with the bulletin a family is holding.
+ *
+ * `classAverage` is identical on every bulletin of a term — it is the class's
+ * figure, copied onto each pupil's sheet — so the first row of each term is
+ * read rather than sampled, which is also why terms are deduplicated here
+ * instead of averaged.
+ *
+ * A term with no computed bulletins simply has no point: the line then joins the
+ * terms that exist rather than dropping to nought through one that was never
+ * closed.
+ */
+export async function loadClassTermAverages(
+  context: AuthContext,
+  schoolClassId: string,
+): Promise<ClassTermAverage[]> {
+  const bulletins = await db.bulletin.findMany({
+    // The class comes from the request; the school and the year do not.
+    where: {
+      schoolClassId,
+      ...schoolScope(context),
+      term: yearScope(context),
+      classAverage: { not: null },
+    },
+    orderBy: { term: { number: "asc" } },
+    select: {
+      termId: true,
+      classAverage: true,
+      outOf: true,
+      term: { select: { name: true } },
+    },
+  });
+
+  const byTerm = new Map<string, ClassTermAverage>();
+  for (const bulletin of bulletins) {
+    if (bulletin.classAverage === null || byTerm.has(bulletin.termId)) continue;
+    byTerm.set(bulletin.termId, {
+      termId: bulletin.termId,
+      termName: bulletin.term.name,
+      average: bulletin.classAverage,
+      outOf: bulletin.outOf,
+    });
+  }
+
+  return [...byTerm.values()];
 }

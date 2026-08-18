@@ -6,7 +6,16 @@ import { ChartLegend, MARK } from "@/components/charts/chart-parts";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { formatNumber } from "@/lib/i18n/format";
 
-export type Segment = { label: string; value: number };
+export type Segment = {
+  label: string;
+  value: number;
+  /**
+   * The segment's own colour, for data that arrives with a scale rather than a
+   * palette — see the second note on the component. Omitted, the categorical
+   * slots are used in order.
+   */
+  color?: string | null;
+};
 
 /** The three validated categorical slots — identity, so never accent-themed. */
 const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
@@ -23,11 +32,26 @@ const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
  *
  * Capped at three segments: past three, the categorical palette stops clearing
  * its colour-vision gates. A fourth category folds into "Other" upstream.
+ *
+ * ── Unless the segments bring their own colours ─────────────────────────────
+ * The cap is a fact about the *categorical* palette, not about the bar. Data
+ * that is ordered rather than categorical — the rungs of an appréciation scale,
+ * Excellent down to Insuffisant — already has a scale of its own, configured by
+ * the school, and painting it with identity hues would be the rainbow-for-an-
+ * ordered-quantity mistake. A segment carrying a `color` is drawn in it and does
+ * not count against the three, because the gates the cap enforces are about hues
+ * chosen to be told apart, and these are chosen to be read in order.
+ *
+ * Everything else is unchanged, and the relief that makes colour non-load-
+ * bearing — legend, labels, written shares — matters more here, not less.
  */
 export function SplitBar({ segments }: { segments: Segment[] }) {
   const { locale } = useI18n();
 
-  const shown = segments.slice(0, SERIES.length);
+  const scaled = segments.every((segment) => Boolean(segment.color));
+  const shown = scaled ? segments : segments.slice(0, SERIES.length);
+  const colorOf = (segment: Segment, index: number): string =>
+    segment.color ?? SERIES[index];
   const total = shown.reduce((sum, segment) => sum + segment.value, 0);
 
   if (total === 0) return null;
@@ -51,7 +75,7 @@ export function SplitBar({ segments }: { segments: Segment[] }) {
             className="h-full first:rounded-s-full last:rounded-e-full"
             style={{
               width: `${(segment.value / total) * 100}%`,
-              background: SERIES[index],
+              background: colorOf(segment, index),
               // The gap is the separator; the last segment has no neighbour.
               marginInlineEnd: index < shown.length - 1 ? MARK.gap : 0,
             }}
@@ -62,7 +86,7 @@ export function SplitBar({ segments }: { segments: Segment[] }) {
       <ChartLegend
         items={shown.map((segment, index) => ({
           label: segment.label,
-          color: SERIES[index],
+          color: colorOf(segment, index),
         }))}
       />
 
@@ -76,7 +100,7 @@ export function SplitBar({ segments }: { segments: Segment[] }) {
               <span
                 aria-hidden
                 className="size-2 shrink-0 rounded-full"
-                style={{ background: SERIES[index] }}
+                style={{ background: colorOf(segment, index) }}
               />
               <span className="truncate">{segment.label}</span>
             </span>

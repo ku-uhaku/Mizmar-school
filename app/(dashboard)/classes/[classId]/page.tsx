@@ -11,9 +11,26 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { interpolate } from "@/lib/i18n/format";
 import { PERMISSIONS } from "@/lib/permissions";
-import { loadClassPapers } from "@/modules/assessments/queries";
+import { defaultDateWithin } from "@/lib/school-year";
+import {
+  listAssessableClasses,
+  listAssessmentTypes,
+  listDevoirTargets,
+  listTerms,
+  loadClassPapers,
+  loadProgrammesByClass,
+} from "@/modules/assessments/queries";
 import { ClassDetail } from "@/modules/classes/components/class-detail";
-import { findClass, loadTeachingGrid } from "@/modules/classes/queries";
+import {
+  loadClassResults,
+  loadClassTermAverages,
+} from "@/modules/bulletins/queries";
+import { listRemarks, loadClassAttendance } from "@/modules/classroom/queries";
+import {
+  findClass,
+  loadClassOverview,
+  loadTeachingGrid,
+} from "@/modules/classes/queries";
 import { listUnassignedStudents } from "@/modules/students/queries";
 import {
   loadClassTimetable,
@@ -21,6 +38,9 @@ import {
 } from "@/modules/timetable/queries";
 
 export const metadata: Metadata = { title: "Classe" };
+
+/** How much of the carnet the overview shows before sending the reader on. */
+const CLASS_REMARKS_SHOWN = 8;
 
 export default async function ClassPage({
   params,
@@ -68,16 +88,49 @@ export default async function ClassPage({
   const controlFilters = paperFilters("c_");
   const devoirFilters = paperFilters("d_");
 
+  /*
+    The two create buttons on the paper tabs, and what they need.
+
+    Loaded only for whoever may actually set something — the same pair
+    `createDevoirAction` gates on, plus ASSESSMENT_MANAGE for the generator. A
+    reader who may look at papers and not set them gets no options at all rather
+    than a button that comes back refused.
+  */
+  const canGenerate = context.can(PERMISSIONS.ASSESSMENT_MANAGE);
+  const canSetPapers =
+    canGenerate || context.can(PERMISSIONS.ASSESSMENT_GRADE);
+
+  // The overview's two other panels are gated on their own codes: a moyenne is a
+  // mark, and the carnet is a colleague's note. `listRemarks` narrows further by
+  // itself — a teacher sees their own, the office sees the school's.
+  const canSeeMarks = context.can(PERMISSIONS.BULLETIN_VIEW);
+  const canSeeRemarks = context.can(PERMISSIONS.CLASSROOM_REMARK_VIEW);
+  // The register is its own code again: a teacher who marks their own class is
+  // not thereby allowed the whole class's year of absences.
+  const canSeeAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW);
+
   // Each module answers for its own half of the screen: who may be seated comes
   // from students, the week from timetable, the papers from assessments.
   const [
+    overview,
     candidates,
     teachingGrid,
     timetable,
     timetableChoices,
     controls,
     devoirs,
+    levelClasses,
+    terms,
+    controlTypes,
+    devoirTypes,
+    devoirTargets,
+    results,
+    termAverages,
+    attendance,
+    remarks,
   ] = await Promise.all([
+    // This class and the niveau it sits at — the first tab.
+    loadClassOverview(context, classId),
     listUnassignedStudents(context, schoolClass.levelOfferingId),
     // The class's programme with whoever answers for each subject.
     loadTeachingGrid(context, classId),
@@ -89,7 +142,41 @@ export default async function ClassPage({
     canSeePapers
       ? loadClassPapers(context, classId, "DEVOIR", devoirFilters)
       : null,
+    // This niveau's classes only: the generator here offers "this class" or
+    // "its niveau", so the school's whole list would be a picker for a decision
+    // this screen is not making.
+    canGenerate
+      ? listAssessableClasses(context, {
+          levelOfferingId: schoolClass.levelOfferingId,
+        })
+      : [],
+    canSetPapers ? listTerms(context) : [],
+    canGenerate ? listAssessmentTypes(context) : [],
+    canSetPapers
+      ? listAssessmentTypes(context, { teacherCreatableOnly: true })
+      : [],
+    // Narrowed to this class's own subject pairs — a devoir is one piece of work
+    // for one class.
+    canSetPapers
+      ? listDevoirTargets(context, { schoolClassId: classId })
+      : [],
+    // The term in play, decided by the query rather than the page — see
+    // `loadClassResults`.
+    canSeeMarks ? loadClassResults(context, classId, null) : null,
+    // The same frozen figures, term by term — the shape the single term above
+    // cannot show.
+    canSeeMarks ? loadClassTermAverages(context, classId) : [],
+    canSeeAttendance ? loadClassAttendance(context, classId) : null,
+    canSeeRemarks ? listRemarks(context, { schoolClassId: classId }) : [],
   ]);
+
+  // The programmes the generator ticks from, for the classes it may reach.
+  const programmes = canGenerate
+    ? await loadProgrammesByClass(
+        context,
+        levelClasses.map((option) => option.id),
+      )
+    : {};
 
   return (
     <>
@@ -122,12 +209,38 @@ export default async function ClassPage({
 
       <ClassDetail
         schoolClass={schoolClass}
+        overview={overview}
+        results={results}
+        termAverages={termAverages}
+        attendance={attendance}
+        // Capped here rather than in the query: the tab is a way in to the
+        // carnet, not a second copy of the review screen.
+        remarks={remarks.slice(0, CLASS_REMARKS_SHOWN)}
         candidates={candidates}
         teachingGrid={teachingGrid}
         timetable={timetable}
         timetableChoices={timetableChoices}
         controls={controls}
         devoirs={devoirs}
+        paperCreation={
+          canSetPapers
+            ? {
+                levelClasses,
+                terms,
+                // The term the school is in, so the commonest case needs no
+                // pick. Null leaves the dialog's own default standing.
+                defaultTermId:
+                  terms.find((term) => term.status === "ACTIVE")?.id ?? null,
+                // Today falls outside the school year for two months a year, and
+                // a paper dated then belongs to no term — see lib/school-year.ts.
+                defaultDate: defaultDateWithin(context.currentSchoolYear),
+                programmes,
+                controlTypes,
+                devoirTypes,
+                devoirTargets,
+              }
+            : null
+        }
         permissions={{
           canRoster:
             context.can(PERMISSIONS.CLASS_ROSTER) &&
@@ -138,6 +251,7 @@ export default async function ClassPage({
           // Moving a paper in or out of the average is a weighting decision, so
           // it sits on the same code that decides what gets set at all.
           canReweighPapers: context.can(PERMISSIONS.ASSESSMENT_MANAGE),
+          canGeneratePapers: canGenerate,
         }}
       />
     </>
