@@ -988,6 +988,13 @@ html.dark[data-accent="teal"] {
   background: #f4f4f4;
 }
 
+/* A period called off for this week only. Struck rather than dropped: the sheet
+   on the wall has to say that Maths is not happening on Tuesday, and a hole
+   where the lesson was reads as a period nobody ever filled in. */
+.print-week-cancelled {
+  text-decoration: line-through;
+}
+
 /* A refusal with something to enumerate — the tables still pointing at a row
    somebody tried to delete — travels as one `\n`-separated message and is split
    into title and description by components/form/toast-error.ts. The description

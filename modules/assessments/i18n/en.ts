@@ -65,6 +65,8 @@ const en = {
     covers: "What it covers",
     coversHint: "The lesson or the pages, as the class is told — \"leçon 3, p.42\".",
     coversPlaceholder: "Lesson, chapter, pages…",
+    /** The per-paper date and note, folded away behind each row of the generator. */
+    paperDetails: "Date and content",
     progress: "Marking",
     average: "Average",
     stage: "Stage",

@@ -24,6 +24,7 @@ import {
   type SchoolWeek,
 } from "@/modules/timetable/weeks";
 import { runsInWeekNumber } from "@/modules/timetable/enums";
+import { periodsFromMinutes } from "@/modules/timetable/generator";
 
 /**
  * Reads for the timetable module.
@@ -111,7 +112,9 @@ function minutesOfDay(time: string): number {
  * service.ts uses it: a school with one 15-minute récréation column must not
  * have every lesson re-scaled by it.
  */
-function modalColumnMinutes(columns: SlotColumn[]): number {
+function modalColumnMinutes(
+  columns: { startTime: string; endTime: string; isBreak: boolean }[],
+): number {
   const tally = new Map<number, number>();
   for (const column of columns) {
     if (column.isBreak) continue;
@@ -470,6 +473,172 @@ export async function loadTimetableChoices(
     })),
     teacherBySubject,
   };
+}
+
+/** One subject of the programme the class's week does not yet hold in full. */
+export type ProgrammeGap = {
+  subjectId: string;
+  /** Both names, since this is read rather than matched on. */
+  subjectLabel: string;
+  /** Periods the programme asks for, and the periods the grid actually holds. */
+  wanted: number;
+  placed: number;
+  /** What is left to place, in minutes — the screen talks in hours. */
+  missingMinutes: number;
+  /** Nobody is affected to teach it to this class, so no draw could place it. */
+  unstaffed: boolean;
+};
+
+export type ProgrammeCoverage = {
+  gaps: ProgrammeGap[];
+  /**
+   * On the programme, but with no weekly volume anywhere — neither on the
+   * niveau's row nor on the class's affectation. Nothing to place, and no
+   * generator run will ever place it: the hours have to be declared first.
+   */
+  undeclared: { subjectId: string; subjectLabel: string }[];
+};
+
+/**
+ * What the class's programme asks for, against what its week actually holds.
+ *
+ * ── Why this is derived and not remembered ──────────────────────────────────
+ * The generator already knows what it could not fit — it says so on the preview
+ * — but that answer dies with the dialog. The reader who needs it is the one
+ * looking at the grid afterwards, wondering which two hours of physics they now
+ * have to place by hand, and a toast that has faded is no help to them. Read
+ * back from the programme, the same shortfall keeps being true after a refresh,
+ * after a manual edit that undoes it, and for a week nobody generated at all.
+ *
+ * The arithmetic is `buildTimetableDraft`'s, deliberately: the volume comes from
+ * the class's own affectation when it has one and from the niveau's row
+ * otherwise, components are not counted (they are marked inside their matière,
+ * never taught in their own hour), and a subject declared for one stream beats
+ * the row declared for every stream.
+ */
+export async function loadProgrammeCoverage(
+  context: AuthContext,
+  schoolClassId: string,
+  scheduleKind = "STANDARD",
+): Promise<ProgrammeCoverage> {
+  const empty: ProgrammeCoverage = { gaps: [], undeclared: [] };
+
+  const schoolClass = await db.schoolClass.findFirst({
+    where: {
+      id: schoolClassId,
+      levelOffering: yearScope(context),
+      schoolId: currentSchoolId(context),
+    },
+    select: {
+      id: true,
+      levelOffering: { select: { levelId: true, trackId: true } },
+      assignments: {
+        select: {
+          subjectId: true,
+          weeklyMinutes: true,
+          isPrimary: true,
+        },
+      },
+    },
+  });
+  if (!schoolClass) return empty;
+
+  const { levelId, trackId } = schoolClass.levelOffering;
+
+  const [programme, slots, entries] = await Promise.all([
+    db.levelSubject.findMany({
+      where: {
+        levelId,
+        // This class's stream, plus the rows declared for every stream.
+        OR: [{ trackId: null }, ...(trackId ? [{ trackId }] : [])],
+        subject: { isActive: true },
+      },
+      orderBy: [{ position: "asc" }],
+      select: {
+        trackId: true,
+        weeklyMinutes: true,
+        subject: {
+          select: { id: true, name: true, nameAr: true, parentId: true },
+        },
+      },
+    }),
+    db.timeSlot.findMany({
+      where: { ...yearScope(context), scheduleKind, isActive: true },
+      select: { startTime: true, endTime: true, isBreak: true },
+    }),
+    // Everything on this class's grid for the bell schedule in view. Counted
+    // per subject and not per week: a lesson is on the template or it is not,
+    // and a week's one-off cancellation is not a hole in the programme.
+    db.timetableEntry.findMany({
+      where: {
+        schoolClassId,
+        timeSlot: { ...yearScope(context), scheduleKind },
+      },
+      select: { subjectId: true },
+    }),
+  ]);
+
+  if (slots.length === 0) return empty;
+  const periodMinutes = modalColumnMinutes(slots);
+
+  const placedBySubject = new Map<string, number>();
+  for (const entry of entries) {
+    placedBySubject.set(
+      entry.subjectId,
+      (placedBySubject.get(entry.subjectId) ?? 0) + 1,
+    );
+  }
+
+  const declaredFor = new Map<string, { weeklyMinutes: number | null; assigned: boolean }>();
+  for (const assignment of schoolClass.assignments) {
+    const held = declaredFor.get(assignment.subjectId);
+    // The primary affectation is the one that answers for the subject; a
+    // second teacher on the same subject does not double its volume.
+    if (!held || assignment.isPrimary) {
+      declaredFor.set(assignment.subjectId, {
+        weeklyMinutes: assignment.weeklyMinutes,
+        assigned: true,
+      });
+    }
+  }
+
+  const rows = new Map<string, (typeof programme)[number]>();
+  for (const row of programme) {
+    if (row.subject.parentId !== null) continue;
+    const held = rows.get(row.subject.id);
+    if (!held || (held.trackId === null && row.trackId !== null)) {
+      rows.set(row.subject.id, row);
+    }
+  }
+
+  const gaps: ProgrammeGap[] = [];
+  const undeclared: ProgrammeCoverage["undeclared"] = [];
+
+  for (const row of rows.values()) {
+    const subjectLabel = bilingual(row.subject.name, row.subject.nameAr);
+    const affectation = declaredFor.get(row.subject.id);
+    const weeklyMinutes = affectation?.weeklyMinutes ?? row.weeklyMinutes;
+
+    if (!weeklyMinutes || weeklyMinutes <= 0) {
+      undeclared.push({ subjectId: row.subject.id, subjectLabel });
+      continue;
+    }
+
+    const wanted = periodsFromMinutes(weeklyMinutes, periodMinutes);
+    const placed = placedBySubject.get(row.subject.id) ?? 0;
+    if (placed >= wanted) continue;
+
+    gaps.push({
+      subjectId: row.subject.id,
+      subjectLabel,
+      wanted,
+      placed,
+      missingMinutes: (wanted - placed) * periodMinutes,
+      unstaffed: !affectation,
+    });
+  }
+
+  return { gaps, undeclared };
 }
 
 /** The classes a grid can be drawn for, grouped by the level that opened them. */

@@ -1,13 +1,13 @@
 "use client";
 
-import { SparklesIcon } from "lucide-react";
+import { PencilIcon, SparklesIcon } from "lucide-react";
 import * as React from "react";
 
 import { FormField, controlProps } from "@/components/form/form-field";
+import { clusterByGroup } from "@/components/form/option-groups";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
-import { useT } from "@/components/providers/i18n-provider";
-import { Badge } from "@/components/ui/badge";
+import { useLocale, useT } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { clusterByGroup } from "@/components/form/option-groups";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,13 +29,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { IDLE } from "@/lib/action-state";
-import { interpolate } from "@/lib/i18n/format";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { IDLE } from "@/lib/action-state";
+import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { generateAssessmentsAction } from "@/modules/assessments/actions";
 import {
@@ -68,6 +67,14 @@ type Ticked = { date: string; note: string };
  * a subject quietly goes missing from a report card. Re-running is safe and the
  * dialog says so, because the operator's real question is "did I already do
  * this one?".
+ *
+ * ── What the screen asks for, in the order it asks ───────────────────────────
+ * The round is settled first — where, when, which kind, which number, what day
+ * — and only then are the subjects ticked. Everything the round settles is one
+ * answer for the whole batch, so it sits in one compact block of pairs; the
+ * per-paper exceptions (this one on the Thursday, that one on chapter 3) hide
+ * behind each row until asked for. The ordinary run is therefore: open, glance,
+ * generate.
  */
 export function GenerateDialog({
   classes,
@@ -105,6 +112,7 @@ export function GenerateDialog({
   scopes?: readonly GenerateScope[];
 }) {
   const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = React.useState(false);
   const [state, formAction] = React.useActionState(
     generateAssessmentsAction,
@@ -117,7 +125,33 @@ export function GenerateDialog({
   // picker does not offer it either.
   const openTerms = terms.filter((term) => term.status !== "CLOSED");
 
-  const [classId, setClassId] = React.useState(defaultClassId ?? "");
+  /*
+    Every picker opens on something generable.
+
+    All four of these used to be allowed to start empty — the class when the
+    screen had no class filter, the level whenever the dialog was not opened
+    from a class, the term whenever the screen's filter sat on a closed one.
+    An empty picker is not a neutral start here: the subject list is derived
+    from the target, so it came up saying "this class has no programme", and
+    the term one failed validation on submit with nothing on screen having
+    looked wrong. Falling back to the first offered option means the dialog
+    always opens on a round somebody could actually press Generate on.
+  */
+  const [classId, setClassId] = React.useState(
+    defaultClassId ?? classes[0]?.id ?? "",
+  );
+
+  const [levelOfferingId, setLevelOfferingId] = React.useState(
+    () =>
+      classes.find((option) => option.id === defaultClassId)?.levelOfferingId ??
+      classes[0]?.levelOfferingId ??
+      "",
+  );
+
+  const [termId, setTermId] = React.useState(
+    () => openTerms.find((term) => term.id === defaultTermId)?.id ?? openTerms[0]?.id ?? "",
+  );
+
   const [defaultDate, setDefaultDate] = React.useState(initialDate);
 
   /**
@@ -164,12 +198,6 @@ export function GenerateDialog({
     return [...seen.values()];
   }, [classes]);
 
-  const [levelOfferingId, setLevelOfferingId] = React.useState(
-    () =>
-      classes.find((option) => option.id === defaultClassId)?.levelOfferingId ??
-      "",
-  );
-
   /** The classes this run will actually write for. */
   const targetClasses = React.useMemo(() => {
     if (scope === "CLASS") {
@@ -200,10 +228,7 @@ export function GenerateDialog({
     for (const option of targetClasses) {
       for (const entry of programmes[option.id] ?? []) {
         const seen = bySubject.get(entry.subjectId);
-        if (
-          !seen ||
-          (seen.teacherName === null && entry.teacherName !== null)
-        ) {
+        if (!seen || (seen.teacherName === null && entry.teacherName !== null)) {
           bySubject.set(entry.subjectId, entry);
         }
       }
@@ -237,6 +262,9 @@ export function GenerateDialog({
     key: string;
     chosen: Record<string, Ticked>;
   } | null>(null);
+
+  /** Which row has its date and its note open. One at a time — see `renderRow`. */
+  const [detailed, setDetailed] = React.useState<string | null>(null);
 
   /**
    * The rows the kind is ordinarily sat on — what "All" ticks, and what the
@@ -311,8 +339,8 @@ export function GenerateDialog({
     }
 
     return byParent;
-    // Not keyed on the kind any more: the grouping is the same list either way,
-    // and only which rows start ticked follows from it.
+    // Not keyed on the kind: the grouping is the same list either way, and only
+    // which rows start ticked follows from it.
   }, [programme]);
 
   /** A subject nobody teaches cannot be generated — the action refuses it. */
@@ -380,7 +408,7 @@ export function GenerateDialog({
     setChosen(checked ? everythingOn(staffed, defaultDate) : {});
   }
 
-  /** Retyping the shared date moves every paper that still carries the old one. */
+  /** Retyping the round's date moves every paper that still carries the old one. */
   function applyDefaultDate(value: string) {
     const next: Record<string, Ticked> = {};
     for (const [subjectId, ticked] of Object.entries(chosen)) {
@@ -416,7 +444,14 @@ export function GenerateDialog({
   const disabled = blockedReason !== null;
 
   /**
-   * One tickable subject, with its own date.
+   * One tickable subject.
+   *
+   * A row is a tick and a name; its date and what it covers are the exception,
+   * so they live behind the button at the end of it. They used to be two inputs
+   * on every row, which on a primary programme meant two dozen boxes to read
+   * past for a round that is nearly always one date and no notes at all — and
+   * the ones that had been filled in were no easier to spot for it. Now a row
+   * that differs says so, in its date and its highlighted button.
    *
    * Shared by the matière row and the component rows under it: they differ only
    * in indentation, and giving them two renderers is how the two quietly stop
@@ -428,15 +463,14 @@ export function GenerateDialog({
     // No teacher, no paper — the action refuses it, so the row cannot be ticked
     // and says why.
     const blocked = entry.teacherName === null;
+    const custom =
+      checked && (ticked.date !== defaultDate || ticked.note.trim() !== "");
+    const showDetails = checked && detailed === entry.subjectId;
 
     return (
       <div
         key={entry.subjectId}
-        className={cn(
-          "grid gap-2 p-2",
-          indented && "ps-6",
-          blocked && "opacity-60",
-        )}
+        className={cn("p-2", indented && "ps-6", blocked && "opacity-60")}
       >
         <div className="flex items-center gap-3">
           <Checkbox
@@ -462,39 +496,53 @@ export function GenerateDialog({
               {entry.teacherName ?? t.assessment.noTeacher}
             </span>
           </Label>
-          <Input
-            type="date"
-            value={ticked?.date ?? ""}
-            onChange={(event) =>
-              patch(entry.subjectId, { date: event.target.value })
-            }
-            // A date on an unticked subject would be a promise the generator will
-            // not keep.
+
+          {/* Only a date that is not the round's is worth printing — the others
+            are already said once, at the top. */}
+          {checked && ticked.date !== defaultDate ? (
+            <span className="text-muted-foreground text-xs whitespace-nowrap">
+              {formatDate(ticked.date, locale)}
+            </span>
+          ) : null}
+
+          <Button
+            type="button"
+            variant={custom ? "secondary" : "ghost"}
+            size="icon-sm"
             disabled={!checked}
-            dir="ltr"
-            className="h-8 w-36 text-xs"
-            aria-label={`${entry.subjectLabel} — ${t.assessment.scheduledOn}`}
-          />
+            aria-expanded={showDetails}
+            aria-label={`${entry.subjectLabel} — ${t.assessment.paperDetails}`}
+            onClick={() =>
+              setDetailed(showDetails ? null : entry.subjectId)
+            }
+          >
+            <PencilIcon />
+          </Button>
         </div>
 
-        {/*
-        What the paper covers, in the words the class is told it in.
-
-        Only on a ticked row: an untickable column of empty boxes down the
-        whole programme is noise, and a note against a subject nobody is
-        setting work in is a note nobody will ever read.
-      */}
-        {checked ? (
-          <Input
-            value={ticked.note}
-            onChange={(event) =>
-              patch(entry.subjectId, { note: event.target.value })
-            }
-            maxLength={NOTES_MAX}
-            placeholder={t.assessment.coversPlaceholder}
-            className="h-8 text-xs"
-            aria-label={`${entry.subjectLabel} — ${t.assessment.covers}`}
-          />
+        {showDetails ? (
+          <div className="mt-2 grid gap-2 ps-8 sm:grid-cols-[9rem_1fr]">
+            <Input
+              type="date"
+              value={ticked.date}
+              onChange={(event) =>
+                patch(entry.subjectId, { date: event.target.value })
+              }
+              dir="ltr"
+              className="h-8 text-xs"
+              aria-label={`${entry.subjectLabel} — ${t.assessment.scheduledOn}`}
+            />
+            <Input
+              value={ticked.note}
+              onChange={(event) =>
+                patch(entry.subjectId, { note: event.target.value })
+              }
+              maxLength={NOTES_MAX}
+              placeholder={t.assessment.coversPlaceholder}
+              className="h-8 text-xs"
+              aria-label={`${entry.subjectLabel} — ${t.assessment.covers}`}
+            />
+          </div>
         ) : null}
       </div>
     );
@@ -517,7 +565,20 @@ export function GenerateDialog({
         {blockedReason ? <TooltipContent>{blockedReason}</TooltipContent> : null}
       </Tooltip>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // A round that has been generated is done with; the next one is
+          // another kind, another number, another set of ticks. Closing drops
+          // the selection so re-opening starts from the programme again rather
+          // than from whatever was left of the last run.
+          if (!next) {
+            setSelection(null);
+            setDetailed(null);
+          }
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <form action={formAction}>
             <DialogHeader>
@@ -532,141 +593,133 @@ export function GenerateDialog({
                 it; the action decides which of them it reads. */}
               <input type="hidden" name="scope" value={scope} />
 
-              <FormField
-                name="scope"
-                label={t.assessment.scope}
-                hint={t.assessment.scopeHint}
-              >
-                <Select
-                  value={scope}
-                  onValueChange={(value) => setScope(value as GenerateScope)}
-                >
-                  <SelectTrigger id="scope" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {scopes.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option === "CLASS"
-                          ? t.assessment.scopeClass
-                          : option === "LEVEL"
-                            ? t.assessment.scopeLevel
-                            : t.assessment.scopeYear}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              {scope === "CLASS" ? (
-                <FormField name="schoolClassId" label={t.assessment.class}>
-                  <Select
-                    name="schoolClassId"
-                    value={classId}
-                    onValueChange={setClassId}
-                  >
-                    <SelectTrigger id="schoolClassId" className="w-full">
-                      <SelectValue placeholder={t.assessment.class} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clusterByGroup(
-                        classes.map((option) => ({
-                          ...option,
-                          group: option.cycleName,
-                        })),
-                      ).map((cluster) => (
-                        <SelectGroup key={cluster.heading}>
-                          <SelectLabel>{cluster.heading}</SelectLabel>
-                          {cluster.options.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.code} · {option.levelNameLabel}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
-              ) : null}
-
-              {scope === "LEVEL" ? (
-                <FormField
-                  name="levelOfferingId"
-                  label={t.assessment.pickLevel}
-                >
-                  <Select
-                    name="levelOfferingId"
-                    value={levelOfferingId}
-                    onValueChange={setLevelOfferingId}
-                  >
-                    <SelectTrigger id="levelOfferingId" className="w-full">
-                      <SelectValue placeholder={t.assessment.pickLevel} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clusterByGroup(levels).map((cluster) => (
-                        <SelectGroup key={cluster.heading}>
-                          <SelectLabel>{cluster.heading}</SelectLabel>
-                          {cluster.options.map((level) => (
-                            <SelectItem key={level.id} value={level.id}>
-                              {level.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormField>
-              ) : null}
-
-              {/* What the run will actually cover, said plainly: the count is
-                the thing an operator checks before pressing the button. */}
-              <p className="text-muted-foreground text-xs">
-                {interpolate(t.assessment.willCover, {
-                  classes: targetClasses.length,
-                  subjects: chosenCount,
-                })}
-              </p>
-
-              <FormField name="termId" label={t.assessment.term}>
-                <Select name="termId" defaultValue={defaultTermId ?? undefined}>
-                  <SelectTrigger id="termId" className="w-full">
-                    <SelectValue placeholder={t.assessment.term} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {openTerms.map((term) => (
-                      <SelectItem key={term.id} value={term.id}>
-                        {term.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
-              <FormField name="assessmentTypeId" label={t.assessment.kind}>
-                <Select
-                  name="assessmentTypeId"
-                  value={assessmentTypeId}
-                  onValueChange={setAssessmentTypeId}
-                >
-                  <SelectTrigger id="assessmentTypeId" className="w-full">
-                    <SelectValue placeholder={t.assessment.kind} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {types.map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        {type.label} · /{type.defaultMaxScore} · ×
-                        {type.defaultCoefficient}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-
+              {/* Everything the round settles, in pairs: one answer each, for
+                every paper the run writes. */}
               <div className="grid gap-4 sm:grid-cols-2">
+                <FormField name="scope" label={t.assessment.scope}>
+                  <Select
+                    value={scope}
+                    onValueChange={(value) => setScope(value as GenerateScope)}
+                  >
+                    <SelectTrigger id="scope" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scopes.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option === "CLASS"
+                            ? t.assessment.scopeClass
+                            : option === "LEVEL"
+                              ? t.assessment.scopeLevel
+                              : t.assessment.scopeYear}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                {scope === "CLASS" ? (
+                  <FormField name="schoolClassId" label={t.assessment.class}>
+                    <Select
+                      name="schoolClassId"
+                      value={classId}
+                      onValueChange={setClassId}
+                    >
+                      <SelectTrigger id="schoolClassId" className="w-full">
+                        <SelectValue placeholder={t.assessment.class} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clusterByGroup(
+                          classes.map((option) => ({
+                            ...option,
+                            group: option.cycleName,
+                          })),
+                        ).map((cluster) => (
+                          <SelectGroup key={cluster.heading}>
+                            <SelectLabel>{cluster.heading}</SelectLabel>
+                            {cluster.options.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.code} · {option.levelNameLabel}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                ) : null}
+
+                {scope === "LEVEL" ? (
+                  <FormField
+                    name="levelOfferingId"
+                    label={t.assessment.pickLevel}
+                  >
+                    <Select
+                      name="levelOfferingId"
+                      value={levelOfferingId}
+                      onValueChange={setLevelOfferingId}
+                    >
+                      <SelectTrigger id="levelOfferingId" className="w-full">
+                        <SelectValue placeholder={t.assessment.pickLevel} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clusterByGroup(levels).map((cluster) => (
+                          <SelectGroup key={cluster.heading}>
+                            <SelectLabel>{cluster.heading}</SelectLabel>
+                            {cluster.options.map((level) => (
+                              <SelectItem key={level.id} value={level.id}>
+                                {level.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                ) : null}
+
+                <FormField name="termId" label={t.assessment.term}>
+                  <Select
+                    name="termId"
+                    value={termId}
+                    onValueChange={setTermId}
+                  >
+                    <SelectTrigger id="termId" className="w-full">
+                      <SelectValue placeholder={t.assessment.term} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {openTerms.map((term) => (
+                        <SelectItem key={term.id} value={term.id}>
+                          {term.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
+                <FormField name="assessmentTypeId" label={t.assessment.kind}>
+                  <Select
+                    name="assessmentTypeId"
+                    value={assessmentTypeId}
+                    onValueChange={setAssessmentTypeId}
+                  >
+                    <SelectTrigger id="assessmentTypeId" className="w-full">
+                      <SelectValue placeholder={t.assessment.kind} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {types.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.label} · /{type.defaultMaxScore} · ×
+                          {type.defaultCoefficient}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+
                 <FormField
                   name="sequence"
                   label={t.assessment.sequence}
-                  hint={t.assessment.sequenceHint}
                   error={state.fieldErrors?.sequence}
                 >
                   <Input
@@ -708,12 +761,6 @@ export function GenerateDialog({
                 <div className="flex flex-wrap items-center gap-2">
                   <Label className="flex-1">
                     {t.assessment.subjectsToGenerate}
-                    {/* Ticked, without a denominator: a component ticked in
-                      place of its matière swaps one row for another, so there
-                      is no single total to count against. */}
-                    <Badge variant="secondary" className="ms-1.5 tabular-nums">
-                      {chosenCount}
-                    </Badge>
                   </Label>
                   <Button
                     type="button"
@@ -732,8 +779,15 @@ export function GenerateDialog({
                     {t.assessment.noneSubjects}
                   </Button>
                 </div>
-                <p className="text-muted-foreground text-xs text-pretty">
-                  {t.assessment.subjectsToGenerateHint}
+
+                {/* What the run will actually cover, said plainly and in one
+                  place: the count is the thing an operator checks before
+                  pressing the button. */}
+                <p className="text-muted-foreground text-xs">
+                  {interpolate(t.assessment.willCover, {
+                    classes: targetClasses.length,
+                    subjects: chosenCount,
+                  })}
                 </p>
 
                 {/* Said only where a matière is actually split, and only where
@@ -781,10 +835,7 @@ export function GenerateDialog({
                         ) : null}
 
                         {group.entries.map((entry) =>
-                          renderRow(
-                            entry,
-                            Boolean(group.title || group.matiere),
-                          ),
+                          renderRow(entry, Boolean(group.title || group.matiere)),
                         )}
                       </div>
                     ))}

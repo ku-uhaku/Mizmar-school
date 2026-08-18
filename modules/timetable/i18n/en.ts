@@ -149,6 +149,14 @@ const en = {
     periodsMissing: "{count} period(s) short",
     noWeeklyHours: "No weekly hours declared, so left out",
     noTeacherAssigned: "Placed, but nobody is assigned to teach them",
+
+    // ── What the week still owes the programme ──────────────────────────────
+    programmeGaps: "Still to place by hand",
+    programmeGapsHint:
+      "The programme asks for more of these than the week holds — whatever the draw could not fit, and whatever has been cleared since. Click a free period to place them yourself.",
+    gapUnstaffed: "no teacher",
+    undeclaredHours:
+      "No weekly hours are declared for {subjects}, so nothing can be placed for them until the programme says how long they run.",
     days: {
       "1": "Monday",
       "2": "Tuesday",

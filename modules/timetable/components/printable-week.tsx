@@ -1,4 +1,5 @@
 import type { Dictionary } from "@/lib/i18n/types";
+import { cn } from "@/lib/utils";
 import type { SlotColumn } from "@/modules/timetable/queries";
 
 /**
@@ -24,6 +25,12 @@ export type PrintableCell = {
   /** Covered by the block that started earlier in the day; skipped entirely. */
   covered: boolean;
   isBreak: boolean;
+  /**
+   * Called off for this week only — the subject prints struck through rather
+   * than disappearing. A blank cell is indistinguishable from a period nobody
+   * has filled in yet, which is the opposite of what a cancellation says.
+   */
+  cancelled?: boolean;
 };
 
 export type PrintableWeek = {
@@ -83,11 +90,15 @@ export function PrintableWeekTable({
                   {cell.lines.map((line, lineIndex) => (
                     <span
                       key={line + lineIndex}
-                      className={
+                      className={cn(
                         lineIndex === 0
                           ? "print-week-subject"
-                          : "print-week-meta"
-                      }
+                          : "print-week-meta",
+                        // The subject is struck; the word saying so is not.
+                        lineIndex === 0 &&
+                          cell.cancelled &&
+                          "print-week-cancelled",
+                      )}
                     >
                       {line}
                     </span>

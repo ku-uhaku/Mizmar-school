@@ -66,6 +66,7 @@ const fr = {
     covers: "Ce qui est évalué",
     coversHint: "La leçon ou les pages, comme annoncé à la classe — « leçon 3, p.42 ».",
     coversPlaceholder: "Leçon, chapitre, pages…",
+    paperDetails: "Date et contenu",
     progress: "Correction",
     average: "Moyenne",
     stage: "Étape",

@@ -13,12 +13,14 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { ClassPicker } from "@/modules/timetable/components/class-picker";
 import { GenerateTimeSlotsButton } from "@/modules/timetable/components/generate-time-slots-button";
 import { GenerateWeeksButton } from "@/modules/timetable/components/generate-weeks-button";
+import { ProgrammeGaps } from "@/modules/timetable/components/programme-gaps";
 import { TimetableGenerator } from "@/modules/timetable/components/timetable-generator";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
 import { WeekPicker } from "@/modules/timetable/components/week-picker";
 import {
   listTimetableClasses,
   loadClassTimetable,
+  loadProgrammeCoverage,
   loadTimetableChoices,
   loadWeekContext,
   loadWeekOverlay,
@@ -77,9 +79,13 @@ export default async function TimetablePage({
   const weekContext = await loadWeekContext(context, week);
   const weekNumber = weekContext.current?.index ?? null;
 
-  const [grid, choices] = await Promise.all([
+  const [grid, choices, coverage] = await Promise.all([
     loadClassTimetable(context, selected.id, scheduleKind, weekNumber),
     loadTimetableChoices(context, selected.id),
+    // What the programme still owes this class. Read here rather than kept from
+    // the generator's own report: the hours to place by hand are what somebody
+    // needs *after* the dialog has closed. See `loadProgrammeCoverage`.
+    loadProgrammeCoverage(context, selected.id, scheduleKind),
   ]);
 
   const holidays = holidaysByWeekday(weekContext);
@@ -147,6 +153,10 @@ export default async function TimetablePage({
       />
 
       <WeekPicker context={weekContext} />
+
+      {/* Above the grid, because it is a list of things to do *to* the grid —
+        and it disappears on its own as they are done. */}
+      {grid ? <ProgrammeGaps coverage={coverage} t={t} /> : null}
 
       {grid && choices ? (
         <TimetableGrid

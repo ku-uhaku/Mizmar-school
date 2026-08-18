@@ -12,7 +12,11 @@ import { findClass } from "@/modules/classes/queries";
 import { PrintableWeekTable } from "@/modules/timetable/components/printable-week";
 import type { PrintableWeek } from "@/modules/timetable/components/printable-week";
 import { holidaysByWeekday } from "@/modules/timetable/holidays";
-import { loadClassTimetable, loadWeekContext } from "@/modules/timetable/queries";
+import {
+  loadClassTimetable,
+  loadWeekContext,
+  loadWeekOverlay,
+} from "@/modules/timetable/queries";
 
 export const metadata: Metadata = { title: "Emploi du temps" };
 
@@ -56,6 +60,22 @@ export default async function ClassTimetablePrintPage({
 
   if (!schoolClass || !grid) notFound();
 
+  /*
+    The one-off changes of the week being printed, exactly as the screen draws
+    them.
+
+    The sheet used to print the template alone, which meant a lesson called off
+    on Tuesday still told the class to turn up for it — the cancellation was
+    visible on screen and nowhere on the copy pinned to the wall, which is the
+    copy anybody actually reads. Second query rather than part of the batch
+    above because it needs the week `loadWeekContext` resolves.
+  */
+  const overlay = await loadWeekOverlay(
+    context,
+    classId,
+    weekContext.current?.start ?? null,
+  );
+
   const holidays = holidaysByWeekday(weekContext);
 
   const printable: PrintableWeek = {
@@ -71,20 +91,46 @@ export default async function ClassTimetablePrintPage({
         // up for Maths on a jour férié.
         const holiday = holidays[row.dayOfWeek];
 
+        /*
+          The same three layers the grid draws, in the same order: an exception
+          overrides the template for this week only, and a replacement can land
+          in a period the template leaves free — so a cell with no entry still
+          has something to print.
+        */
+        const exception = cell?.timeSlotId
+          ? (overlay.exceptions[cell.timeSlotId] ?? null)
+          : null;
+        const cancelled = exception?.kind === "CANCELLED";
+        const replaced = exception?.kind === "REPLACED";
+
+        const subjectName = replaced
+          ? (exception?.subjectName ?? entry?.subjectName ?? "")
+          : (entry?.subjectName ?? "");
+
+        const meta = [
+          exception?.teacherName ?? entry?.teacherName,
+          exception?.roomCode ?? entry?.roomCode,
+          entry?.groupLabel,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
         return {
           lines: holiday
             ? [holiday]
-            : entry
-            ? [
-                entry.subjectName,
-                [entry.teacherName, entry.roomCode, entry.groupLabel]
-                  .filter(Boolean)
-                  .join(" · "),
-              ].filter(Boolean)
-            : [],
+            : entry || replaced
+              ? [
+                  subjectName,
+                  meta,
+                  // Said in words as well as struck through: a line through a
+                  // photocopied word is easy to take for a fold.
+                  cancelled ? t.timetable.cancelledThisWeek : "",
+                ].filter(Boolean)
+              : [],
           span: entry?.span ?? 1,
           covered: cell?.covered ?? false,
           isBreak: (cell?.isBreak ?? false) || Boolean(holiday),
+          cancelled,
         };
       }),
     })),

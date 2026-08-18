@@ -150,6 +150,14 @@ const fr = {
     periodsMissing: "{count} séance(s) manquante(s)",
     noWeeklyHours: "Aucun volume horaire déclaré, donc écartées",
     noTeacherAssigned: "Placées, mais sans enseignant affecté",
+
+    // ── Ce que la semaine doit encore au programme ──────────────────────────
+    programmeGaps: "Reste à placer à la main",
+    programmeGapsHint:
+      "Le programme en demande plus que la semaine n'en contient — ce que le tirage n'a pas pu caser, et ce qui a été retiré depuis. Cliquez sur une période libre pour les placer vous-même.",
+    gapUnstaffed: "sans enseignant",
+    undeclaredHours:
+      "Aucun volume horaire n'est déclaré pour {subjects} : rien ne peut être placé tant que le programme ne dit pas leur durée.",
     days: {
       "1": "Lundi",
       "2": "Mardi",

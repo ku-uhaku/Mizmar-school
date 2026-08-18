@@ -63,6 +63,7 @@ const ar = {
     covers: "ما يشمله",
     coversHint: "الدرس أو الصفحات، كما تُعلَن للقسم — «الدرس 3، ص. 42».",
     coversPlaceholder: "الدرس، الوحدة، الصفحات…",
+    paperDetails: "التاريخ والمحتوى",
     progress: "التصحيح",
     average: "المعدل",
     stage: "المرحلة",
