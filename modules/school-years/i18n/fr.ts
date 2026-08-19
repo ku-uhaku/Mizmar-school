@@ -17,6 +17,9 @@ const fr = {
     copyCalendar: "Calendrier — semestres, créneaux, vacances",
     copyCalendarHint:
       "Les dates sont décalées de semaines entières : un lundi reste un lundi. L'Aïd et le Mawlid suivent le calendrier hégirien et devront être corrigés.",
+    copyProgramme: "Programme — matières, coefficients, volumes horaires",
+    copyProgrammeHint:
+      "Ce que chaque niveau étudie cette année. Sans lui, l'année n'a aucun programme à emploi du temps ni à moyenne.",
     copyStructure: "Structure — niveaux, classes, groupes",
     copyStructureHint:
       "La forme de l'établissement. Le professeur principal n'est pas repris.",

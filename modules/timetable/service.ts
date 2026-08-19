@@ -691,7 +691,9 @@ export async function buildTimetableDraft(
     ...new Set(classes.map((entry) => entry.levelOffering.levelId)),
   ];
   const programme = await db.levelSubject.findMany({
-    where: { levelId: { in: levelIds }, subject: { isActive: true } },
+    // The year being drawn, never the whole history of the niveau: the volumes
+    // horaires this run places are the ones this year declared.
+    where: { schoolYearId, levelId: { in: levelIds }, subject: { isActive: true } },
     orderBy: [{ position: "asc" }],
     select: {
       levelId: true,

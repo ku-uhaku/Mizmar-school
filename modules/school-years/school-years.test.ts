@@ -103,7 +103,10 @@ vi.mock("@/lib/i18n/server", async (importOriginal) => ({
 
 vi.mock("next/cache", () => ({ refresh: () => {} }));
 
-// The copy fans out to four modules; this file is about the orchestration.
+// The copy fans out to five modules; this file is about the orchestration.
+vi.mock("@/modules/academics/service", () => ({
+  copyProgramme: async () => 41,
+}));
 vi.mock("@/modules/billing/service", () => ({
   copyFeeConfiguration: async () => ({ rates: 3, discounts: 1 }),
 }));
@@ -409,6 +412,7 @@ describe("copyYearConfiguration", () => {
       const result = await copyYearConfiguration("year-1", "year-2", [part]);
       const total =
         result.terms + result.timeSlots + result.holidays + result.weeks +
+        result.programme +
         result.offerings + result.classes + result.groups +
         result.feeRates + result.discounts +
         result.transportSchedules + result.routes + result.stops;
@@ -504,11 +508,16 @@ describe("the statuses and the copy groups", () => {
     expect(TERM_NUMBER_MAX).toBe(3);
   });
 
-  it("offers four groups rather than a tick-box per table", () => {
+  it("offers five groups rather than a tick-box per table", () => {
     // A school thinks in "the calendar" and "the classes"; fourteen tick-boxes
     // would be asking the operator to know which table a class group lives in.
+    //
+    // The programme is its own group and not part of STRUCTURE: a school may
+    // well want last year's coefficients without last year's classes, and a
+    // year copied without it has nothing to timetable or average.
     expect([...YEAR_COPY_PARTS]).toEqual([
       "CALENDAR",
+      "PROGRAMME",
       "STRUCTURE",
       "FEES",
       "TRANSPORT",

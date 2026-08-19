@@ -104,6 +104,9 @@ export type FieldDef = {
   groupKey?: string;
 };
 
+/** The module-specific controls a configuration screen may carry. */
+export type ResourceHelper = "programme-carry-forward";
+
 export type ResourceDef = {
   /** URL segment and lookup key, e.g. "levels". */
   id: string;
@@ -132,6 +135,20 @@ export type ResourceDef = {
    * other fourteen resources are.
    */
   kind?: "list" | "singleton";
+  /**
+   * A module's own control, shown above the generic table.
+   *
+   * Named rather than imported, exactly as a nav icon is (see `NavIcon`): this
+   * file crosses to the client and a component reference would drag a module's
+   * server code with it. The name is resolved in
+   * `components/resource-helper.tsx`, which is the only place that knows what a
+   * helper actually renders.
+   *
+   * There is one, and it earns the extension: a year's programme is dozens of
+   * rows nobody will retype every September, so the screen that manages it has
+   * to offer the copy. Anything a *generic* table can do stays generic.
+   */
+  helper?: ResourceHelper;
   fields: FieldDef[];
   /** Fields joined with " — " to name a row in reference dropdowns. */
   labelFields: string[];

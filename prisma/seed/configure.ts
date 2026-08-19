@@ -86,6 +86,9 @@ export async function configureSchool(
     db,
     school.id,
     MOROCCAN_CURSUS,
+    // Every year, not only the current one: the programme is the year's now, and
+    // a past year without one has no coefficients to draw its bulletins from.
+    years.map((year) => year.id),
   );
   const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
 

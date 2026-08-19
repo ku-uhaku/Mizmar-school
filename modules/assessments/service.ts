@@ -79,15 +79,20 @@ export async function resolveProgramme(
   const schoolClass = await db.schoolClass.findUnique({
     where: { id: schoolClassId },
     select: {
-      levelOffering: { select: { levelId: true, trackId: true } },
+      levelOffering: {
+        select: { schoolYearId: true, levelId: true, trackId: true },
+      },
     },
   });
   if (!schoolClass) return [];
 
-  const { levelId, trackId } = schoolClass.levelOffering;
+  const { schoolYearId, levelId, trackId } = schoolClass.levelOffering;
 
   const declared = await db.levelSubject.findMany({
     where: {
+      // The programme of the class's own year — a paper set in a past year is
+      // weighted the way that year weighted it. See LevelSubject.
+      schoolYearId,
       levelId,
       isGraded: true,
       // Rule 1: this track's rows plus the ones that apply to every track.

@@ -180,10 +180,20 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ position: "asc" }, { code: "asc" }],
   },
 
+  /*
+    The programme of one year.
+
+    Scoped by both the year and the school although the year already implies the
+    school, for the reason `teacher-subjects` gives below: a header still on last
+    year's context must not reach this year's rows through a stale id.
+  */
   programme: {
     table: () => db.levelSubject as unknown as Delegate,
     model: "LevelSubject",
-    where: (context) => ({ level: bySchool(context) }),
+    where: (context) => ({ ...byYear(context), level: bySchool(context) }),
+    createData: (context) => ({
+      schoolYear: { connect: { id: context.currentSchoolYear?.id } },
+    }),
     derive: (values) => ({
       scopeKey: levelSubjectScopeKey(values.trackId as string | null),
     }),

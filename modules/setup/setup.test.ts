@@ -507,9 +507,15 @@ function baseForm(extra: Record<string, string | string[]> = {}): FormData {
   return form;
 }
 
-/** A three-row programme table, posted as six aligned arrays. */
+/**
+ * A three-row programme table, posted as six aligned arrays — with the year it
+ * is declared for, because a programme is written against one. See LevelSubject.
+ */
 function programmeForm(rows: { level: string; subject: string; coef: string; included: string }[]) {
   return {
+    yearName: "2025-2026",
+    yearStartDate: "2025-09-01",
+    yearEndDate: "2026-06-30",
     cycle: ["PRIMARY"],
     levelCode: ["1AP"],
     subjectCode: ["AR", "MATH", "FR"],
@@ -864,7 +870,10 @@ describe("applySetup", () => {
       year: null,
     } as never);
 
-    for (const model of ["term", "timeSlot", "schoolWeek", "feeRate", "levelOffering", "schoolClass", "classGroup"]) {
+    // `levelSubject` is in this list and `level` is not: the niveaux and the
+    // matières are the school's, but what they are taught and how heavily is
+    // declared against a year — see LevelSubject.
+    for (const model of ["term", "timeSlot", "schoolWeek", "feeRate", "levelOffering", "schoolClass", "classGroup", "levelSubject"]) {
       expect(created(model), model).toHaveLength(0);
     }
     expect(of("schoolYear", "upsert")).toHaveLength(0);

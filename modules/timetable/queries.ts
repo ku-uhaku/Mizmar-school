@@ -390,6 +390,8 @@ export async function loadTimetableChoices(
   const [programme, teachers, rooms, terms] = await Promise.all([
     db.levelSubject.findMany({
       where: {
+        // This year's programme — see LevelSubject.
+        ...yearScope(context),
         levelId,
         // Rows for this class's stream, plus the ones declared for every stream.
         OR: [{ trackId: null }, ...(trackId ? [{ trackId }] : [])],
@@ -548,6 +550,8 @@ export async function loadProgrammeCoverage(
   const [programme, slots, entries] = await Promise.all([
     db.levelSubject.findMany({
       where: {
+        // This year's programme — see LevelSubject.
+        ...yearScope(context),
         levelId,
         // This class's stream, plus the rows declared for every stream.
         OR: [{ trackId: null }, ...(trackId ? [{ trackId }] : [])],

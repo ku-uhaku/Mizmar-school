@@ -22,6 +22,9 @@ model SchoolYear {
   terms          Term[]
   timeSlots      TimeSlot[]
   levelOfferings LevelOffering[]
+  /// This year's programme: what each niveau is taught, weighted and timetabled
+  /// for this year only — see prisma/schema/academics/level-subject.prisma.
+  levelSubjects  LevelSubject[]
   /// When the school does not teach — see prisma/schema/timetable/school-holiday.prisma.
   holidays       SchoolHoliday[]
   /// What each class is asked to bring this year.

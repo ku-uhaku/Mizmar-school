@@ -4,6 +4,13 @@
  */
 const fr = {
   configuration: {
+    carryProgramme: "Reprendre le programme d'une année",
+    carryProgrammeHint:
+      "Copie les matières, coefficients et volumes horaires d'une autre année dans celle-ci. Ce que cette année contient déjà n'est pas touché : relancer ne change rien.",
+    carryProgrammeFrom: "Copier depuis",
+    carryProgrammeYear: "{year} — {count} lignes",
+    carryProgrammeConfirm: "Copier",
+    programmeCopied: "{count} lignes reprises de {year}.",
     title: "Configuration",
     subtitle: "Paramétrez le fonctionnement de cette école.",
     scopeSchool: "Configuration de {school}.",

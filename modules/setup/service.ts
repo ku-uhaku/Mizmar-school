@@ -229,6 +229,12 @@ const NO_COUNTS: SetupCounts = {
 async function writeCursus(
   tx: TxClient,
   schoolId: string,
+  /**
+   * The year the programme is written for. Null when the plan opens no year —
+   * the niveaux and the matières are still the school's and are written, but a
+   * programme has nowhere to go without a year. See LevelSubject.
+   */
+  schoolYearId: string | null,
   plan: SetupPlan,
   counts: SetupCounts,
 ): Promise<{ levelIds: IdsByKey; trackIds: IdsByKey }> {
@@ -348,6 +354,8 @@ async function writeCursus(
   for (const [code, id] of componentIds) subjectIds.set(code, id);
   counts.subjects = plan.subjects.length;
 
+  if (!schoolYearId) return { levelIds, trackIds };
+
   const programmeRows = plan.programme.flatMap((entry, index) => {
     const levelId = idFor(levelIds, entry.levelCode);
     const subjectId = idFor(subjectIds, entry.subjectCode);
@@ -359,6 +367,7 @@ async function writeCursus(
 
     return [
       {
+        schoolYearId,
         levelId,
         trackId,
         subjectId,
@@ -370,7 +379,9 @@ async function writeCursus(
     ];
   });
   await upsertMany(tx.levelSubject, {
-    where: { level: { schoolId } },
+    // The year's own rows: a school re-running the wizard for 2026-2027 must not
+    // match — and overwrite — what 2025-2026 declared.
+    where: { schoolYearId, level: { schoolId } },
     key: ["levelId", "subjectId", "scopeKey"],
     update: ["coefficient", "weeklyMinutes", "position"],
     rows: programmeRows,
@@ -529,7 +540,13 @@ async function writeSetup(
       }
 
       // ── 4–9. The cursus ───────────────────────────────────────────────────
-      const { levelIds, trackIds } = await writeCursus(tx, schoolId, plan, counts);
+      const { levelIds, trackIds } = await writeCursus(
+        tx,
+        schoolId,
+        schoolYearId,
+        plan,
+        counts,
+      );
 
       // ── 10. Rooms ─────────────────────────────────────────────────────────
       await upsertMany(tx.room, {

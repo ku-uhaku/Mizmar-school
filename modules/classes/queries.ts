@@ -857,6 +857,9 @@ export async function loadClassOverview(
       levelOffering: {
         select: {
           plannedCapacity: true,
+          // The class's own year, which is what its programme is read against —
+          // a class of 2024-2025 keeps the coefficients of 2024-2025.
+          schoolYearId: true,
           levelId: true,
           trackId: true,
           level: {
@@ -910,6 +913,10 @@ export async function loadClassOverview(
         tab next door would have shown eleven of eleven at the same moment.
       */
       where: {
+        // The class's own year, not the one in the header: a class opened last
+        // year is read with last year's programme however the context has moved
+        // on since. See LevelSubject.
+        schoolYearId: offering.schoolYearId,
         levelId: offering.levelId,
         subject: { isActive: true, parentId: null },
       },

@@ -47,6 +47,7 @@ const NONE = "__none__";
 /** Kept beside the enum so a new part is a compile error until it is labelled. */
 const COPY_LABELS: Record<YearCopyPart, (t: Dictionary) => string> = {
   CALENDAR: (t) => t.schoolYear.copyCalendar,
+  PROGRAMME: (t) => t.schoolYear.copyProgramme,
   STRUCTURE: (t) => t.schoolYear.copyStructure,
   FEES: (t) => t.schoolYear.copyFees,
   TRANSPORT: (t) => t.schoolYear.copyTransport,
@@ -54,6 +55,7 @@ const COPY_LABELS: Record<YearCopyPart, (t: Dictionary) => string> = {
 
 const COPY_HINTS: Record<YearCopyPart, (t: Dictionary) => string> = {
   CALENDAR: (t) => t.schoolYear.copyCalendarHint,
+  PROGRAMME: (t) => t.schoolYear.copyProgrammeHint,
   STRUCTURE: (t) => t.schoolYear.copyStructureHint,
   FEES: (t) => t.schoolYear.copyFeesHint,
   TRANSPORT: (t) => t.schoolYear.copyTransportHint,

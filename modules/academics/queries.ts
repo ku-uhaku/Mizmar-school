@@ -64,3 +64,45 @@ export async function listCycleChoices(
     label: bilingual(cycle.name, cycle.nameAr),
   }));
 }
+
+/** A year the programme could be copied from, and how much it holds. */
+export type ProgrammeYearChoice = {
+  id: string;
+  name: string;
+  /** Rows declared for that year — a year with none is not worth copying. */
+  rows: number;
+};
+
+/**
+ * The other years of this school that have a programme to copy.
+ *
+ * The year in context is left out: it is the target, and offering it would be
+ * offering to copy a thing onto itself. Most recent first, because the answer
+ * is nearly always "last year".
+ */
+export async function listProgrammeSourceYears(
+  context: AuthContext,
+): Promise<ProgrammeYearChoice[]> {
+  const currentYearId = context.currentSchoolYear?.id;
+
+  const years = await db.schoolYear.findMany({
+    where: {
+      ...schoolScope(context),
+      ...(currentYearId ? { id: { not: currentYearId } } : {}),
+    },
+    orderBy: [{ startDate: "desc" }],
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { levelSubjects: true } },
+    },
+  });
+
+  return years
+    .filter((year) => year._count.levelSubjects > 0)
+    .map((year) => ({
+      id: year.id,
+      name: year.name,
+      rows: year._count.levelSubjects,
+    }));
+}

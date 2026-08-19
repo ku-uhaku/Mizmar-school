@@ -343,10 +343,19 @@ export const RESOURCES: ResourceDef[] = [
     ],
   },
   {
+    /*
+      What each niveau is taught this year, and how heavily it counts.
+
+      Under the year and not the establishment: a coefficient and a volume
+      horaire are settled each rentrée, and held against the niveau alone one
+      edit in September rewrote what every past bulletin had been computed from.
+      A new year starts from a copy of the last one — see `copyProgramme`.
+    */
     id: "programme",
     section: "academics",
     labelKey: "programme",
-    scope: "SCHOOL",
+    scope: "YEAR",
+    helper: "programme-carry-forward",
     labelFields: ["coefficient"],
     fields: [
       {

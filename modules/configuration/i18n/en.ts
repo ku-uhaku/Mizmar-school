@@ -8,6 +8,13 @@
  */
 const en = {
   configuration: {
+    carryProgramme: "Take a previous year's programme",
+    carryProgrammeHint:
+      "Copies another year's subjects, coefficients and weekly hours into this one. Rows this year already has are left untouched, so running it twice changes nothing.",
+    carryProgrammeFrom: "Copy from",
+    carryProgrammeYear: "{year} — {count} rows",
+    carryProgrammeConfirm: "Copy",
+    programmeCopied: "{count} rows copied from {year}.",
     title: "Configuration",
     subtitle: "Set up how this school works.",
     scopeSchool: "Configuration for {school}.",

@@ -13,6 +13,7 @@ import {
   GroupTabs,
   ResourceTabs,
 } from "@/modules/configuration/components/configuration-nav";
+import { ResourceHelper } from "@/modules/configuration/components/resource-helper";
 import { ResourceManager } from "@/modules/configuration/components/resource-manager";
 import { SettingsForm } from "@/modules/configuration/components/settings-form";
 import { findSingleton, listResource } from "@/modules/configuration/queries";
@@ -145,11 +146,20 @@ async function ResourceBody({
   const { rows, choices } = await listResource(context, resource);
 
   return (
-    <ResourceManager
-      resource={resource}
-      rows={rows}
-      choices={choices}
-      canManage={canManage}
-    />
+    <div className="grid gap-3">
+      {/* A module's own control, above its table — see ResourceDef.helper. */}
+      {resource.helper ? (
+        <div className="flex justify-end">
+          <ResourceHelper name={resource.helper} />
+        </div>
+      ) : null}
+
+      <ResourceManager
+        resource={resource}
+        rows={rows}
+        choices={choices}
+        canManage={canManage}
+      />
+    </div>
   );
 }

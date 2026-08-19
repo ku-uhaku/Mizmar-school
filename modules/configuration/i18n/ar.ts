@@ -4,6 +4,13 @@
  */
 const ar = {
   configuration: {
+    carryProgramme: "استعادة برنامج سنة سابقة",
+    carryProgrammeHint:
+      "ينسخ مواد سنة أخرى ومعاملاتها وأغلفتها الزمنية إلى هذه السنة. ما تحتويه هذه السنة سلفًا يبقى كما هو، فإعادة التنفيذ لا تغيّر شيئًا.",
+    carryProgrammeFrom: "النسخ من",
+    carryProgrammeYear: "{year} — {count} سطرًا",
+    carryProgrammeConfirm: "نسخ",
+    programmeCopied: "تم نسخ {count} سطرًا من {year}.",
     title: "الإعدادات",
     subtitle: "اضبط طريقة عمل هذه المدرسة.",
     scopeSchool: "إعدادات {school}.",

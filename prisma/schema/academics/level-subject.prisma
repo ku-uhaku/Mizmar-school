@@ -1,4 +1,5 @@
-/// The programme: which subject is taught at which level, with what weight.
+/// The programme: which subject is taught at which level, with what weight,
+/// **in one school year**.
 ///
 /// This is where the Moroccan grading system is configured. Marks are out of 20
 /// and a level's average is the coefficient-weighted mean of its subjects, so
@@ -15,8 +16,28 @@
 /// the level: اللغة العربية is marked as one block in 6AP but split into
 /// القراءة / الإملاء / التعبير الكتابي in 3AP. A subject's components at a level
 /// are therefore "LevelSubject rows whose subject's parent is that subject".
+///
+/// ── Why it is written against a year ────────────────────────────────────────
+/// A coefficient and a volume horaire are decisions a school makes each rentrée,
+/// not properties of the niveau: a ministry circular re-weights 2BAC maths, a
+/// school gives 3AP an extra half-hour of français, and neither may reach
+/// backwards. Held against the level alone, one edit in September rewrote what
+/// every past bulletin had been computed from and what last year's timetable was
+/// drawn to — silently, because nothing on the screen said which year was being
+/// changed.
+///
+/// So the programme joins the year the way everything else that is redrawn each
+/// September does (see LevelOffering, TeacherSubject, FeeRate), and a new year
+/// starts from a copy of the last one rather than from the same rows — see
+/// `copyProgramme` in modules/academics/service.ts.
 model LevelSubject {
-  id      String @id @default(cuid()) @db.VarChar(30)
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  /// The year this programme is in force for. Cascade: a year that is deleted
+  /// takes its own programme with it, exactly as it takes its offerings.
+  schoolYearId String     @db.VarChar(30)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
   levelId String @db.VarChar(30)
   level   Level  @relation(fields: [levelId], references: [id], onDelete: Cascade)
 
@@ -57,8 +78,8 @@ model LevelSubject {
   position Int @default(0)
 
   /// Mirrors the nullable `trackId` so the unique index below actually fires —
-  /// without it, two "all tracks" rows for the same subject would both be
-  /// accepted and the subject's coefficient would be counted twice in every
+  /// without it, two "all tracks" rows for the same subject and year would both
+  /// be accepted and the subject's coefficient would be counted twice in every
   /// average. See lib/db-keys.ts.
   ///
   /// INVARIANT: always `levelSubjectScopeKey(trackId)` from
@@ -68,7 +89,8 @@ model LevelSubject {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([levelId, subjectId, scopeKey])
+  @@unique([schoolYearId, levelId, subjectId, scopeKey])
+  @@index([schoolYearId])
   @@index([levelId])
   @@index([trackId])
   @@index([subjectId])

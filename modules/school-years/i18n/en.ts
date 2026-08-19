@@ -17,6 +17,9 @@ const en = {
     copyCalendar: "Calendar — terms, periods, holidays",
     copyCalendarHint:
       "Dates move by whole weeks so a Monday stays a Monday. Aïd and Mawlid follow the Islamic calendar and will need correcting.",
+    copyProgramme: "Programme — subjects, coefficients, weekly hours",
+    copyProgrammeHint:
+      "What each level is taught this year. Without it the year has no programme to timetable or average.",
     copyStructure: "Structure — levels, classes, groups",
     copyStructureHint: "The shape of the school. The professeur principal is not carried.",
     copyFees: "Fees — price list and discounts",

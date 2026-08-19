@@ -41,6 +41,10 @@ export const TERM_NUMBER_MAX = 3;
  */
 export const YEAR_COPY_PARTS = [
   "CALENDAR",
+  // Before the structure: the classes a level opens are drawn against what that
+  // level is taught, and a year whose programme is empty can neither be
+  // timetabled nor averaged. See LevelSubject.
+  "PROGRAMME",
   "STRUCTURE",
   "FEES",
   "TRANSPORT",

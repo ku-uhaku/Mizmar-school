@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { refreshSchoolPortalAccess } from "@/modules/families/service";
+import { copyProgramme } from "@/modules/academics/service";
 import { copyFeeConfiguration } from "@/modules/billing/service";
 import { copyClassStructure } from "@/modules/classes/service";
 import {
@@ -126,6 +127,8 @@ export type YearCopyResult = {
   terms: number;
   timeSlots: number;
   holidays: number;
+  /** Programme rows written — what each niveau is taught, and how heavily. */
+  programme: number;
   offerings: number;
   classes: number;
   groups: number;
@@ -163,6 +166,7 @@ export async function copyYearConfiguration(
 ): Promise<YearCopyResult> {
   const result: YearCopyResult = {
     terms: 0, timeSlots: 0, holidays: 0,
+    programme: 0,
     offerings: 0, classes: 0, groups: 0,
     feeRates: 0, discounts: 0,
     transportSchedules: 0, routes: 0, stops: 0,
@@ -195,6 +199,10 @@ export async function copyYearConfiguration(
     // After the holidays: which weeks are taught depends on them.
     const weeks = await generateSchoolWeeks(targetYearId);
     result.weeks = weeks.written;
+  }
+
+  if (parts.includes("PROGRAMME")) {
+    result.programme = await copyProgramme(sourceYearId, targetYearId);
   }
 
   if (parts.includes("STRUCTURE")) {

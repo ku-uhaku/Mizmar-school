@@ -1567,6 +1567,26 @@ describe("resolveProgramme", () => {
     });
   });
 
+  it("reads the programme of the class's own year, not the one in context", async () => {
+    // The point of writing the programme against a year: a class of 2023-2024
+    // is weighted the way 2023-2024 weighted it, however the header has moved
+    // on since. See LevelSubject.
+    answers = {
+      "schoolClass.findUnique": {
+        levelOffering: {
+          schoolYearId: "year-2023",
+          levelId: "level-1",
+          trackId: null,
+        },
+      },
+    };
+
+    await resolveProgramme("class-1");
+    expect(only("levelSubject", "findMany").args).toMatchObject({
+      where: { schoolYearId: "year-2023", levelId: "level-1" },
+    });
+  });
+
   it("asks for no track's rows when the class has no track", async () => {
     answers = {
       "schoolClass.findUnique": {

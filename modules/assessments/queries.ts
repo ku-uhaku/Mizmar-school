@@ -433,6 +433,9 @@ export async function loadProgrammesByClass(
 
   const rows = await db.levelSubject.findMany({
     where: {
+      // The classes above are the year's, so their programme is too — see
+      // LevelSubject, which is written against one year.
+      ...yearScope(context),
       levelId: {
         in: [...new Set(classes.map((c) => c.levelOffering.levelId))],
       },

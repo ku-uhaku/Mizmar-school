@@ -23,6 +23,15 @@ export async function seedAcademics(
   db: SeedDb,
   schoolId: string,
   preset: AcademicsPreset,
+  /**
+   * The years to declare the programme for.
+   *
+   * The cursus itself — cycles, niveaux, filières, matières — is the school's
+   * and is written once. The programme is each year's (see LevelSubject), so the
+   * same preset is written into every year the school has: a demonstration whose
+   * previous year had no programme would show a bulletin with no coefficients.
+   */
+  schoolYearIds: readonly string[],
 ): Promise<AcademicsIds> {
   const cycleIdByCode: Record<string, string> = {};
   for (const cycle of preset.cycles) {
@@ -103,35 +112,45 @@ export async function seedAcademics(
     subjectIdByCode[subject.code] = row.id;
   }
 
-  for (const [index, entry] of preset.programme.entries()) {
-    const trackId = entry.trackCode ? trackIdByCode[entry.trackCode] : null;
-    const levelId = levelIdByCode[entry.levelCode];
-    const subjectId = subjectIdByCode[entry.subjectCode];
-    if (!levelId || !subjectId) continue;
+  for (const schoolYearId of schoolYearIds) {
+    for (const [index, entry] of preset.programme.entries()) {
+      const trackId = entry.trackCode ? trackIdByCode[entry.trackCode] : null;
+      const levelId = levelIdByCode[entry.levelCode];
+      const subjectId = subjectIdByCode[entry.subjectCode];
+      if (!levelId || !subjectId) continue;
 
-    const scopeKey = levelSubjectScopeKey(trackId);
-    await db.levelSubject.upsert({
-      where: { levelId_subjectId_scopeKey: { levelId, subjectId, scopeKey } },
-      update: {
-        coefficient: entry.coefficient,
-        weeklyMinutes: entry.weeklyMinutes ?? null,
-        position: index,
-      },
-      create: {
-        levelId,
-        trackId,
-        subjectId,
-        scopeKey,
-        coefficient: entry.coefficient,
-        weeklyMinutes: entry.weeklyMinutes ?? null,
-        position: index,
-      },
-    });
+      const scopeKey = levelSubjectScopeKey(trackId);
+      await db.levelSubject.upsert({
+        where: {
+          schoolYearId_levelId_subjectId_scopeKey: {
+            schoolYearId,
+            levelId,
+            subjectId,
+            scopeKey,
+          },
+        },
+        update: {
+          coefficient: entry.coefficient,
+          weeklyMinutes: entry.weeklyMinutes ?? null,
+          position: index,
+        },
+        create: {
+          schoolYearId,
+          levelId,
+          trackId,
+          subjectId,
+          scopeKey,
+          coefficient: entry.coefficient,
+          weeklyMinutes: entry.weeklyMinutes ?? null,
+          position: index,
+        },
+      });
+    }
   }
 
   log(
     "academics",
-    `${preset.cycles.length} cycles, ${preset.levels.length} levels, ${preset.tracks.length} tracks, ${preset.subjects.length} subjects, ${preset.programme.length} programme rows`,
+    `${preset.cycles.length} cycles, ${preset.levels.length} levels, ${preset.tracks.length} tracks, ${preset.subjects.length} subjects, ${preset.programme.length} programme rows × ${schoolYearIds.length} years`,
   );
 
   return { levelIdByCode, trackIdByCode, subjectIdByCode };
