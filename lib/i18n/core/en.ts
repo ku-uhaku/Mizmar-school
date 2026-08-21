@@ -30,6 +30,8 @@ const core = {
     required: "Required",
     optional: "optional",
     close: "Close",
+    copy: "Copy",
+    copied: "Copied",
     chooseImage: "Choose an image",
     removeImage: "Remove",
     imageChosen: "Image chosen",

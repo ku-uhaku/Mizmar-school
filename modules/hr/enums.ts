@@ -95,6 +95,59 @@ export function isTeachingRole(jobRole: string): boolean {
 }
 
 /**
+ * The jobs that are given a part of the school to run.
+ *
+ * A directeur and a surveillant général are not assigned lessons or a bus —
+ * they are answerable for a cycle, which is what `StaffOversight` records. The
+ * two are listed rather than derived from `departmentOf`, for the same reason
+ * `TEACHING_JOB_ROLES` is: a surveillant is in the teaching department and does
+ * not take lessons, and the questions are genuinely different.
+ */
+export const OVERSIGHT_JOB_ROLES = [
+  "DIRECTOR",
+  "SUPERVISOR",
+] as const satisfies readonly JobRole[];
+
+/** Whether somebody in this job is answerable for a cycle. */
+export function isOversightRole(jobRole: string): boolean {
+  return (OVERSIGHT_JOB_ROLES as readonly string[]).includes(jobRole);
+}
+
+/**
+ * The access a job comes with, when nobody says otherwise.
+ *
+ * Hiring a teacher and then leaving their login with no permissions is the
+ * commonest way somebody ends up unable to enter a mark on their first day, so
+ * the job answers the question by default. Only a default: the form still
+ * offers the whole list, and a director who picks something else is obeyed.
+ *
+ * Matched by **name** against `SYSTEM_ROLES` — those are the roles every
+ * organisation is seeded with and the only ones that cannot be renamed, so the
+ * match is stable. A job with no obvious answer maps to null and the account is
+ * opened with no role at all, which `createLoginAccount` treats as a real
+ * answer rather than a half-finished account.
+ */
+const DEFAULT_ROLE_NAME_OF: Record<JobRole, string | null> = {
+  TEACHER: "Enseignant",
+  DIRECTOR: "Directeur d'école",
+  SECRETARY: "Secrétaire",
+  DRIVER: "Chauffeur",
+  // No system role fits these, and guessing one would grant more than the job
+  // asks for. They are opened without permissions until a director picks.
+  SUPERVISOR: null,
+  ACCOUNTANT: null,
+  NURSE: null,
+  MAINTENANCE: null,
+  SECURITY: null,
+  OTHER: null,
+};
+
+/** The system role a job is given by default, or null when none fits. */
+export function defaultRoleNameFor(jobRole: string): string | null {
+  return DEFAULT_ROLE_NAME_OF[jobRole as JobRole] ?? null;
+}
+
+/**
  * Where an employee stands.
  *
  *   ACTIVE      on the payroll and expected in

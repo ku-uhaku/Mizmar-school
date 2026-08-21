@@ -1,16 +1,23 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { redirect } from "next/navigation";
 
-import { failure, success, type ActionState } from "@/lib/action-state";
+import {
+  failure,
+  success,
+  successWith,
+  type ActionState,
+  type ActionStateWith,
+} from "@/lib/action-state";
 import { withCodeRetry } from "@/lib/allocation";
+import { generatePassword } from "@/lib/auth";
 import { authorizeSchool, requireAuth } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { interpolate } from "@/lib/i18n/format";
 import { getDictionary } from "@/lib/i18n/server";
 import type { Dictionary } from "@/lib/i18n/types";
 import { PERMISSIONS } from "@/lib/permissions";
+import { defaultRoleNameFor, isOversightRole } from "@/modules/hr/enums";
 import { createLoginAccount } from "@/modules/users/service";
 import { centimesToDirhams } from "@/modules/treasury/enums";
 import {
@@ -30,6 +37,7 @@ import {
   payAdvance,
   saveAdvance,
   allocateStaffCode,
+  declareOversight,
   declareQualifications,
   decideLeave,
   endContract,
@@ -97,6 +105,48 @@ async function refuseIfShort(
   });
 }
 
+/**
+ * The credentials a new employee is handed, shown once and never stored — see
+ * `CredentialsDialog`. Returned by the two actions that open an account so the
+ * screen can put them in front of whoever is doing the hiring.
+ */
+export type IssuedStaffCredentials = {
+  username: string;
+  password: string;
+  staffName: string;
+  roleName: string | null;
+};
+
+/**
+ * The role a new account is opened with.
+ *
+ * A role the form picked is re-derived here and refused unless it belongs to
+ * this organisation and is school-scoped — an id from the request never says
+ * what it grants. Left blank, the job answers instead (`defaultRoleNameFor`),
+ * matched by name against the roles every organisation is seeded with, so a
+ * teacher hired without a thought can still enter a mark on their first day.
+ */
+async function resolveAccountRole(
+  organizationId: string,
+  chosenRoleId: string | null,
+  jobRole: string,
+): Promise<{ id: string; name: string } | null> {
+  if (chosenRoleId) {
+    return db.role.findFirst({
+      where: { id: chosenRoleId, organizationId, scope: "SCHOOL" },
+      select: { id: true, name: true },
+    });
+  }
+
+  const fallback = defaultRoleNameFor(jobRole);
+  if (!fallback) return null;
+
+  return db.role.findFirst({
+    where: { organizationId, scope: "SCHOOL", name: fallback },
+    select: { id: true, name: true },
+  });
+}
+
 /** Re-derives an employee from the session's school. Never trusts the id. */
 async function reachableStaff(schoolId: string, staffId: string) {
   return db.staff.findFirst({
@@ -110,7 +160,7 @@ async function reachableStaff(schoolId: string, staffId: string) {
 export async function saveStaffAction(
   _prevState: ActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<ActionStateWith<IssuedStaffCredentials>> {
   return withActionErrors(async () => {
     const { t, context, schoolId } = await schoolContext();
     if (!schoolId) return failure(t.errors.noSchoolContext);
@@ -140,7 +190,6 @@ export async function saveStaffAction(
       userId: optionalId(formData, "userId"),
       createAccount: boolField(formData, "createAccount"),
       accountUsername: field(formData, "accountUsername"),
-      accountPassword: formData.get("accountPassword") ?? "",
       accountRoleId: optionalId(formData, "accountRoleId"),
       notes: field(formData, "notes"),
     });
@@ -189,6 +238,9 @@ export async function saveStaffAction(
       hiring, and re-ticking it on an existing employee must not mint a second
       login for the same person.
     */
+    /** Set only when this call opened an account — shown once, see below. */
+    let issued: IssuedStaffCredentials | null = null;
+
     if (parsed.data.createAccount && userId === null) {
       await authorizeSchool(schoolId, PERMISSIONS.USER_CREATE);
 
@@ -196,24 +248,15 @@ export async function saveStaffAction(
       // anybody signs in with — see User.email. A username is what is needed,
       // and `createLoginAccount` builds one from the name when the form left it
       // blank.
-      if (!parsed.data.accountPassword) {
-        return failure(t.hr.accountNeedsPassword, {
-          accountPassword: t.hr.accountNeedsPassword,
-        });
-      }
+      const role = await resolveAccountRole(
+        context.user.organizationId,
+        parsed.data.accountRoleId,
+        parsed.data.jobRole,
+      );
 
-      // The role must be one of this organisation's, and school-scoped. An id
-      // from the request is never trusted to say what it grants.
-      const role = parsed.data.accountRoleId
-        ? await db.role.findFirst({
-            where: {
-              id: parsed.data.accountRoleId,
-              organizationId: context.user.organizationId,
-              scope: "SCHOOL",
-            },
-            select: { id: true },
-          })
-        : null;
+      // Generated, never typed: this is the only moment it exists in readable
+      // form, and it is handed back below to be shown once.
+      const password = generatePassword();
 
       const account = await createLoginAccount({
         organizationId: context.user.organizationId,
@@ -223,7 +266,7 @@ export async function saveStaffAction(
         lastName: parsed.data.lastName,
         email: parsed.data.email,
         username: parsed.data.accountUsername,
-        password: parsed.data.accountPassword,
+        password,
         phone: parsed.data.phone,
         // The employee's own `Staff.jobTitle` still records what they were
         // hired as. La fonction on their login is the school's own list and is
@@ -249,6 +292,12 @@ export async function saveStaffAction(
       }
 
       userId = account.userId;
+      issued = {
+        username: account.username,
+        password,
+        staffName: `${parsed.data.firstName} ${parsed.data.lastName}`.trim(),
+        roleName: role?.name ?? null,
+      };
     }
 
     // Only a matricule the manager typed is checked here — blank means generate
@@ -314,6 +363,7 @@ export async function saveStaffAction(
       : withCodeRetry(async () => write(await allocateStaffCode(schoolId))));
 
     refresh();
+    if (issued) return successWith(issued, t.hr.accountCreated);
     return success(id ? t.hr.staffUpdated : t.hr.staffCreated);
   });
 }
@@ -349,10 +399,16 @@ export async function saveStaffAction(
  * refusal lands in the trail: this is the action a probe would be most
  * interested in.
  */
+/** What a hire hands back: the new fiche, and the login if one was opened. */
+export type StaffHired = {
+  staffId: string;
+  credentials: IssuedStaffCredentials | null;
+};
+
 export async function hireStaffAction(
   _prevState: ActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<ActionStateWith<StaffHired>> {
   return withActionErrors(async () => {
     const { t, context, schoolId } = await schoolContext();
     if (!schoolId) return failure(t.errors.noSchoolContext);
@@ -385,7 +441,6 @@ export async function hireStaffAction(
       userId: "",
       createAccount: boolField(formData, "createAccount"),
       accountUsername: field(formData, "accountUsername"),
-      accountPassword: formData.get("accountPassword") ?? "",
       accountRoleId: optionalId(formData, "accountRoleId"),
       notes: field(formData, "notes"),
 
@@ -404,6 +459,8 @@ export async function hireStaffAction(
       qualificationCycleId: optionalId(formData, "qualificationCycleId"),
 
       vehicleIds: listField(formData, "vehicleIds"),
+
+      oversightCycleIds: listField(formData, "oversightCycleIds"),
     });
     if (!parsed.success) {
       return failure(
@@ -422,6 +479,14 @@ export async function hireStaffAction(
     const wantsAccount = hire.createAccount;
     const wantsSubjects = hire.subjectIds.length > 0;
     const wantsVehicles = hire.vehicleIds.length > 0;
+    /*
+      Unlike the subjects, this needs no account: what somebody is answerable
+      for is a term of their employment and hangs off the staff row — see the
+      note on `StaffOversight`. Only the job gates it, and only server-side,
+      because the section being drawn protects nothing against a direct POST.
+    */
+    const wantsOversight =
+      hire.oversightCycleIds.length > 0 && isOversightRole(hire.jobRole);
 
     /*
       A qualification hangs off the account, not the employment record — see the
@@ -439,7 +504,7 @@ export async function hireStaffAction(
     }
 
     const schoolYearId = context.currentSchoolYear?.id;
-    if (wantsSubjects && !schoolYearId) {
+    if ((wantsSubjects || wantsOversight) && !schoolYearId) {
       return failure(t.errors.noSchoolYearContext);
     }
 
@@ -450,20 +515,28 @@ export async function hireStaffAction(
     if (wantsVehicles) {
       await authorizeSchool(schoolId, PERMISSIONS.TRANSPORT_MANAGE);
     }
+    /*
+      Naming who runs a cycle is an academic decision, not a payroll one — the
+      same authority the cursus itself is edited under. A secretary who keeps
+      the staff file has not thereby been made able to put somebody over le
+      collège.
+    */
+    if (wantsOversight) {
+      await authorizeSchool(schoolId, PERMISSIONS.CONFIGURATION_MANAGE);
+    }
 
     // Every id from the request re-derived against the school before anything
     // is written — a role that grants elsewhere, a fonction from a sibling
     // school's list, a cycle or a subject that is not this school's cursus.
-    const [role, jobFunction, cycle, subjects, vehicles] = await Promise.all([
-      hire.accountRoleId
-        ? db.role.findFirst({
-            where: {
-              id: hire.accountRoleId,
-              organizationId: context.user.organizationId,
-              scope: "SCHOOL",
-            },
-            select: { id: true },
-          })
+    const [role, jobFunction, cycle, subjects, vehicles, oversightCycles] =
+      await Promise.all([
+      // Blank falls back to the one the job implies — see `resolveAccountRole`.
+      wantsAccount
+        ? resolveAccountRole(
+            context.user.organizationId,
+            hire.accountRoleId,
+            hire.jobRole,
+          )
         : null,
       hire.jobFunctionId
         ? db.staffFunction.findFirst({
@@ -489,7 +562,13 @@ export async function hireStaffAction(
             select: { id: true },
           })
         : [],
-    ]);
+      wantsOversight
+        ? db.educationLevel.findMany({
+            where: { id: { in: hire.oversightCycleIds }, schoolId },
+            select: { id: true },
+          })
+        : [],
+      ]);
 
     if (hire.code) {
       const clash = await db.staff.findFirst({
@@ -507,16 +586,13 @@ export async function hireStaffAction(
 
     // ── Le compte ────────────────────────────────────────────────────────────
     let userId: string | null = null;
+    /** Set only when an account was opened — shown once, see the return. */
+    let issued: IssuedStaffCredentials | null = null;
 
     if (wantsAccount) {
-      // As above: no email is needed to open an account.
-      if (!hire.accountPassword) {
-        return failure(
-          t.hr.accountNeedsPassword,
-          { accountPassword: t.hr.accountNeedsPassword },
-          formValues(formData),
-        );
-      }
+      // As above: no email is needed to open an account, and no password is
+      // asked for — one is generated and shown once when this returns.
+      const password = generatePassword();
 
       const account = await createLoginAccount({
         organizationId: context.user.organizationId,
@@ -526,7 +602,7 @@ export async function hireStaffAction(
         lastName: hire.lastName,
         email: hire.email,
         username: hire.accountUsername,
-        password: hire.accountPassword,
+        password,
         phone: hire.phone,
         jobFunctionId: jobFunction?.id ?? null,
       });
@@ -548,6 +624,12 @@ export async function hireStaffAction(
       }
 
       userId = account.userId;
+      issued = {
+        username: account.username,
+        password,
+        staffName: `${hire.firstName} ${hire.lastName}`.trim(),
+        roleName: role?.name ?? null,
+      };
     }
 
     // ── L'employé ────────────────────────────────────────────────────────────
@@ -633,8 +715,29 @@ export async function hireStaffAction(
       });
     }
 
+    // ── L'encadrement ────────────────────────────────────────────────────────
+    // Against the staff row and not the account, so a directeur hired without a
+    // login still runs the cycle — see the note on `StaffOversight`.
+    if (schoolYearId && oversightCycles.length > 0) {
+      await declareOversight({
+        schoolId,
+        schoolYearId,
+        staffId: staff.id,
+        educationLevelIds: oversightCycles.map((level) => level.id),
+      });
+    }
+
+    /*
+      The fiche is navigated to by the form rather than redirected to here: the
+      generated password exists in readable form only in this return value, and
+      a redirect would replace the screen before anybody had read it. See
+      `HireForm`, which holds the navigation until the dialog is dismissed.
+    */
     refresh();
-    redirect(`/hr/staff/${staff.id}`);
+    return successWith(
+      { staffId: staff.id, credentials: issued },
+      issued ? t.hr.accountCreated : t.hr.staffCreated,
+    );
   });
 }
 

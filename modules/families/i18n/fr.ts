@@ -27,6 +27,9 @@ const fr = {
     primaryContact: "Contact principal",
     primaryContactHint: "La personne que l'école appelle en premier.",
     noContact: "Aucun contact",
+    firstContactSectionHint:
+      "Le parent que l'école appellera en premier. Un accès à l'application des parents lui est ouvert automatiquement, avec un mot de passe aléatoire affiché une fois le dossier créé.",
+    guardianPhoneHint: "Laisser vide pour reprendre le téléphone de la famille ci-dessus.",
     guardians: "Tuteurs",
     guardiansHint: "Le père, la mère et toute autre personne responsable des enfants.",
     children: "Enfants",

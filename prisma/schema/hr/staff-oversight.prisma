@@ -1,0 +1,69 @@
+/// A cycle somebody is answerable for, in one school year.
+///
+/// ── What it records ─────────────────────────────────────────────────────────
+/// A directeur d'école and a surveillant général are not assigned *lessons* the
+/// way a teacher is, nor a *bus* the way a driver is — they are given a part of
+/// the school to run. Until this table existed the app had nowhere to put that,
+/// so a director's fiche said only what they were paid and their service tab was
+/// empty: the one thing everybody in the building knew about them was the one
+/// thing the app did not.
+///
+/// One row per cycle, so a directeur who runs both le primaire and le collège
+/// has two — which is the ordinary case in a small school and is why this is not
+/// a single column on `Staff`.
+///
+/// ── Why it is the year's ────────────────────────────────────────────────────
+/// The same reason TeacherSubject is: responsibilities are redrawn in September,
+/// and held against the school instead of the year, this September's
+/// reorganisation would silently rewrite who was answerable last March — which
+/// is what an incident report or an inspection is read against.
+///
+/// ── Why it hangs off Staff and not User ─────────────────────────────────────
+/// The opposite choice from TeacherSubject, and deliberately. A qualification is
+/// about an account the timetable can book; this is a term of somebody's
+/// employment, and a director hired without a login still runs the collège. The
+/// hire form makes the account optional, so keying this on User would silently
+/// drop the responsibility of anybody who was not also given a password.
+model StaffOversight {
+  id       String @id @default(cuid()) @db.VarChar(30)
+  schoolId String @db.VarChar(30)
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Cascade: a year that is deleted takes its organisation chart with it,
+  /// exactly as it takes its staffing plan. Denormalised alongside `schoolId`,
+  /// which the year already implies, because every read here is "this school,
+  /// this year" and the pair is what the composite index below is built on.
+  schoolYearId String     @db.VarChar(30)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// Cascade: the responsibility is a fact about the employment and means
+  /// nothing once the record is gone.
+  staffId String @db.VarChar(30)
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  /// The cycle they are answerable for. Cascade rather than SetNull: a cycle the
+  /// school has stopped running has no one answerable for it, and a null here
+  /// would read as "the whole school" — quietly widening a primaire director's
+  /// remit over the lycée.
+  educationLevelId String         @db.VarChar(30)
+  educationLevel   EducationLevel @relation(fields: [educationLevelId], references: [id], onDelete: Cascade)
+
+  /// Withdrawn rather than deleted when somebody hands a cycle over, so the
+  /// grids and reports that already named them stay readable.
+  isActive Boolean @default(true)
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per person per cycle per year — re-declaring is an update, not a
+  /// second opinion about who runs le collège.
+  @@unique([schoolYearId, staffId, educationLevelId])
+  @@index([schoolId])
+  @@index([schoolYearId])
+  @@index([staffId])
+  @@index([educationLevelId])
+  @@index([schoolYearId, educationLevelId])
+  @@map("staff_oversights")
+}

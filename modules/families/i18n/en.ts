@@ -30,6 +30,9 @@ const en = {
     primaryContact: "First contact",
     primaryContactHint: "The person the school calls first.",
     noContact: "No contact yet",
+    firstContactSectionHint:
+      "The parent the school will call first. A parents' app login is opened for them automatically, with a random password shown once the file is created.",
+    guardianPhoneHint: "Leave blank to use the family phone above.",
     guardians: "Guardians",
     guardiansHint: "The father, the mother, and anyone else answerable for the children.",
     children: "Children",

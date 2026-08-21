@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { Combobox } from "@/components/form/combobox";
@@ -32,15 +33,22 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { ActionStateWith } from "@/lib/action-state";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import type { Dictionary } from "@/lib/i18n/types";
 import { hireStaffAction } from "@/modules/hr/actions";
+import type {
+  IssuedStaffCredentials,
+  StaffHired,
+} from "@/modules/hr/actions";
+import { StaffAccountDialog } from "@/modules/hr/components/staff-account-dialog";
 import {
   CONTRACT_KINDS,
   JOB_ROLES,
   STAFF_STATUSES,
   departmentOf,
+  isOversightRole,
 } from "@/modules/hr/enums";
 import { GENDERS } from "@/modules/students/enums";
 import { suggestUsername } from "@/modules/users/enums";
@@ -92,6 +100,9 @@ function sectionsFor(t: Dictionary, jobRole: string): FormNavItem[] {
   if (jobRole === "DRIVER") {
     items.push({ id: "section-transport", label: t.hr.busSection });
   }
+  if (isOversightRole(jobRole)) {
+    items.push({ id: "section-oversight", label: t.hr.oversight });
+  }
 
   items.push({ id: "section-notes", label: t.hr.notes });
   return items;
@@ -107,6 +118,7 @@ export function HireForm({
   canCreateAccount,
   canTeaching,
   canTransport,
+  canOversight,
   yearLabel,
 }: {
   /** School-scoped roles the new login may be granted. */
@@ -114,7 +126,11 @@ export function HireForm({
   /** The school's own fonction list — see StaffFunction. */
   jobFunctions: { id: string; name: string }[];
   subjects: Choice[];
-  /** The cycles the school runs, for the qualification's level scope. */
+  /**
+   * The cycles the school runs. Two sections read this one list: the scope a
+   * qualification is declared for, and the cycles a directeur is answerable
+   * for.
+   */
   cycles: Choice[];
   vehicles: Choice[];
   /** HR_PAYROLL — whether the bank details are asked for at all. */
@@ -126,17 +142,42 @@ export function HireForm({
   /** TRANSPORT_MANAGE — whether they may put somebody on a bus. */
   canTransport: boolean;
   /**
-   * The year the qualifications are declared for. Null when none is in
-   * context, which is what the subjects section says instead of writing rows
-   * against a year nobody chose — see the note on TeacherSubject.
+   * CONFIGURATION_MANAGE — whether they may name who runs a cycle. The cursus's
+   * own authority, not the payroll's.
+   */
+  canOversight: boolean;
+  /**
+   * The year the qualifications and the encadrement are declared for. Null when
+   * none is in context, which is what those sections say instead of writing
+   * rows against a year nobody chose — see the note on TeacherSubject.
    */
   yearLabel: string | null;
 }) {
   const t = useT();
-  const [state, formAction] = useActionState(hireStaffAction, IDLE);
-  // Success redirects to the new fiche from the action itself; this is only
-  // here to raise the failures as toasts.
-  useActionFeedback(state);
+  const router = useRouter();
+  const [credentials, setCredentials] =
+    React.useState<IssuedStaffCredentials | null>(null);
+  const [hiredStaffId, setHiredStaffId] = React.useState<string | null>(null);
+
+  const [state, formAction] = useActionState<ActionStateWith<StaffHired>, FormData>(
+    hireStaffAction,
+    IDLE,
+  );
+  useActionFeedback(state, {
+    onSuccess: () => {
+      /*
+        The generated password is on screen for this one moment, so the fiche is
+        not navigated to until the dialog is dismissed — see the note on the
+        action's return, which is why it no longer redirects itself.
+      */
+      if (state.data?.credentials) {
+        setHiredStaffId(state.data.staffId);
+        setCredentials(state.data.credentials);
+        return;
+      }
+      if (state.data?.staffId) router.push(`/hr/staff/${state.data.staffId}`);
+    },
+  });
 
   const errors = state.fieldErrors ?? {};
 
@@ -176,6 +217,10 @@ export function HireForm({
   // anything, and says which is missing rather than silently doing nothing.
   const teaches = departmentOf(jobRole) === "TEACHING";
   const canDeclareSubjects = canTeaching && createAccount && yearLabel !== null;
+
+  // The encadrement needs no account — it hangs off the employment record, not
+  // the login. See the note on `StaffOversight`.
+  const oversees = isOversightRole(jobRole);
 
   return (
     <form action={formAction}>
@@ -640,40 +685,27 @@ export function HireForm({
 
               {createAccount ? (
                 <>
-                  <FormGrid>
-                    <FormField
-                      label={t.user.username}
+                  {/* No password field: one is generated and shown once when
+                    the form is submitted — see `StaffAccountDialog`. */}
+                  <FormField
+                    label={t.user.username}
+                    name="accountUsername"
+                    hint={t.hr.accountPasswordHint}
+                    error={errors.accountUsername}
+                  >
+                    <Input
+                      id="accountUsername"
                       name="accountUsername"
-                      hint={t.user.usernameHint}
-                      error={errors.accountUsername}
-                    >
-                      <Input
-                        id="accountUsername"
-                        name="accountUsername"
-                        dir="ltr"
-                        spellCheck={false}
-                        autoComplete="off"
-                        value={shownUsername}
-                        onChange={(event) => {
-                          setTouchedUsername(true);
-                          setUsername(event.target.value);
-                        }}
-                      />
-                    </FormField>
-                    <FormField
-                      label={t.hr.accountPassword}
-                      name="accountPassword"
-                      hint={t.hr.accountPasswordHint}
-                      error={errors.accountPassword}
-                    >
-                      <Input
-                        id="accountPassword"
-                        name="accountPassword"
-                        type="password"
-                        autoComplete="new-password"
-                      />
-                    </FormField>
-                  </FormGrid>
+                      dir="ltr"
+                      spellCheck={false}
+                      autoComplete="off"
+                      value={shownUsername}
+                      onChange={(event) => {
+                        setTouchedUsername(true);
+                        setUsername(event.target.value);
+                      }}
+                    />
+                  </FormField>
 
                   <FormField
                     label={t.hr.accountRole}
@@ -820,6 +852,53 @@ export function HireForm({
           </FormSection>
         ) : null}
 
+        {/* ── L'encadrement ─────────────────────────────────────────────── */}
+        {oversees ? (
+          <FormSection
+            id="section-oversight"
+            title={t.hr.oversight}
+            description={t.hr.oversightHint}
+          >
+            {!canOversight ? (
+              <Notice>{t.hr.oversightNotPermitted}</Notice>
+            ) : yearLabel === null ? (
+              <Notice>{t.errors.noSchoolYearContext}</Notice>
+            ) : cycles.length === 0 ? (
+              <Notice>{t.hr.noCycles}</Notice>
+            ) : (
+              <>
+                <FormField
+                  label={t.hr.oversightCycles}
+                  name="oversightCycleIds"
+                  hint={t.hr.oversightCyclesHint}
+                  error={errors.oversightCycleIds}
+                >
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {cycles.map((cycle) => (
+                      <Label
+                        key={cycle.id}
+                        htmlFor={`oversight-${cycle.id}`}
+                        className="hover:bg-accent/50 flex items-start gap-2.5 rounded-lg border p-3 text-sm font-normal"
+                      >
+                        <Checkbox
+                          id={`oversight-${cycle.id}`}
+                          name="oversightCycleIds"
+                          value={cycle.id}
+                          className="mt-0.5"
+                        />
+                        <span className="min-w-0 flex-1">{cycle.label}</span>
+                      </Label>
+                    ))}
+                  </div>
+                </FormField>
+                <div>
+                  <Badge variant="secondary">{yearLabel}</Badge>
+                </div>
+              </>
+            )}
+          </FormSection>
+        ) : null}
+
         <FormSection id="section-notes" title={t.hr.notes}>
           <FormField label={t.hr.notes} name="notes">
             <Textarea
@@ -838,6 +917,16 @@ export function HireForm({
         </Button>
         <SubmitButton>{t.hr.hire}</SubmitButton>
       </FormActions>
+
+      {/* Shown once, then on to the fiche that was just created. */}
+      <StaffAccountDialog
+        credentials={credentials}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCredentials(null);
+          if (hiredStaffId) router.push(`/hr/staff/${hiredStaffId}`);
+        }}
+      />
     </form>
   );
 }

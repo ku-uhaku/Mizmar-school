@@ -102,6 +102,22 @@ export function portalPasswordSchema(t: Dictionary) {
   return z.object({ password: password(t.validation) });
 }
 
+/**
+ * The one contact a family form collects up front — a name, a relationship
+ * and a number, exactly what a phone call gives you. The rest of `Guardian`
+ * (CIN, employer, second phone…) is filled in later from the dossier, once
+ * the file and its portal access already exist.
+ */
+export function firstContactSchema(t: Dictionary) {
+  const v = t.validation;
+  return z.object({
+    guardianRelationship: enumField(GUARDIAN_RELATIONSHIPS, v),
+    guardianFirstName: requiredText(v, { max: 80 }),
+    guardianLastName: requiredText(v, { max: 80 }),
+    guardianPhone: optionalText(32),
+  });
+}
+
 export function guardianSchema(t: Dictionary) {
   const v = t.validation;
   return z.object({

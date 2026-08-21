@@ -2,7 +2,6 @@ import * as z from "zod";
 
 import type { Dictionary } from "@/lib/i18n/types";
 import {
-  password,
   birthDateField,
   dateField,
   enumField,
@@ -79,21 +78,22 @@ function staffFields(t: Dictionary) {
     userId: optionalText(40),
     /*
       ── Giving a new employee a login ────────────────────────────────────────
-      Ticked, the three fields below are read and an account is created and
+      Ticked, the two fields below are read and an account is created and
       linked. They are separate from `userId`, which attaches an account that
       already exists: hiring somebody and finding their existing login are two
       different acts, and one form field cannot mean both.
 
       The username may be left blank, in which case it is built from the name —
-      see `allocateUsername`. The password is required, because an account
-      created without one could not be signed into and the school would have no
-      way to tell that from a working one.
+      see `allocateUsername`. The role may be left blank too, in which case the
+      job answers for it — see `defaultRoleNameFor`.
+
+      There is no password field, deliberately. One is generated and shown once,
+      exactly as a parent's is: a director typing a password for every hire
+      types the same one for every hire, and the account it opens is worse than
+      the one the app would have opened for them.
     */
     createAccount: z.boolean(),
     accountUsername: optionalText(30),
-    accountPassword: z
-      .union([z.literal(""), password(v)])
-      .transform((value) => value || null),
     accountRoleId: optionalText(40),
     notes: optionalText(1000),
   };
@@ -156,6 +156,14 @@ export function hireSchema(t: Dictionary) {
 
       // ── Le bus ─────────────────────────────────────────────────────────────
       vehicleIds: z.array(z.string().max(40)),
+
+      // ── Ce qu'un directeur encadre ─────────────────────────────────────────
+      /*
+        The cycles this person is answerable for — see `StaffOversight`. Offered
+        for a directeur and a surveillant général only; everybody else posts an
+        empty list and nothing is written.
+      */
+      oversightCycleIds: z.array(z.string().max(40)),
     })
     /*
       A contract with no start date is not a contract. Checked here rather than

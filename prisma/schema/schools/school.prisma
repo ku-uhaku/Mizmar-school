@@ -112,6 +112,7 @@ model School {
 
   /// Who may teach what here — see prisma/schema/hr/teacher-subject.prisma.
   teacherSubjects TeacherSubject[]
+  staffOversight  StaffOversight[]
 
   // ── Caisse ────────────────────────────────────────────────────────────────
   /// The tills the school collects at, what it spends under, and every movement

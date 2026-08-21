@@ -33,6 +33,7 @@ import {
 } from "@/modules/families/service";
 import {
   familySchema,
+  firstContactSchema,
   guardianSchema,
   portalPasswordSchema,
 } from "@/modules/families/validation";
@@ -66,6 +67,15 @@ function readFamilyForm(formData: FormData) {
     email: field(formData, "email"),
     notes: field(formData, "notes"),
     isActive: boolField(formData, "isActive"),
+  };
+}
+
+function readFirstContactForm(formData: FormData) {
+  return {
+    guardianRelationship: field(formData, "guardianRelationship"),
+    guardianFirstName: field(formData, "guardianFirstName"),
+    guardianLastName: field(formData, "guardianLastName"),
+    guardianPhone: field(formData, "guardianPhone"),
   };
 }
 
@@ -122,10 +132,17 @@ async function authorizeFamily(
   return family;
 }
 
+/** What creating a family hands back: the file itself, plus the first
+ * contact's credentials when a portal access could be opened for them. */
+export type FamilyCreated = {
+  familyId: string;
+  credentials: IssuedPortalCredentials | null;
+};
+
 export async function createFamilyAction(
   _prevState: ActionState,
   formData: FormData,
-): Promise<ActionState> {
+): Promise<ActionStateWith<FamilyCreated>> {
   return withActionErrors(async () => {
     const t = await getDictionary();
     const context = await requireAuth();
@@ -136,10 +153,16 @@ export async function createFamilyAction(
     await authorizeSchool(schoolId, PERMISSIONS.FAMILY_CREATE);
 
     const parsed = familySchema(t).safeParse(readFamilyForm(formData));
-    if (!parsed.success) {
+    const parsedContact = firstContactSchema(t).safeParse(
+      readFirstContactForm(formData),
+    );
+    if (!parsed.success || !parsedContact.success) {
       return failure(
         t.errors.invalid,
-        fieldErrors(parsed.error),
+        {
+          ...(parsed.success ? {} : fieldErrors(parsed.error)),
+          ...(parsedContact.success ? {} : fieldErrors(parsedContact.error)),
+        },
         formValues(formData),
       );
     }
@@ -163,12 +186,50 @@ export async function createFamilyAction(
 
     // The allocation is inside the retry: re-running the insert with the code
     // it already lost would fail identically five times over.
-    await (parsed.data.code
+    const family = await (parsed.data.code
       ? create(parsed.data.code)
       : withCodeRetry(async () => create(await allocateFamilyCode(schoolId))));
 
+    /*
+      The first contact is created with the dossier rather than afterward on
+      the detail screen — a file opened over the phone already has a name and
+      a number, and that is also everything `openPortalAccessFor` needs. The
+      office never types or picks a password: one is generated and handed back
+      once, exactly as it would be for the second guardian onward.
+    */
+    const guardian = await db.guardian.create({
+      data: {
+        familyId: family.id,
+        relationship: parsedContact.data.guardianRelationship,
+        firstName: parsedContact.data.guardianFirstName,
+        lastName: parsedContact.data.guardianLastName,
+        phone: parsedContact.data.guardianPhone ?? parsed.data.phone,
+        isPrimaryContact: true,
+        isEmergencyContact: false,
+        canPickUp: true,
+        isActive: true,
+      },
+    });
+
+    const issued = await openPortalAccessFor(guardian.id);
+
     refresh();
-    return success(t.family.created);
+    return successWith(
+      {
+        familyId: family.id,
+        credentials: issued
+          ? {
+              ...issued,
+              guardianName:
+                `${guardian.firstName} ${guardian.lastName}`.trim(),
+              familyName: family.name,
+              familyCode: family.code,
+              schoolName: context.currentSchool?.name ?? "",
+            }
+          : null,
+      },
+      t.family.created,
+    );
   });
 }
 

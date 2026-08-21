@@ -131,6 +131,10 @@ export default async function ClassTimetablePrintPage({
           covered: cell?.covered ?? false,
           isBreak: (cell?.isBreak ?? false) || Boolean(holiday),
           cancelled,
+          // The exception carries a replacement subject's name but not its
+          // colour, so a REPLACED cell prints without a tint rather than the
+          // wrong one.
+          colorHex: holiday || replaced ? null : (entry?.colorHex ?? null),
         };
       }),
     })),

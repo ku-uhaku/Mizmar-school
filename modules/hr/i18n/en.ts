@@ -50,11 +50,17 @@ const en = {
       "They will sign in with the username below. Leave it off for staff who never sign in — a driver, a caretaker.",
     accountRole: "Role in this school",
     accountRoleHint:
-      "What they may do once signed in. Leave blank for a login with no permissions.",
-    accountPassword: "Initial password",
+      "What they may do once signed in. Leave it blank and the job decides — a teacher is given Enseignant, a driver Chauffeur.",
     accountPasswordHint:
-      "Give it to them in person; they can change it from their profile.",
-    accountNeedsPassword: "Set an initial password for the new login.",
+      "A password is generated and shown once when the login is created. Nobody types one.",
+
+    // The credentials, handed over once
+    accountCredentialsTitle: "Hand these to the employee",
+    accountCredentialsBody:
+      "The password is shown once and cannot be recovered. Write it down or copy it before closing this window.",
+    accountUsername: "Username",
+    accountPassword: "Password",
+    accountNoRole: "No permissions",
     accountNeedsUsername:
       "Type a username — one cannot be built from this name.",
     accountCreated: "Employee saved, and their login created.",
@@ -119,6 +125,17 @@ const en = {
     busesHint: "Assigning one here replaces whoever was named on it.",
     busesNotPermitted: "You may not reassign the fleet.",
     noVehicles: "The school has no vehicle on its fleet.",
+
+    // What a directeur or a surveillant général runs
+    oversight: "Remit",
+    oversightHint:
+      "The part of the school this person answers for. Declared for the current year, like the teaching plan.",
+    oversightCycles: "Cycles they run",
+    oversightCyclesHint:
+      "A directeur of a small school often runs more than one. Handing a cycle over later is done from their file.",
+    oversightNotPermitted: "You may not name who runs a cycle.",
+    oversightService: "Remit",
+    noCycles: "The school has no cycle in its cursus yet.",
 
     // ── Section dashboard ───────────────────────────────────────────────────
     staffHint: "Everybody the school pays, and the contract each one is on.",

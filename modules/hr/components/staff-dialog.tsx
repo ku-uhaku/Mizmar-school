@@ -27,10 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { ActionStateWith } from "@/lib/action-state";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import { toDateInputValue } from "@/lib/i18n/format";
 import { saveStaffAction } from "@/modules/hr/actions";
+import type { IssuedStaffCredentials } from "@/modules/hr/actions";
+import { StaffAccountDialog } from "@/modules/hr/components/staff-account-dialog";
 import { JOB_ROLES, STAFF_STATUSES } from "@/modules/hr/enums";
 import type { StaffDetail } from "@/modules/hr/queries";
 import { GENDERS } from "@/modules/students/enums";
@@ -76,8 +79,23 @@ export function StaffDialog({
   onClose: () => void;
 }) {
   const t = useT();
-  const [state, formAction] = React.useActionState(saveStaffAction, IDLE);
-  useActionFeedback(state, { onSuccess: onClose });
+  const [credentials, setCredentials] =
+    React.useState<IssuedStaffCredentials | null>(null);
+  const [state, formAction] = React.useActionState<
+    ActionStateWith<IssuedStaffCredentials>,
+    FormData
+  >(saveStaffAction, IDLE);
+  useActionFeedback(state, {
+    onSuccess: () => {
+      // The generated password is readable for this one moment: the dialog
+      // stays until it has been handed over, and closes the fiche after.
+      if (state.data) {
+        setCredentials(state.data);
+        return;
+      }
+      onClose();
+    },
+  });
   const errors = state.fieldErrors ?? {};
 
   /*
@@ -402,10 +420,12 @@ export function StaffDialog({
 
               {createAccount ? (
                 <div className="grid gap-3 border-t pt-3">
+                  {/* No password field: one is generated and shown once when
+                    the form is submitted — see `StaffAccountDialog`. */}
                   <FormField
                     label={t.user.username}
                     name="accountUsername"
-                    hint={t.user.usernameHint}
+                    hint={t.hr.accountPasswordHint}
                     error={errors.accountUsername}
                   >
                     <Input
@@ -419,20 +439,6 @@ export function StaffDialog({
                         setTouchedUsername(true);
                         setUsername(event.target.value);
                       }}
-                    />
-                  </FormField>
-
-                  <FormField
-                    label={t.hr.accountPassword}
-                    name="accountPassword"
-                    hint={t.hr.accountPasswordHint}
-                    error={errors.accountPassword}
-                  >
-                    <Input
-                      id="accountPassword"
-                      name="accountPassword"
-                      type="password"
-                      autoComplete="new-password"
                     />
                   </FormField>
 
@@ -475,6 +481,16 @@ export function StaffDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Shown once, then the fiche closes behind it. */}
+      <StaffAccountDialog
+        credentials={credentials}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCredentials(null);
+          onClose();
+        }}
+      />
     </Dialog>
   );
 }

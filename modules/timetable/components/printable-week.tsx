@@ -6,10 +6,11 @@ import type { SlotColumn } from "@/modules/timetable/queries";
  * A week, laid out for paper.
  *
  * Deliberately not the on-screen `TimetableGrid`. That one is a drag target: it
- * carries click handlers, hover affordances, an editing dialog and colour
- * fills, none of which survive a printer and two of which cost ink. This draws
- * the same week as a plain table with a hairline border, which is what a grid
- * pinned to a staffroom wall actually needs.
+ * carries click handlers, hover affordances and an editing dialog, none of
+ * which survive a printer. This draws the same week as a plain table with a
+ * hairline border, which is what a grid pinned to a staffroom wall actually
+ * needs — it does keep the subject's colour, at the same light tint the
+ * screen uses, so the sheet on the wall is still readable at a glance.
  *
  * Days are rows and periods are columns, matching the screen — a teacher
  * reading their own copy has already learnt where Tuesday is, and turning the
@@ -31,6 +32,8 @@ export type PrintableCell = {
    * has filled in yet, which is the opposite of what a cancellation says.
    */
   cancelled?: boolean;
+  /** Same subject colour as the on-screen grid; null for a free period. */
+  colorHex?: string | null;
 };
 
 export type PrintableWeek = {
@@ -85,6 +88,14 @@ export function PrintableWeekTable({
                     cell.isBreak
                       ? "print-week-break text-center"
                       : "text-center"
+                  }
+                  style={
+                    cell.colorHex
+                      ? {
+                          backgroundColor: `${cell.colorHex}22`,
+                          borderInlineStart: `2px solid ${cell.colorHex}`,
+                        }
+                      : undefined
                   }
                 >
                   {cell.lines.map((line, lineIndex) => (

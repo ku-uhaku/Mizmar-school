@@ -123,6 +123,9 @@ model Staff {
   attendance    StaffAttendance[]
   leaveRequests LeaveRequest[]
 
+  /// The cycles this person is answerable for — see StaffOversight.
+  oversight StaffOversight[]
+
   /// The buses this person drives. See the note on Vehicle.driverId.
   vehiclesDriven Vehicle[] @relation("VehicleDriver")
 

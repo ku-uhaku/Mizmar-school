@@ -44,12 +44,17 @@ const fr = {
       "Il se connectera avec le nom d’utilisateur ci-dessous. À laisser décoché pour le personnel qui ne se connecte jamais — un chauffeur, un gardien.",
     accountRole: "Rôle dans cette école",
     accountRoleHint:
-      "Ce qu’il pourra faire une fois connecté. Laissez vide pour un accès sans permission.",
-    accountPassword: "Mot de passe initial",
+      "Ce qu’il pourra faire une fois connecté. Laissez vide et le poste décide — un enseignant reçoit Enseignant, un chauffeur Chauffeur.",
     accountPasswordHint:
-      "Remettez-le en main propre ; il pourra le changer depuis son profil.",
-    accountNeedsPassword:
-      "Définissez un mot de passe initial pour le nouvel accès.",
+      "Un mot de passe est généré et affiché une seule fois à la création de l’accès. Personne n’en saisit.",
+
+    // Les identifiants, remis une seule fois
+    accountCredentialsTitle: "À remettre à l’employé",
+    accountCredentialsBody:
+      "Le mot de passe n’est affiché qu’une fois et ne peut pas être retrouvé. Notez-le ou copiez-le avant de fermer cette fenêtre.",
+    accountUsername: "Nom d’utilisateur",
+    accountPassword: "Mot de passe",
+    accountNoRole: "Aucune permission",
     accountNeedsUsername:
       "Saisissez un nom d’utilisateur — impossible d’en construire un à partir de ce nom.",
     accountCreated: "Employé enregistré, et son accès créé.",
@@ -114,6 +119,18 @@ const fr = {
     busesHint: "L'affecter ici remplace celui qui y était désigné.",
     busesNotPermitted: "Vous n'êtes pas autorisé à réaffecter le parc.",
     noVehicles: "L'école n'a aucun véhicule dans son parc.",
+
+    // Ce qu'encadre un directeur ou un surveillant général
+    oversight: "Encadrement",
+    oversightHint:
+      "La partie de l'école dont cette personne répond. Déclaré pour l'année en cours, comme le plan pédagogique.",
+    oversightCycles: "Cycles encadrés",
+    oversightCyclesHint:
+      "Dans une petite école, un directeur en encadre souvent plusieurs. La passation se fait plus tard depuis sa fiche.",
+    oversightNotPermitted:
+      "Vous n'êtes pas autorisé à désigner le responsable d'un cycle.",
+    oversightService: "Encadrement",
+    noCycles: "L'école n'a aucun cycle dans son cursus.",
 
     // ── Tableau de bord de la section ───────────────────────────────────────
     staffHint: "Tous ceux que l'école paie, et le contrat de chacun.",

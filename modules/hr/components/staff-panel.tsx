@@ -755,7 +755,11 @@ function ServiceTab({ person }: { person: StaffDetail }) {
   const t = useT();
   const locale = useLocale();
 
-  if (person.teaching.length === 0 && person.vehicles.length === 0) {
+  if (
+    person.teaching.length === 0 &&
+    person.vehicles.length === 0 &&
+    person.oversight.length === 0
+  ) {
     return (
       <Card>
         <CardContent className="p-0">
@@ -777,6 +781,23 @@ function ServiceTab({ person }: { person: StaffDetail }) {
 
   return (
     <>
+      {/* First: it is the widest thing said about them, and the two below are
+        assignments within it. */}
+      {person.oversight.length > 0 ? (
+        <section className="grid gap-3">
+          <SectionHeading label={t.hr.oversightService} />
+          <Card>
+            <CardContent className="flex flex-wrap gap-2 py-4">
+              {person.oversight.map((cycle) => (
+                <Badge key={cycle.id} variant="secondary">
+                  {cycle.cycleName}
+                </Badge>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
+
       {person.teaching.length > 0 ? (
         <section className="grid gap-3">
           <SectionHeading label={t.hr.teachingService} />

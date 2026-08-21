@@ -122,6 +122,14 @@ export function TeacherWeek({
                           // it is left plainly empty rather than filled.
                           column.isBreak && "bg-muted/40",
                         )}
+                        style={
+                          lesson?.colorHex
+                            ? {
+                                backgroundColor: `${lesson.colorHex}22`,
+                                borderInlineStart: `2px solid ${lesson.colorHex}`,
+                              }
+                            : undefined
+                        }
                       >
                         {lesson ? (
                           <span className="block min-w-0">

@@ -227,6 +227,52 @@ export async function declareQualifications(
   }
 }
 
+// ── What a directeur is answerable for ───────────────────────────────────────
+
+export type OversightInput = {
+  schoolId: string;
+  schoolYearId: string;
+  /** The **staff row**, not the account — see the note on `StaffOversight`. */
+  staffId: string;
+  educationLevelIds: string[];
+};
+
+/**
+ * Records the cycles somebody runs, for one year.
+ *
+ * Upserts on `[schoolYearId, staffId, educationLevelId]` for the same reason
+ * `declareQualifications` does: the unique index is what makes "one row per
+ * cycle per year" true, and a `create` would throw the second time a school
+ * declared somebody it had already declared.
+ *
+ * It only ever *adds*, exactly as qualifications do. Handing a cycle over is
+ * withdrawing it (`isActive`) on the employee's own fiche, with whatever named
+ * them still in view — not a side effect of somebody opening a hire form and
+ * ticking one fewer box.
+ */
+export async function declareOversight(input: OversightInput): Promise<void> {
+  for (const educationLevelId of input.educationLevelIds) {
+    await db.staffOversight.upsert({
+      where: {
+        schoolYearId_staffId_educationLevelId: {
+          schoolYearId: input.schoolYearId,
+          staffId: input.staffId,
+          educationLevelId,
+        },
+      },
+      create: {
+        schoolId: input.schoolId,
+        schoolYearId: input.schoolYearId,
+        staffId: input.staffId,
+        educationLevelId,
+      },
+      // A re-declaration re-activates: a school ticking the box again means the
+      // person runs the cycle, whatever last year's handover said.
+      update: { isActive: true },
+    });
+  }
+}
+
 /** Ends a contract without writing a replacement — somebody simply left. */
 export async function endContract(contractId: string): Promise<void> {
   await db.employmentContract.update({

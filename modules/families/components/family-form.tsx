@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -33,14 +34,21 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import type { ActionStateWith } from "@/lib/action-state";
 import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import {
   createFamilyAction,
   updateFamilyAction,
+  type FamilyCreated,
 } from "@/modules/families/actions";
-import { FAMILY_SITUATIONS } from "@/modules/families/enums";
+import { PortalAccountDialog } from "@/modules/families/components/portal-account-dialog";
+import {
+  FAMILY_SITUATIONS,
+  GUARDIAN_RELATIONSHIPS,
+} from "@/modules/families/enums";
 import type { FamilyDetail } from "@/modules/families/queries";
+import type { IssuedPortalCredentials } from "@/modules/families/service";
 
 /**
  * The dossier itself — address, phone, situation. Who is *on* the dossier is
@@ -53,13 +61,34 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
   const router = useRouter();
   const isEdit = Boolean(family);
 
-  const [state, formAction] = useActionState(
-    isEdit ? updateFamilyAction : createFamilyAction,
-    IDLE,
+  const [credentials, setCredentials] =
+    React.useState<IssuedPortalCredentials | null>(null);
+  const [createdFamilyId, setCreatedFamilyId] = React.useState<string | null>(
+    null,
   );
+
+  const [state, formAction] = useActionState<
+    ActionStateWith<FamilyCreated>,
+    FormData
+  >(isEdit ? updateFamilyAction : createFamilyAction, IDLE);
   useActionFeedback(state, {
-    onSuccess: () =>
-      router.push(family ? `/families/${family.id}` : "/families"),
+    onSuccess: () => {
+      if (family) {
+        router.push(`/families/${family.id}`);
+        return;
+      }
+      // The credentials are shown once before leaving — see
+      // `PortalAccountDialog` — so a brand-new file does not navigate away
+      // until the office has had a chance to copy or print them.
+      if (state.data?.credentials) {
+        setCreatedFamilyId(state.data.familyId);
+        setCredentials(state.data.credentials);
+        return;
+      }
+      router.push(
+        state.data?.familyId ? `/families/${state.data.familyId}` : "/families",
+      );
+    },
   });
 
   const errors = state.fieldErrors ?? {};
@@ -210,6 +239,92 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
           </FormGrid>
         </FormSection>
 
+        {/* Only on creation — an existing dossier's guardians are managed
+          from its detail screen, not re-collected here. See the file's
+          module note on why a new family is opened with a name and a
+          number, not a form full of fields. */}
+        {!isEdit ? (
+          <FormSection
+            title={t.family.primaryContact}
+            description={t.family.firstContactSectionHint}
+          >
+            <FormGrid cols={3}>
+              <FormField
+                name="guardianRelationship"
+                label={t.family.relationship}
+                error={errors.guardianRelationship}
+                required
+              >
+                <Select
+                  name="guardianRelationship"
+                  defaultValue={
+                    valueOf(state, "guardianRelationship", undefined) ||
+                    "FATHER"
+                  }
+                >
+                  <SelectTrigger id="guardianRelationship" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GUARDIAN_RELATIONSHIPS.map((relationship) => (
+                      <SelectItem key={relationship} value={relationship}>
+                        {t.familyOptions.relationships[relationship]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+
+              <FormField
+                name="guardianFirstName"
+                label={t.family.firstName}
+                error={errors.guardianFirstName}
+                required
+              >
+                <Input
+                  {...controlProps(
+                    "guardianFirstName",
+                    errors.guardianFirstName,
+                  )}
+                  defaultValue={valueOf(state, "guardianFirstName", undefined)}
+                  required
+                />
+              </FormField>
+
+              <FormField
+                name="guardianLastName"
+                label={t.family.lastName}
+                error={errors.guardianLastName}
+                required
+              >
+                <Input
+                  {...controlProps(
+                    "guardianLastName",
+                    errors.guardianLastName,
+                  )}
+                  defaultValue={valueOf(state, "guardianLastName", undefined)}
+                  required
+                />
+              </FormField>
+            </FormGrid>
+
+            <FormField
+              name="guardianPhone"
+              label={t.family.phone}
+              hint={t.family.guardianPhoneHint}
+              error={errors.guardianPhone}
+            >
+              <Input
+                {...controlProps("guardianPhone", errors.guardianPhone)}
+                type="tel"
+                defaultValue={valueOf(state, "guardianPhone", undefined)}
+                dir="ltr"
+                placeholder="+212 6 12 34 56 78"
+              />
+            </FormField>
+          </FormSection>
+        ) : null}
+
         <FormSection title={t.family.address}>
           <FormField
             name="addressLine"
@@ -263,6 +378,18 @@ export function FamilyForm({ family }: { family?: FamilyDetail }) {
           {isEdit ? t.common.save : t.family.createFamily}
         </SubmitButton>
       </FormActions>
+
+      {/* Shown once, then the office is sent on to the new dossier. */}
+      <PortalAccountDialog
+        credentials={credentials}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCredentials(null);
+          router.push(
+            createdFamilyId ? `/families/${createdFamilyId}` : "/families",
+          );
+        }}
+      />
     </form>
   );
 }

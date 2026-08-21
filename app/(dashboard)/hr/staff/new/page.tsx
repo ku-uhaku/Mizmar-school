@@ -39,13 +39,20 @@ export default async function NewStaffPage() {
   const canCreateAccount = context.can(PERMISSIONS.USER_CREATE);
   const canTeaching = context.can(PERMISSIONS.TIMETABLE_MANAGE);
   const canTransport = context.can(PERMISSIONS.TRANSPORT_MANAGE);
+  // Naming who runs a cycle is an academic decision — the same authority the
+  // cursus is edited under, and the one `hireStaffAction` re-asserts.
+  const canOversight = context.can(PERMISSIONS.CONFIGURATION_MANAGE);
 
   const [schoolRoles, jobFunctions, subjects, cycles, vehicles] =
     await Promise.all([
       canCreateAccount ? listSchoolRoles(context) : Promise.resolve([]),
       canCreateAccount ? listJobFunctionChoices(context) : Promise.resolve([]),
       canTeaching ? listSubjectChoices(context) : Promise.resolve([]),
-      canTeaching ? listCycleChoices(context) : Promise.resolve([]),
+      // The one list two sections share: the qualification's cycle and the
+      // cycles a directeur is answerable for.
+      canTeaching || canOversight
+        ? listCycleChoices(context)
+        : Promise.resolve([]),
       canTransport ? listVehicleOptions(context) : Promise.resolve([]),
     ]);
 
@@ -72,6 +79,7 @@ export default async function NewStaffPage() {
         canCreateAccount={canCreateAccount}
         canTeaching={canTeaching}
         canTransport={canTransport}
+        canOversight={canOversight}
         yearLabel={context.currentSchoolYear?.name ?? null}
       />
     </>

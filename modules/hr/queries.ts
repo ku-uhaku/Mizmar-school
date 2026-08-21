@@ -257,6 +257,13 @@ function toSalaryRow(
   };
 }
 
+/** One cycle somebody answers for, this year — see `StaffOversight`. */
+export type StaffOversightRow = {
+  id: string;
+  cycleId: string;
+  cycleName: string;
+};
+
 export type StaffDetail = StaffRow & {
   firstNameAr: string | null;
   lastNameAr: string | null;
@@ -297,6 +304,11 @@ export type StaffDetail = StaffRow & {
   teachingMinutes: number;
   /** The buses driven or accompanied, each with this year's lines. */
   vehicles: StaffVehicleRow[];
+  /**
+   * The cycles this person answers for, this year. Empty for everybody who is
+   * not a directeur or a surveillant général — see `StaffOversight`.
+   */
+  oversight: StaffOversightRow[];
   /**
    * Advances still to recover, in centimes. Zero without `HR_PAYROLL` — an
    * outstanding balance is a salary fact like any other.
@@ -421,7 +433,7 @@ export async function findStaff(
 
   const year = new Date().getFullYear();
 
-  const [leaveDays, unjustified, teaching, vehicles, advances] =
+  const [leaveDays, unjustified, teaching, vehicles, advances, oversight] =
     await Promise.all([
       db.leaveRequest.aggregate({
         where: {
@@ -453,6 +465,26 @@ export async function findStaff(
       person.user ? listTeacherDuties(context, person.user.id) : [],
       listStaffVehicles(context, person.id),
       canSeePay ? outstandingAdvancesFor(db, { staffId: person.id }) : [],
+      /*
+        The encadrement, this year's. Keyed on the employment record rather than
+        the account — see the note on `StaffOversight` — so a directeur with no
+        login still reads as running their cycle, which is exactly the case the
+        teaching half above cannot cover.
+      */
+      context.currentSchoolYear
+        ? db.staffOversight.findMany({
+            where: {
+              staffId: person.id,
+              schoolYearId: context.currentSchoolYear.id,
+              isActive: true,
+            },
+            orderBy: [{ educationLevel: { name: "asc" } }],
+            select: {
+              id: true,
+              educationLevel: { select: { id: true, name: true } },
+            },
+          })
+        : [],
     ]);
 
   const live = person.contracts.find(
@@ -542,6 +574,11 @@ export async function findStaff(
       0,
     ),
     vehicles,
+    oversight: oversight.map((row) => ({
+      id: row.id,
+      cycleId: row.educationLevel.id,
+      cycleName: row.educationLevel.name,
+    })),
     advanceOutstandingCentimes: advances.reduce(
       (total, advance) =>
         total +

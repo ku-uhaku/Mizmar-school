@@ -96,6 +96,7 @@ export default async function TeacherTimetablePrintPage({
             span: 1,
             covered: false,
             isBreak: Boolean(column.isBreak) || Boolean(holiday),
+            colorHex: holiday ? null : (lesson?.colorHex ?? null),
           };
         }),
       };

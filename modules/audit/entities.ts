@@ -156,6 +156,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   SalaryAdvanceRecovery: "rh",
   TeacherSubject: "rh",
   TeacherSubjectLevel: "rh",
+  StaffOversight: "rh",
 
   // The fleet.
   Vehicle: "transport",
