@@ -25,13 +25,20 @@ import {
   loadClassResults,
   loadClassTermAverages,
 } from "@/modules/bulletins/queries";
-import { listRemarks, loadClassAttendance } from "@/modules/classroom/queries";
+import {
+  findClassRegister,
+  listClassLessons,
+  listRemarks,
+  loadClassAttendance,
+} from "@/modules/classroom/queries";
 import {
   findClass,
   loadClassOverview,
   loadTeachingGrid,
 } from "@/modules/classes/queries";
 import { listUnassignedStudents } from "@/modules/students/queries";
+import { lessonAt } from "@/modules/classroom/enums";
+import { isSameDay } from "@/modules/timetable/weeks";
 import {
   loadClassTimetable,
   loadTimetableChoices,
@@ -41,6 +48,27 @@ export const metadata: Metadata = { title: "Classe" };
 
 /** How much of the carnet the overview shows before sending the reader on. */
 const CLASS_REMARKS_SHOWN = 8;
+
+/**
+ * The day the appel tab is looking at.
+ *
+ * Parsed as a wall-calendar date at local midnight, never `new Date(value)` on
+ * the bare string: that reads `YYYY-MM-DD` as UTC and lands on the previous
+ * evening east of Greenwich, which would take Tuesday's register against
+ * Monday. Anything unparseable — a stale bookmark, a hand-typed URL — falls
+ * back to today rather than to a day the school never had.
+ */
+function parseDayParam(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date();
+
+  const day = new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
+  return Number.isNaN(day.getTime()) ? new Date() : day;
+}
 
 export default async function ClassPage({
   params,
@@ -109,6 +137,33 @@ export default async function ClassPage({
   // not thereby allowed the whole class's year of absences.
   const canSeeAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_VIEW);
 
+  /*
+    The appel tab's own two parameters, resolved here rather than in the
+    browser: the roster is a read, so the day and the period have to be settled
+    before the page can load it — and settled in the URL, so a register somebody
+    is halfway through is a link they can send to whoever finishes it.
+  */
+  const canMarkAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_MARK);
+  const registerDay = parseDayParam(one("reg_date"));
+  const classDay = canSeeAttendance
+    ? await listClassLessons(context, classId, registerDay)
+    : null;
+
+  /*
+    Which period the tab opens on: the one being taught, else the one about to
+    be — the same rule the espace enseignant uses, and for the same reason.
+    Somebody opening the appel is standing in front of a class, so "which
+    lesson" is a question the clock can answer. Only when the day on screen is
+    today, though: on any other date there is no lesson "now" and the clock
+    would pick one arbitrarily, so the reader chooses.
+  */
+  const selectedTimeSlotId =
+    one("reg_slot") ||
+    (classDay && isSameDay(registerDay, new Date())
+      ? (lessonAt(classDay.lessons, new Date())?.timeSlotId ?? "")
+      : "") ||
+    null;
+
   // Each module answers for its own half of the screen: who may be seated comes
   // from students, the week from timetable, the papers from assessments.
   const [
@@ -170,6 +225,21 @@ export default async function ClassPage({
     canSeeRemarks ? listRemarks(context, { schoolClassId: classId }) : [],
   ]);
 
+  /*
+    The selected period's roster. Scoped by the school and re-derived against
+    the day's lessons, so a hand-typed `reg_slot` that is not one of this
+    class's periods today resolves to nothing rather than to somebody else's
+    register — see `findClassRegister`.
+  */
+  const register =
+    classDay && selectedTimeSlotId
+      ? await findClassRegister(context, {
+          schoolClassId: classId,
+          timeSlotId: selectedTimeSlotId,
+          date: registerDay,
+        })
+      : null;
+
   // The programmes the generator ticks from, for the classes it may reach.
   const programmes = canGenerate
     ? await loadProgrammesByClass(
@@ -220,6 +290,16 @@ export default async function ClassPage({
         teachingGrid={teachingGrid}
         timetable={timetable}
         timetableChoices={timetableChoices}
+        dayRegister={
+          classDay
+            ? {
+                day: classDay,
+                register,
+                selectedTimeSlotId: register ? selectedTimeSlotId : null,
+                canMark: canMarkAttendance,
+              }
+            : null
+        }
         controls={controls}
         devoirs={devoirs}
         paperCreation={

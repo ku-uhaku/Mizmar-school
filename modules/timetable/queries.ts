@@ -17,6 +17,7 @@ import {
 } from "@/modules/academics/labels";
 import {
   addDays,
+  atMidnight,
   isWithin,
   resolveWeek,
   schoolWeeks,
@@ -1203,5 +1204,74 @@ export async function loadTeacherAvailability(
     rows,
     totalPeriods: slots.length,
     blockedPeriods: blockedIds.size,
+  };
+}
+
+// ── One day of the calendar ──────────────────────────────────────────────────
+
+/** What the calendar says about a single date. */
+export type SchoolDay = {
+  /** `YYYY-MM-DD`, at local midnight — the key registers are stored against. */
+  date: string;
+  /** ISO weekday, 1 = Monday, as the bell schedule numbers its slots. */
+  dayOfWeek: number;
+  /** The week the date falls in, or null when the year has none drawn yet. */
+  weekNumber: number | null;
+  /** "A" | "B" — which half of a fortnightly rotation runs. Null with no week. */
+  parity: string | null;
+  /** False when a holiday swallows the whole week — see SchoolWeek.isTeaching. */
+  isTeaching: boolean;
+  /** The holiday covering this day, when there is one. */
+  holidayName: string | null;
+};
+
+/**
+ * Which week a date belongs to, and whether the school is open on it.
+ *
+ * Read from the stored `SchoolWeek` rather than computed with `schoolWeeks()`,
+ * because the parity and the teaching flag are the school's own decisions — a
+ * term that resumed on the wrong foot is a flipped row, and recomputing would
+ * quietly overrule it.
+ *
+ * A year with no weeks drawn yet answers "no week", which every caller must
+ * read as "draw the whole template": a school that has not generated its
+ * calendar still has a timetable, and hiding it would be worse than ignoring a
+ * rotation it is not using.
+ */
+export async function findSchoolDay(
+  context: AuthContext,
+  date: Date,
+): Promise<SchoolDay> {
+  const day = atMidnight(date);
+  const yearId = currentSchoolYearId(context);
+
+  const [week, holiday] = await Promise.all([
+    db.schoolWeek.findFirst({
+      where: {
+        schoolYearId: yearId,
+        startsOn: { lte: day },
+        endsOn: { gte: day },
+      },
+      select: { number: true, parity: true, isTeaching: true },
+    }),
+    db.schoolHoliday.findFirst({
+      where: {
+        schoolYearId: yearId,
+        startDate: { lte: day },
+        endDate: { gte: day },
+      },
+      orderBy: [{ startDate: "asc" }],
+      select: { name: true },
+    }),
+  ]);
+
+  return {
+    date: toDateKey(day),
+    // JavaScript numbers Sunday 0; the schema numbers Monday 1 through Sunday 7.
+    dayOfWeek: day.getDay() === 0 ? 7 : day.getDay(),
+    weekNumber: week?.number ?? null,
+    parity: week?.parity ?? null,
+    isTeaching: week?.isTeaching ?? true,
+    holidayName: holiday?.name ?? null,
   };
 }

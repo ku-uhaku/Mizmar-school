@@ -72,6 +72,25 @@ const en = {
     justified: "Justified",
     justificationSaved: "Justification updated.",
 
+    // ── The class's day, taken from the class file ──────────────────────────
+    dayRegisterHint: "The day's lessons, and which registers have been taken.",
+    chooseLesson: "Choose a period",
+    noLessonsOnDay: "No lesson on this class's timetable that day.",
+    noLessonsOnDayHint:
+      "Pick another date, or draw the class's week on the timetable tab.",
+    schoolClosed: "{name} — the school is closed.",
+    weekNotTaught: "This week is not taught.",
+    lessonCancelled: "Cancelled",
+    lessonReplaced: "Replaced",
+    registerPending: "Not taken",
+    markedOfRoster: "{marked} of {total} marked",
+    notMarked: "Unmarked",
+    standingIn:
+      "The register is recorded in your name, as though you had taken the lesson.",
+    groupLessonWholeClass:
+      "Taught to {group} only. The register covers the whole class.",
+    cannotMark: "You may read this register but not take it.",
+
     // ── Devoirs ─────────────────────────────────────────────────────────────
     devoirs: "Homework",
     devoirsHint: "The work you have set, and the marks on it.",

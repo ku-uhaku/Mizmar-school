@@ -29,6 +29,7 @@ const en = {
     tabRoster: "Students",
     tabTeaching: "Teachers",
     tabTimetable: "Timetable",
+    tabRegister: "Register",
     tabControls: "Assessments",
     tabDevoirs: "Devoirs",
 

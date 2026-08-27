@@ -73,6 +73,26 @@ const fr = {
     justified: "Justifié",
     justificationSaved: "Justificatif mis à jour.",
 
+    // ── La journée de la classe, depuis sa fiche ────────────────────────────
+    dayRegisterHint: "Les cours du jour, et les appels déjà faits.",
+    chooseLesson: "Choisir une séance",
+    noLessonsOnDay:
+      "Aucun cours à l'emploi du temps de cette classe ce jour-là.",
+    noLessonsOnDayHint:
+      "Choisissez une autre date, ou dressez la semaine de la classe dans l'onglet Emploi du temps.",
+    schoolClosed: "{name} — l'école est fermée.",
+    weekNotTaught: "Semaine non travaillée.",
+    lessonCancelled: "Annulé",
+    lessonReplaced: "Remplacé",
+    registerPending: "Appel non fait",
+    markedOfRoster: "{marked} sur {total} pointés",
+    notMarked: "Non pointés",
+    standingIn:
+      "L'appel est enregistré à votre nom, comme si vous aviez assuré la séance.",
+    groupLessonWholeClass:
+      "Séance réservée au groupe {group}. L'appel porte sur toute la classe.",
+    cannotMark: "Vous pouvez consulter cet appel sans le faire.",
+
     // ── Devoirs ─────────────────────────────────────────────────────────────
     devoirs: "Devoirs",
     devoirsHint: "Le travail que vous avez donné, et les notes qui vont avec.",

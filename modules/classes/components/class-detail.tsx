@@ -18,7 +18,13 @@ import type {
   ClassResults,
   ClassTermAverage,
 } from "@/modules/bulletins/queries";
-import type { ClassAttendance, RemarkRow } from "@/modules/classroom/queries";
+import { ClassRegisterPanel } from "@/modules/classroom/components/class-register-panel";
+import type {
+  ClassAttendance,
+  ClassDay,
+  Register,
+  RemarkRow,
+} from "@/modules/classroom/queries";
 import { ClassOverview } from "@/modules/classes/components/class-overview";
 import { ClassRoster } from "@/modules/classes/components/class-roster";
 import { TeachingPanel } from "@/modules/classes/components/teaching-panel";
@@ -90,6 +96,7 @@ export function ClassDetail({
   teachingGrid,
   timetable,
   timetableChoices,
+  dayRegister,
   controls,
   devoirs,
   paperCreation,
@@ -112,6 +119,16 @@ export function ClassDetail({
   candidates: { id: string; enrollmentId: string; label: string }[];
   timetable: TimetableGridData | null;
   timetableChoices: TimetableChoices | null;
+  /**
+   * The day's lessons and the period being marked. Null for a reader without
+   * `classroom.attendanceView` — the tab is not drawn at all.
+   */
+  dayRegister: {
+    day: ClassDay;
+    register: Register | null;
+    selectedTimeSlotId: string | null;
+    canMark: boolean;
+  } | null;
   /** Null for a reader without `assessment.view` — the tabs are not drawn. */
   controls: ClassPapers | null;
   devoirs: ClassPapers | null;
@@ -132,6 +149,10 @@ export function ClassDetail({
   };
 }) {
   const t = useT();
+
+  const pendingRegisters = (dayRegister?.day.lessons ?? []).filter(
+    (lesson) => !lesson.isMarked && lesson.exceptionKind !== "CANCELLED",
+  ).length;
 
   return (
     <Tabs defaultValue="overview">
@@ -157,6 +178,19 @@ export function ClassDetail({
             {schoolClass.timetableCount}
           </Badge>
         </TabsTrigger>
+        {dayRegister ? (
+          <TabsTrigger value="register">
+            {t.schoolClass.tabRegister}
+            {/* How many of the day's registers are still to take — the one
+              number somebody opening this tab is after. Absent once the day is
+              done, rather than shown as a zero. */}
+            {pendingRegisters > 0 ? (
+              <Badge variant="secondary" className="ms-1.5 tabular-nums">
+                {pendingRegisters}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
+        ) : null}
         {/* No count on these two: the list behind them is capped and filtered,
           so a badge would be a number that disagrees with what the tab opens
           onto. The "à valider" button inside each carries the count that
@@ -212,6 +246,18 @@ export function ClassDetail({
           />
         ) : null}
       </TabsContent>
+
+      {dayRegister ? (
+        <TabsContent value="register">
+          <ClassRegisterPanel
+            schoolClassId={schoolClass.id}
+            day={dayRegister.day}
+            register={dayRegister.register}
+            selectedTimeSlotId={dayRegister.selectedTimeSlotId}
+            canMark={dayRegister.canMark}
+          />
+        </TabsContent>
+      ) : null}
 
       {/*
         The same review the vie scolaire uses, with the class fixed by the route

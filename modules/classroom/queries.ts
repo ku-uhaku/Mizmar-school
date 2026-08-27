@@ -7,12 +7,19 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import { cycleChoiceLabel, levelNameLabel } from "@/modules/academics/labels";
 import {
+  attendanceScopeKey,
   MISSING_STATUSES,
   REMARK_PAGE_SIZE,
   startOfDay,
   tallyAttendance,
   type AttendanceTally,
 } from "@/modules/classroom/enums";
+import { runsInWeek, runsInWeekNumber } from "@/modules/timetable/enums";
+import {
+  findSchoolDay,
+  loadWeekOverlay,
+} from "@/modules/timetable/queries";
+import { startOfWeek, toDateKey } from "@/modules/timetable/weeks";
 
 /**
  * Reads for the espace enseignant.
@@ -247,6 +254,112 @@ export type Register = {
 };
 
 /**
+ * The roster of one lesson with everything already marked against it.
+ *
+ * Split out because two screens ask for the same thing by two different routes:
+ * a teacher reaching their own class (`findRegister`) and the office reaching
+ * any class in the school (`findClassRegister`). Only *who may ask* differs, and
+ * keeping the answer in one function is what stops the appel a director takes
+ * from showing a different list to the one the teacher would have seen.
+ *
+ * The caller has already decided the roster is reachable; nothing here checks.
+ */
+async function rosterRegister(
+  context: AuthContext,
+  input: {
+    schoolClassId: string;
+    /** Null for the whole class — see `saveRegister` on standing in. */
+    classGroupId: string | null;
+    timeSlotId: string | null;
+    day: Date;
+  },
+): Promise<{
+  pupils: RegisterPupil[];
+  /** The slot as it resolved against this year — null when it did not. */
+  timeSlotId: string | null;
+  slotLabel: string | null;
+}> {
+  const [roster, slot] = await Promise.all([
+    db.enrollment.findMany({
+      where: {
+        ...yearScope(context),
+        schoolClassId: input.schoolClassId,
+        ...(input.classGroupId ? { classGroupId: input.classGroupId } : {}),
+      },
+      orderBy: [
+        { student: { lastName: "asc" } },
+        { student: { firstName: "asc" } },
+      ],
+      select: {
+        id: true,
+        student: {
+          select: {
+            id: true,
+            code: true,
+            firstName: true,
+            lastName: true,
+            photoUrl: true,
+          },
+        },
+        attendance: {
+          select: {
+            date: true,
+            scopeKey: true,
+            status: true,
+            minutesLate: true,
+            reason: true,
+            isJustified: true,
+          },
+        },
+      },
+    }),
+    input.timeSlotId
+      ? db.timeSlot.findFirst({
+          where: { id: input.timeSlotId, ...yearScope(context) },
+          select: { id: true, startTime: true, endTime: true },
+        })
+      : null,
+  ]);
+
+  const scopeKey = attendanceScopeKey(input.timeSlotId);
+
+  const pupils: RegisterPupil[] = roster.map((enrollment) => {
+    const forThisLesson = enrollment.attendance.find(
+      (mark) =>
+        mark.scopeKey === scopeKey &&
+        mark.date.getTime() === input.day.getTime(),
+    );
+
+    return {
+      enrollmentId: enrollment.id,
+      studentId: enrollment.student.id,
+      studentCode: enrollment.student.code,
+      firstName: enrollment.student.firstName,
+      lastName: enrollment.student.lastName,
+      photoUrl: enrollment.student.photoUrl,
+      status: forThisLesson?.status ?? null,
+      minutesLate: forThisLesson?.minutesLate ?? null,
+      reason: forThisLesson?.reason ?? null,
+      isJustified: forThisLesson?.isJustified ?? false,
+      // Across every subject, not just this one: the family is written to about
+      // the total, so that is the figure a teacher should see.
+      absencesThisYear: enrollment.attendance.filter(
+        (mark) => mark.status === "ABSENT" && !mark.isJustified,
+      ).length,
+      latesThisYear: enrollment.attendance.filter(
+        (mark) => mark.status === "LATE",
+      ).length,
+    };
+  });
+
+  return {
+    pupils,
+    timeSlotId: slot?.id ?? null,
+    slotLabel: slot ? `${slot.startTime} — ${slot.endTime}` : null,
+  };
+}
+
+/**
  * One lesson's register: the roster, whatever is already marked, and each
  * pupil's running count for the year.
  *
@@ -289,78 +402,11 @@ export async function findRegister(
 
   if (!assignment) return null;
 
-  const [roster, slot] = await Promise.all([
-    db.enrollment.findMany({
-      where: {
-        ...yearScope(context),
-        schoolClassId: assignment.schoolClass.id,
-        ...(assignment.classGroupId
-          ? { classGroupId: assignment.classGroupId }
-          : {}),
-      },
-      orderBy: [
-        { student: { lastName: "asc" } },
-        { student: { firstName: "asc" } },
-      ],
-      select: {
-        id: true,
-        student: {
-          select: {
-            id: true,
-            code: true,
-            firstName: true,
-            lastName: true,
-            photoUrl: true,
-          },
-        },
-        attendance: {
-          select: {
-            date: true,
-            scopeKey: true,
-            status: true,
-            minutesLate: true,
-            reason: true,
-            isJustified: true,
-          },
-        },
-      },
-    }),
-    input.timeSlotId
-      ? db.timeSlot.findFirst({
-          where: { id: input.timeSlotId, ...yearScope(context) },
-          select: { id: true, startTime: true, endTime: true },
-        })
-      : null,
-  ]);
-
-  const scopeKey = input.timeSlotId ?? "__day__";
-
-  const pupils: RegisterPupil[] = roster.map((enrollment) => {
-    const forThisLesson = enrollment.attendance.find(
-      (mark) =>
-        mark.scopeKey === scopeKey && mark.date.getTime() === day.getTime(),
-    );
-
-    return {
-      enrollmentId: enrollment.id,
-      studentId: enrollment.student.id,
-      studentCode: enrollment.student.code,
-      firstName: enrollment.student.firstName,
-      lastName: enrollment.student.lastName,
-      photoUrl: enrollment.student.photoUrl,
-      status: forThisLesson?.status ?? null,
-      minutesLate: forThisLesson?.minutesLate ?? null,
-      reason: forThisLesson?.reason ?? null,
-      isJustified: forThisLesson?.isJustified ?? false,
-      // Across every subject, not just this one: the family is written to about
-      // the total, so that is the figure a teacher should see.
-      absencesThisYear: enrollment.attendance.filter(
-        (mark) => mark.status === "ABSENT" && !mark.isJustified,
-      ).length,
-      latesThisYear: enrollment.attendance.filter(
-        (mark) => mark.status === "LATE",
-      ).length,
-    };
+  const { pupils, timeSlotId, slotLabel } = await rosterRegister(context, {
+    schoolClassId: assignment.schoolClass.id,
+    classGroupId: assignment.classGroupId,
+    timeSlotId: input.timeSlotId,
+    day,
   });
 
   return {
@@ -370,8 +416,8 @@ export async function findRegister(
     groupLabel: groupLabel(assignment.classGroup),
     subjectId: assignment.subject.id,
     subjectName: assignment.subject.name,
-    timeSlotId: slot?.id ?? null,
-    slotLabel: slot ? `${slot.startTime} — ${slot.endTime}` : null,
+    timeSlotId,
+    slotLabel,
     date: toDateInputValue(day),
     pupils,
     tally: tallyAttendance(pupils),
@@ -1319,5 +1365,250 @@ export async function loadClassAttendance(
     byMonth: [...months.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([month, counts]) => ({ month, ...counts })),
+  };
+}
+
+// ── The class's own day, for whoever is standing in ──────────────────────────
+/*
+  The two reads below answer "what is this class doing today, and has anybody
+  taken the register" from the *class*, not from the signed-in teacher. They are
+  the office's half of the pair described at the top of this file, and they are
+  scoped the way the rest of the vie scolaire is: by the school in context and
+  by permission, never by a teaching assignment.
+
+  They exist because the appel is not only a teacher's job. A surveillant
+  general covering an absent colleague, a directrice ringing round the families
+  of the pupils missing this morning — both work from a class and a day, and
+  neither has an assignment to be confined to. The write side already allows it
+  (`actsForSchool` in service.ts); without these reads there was simply no way
+  in from the web app.
+*/
+
+export type ClassLesson = {
+  timetableEntryId: string;
+  timeSlotId: string;
+  startTime: string;
+  endTime: string;
+  subjectId: string;
+  subjectName: string;
+  subjectColorHex: string | null;
+  teacherName: string | null;
+  roomCode: string | null;
+  /** Set when only one half of a split class sits this period. */
+  groupLabel: string | null;
+  /** How many of the class already have a mark for this period. */
+  marked: number;
+  /** The whole class, since a stand-in marks all of it — see `saveRegister`. */
+  roster: number;
+  /** True once every pupil on the roster has a mark for this period. */
+  isMarked: boolean;
+  /**
+   * What a one-off change says about this period: CANCELLED means there is no
+   * register to take, REPLACED that somebody else is taking it.
+   */
+  exceptionKind: string | null;
+};
+
+/** What one class is doing on one day, and how far its registers have got. */
+export type ClassDay = {
+  /** `YYYY-MM-DD`. */
+  date: string;
+  /** The holiday covering the day, when there is one — then there are no lessons. */
+  holidayName: string | null;
+  /** False when a holiday swallows the whole week — see SchoolWeek.isTeaching. */
+  isTeaching: boolean;
+  lessons: ClassLesson[];
+};
+
+/**
+ * One class's lessons on one date, each saying whether its register is done.
+ *
+ * ── Why it is not `listMyLessons` with a class id ───────────────────────────
+ * That read starts from `teacherId` and is confined to it on purpose. This one
+ * starts from the class and is confined to the school, which is a different
+ * authorization question with a different answer — so it is a different
+ * function rather than a flag on that one.
+ *
+ * The day is narrowed the way the grid is: lessons whose week window does not
+ * cover this date are left out, and so is the wrong half of a fortnightly
+ * rotation. A register offered for a lesson that is not running is an absence
+ * mark waiting to be recorded against a class that was never there.
+ */
+export async function listClassLessons(
+  context: AuthContext,
+  schoolClassId: string,
+  date: Date,
+): Promise<ClassDay> {
+  const day = startOfDay(date);
+  const calendarDay = await findSchoolDay(context, date);
+
+  const empty: ClassDay = {
+    date: toDateInputValue(day),
+    holidayName: calendarDay.holidayName,
+    isTeaching: calendarDay.isTeaching,
+    lessons: [],
+  };
+
+  // A holiday has no lessons to mark, and a week the school has closed has
+  // none either. Saying so beats drawing six periods nobody sat.
+  if (calendarDay.holidayName || !calendarDay.isTeaching) return empty;
+
+  const entries = await db.timetableEntry.findMany({
+    where: {
+      // Re-derived from the working context rather than trusted: the class id
+      // comes from the URL.
+      schoolClass: {
+        id: schoolClassId,
+        schoolId: currentSchoolId(context),
+        levelOffering: yearScope(context),
+      },
+      timeSlot: {
+        ...yearScope(context),
+        dayOfWeek: calendarDay.dayOfWeek,
+        isBreak: false,
+      },
+    },
+    orderBy: [{ timeSlot: { position: "asc" } }],
+    select: {
+      id: true,
+      weekParity: true,
+      fromWeek: true,
+      toWeek: true,
+      timeSlot: { select: { id: true, startTime: true, endTime: true } },
+      subject: { select: { id: true, name: true, colorHex: true } },
+      classGroup: { select: { code: true, name: true } },
+      room: { select: { code: true } },
+      teacher: {
+        select: {
+          username: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+    },
+  });
+
+  // Narrowed here rather than in the `where`, for the reason `loadClassTimetable`
+  // gives: the window is two nullable columns and the rule is one pure function
+  // shared with the clash check.
+  const running = entries.filter(
+    (entry) =>
+      runsInWeekNumber(
+        { fromWeek: entry.fromWeek, toWeek: entry.toWeek },
+        calendarDay.weekNumber,
+      ) &&
+      runsInWeek(
+        entry.weekParity,
+        calendarDay.parity ? { parity: calendarDay.parity } : null,
+      ),
+  );
+
+  if (running.length === 0) return empty;
+
+  const [marks, roster, overlay] = await Promise.all([
+    // One query for the whole day's marks rather than one per lesson.
+    db.studentAttendance.findMany({
+      where: {
+        date: day,
+        timeSlotId: { in: running.map((entry) => entry.timeSlot.id) },
+        enrollment: { ...yearScope(context), schoolClassId },
+      },
+      select: { timeSlotId: true },
+    }),
+    db.enrollment.count({ where: { ...yearScope(context), schoolClassId } }),
+    // The timetable module's own read of the one-off changes — a cancelled
+    // period must not ask anybody for a register.
+    loadWeekOverlay(context, schoolClassId, toDateKey(startOfWeek(day))),
+  ]);
+
+  return {
+    ...empty,
+    lessons: running.map((entry) => {
+      const marked = marks.filter(
+        (mark) => mark.timeSlotId === entry.timeSlot.id,
+      ).length;
+
+      return {
+        timetableEntryId: entry.id,
+        timeSlotId: entry.timeSlot.id,
+        startTime: entry.timeSlot.startTime,
+        endTime: entry.timeSlot.endTime,
+        subjectId: entry.subject.id,
+        subjectName: entry.subject.name,
+        subjectColorHex: entry.subject.colorHex,
+        teacherName: entry.teacher ? displayName(entry.teacher) : null,
+        roomCode: entry.room?.code ?? null,
+        groupLabel: groupLabel(entry.classGroup),
+        marked,
+        roster,
+        isMarked: roster > 0 && marked >= roster,
+        exceptionKind: overlay.exceptions[entry.timeSlot.id]?.kind ?? null,
+      };
+    }),
+  };
+}
+
+/**
+ * The register for one of a class's periods, for somebody who does not teach it.
+ *
+ * The mirror of `findRegister`, and deliberately the same shape: the appel a
+ * director takes must look like the one the teacher would have taken, or the
+ * two will disagree about who was in the room.
+ *
+ * ── Whole class, never half ─────────────────────────────────────────────────
+ * The roster is the class even when the period is a split group's, because that
+ * is what `saveRegister` writes when `actsForSchool` is set — a stand-in has no
+ * group of their own and guessing one leaves half the register unmarked. The
+ * screen says which group the lesson belongs to; the list stays the class.
+ *
+ * Returns null when the class is not this school's, or the period is not one of
+ * its lessons that day — the id in the URL is never the authority.
+ */
+export async function findClassRegister(
+  context: AuthContext,
+  input: { schoolClassId: string; timeSlotId: string; date: Date },
+): Promise<Register | null> {
+  const day = startOfDay(input.date);
+
+  const { lessons } = await listClassLessons(
+    context,
+    input.schoolClassId,
+    input.date,
+  );
+  const lesson = lessons.find(
+    (candidate) => candidate.timeSlotId === input.timeSlotId,
+  );
+  if (!lesson) return null;
+
+  const schoolClass = await db.schoolClass.findFirst({
+    where: {
+      id: input.schoolClassId,
+      schoolId: currentSchoolId(context),
+      levelOffering: yearScope(context),
+    },
+    select: { id: true, code: true },
+  });
+  if (!schoolClass) return null;
+
+  const { pupils, timeSlotId, slotLabel } = await rosterRegister(context, {
+    schoolClassId: schoolClass.id,
+    classGroupId: null,
+    timeSlotId: input.timeSlotId,
+    day,
+  });
+
+  return {
+    schoolClassId: schoolClass.id,
+    classCode: schoolClass.code,
+    // Null, not the lesson's group: the roster above is the whole class, and
+    // saying otherwise would label the list wrongly.
+    classGroupId: null,
+    groupLabel: lesson.groupLabel,
+    subjectId: lesson.subjectId,
+    subjectName: lesson.subjectName,
+    timeSlotId,
+    slotLabel,
+    date: toDateInputValue(day),
+    pupils,
+    tally: tallyAttendance(pupils),
   };
 }
