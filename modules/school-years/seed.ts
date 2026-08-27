@@ -6,15 +6,20 @@ import {
 import { log, type SeedDb } from "@/prisma/seed/client";
 
 /**
- * One school year per school — the one being taught — split into the two
- * semesters Moroccan schools work in.
+ * Two school years per school — the one just finished and the one being
+ * taught — each split into the two semesters Moroccan schools work in.
  *
- * A single year rather than a closed / running / planned trio: everything
- * year-scoped is seeded three times over otherwise, and a demo database whose
- * pupil counts are three parallel realities is harder to read than one school
- * year with a full class list behind it. The app handles several years — the
- * screens are all year-scoped — but proving that is the tests' job, not the
- * seed's.
+ * Two rather than one because a year is the unit every screen scopes itself
+ * by, and a database holding a single year can never show that: the year
+ * switcher has nothing to switch to, "l'an dernier" is empty everywhere, and a
+ * closed year — whose marks are locked and whose receipts are history — is a
+ * state no screen is ever seen in. The closed one comes first so the app opens
+ * on the running year, which is the `isDefault` one.
+ *
+ * Two and not three: everything year-scoped is seeded once per year, so each
+ * extra year is another full roster, timetable and année de recettes. Two is
+ * what it takes to make the distinction visible; the third only makes the seed
+ * slower.
  */
 
 export type YearSeed = {
@@ -26,6 +31,11 @@ export type YearSeed = {
 };
 
 export const YEARS: YearSeed[] = [
+  // Closed, and seeded in full: last year's class lists, marks and receipts are
+  // what makes "the year before" a thing you can open rather than a filter that
+  // returns nothing.
+  { name: "2025-2026", start: "2025-03-05", end: "2026-02-17", status: "CLOSED", isDefault: false },
+  // The running year, and the one a session opens on.
   { name: "2026-2027", start: "2026-03-05", end: "2027-02-17", status: "ACTIVE", isDefault: true },
 ];
 

@@ -22,6 +22,14 @@ import { seedStaffFunctions } from "@/modules/users/seed";
  * upserted on the username — what they sign in with, and the only column every
  * account has — so re-running changes nothing.
  *
+ * Every seeded username carries the school it belongs to. A username is unique
+ * across the whole organisation while the things these are derived from are only
+ * unique within a school: both établissements number their dossiers from
+ * `F-2026-0001`, and both employ a chauffeur the staff seed calls Hassan Alaoui.
+ * Without the suffix the second school's upsert would find the first school's
+ * account and hand it that school's children — the exact cross-tenant read
+ * `householdScope` exists to prevent.
+ *
  * Neither kind gets an email address. Nothing signs in with one, and the
  * `parent.f2025-0142@famille.ma` this used to mint was a mailbox that does not
  * exist sitting in a column the reports print. See User.email.
@@ -37,6 +45,7 @@ export async function seedPortalAccounts(
   {
     organizationId,
     schoolId,
+    schoolCode,
     schoolYearId,
     roles,
     password,
@@ -44,6 +53,8 @@ export async function seedPortalAccounts(
   }: {
     organizationId: string;
     schoolId: string;
+    /** `School.code`, e.g. `ALM-OUJDA` — what distinguishes the usernames. */
+    schoolCode: string;
     schoolYearId: string;
     roles: Record<string, string>;
     password: string;
@@ -52,11 +63,13 @@ export async function seedPortalAccounts(
   },
 ): Promise<SeededPortalAccounts> {
   const passwordHash = await bcrypt.hash(password, 12);
+  const suffix = schoolSuffix(schoolCode);
 
   const driverUsername = await seedDriverAccount(db, {
     organizationId,
     schoolId,
     schoolYearId,
+    suffix,
     roleId: roles["Chauffeur"],
     passwordHash,
   });
@@ -64,6 +77,7 @@ export async function seedPortalAccounts(
   const parentUsernames = await seedParentAccounts(db, {
     organizationId,
     schoolId,
+    suffix,
     passwordHash,
     parentCount,
   });
@@ -77,12 +91,14 @@ async function seedDriverAccount(
     organizationId,
     schoolId,
     schoolYearId,
+    suffix,
     roleId,
     passwordHash,
   }: {
     organizationId: string;
     schoolId: string;
     schoolYearId: string;
+    suffix: string;
     roleId: string | undefined;
     passwordHash: string;
   },
@@ -104,8 +120,9 @@ async function seedDriverAccount(
   const functions = await seedStaffFunctions(db, schoolId);
 
   // The same shape the staff seed derives, so a chauffeur types what everybody
-  // else types: `firstname.lastname`.
-  const username = `${slug(driver.firstName)}.${slug(driver.lastName)}`;
+  // else types — plus the school, since the group employs a driver of this name
+  // at each of them.
+  const username = `${slug(driver.firstName)}.${slug(driver.lastName)}.${suffix}`;
 
   const user = await db.user.upsert({
     where: { username },
@@ -151,11 +168,13 @@ async function seedParentAccounts(
   {
     organizationId,
     schoolId,
+    suffix,
     passwordHash,
     parentCount,
   }: {
     organizationId: string;
     schoolId: string;
+    suffix: string;
     passwordHash: string;
     parentCount: number;
   },
@@ -188,9 +207,11 @@ async function seedParentAccounts(
   for (const guardian of guardians) {
     // Keyed on the dossier, not the surname: two families called Bennani would
     // otherwise fight over one username, and the upsert would hand the second
-    // one the first one's children. A code like `f-2025-0142` satisfies
-    // USERNAME_PATTERN as it stands — see modules/users/enums.ts.
-    const username = guardian.family.code.toLowerCase();
+    // one the first one's children. The school is on the end for the same
+    // reason one level up — dossier numbers restart at each établissement. A
+    // code like `f-2025-0142.oujda` satisfies USERNAME_PATTERN and its 30-char
+    // limit as it stands — see modules/users/enums.ts.
+    const username = `${guardian.family.code.toLowerCase()}.${suffix}`;
 
     const user = await db.user.upsert({
       where: { username },
@@ -223,6 +244,16 @@ async function seedParentAccounts(
   }
 
   return usernames;
+}
+
+/**
+ * The part of a school code that tells two schools apart: `ALM-OUJDA` → `oujda`.
+ * Kept short because a username stops at 30 characters and this is appended to
+ * one that is already built.
+ */
+function schoolSuffix(schoolCode: string): string {
+  const tail = schoolCode.split("-").pop() ?? schoolCode;
+  return slug(tail).slice(0, 8);
 }
 
 /** Strips accents so a name becomes a usable username. */

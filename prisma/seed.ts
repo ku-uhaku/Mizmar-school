@@ -46,30 +46,35 @@ import { buildRoster, type Cohort } from "@/prisma/seed/roster";
  * ids along, so a new module means a new `modules/<x>/seed.ts` and one call
  * here rather than another few hundred lines in a single script.
  *
- * ── Two schools, and the difference between them is the point ───────────────
+ * ── Two schools, both running ───────────────────────────────────────────────
  * Every school in `SCHOOLS` is configured — `configureSchool`, the same step
- * `prisma/seed-config.ts` is made of. A school that also has a `SchoolPlan`
- * below is then populated; one that does not is left configured and empty. So
- * the demo database holds both halves of the product at once:
+ * `prisma/seed-config.ts` is made of — and every school with a `SchoolPlan`
+ * below is then populated. Both have one, so the demo database is a *group* of
+ * two working establishments rather than one school and one empty shell:
  *
- *   Al Manar Oujda       a school in its second term — staff, pupils, classes,
- *                        a timetable, a year of receipts, marks and absences
- *   Al Manar Casablanca  the same school the day before it opens — the cursus,
- *                        the rooms, the calendar, the bell schedule, the fee
- *                        catalogue and price list, the caisse, the roles, and
- *                        nobody in it
+ *   Al Manar Oujda       staff, pupils, classes, a timetable, marks, absences
+ *   Al Manar Casablanca  the same, its own town, its own roster and its own
+ *                        bus lines — the case the school switcher exists for
  *
- * Adding a plan for Casablanca is all it takes to populate it too; deleting
- * Oujda's would empty it. Nothing else in this file knows which is which.
+ * Deleting a plan here would leave that school configured and empty, which is
+ * the other state worth looking at (and what `db:seed:config` lays for both).
+ * Nothing else in this file knows which is which.
  *
- * The populated school, to an exact shape:
+ * Each school, to an exact shape:
  *
- *   1 school  ×  1 school year  ×  3 cycles  ×  12 levels  ×  2 classes a level
+ *   1 school  ×  2 school years  ×  3 cycles  ×  12 levels  ×  2 classes a level
  *
- * — 24 classes of 20 places, 432 pupils across some 205 dossiers rather than one
- * apiece — see `OUJDA_HOUSEHOLD_SIZES` — which is a school at a real working
- * size: eighteen names on a class list, a mark sheet that has to scroll, a fee
- * grid with enough rows to sort.
+ * — 24 classes of 20 places and 300 pupils **per year**, across some 143
+ * dossiers rather than one apiece (see `HOUSEHOLD_SIZES`), which is a school at
+ * a real working size: a dozen or so names on a class list, a mark sheet that
+ * has to scroll, a fee grid with enough rows to sort. Twelve or thirteen in a
+ * class of twenty also leaves every screen that exists to show *remaining
+ * places* something to show.
+ *
+ * The two years are seeded in full and independently — each has its own intake,
+ * so last year's class lists, marks and receipts keep resolving beside this
+ * year's. That is 600 pupils on file per school, 300 of them enrolled now.
+ *
  * Plus everything those need to mean anything: subjects with their
  * components, the programme that weights them, rooms, semesters, the bell
  * schedule (standard and Ramadan), teaching assignments, a worked timetable,
@@ -111,19 +116,27 @@ const TRACK_FOR: Record<string, string | null> = {
 };
 
 /**
- * Two parallel classes at every level, twenty places apiece, eighteen taken.
+ * Two parallel classes at every level, twenty places apiece.
  *
- * Twenty is the school's declared class size. Filling eighteen of them rather
- * than all twenty is deliberate: a class at capacity makes every screen that
+ * Twenty is the school's declared class size, and the intake below does not
+ * fill it. That is deliberate: a class at capacity makes every screen that
  * exists to show *remaining places* — the inscription form, the class card, the
  * seat check that refuses an over-enrolment — read the same as one that is
  * merely full, and the two are the states worth telling apart.
- *
- * 12 levels × 2 classes × 18 = 432 pupils, which is a school of a real size.
  */
 const CLASSES_PER_LEVEL = 2;
-const PUPILS_PER_CLASS = 18;
 const CLASS_CAPACITY = 20;
+
+/**
+ * Pupils enrolled in one school, in one year.
+ *
+ * The intake is declared as a school total rather than as a number per class,
+ * because that is how a school states its own size — and 300 divides evenly by
+ * the twelve levels, so every level takes 25 and the two classes of a level
+ * come out 13 and 12. `cohortsFor` shares out anything that does not divide,
+ * so this number can be changed to any other without leaving a level short.
+ */
+const PUPILS_PER_SCHOOL = 300;
 
 /**
  * What a full-time teacher gives in a week, in minutes — 22h, the usual
@@ -158,30 +171,42 @@ const AGE_AT_LEVEL: Record<string, number> = {
 };
 
 /**
- * Pupils at each of the twelve levels, for a school filling its classes to
- * `pupilsPerClass`. The class structure itself — `PLANS_PER_SCHOOL` — stays the
- * same for every school in the network; only how full each seat is varies.
+ * Pupils at each of the twelve levels, for a school taking `total` of them.
+ *
+ * Shared out evenly, with the remainder going to the lowest levels first —
+ * which is also how a school actually fills: the intake at 1AP is the one that
+ * grows. The class structure itself — `PLANS_PER_SCHOOL` — stays the same for
+ * every school in the network; only how full each seat is varies.
+ *
+ * A level's share is not checked against the seats it opens, because it does
+ * not have to be: `seedEnrolments` seats each child in the emptiest class of
+ * their level, so an oversubscribed level simply fills both its classes and
+ * leaves the surplus without a place — which is a state the app handles and a
+ * screen shows.
  */
-function cohortsFor(pupilsPerClass: number): Cohort[] {
-  return LEVEL_CODES.map((levelCode) => ({
+function cohortsFor(total: number): Cohort[] {
+  const share = Math.floor(total / LEVEL_CODES.length);
+  const remainder = total % LEVEL_CODES.length;
+
+  return LEVEL_CODES.map((levelCode, index) => ({
     levelCode,
     age: AGE_AT_LEVEL[levelCode],
-    count: CLASSES_PER_LEVEL * pupilsPerClass,
+    count: share + (index < remainder ? 1 : 0),
   }));
 }
 
 /**
- * Oujda's household sizes, cycled: an only child now and then, mostly two,
- * a third of them three.
+ * Household sizes, cycled: an only child now and then, mostly two, a third of
+ * them three.
  *
- * Averaging 2.1, so its 432 pupils land in about 205 dossiers. The single-child
- * files matter as much as the large ones — the sibling reduction has to be
- * demonstrably *absent* somewhere, or a reader cannot tell it is being applied.
- * See `householdSize` on `buildRoster`.
+ * Averaging 2.1, so a school's 300 pupils land in about 143 dossiers. The
+ * single-child files matter as much as the large ones — the sibling reduction
+ * has to be demonstrably *absent* somewhere, or a reader cannot tell it is being
+ * applied. See `householdSize` on `buildRoster`.
  */
-const OUJDA_HOUSEHOLD_SIZES = [2, 3, 1, 2, 3, 2, 1, 2, 3, 2];
-function oujdaHouseholdSize(familyIndex: number): number {
-  return OUJDA_HOUSEHOLD_SIZES[familyIndex % OUJDA_HOUSEHOLD_SIZES.length];
+const HOUSEHOLD_SIZES = [2, 3, 1, 2, 3, 2, 1, 2, 3, 2];
+function householdSize(familyIndex: number): number {
+  return HOUSEHOLD_SIZES[familyIndex % HOUSEHOLD_SIZES.length];
 }
 
 /**
@@ -197,8 +222,8 @@ type SchoolPlan = {
   cityName: string;
   /** Offsets the name pools so the schools do not produce the same roster. */
   variant: number;
-  /** Pupils enrolled per class, when it differs from the network default. */
-  pupilsPerClass?: number;
+  /** Pupils enrolled, when the school differs from the network's size. */
+  pupils?: number;
   /** Children per dossier, when it differs from two apiece. */
   householdSize?: (familyIndex: number) => number;
 };
@@ -209,13 +234,17 @@ const PLANS: SchoolPlan[] = [
     cityCode: "OUJDA",
     cityName: "Oujda",
     variant: 0,
-    // The network default: 2 classes × 18 pupils × 12 levels = 432.
-    householdSize: oujdaHouseholdSize,
+    householdSize,
   },
-  // ALM-CASA has no plan on purpose — see the note at the top of this file. It
-  // is the configured-and-empty school, and it is configured by the same
-  // `configureSchool` this school gets, so the two cannot differ in their
-  // settings.
+  {
+    code: "ALM-CASA",
+    cityCode: "CASA",
+    cityName: "Casablanca",
+    // A different offset into the name pools, so the group's two schools do not
+    // turn out to hold the same four hundred people under different matricules.
+    variant: 1,
+    householdSize,
+  },
 ];
 
 /**
@@ -529,7 +558,7 @@ async function main() {
         `buildRoster`.
       */
       const roster = buildRoster({
-        cohorts: cohortsFor(plan.pupilsPerClass ?? PUPILS_PER_CLASS),
+        cohorts: cohortsFor(plan.pupils ?? PUPILS_PER_SCHOOL),
         cityCode: plan.cityCode,
         cityName: plan.cityName,
         // Only this town's quartiers: a Casablanca household does not live in
@@ -627,6 +656,7 @@ async function main() {
       const portal = await seedPortalAccounts(db, {
         organizationId: organization.id,
         schoolId: school.id,
+        schoolCode: school.code,
         schoolYearId: defaultYear.id,
         roles,
         password: ADMIN_PASSWORD,

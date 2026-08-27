@@ -63,7 +63,13 @@ services:
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-mizmar_school}
       MYSQL_USER: ${MYSQL_USER:-mizmar}
-      SEED_MODE: ${SEED_MODE:-config}
+      # SEED_MODE is deliberately NOT set here. A key in `environment:` beats the
+      # same key in `env_file:`, so listing it made `SEED_MODE` in .env.docker —
+      # the one place docker/env.example tells you to set it — silently do
+      # nothing, and every `up` re-seeded `config` whatever the file said. The
+      # default lives in docker/init.sh instead, which is the only thing that
+      # reads it. `docker compose run -e SEED_MODE=demo migrate` still overrides
+      # it for one run.
     depends_on:
       db:
         condition: service_healthy

@@ -159,6 +159,13 @@ export function buildRoster({
 
   const familyIndexForSlot = assignFamilies(slots.length, householdSize);
 
+  /*
+    The block of Massar serials this intake draws from — ten thousand apiece,
+    which no school's single year comes near. Keyed on the year rather than on a
+    counter so a re-seed of one year alone still lands on the same numbers.
+  */
+  const yearSerial = ((Number(yearLabel) || 2000) - 2000) * 10_000;
+
   const families: FamilySeed[] = [];
   const students: StudentSeed[] = [];
 
@@ -279,8 +286,14 @@ export function buildRoster({
         A Massar number as the ministry issues them: the AREF letter, then the
         province and a serial. Made up, but the right shape — the official lists
         are checked against it column by column, and a blank one is untestable.
+
+        The serial carries the intake's year as well as the pupil's place in it.
+        A Massar code is unique per school for life, and each year of the seed
+        builds its own roster — without the year in the number, September's first
+        pupil and last September's would claim the same one and the second write
+        would fail on `students_schoolId_massarCode_key`.
       */
-      massarCode: `${variant === 0 ? "J" : "R"}${String(130_000_000 + index + variant * 500_000)}`,
+      massarCode: `${variant === 0 ? "J" : "R"}${String(130_000_000 + yearSerial + index)}`,
     });
   }
 

@@ -294,6 +294,7 @@ export async function seedUsers(
   const passwordHash = await bcrypt.hash(adminPassword, 12);
   const schoolByCode = Object.fromEntries(schools.map((s) => [s.code, s]));
   const oujda = schoolByCode["ALM-OUJDA"];
+  const casa = schoolByCode["ALM-CASA"];
 
   await seedAdmin(db, {
     organizationId,
@@ -341,6 +342,37 @@ export async function seedUsers(
       birthDate: new Date("1988-11-30"),
       orgRole: null,
       memberships: [{ schoolId: oujda.id, role: "Secrétaire" }],
+    },
+    // Casablanca's own front desk. A second établissement that ran on Oujda's
+    // director would make every school-scoped permission read as though it were
+    // org-wide — the school switcher only means something when the two schools
+    // have different people in them.
+    {
+      email: "directeur.casablanca@almanar.ma",
+      firstName: "Nadia",
+      lastName: "Benjelloun",
+      jobFunction: "Directeur",
+      birthDate: new Date("1981-01-19"),
+      orgRole: null,
+      memberships: [{ schoolId: casa.id, role: "Directeur d'école" }],
+    },
+    {
+      email: "gestion1.casablanca@almanar.ma",
+      firstName: "Imane",
+      lastName: "Chraibi",
+      jobFunction: "Gestionnaire",
+      birthDate: new Date("1992-06-08"),
+      orgRole: null,
+      memberships: [{ schoolId: casa.id, role: "Secrétaire" }],
+    },
+    {
+      email: "gestion2.casablanca@almanar.ma",
+      firstName: "Othmane",
+      lastName: "Sqalli",
+      jobFunction: "Gestionnaire",
+      birthDate: new Date("1987-03-25"),
+      orgRole: null,
+      memberships: [{ schoolId: casa.id, role: "Secrétaire" }],
     },
   ];
 

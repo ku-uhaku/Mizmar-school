@@ -3,13 +3,13 @@ import { log, type SeedDb } from "@/prisma/seed/client";
 /**
  * The group's two établissements, both running the whole Moroccan cursus.
  *
- * They exist to be different in exactly one way, and it is the difference the
- * demonstration is about: Oujda is a school in its second term — a staff, four
- * hundred pupils, a timetable and a year of receipts — and Casablanca is the
- * same school on the day before it opens, fully configured and with nobody in
- * it yet. Which of the two gets populated is not decided here; `prisma/seed.ts`
- * declares a `SchoolPlan` for Oujda and none for Casablanca, and a school with
- * no plan is configured and left empty.
+ * Two rather than one because a group is what this app is for: everything
+ * school-scoped — a membership, a class list, a caisse, a price list — reads the
+ * same as an org-wide one until there is a second school to be absent from.
+ * Both are staffed and populated in their own town, each with two school years
+ * behind them. Which of them gets populated is not decided here; `prisma/seed.ts`
+ * declares a `SchoolPlan` per school, and a school with no plan is configured
+ * and left empty — the state `db:seed:config` lays for both.
  *
  * Casablanca is the group's own town — see `seedOrganization` — so the second
  * school is the siège's, which is also why its quartiers are the ones the
