@@ -137,6 +137,10 @@ const en = {
 
     // ── One paper ───────────────────────────────────────────────────────────
     editAssessment: "Edit assessment",
+    editAssessmentHint:
+      "While it is still a draft. Publishing tells the class what it sits and when \u2014 after that, take it back to draft to change it.",
+    editLocked:
+      "This assessment has been published. Take it back to draft before changing it.",
     saved: "Assessment saved.",
     deleted: "Assessment deleted.",
     deleteTitle: "Delete this assessment?",

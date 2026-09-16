@@ -74,6 +74,28 @@ export function acceptsMarks(status: string): boolean {
 }
 
 /**
+ * Whether the paper itself may still be rewritten — its title, its date, its
+ * barème and what it covers.
+ *
+ * DRAFT only, and that is what DRAFT is for. Publishing is the school telling a
+ * class what it sits and when; moving the date afterwards changes a fact thirty
+ * families have already written down, and re-weighting a paper marks are being
+ * entered against silently rescores work already marked. Both are
+ * announcements rather than edits, so they are refused here instead of made
+ * quietly.
+ *
+ * Nobody is stuck with a mistake: `setAssessmentStatus` takes a paper with no
+ * marks on it back to DRAFT, which is the deliberate step that reopens this
+ * form — and `cannotUnpublish` is the case where it will not.
+ *
+ * Checked in the action as well as by the screen that renders the form. A
+ * Server Function is reachable by direct POST, so hiding the card is not a gate.
+ */
+export function acceptsEdits(status: string): boolean {
+  return status === "DRAFT";
+}
+
+/**
  * The workflow read as "whose move is it", which is the question the office and
  * the teacher both actually open the screen with.
  *

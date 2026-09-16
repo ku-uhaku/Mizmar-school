@@ -25,7 +25,6 @@ import { seedSupplyLists } from "@/modules/supplies/seed";
 import { seedFamilies } from "@/modules/families/seed";
 import { SCHOOL_ROOMS } from "@/modules/facilities/presets";
 import { MOROCCAN_NEIGHBOURHOODS } from "@/modules/geography/presets";
-import { seedMassarDemo } from "@/modules/massar/seed";
 import { DEMO_ORGANIZATION, seedOrganization } from "@/modules/organization/seed";
 import { seedSchoolYears } from "@/modules/school-years/seed";
 import { seedSchools } from "@/modules/schools/seed";
@@ -669,18 +668,6 @@ async function main() {
       portalLogins.push(portal);
     }
   }
-
-  /*
-    The MASSAR demonstration, last and on its own.
-
-    A second establishment rather than a corner of Al Manar: `147610.xlsx` is a
-    real export from سما أدمين الخصوصية for 2022/2023, and the reconciliation
-    exists precisely to refuse a file that belongs to another school. Seeding its
-    twenty-six children into the demo school would defeat the thing being
-    demonstrated. The admin reaches it from the school switcher — org-wide reach
-    means no membership is needed.
-  */
-  await seedMassarDemo(db, organization.id);
 
   /*
     The dashboard asks for a username, not an email — see User.username — so the

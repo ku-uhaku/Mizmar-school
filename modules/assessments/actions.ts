@@ -31,6 +31,7 @@ import {
 import {
   MAX_APPRECIATION_BANDS,
   NOTES_MAX,
+  acceptsEdits,
 } from "@/modules/assessments/enums";
 import { devoirSchema } from "@/modules/classroom/validation";
 
@@ -319,6 +320,12 @@ export async function saveAssessmentAction(
     const id = field(formData, "id");
     const existing = await findScopedAssessment(schoolId, id);
     if (!existing) return failure(t.errors.notFound);
+
+    // The screen hides the form past DRAFT; this is what makes that a rule
+    // rather than a decoration, since the action is reachable by direct POST.
+    if (!acceptsEdits(existing.status)) {
+      return failure(t.assessment.editLocked);
+    }
 
     const parsed = assessmentSchema(t).safeParse({
       title: field(formData, "title"),

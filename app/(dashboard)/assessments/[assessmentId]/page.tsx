@@ -15,11 +15,12 @@ import { formatDate } from "@/lib/i18n/format";
 import { getDictionary, getLocale } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { StatusBadge } from "@/modules/assessments/components/assessments-manager";
+import { EditPaperCard } from "@/modules/assessments/components/edit-paper-card";
 import { MarkSheet } from "@/modules/assessments/components/mark-sheet";
 import { MassarCodeCard } from "@/modules/assessments/components/massar-code-card";
 import { PaperCard } from "@/modules/assessments/components/paper-card";
 import { PublishBar } from "@/modules/assessments/components/publish-bar";
-import { acceptsMarks } from "@/modules/assessments/enums";
+import { acceptsEdits, acceptsMarks } from "@/modules/assessments/enums";
 import { findMarkSheet } from "@/modules/assessments/queries";
 
 export const metadata: Metadata = { title: "Feuille de notes" };
@@ -52,6 +53,10 @@ export default async function AssessmentPage({
   if (!sheet) notFound();
 
   const { assessment } = sheet;
+
+  const canEdit =
+    context.can(PERMISSIONS.ASSESSMENT_MANAGE) &&
+    acceptsEdits(assessment.status);
 
   return (
     <>
@@ -94,10 +99,20 @@ export default async function AssessmentPage({
           isDevoir={sheet.isDevoir}
         />
 
+        {/* Correcting the paper itself — the date the office guessed in
+            September, the title, the barème, what it covers.
+
+            Gated twice, exactly as mark entry is below: ASSESSMENT_MANAGE says
+            whether this reader may ever rewrite a paper, and the paper's own
+            status says whether anybody may right now. Once published the class
+            has been told; PublishBar's step back to draft is what reopens it. */}
+        {canEdit ? <EditPaperCard assessment={assessment} /> : null}
+
         {/* What the paper covers — "leçon 3, p.42". Above the questions, since
             it is the thing the class was told and the questions are what came
-            of it. Absent rather than empty when nothing was written. */}
-        {assessment.notes ? (
+            of it. Absent rather than empty when nothing was written, and absent
+            while the form above is holding the same text in a box. */}
+        {assessment.notes && !canEdit ? (
           <Card className="gap-2 py-4">
             <CardHeader className="gap-1">
               <CardTitle className="text-base">

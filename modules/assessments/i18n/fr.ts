@@ -139,6 +139,10 @@ const fr = {
 
     // ── Un contrôle ─────────────────────────────────────────────────────────
     editAssessment: "Modifier le contrôle",
+    editAssessmentHint:
+      "Tant qu'il est au brouillon. La publication annonce à la classe ce qu'elle passe et quand \u2014 ensuite, repassez-le au brouillon pour le modifier.",
+    editLocked:
+      "Ce contrôle est publié. Repassez-le au brouillon avant de le modifier.",
     saved: "Contrôle enregistré.",
     deleted: "Contrôle supprimé.",
     deleteTitle: "Supprimer ce contrôle ?",
