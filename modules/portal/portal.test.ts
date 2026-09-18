@@ -336,6 +336,7 @@ describe("visibility gates", () => {
       studentId: "student-mine",
       schoolYearId: "year-1",
       student: { firstName: "Sara", lastName: "Alami" },
+      levelOffering: { level: { reportMaxScore: null } },
     };
 
     await portal.loadChildMarks(USER, "student-mine");
@@ -353,6 +354,7 @@ describe("visibility gates", () => {
       studentId: "student-mine",
       schoolYearId: "year-1",
       student: { firstName: "Sara", lastName: "Alami" },
+      levelOffering: { level: { reportMaxScore: null } },
     };
 
     await portal.loadChildMarks(USER, "student-mine");
@@ -379,6 +381,7 @@ describe("visibility gates", () => {
         lastName: "Alami",
         schoolId: "school-cent",
       },
+      levelOffering: { level: { reportMaxScore: null } },
     };
     answers["schoolSettings.findUnique"] = { gradingMaxScore: 100 };
     answers["assessmentGrade.findMany"] = [
@@ -402,6 +405,40 @@ describe("visibility gates", () => {
 
     // 8/10 of a hundred, which is what the school itself would say.
     expect(result).toMatchObject({ average: 80, outOf: 100 });
+  });
+
+  it("rebases onto the child's own niveau when it overrides the school's scale", async () => {
+    // The school marks out of 20 generally, but this child's niveau (a 1AP)
+    // writes its own report cards out of 10.
+    answers["enrollment.findFirst"] = {
+      id: "enrol-1",
+      studentId: "student-mine",
+      schoolYearId: "year-1",
+      student: { firstName: "Sara", lastName: "Alami", schoolId: "school-1" },
+      levelOffering: { level: { reportMaxScore: 10 } },
+    };
+    answers["schoolSettings.findUnique"] = { gradingMaxScore: 20 };
+    answers["assessmentGrade.findMany"] = [
+      {
+        id: "grade-1",
+        score: 16,
+        isAbsent: false,
+        comment: null,
+        assessment: {
+          title: "Contrôle 1",
+          scheduledOn: null,
+          maxScore: 20,
+          subject: { name: "Maths" },
+          assessmentType: { name: "Contrôle" },
+          term: { name: "Trimestre 1" },
+        },
+      },
+    ];
+
+    const result = await portal.loadChildMarks(USER, "student-mine");
+
+    // 16/20 rebased onto /10 is 8.
+    expect(result).toMatchObject({ average: 8, outOf: 10 });
   });
 
   it("falls back to the default scale for a child that is not this household's", async () => {

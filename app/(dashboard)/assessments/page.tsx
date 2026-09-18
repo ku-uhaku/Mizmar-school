@@ -15,6 +15,7 @@ import {
   listAssessableClasses,
   listAssessmentTypes,
   listAssessments,
+  listGradingRules,
   listTerms,
   loadProgrammesByClass,
 } from "@/modules/assessments/queries";
@@ -44,10 +45,11 @@ export default async function AssessmentsPage({
 
   const params = await searchParams;
 
-  const [classes, terms, types, programmes] = await Promise.all([
+  const [classes, terms, types, gradingRules, programmes] = await Promise.all([
     listAssessableClasses(context),
     listTerms(context),
     listAssessmentTypes(context),
+    listGradingRules(context),
     // Every class's marked subjects, so the generator's picker fills in the
     // moment a class is chosen rather than after a round trip.
     loadProgrammesByClass(context),
@@ -114,6 +116,7 @@ export default async function AssessmentsPage({
         classes={classes}
         terms={terms}
         types={types}
+        gradingRules={gradingRules}
         programmes={programmes}
         classId={selectedClass?.id ?? null}
         termId={selectedTerm?.id ?? null}

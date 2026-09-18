@@ -71,6 +71,7 @@ model AssessmentType {
   updatedAt DateTime @updatedAt
 
   assessments Assessment[]
+  gradingRules GradingRule[]
 
   @@unique([schoolId, code])
   @@index([schoolId])

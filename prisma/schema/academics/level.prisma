@@ -35,6 +35,23 @@ model Level {
   /// Drives progression ("who moves up to what") without parsing `code`.
   gradeYear Int
 
+  /// The scale this niveau's averages and bulletins are expressed on, when it
+  /// is not the school's.
+  ///
+  /// Distinct from a paper's own barème: a 1AP contrôle may be set out of 10
+  /// and a devoir out of 20 — see GradingRule — and both are rebased onto
+  /// *this* before they are averaged. Null falls back to
+  /// `SchoolSettings.gradingMaxScore`, which defaults to 20 — so a school that
+  /// has said nothing behaves exactly as it did before this column existed.
+  ///
+  /// Per niveau and not per matière: an average across subjects has to be on
+  /// one scale or it means nothing.
+  ///
+  /// Changing it does not restate a published bulletin — `Bulletin.outOf`
+  /// froze the figure it was computed on. It decides what the *next*
+  /// computation produces.
+  reportMaxScore Int?
+
   position Int     @default(0)
   isActive Boolean @default(true)
 
@@ -49,6 +66,8 @@ model Level {
   teacherSubjects TeacherSubjectLevel[]
   /// Per-level pricing, e.g. scolarité is dearer at 2BAC than at 1AP.
   feeRates        FeeRate[]
+  /// Barèmes set for this niveau — see GradingRule.
+  gradingRules    GradingRule[]
   /// Events aimed at this level rather than at the whole school.
   eventAudiences  EventAudience[]
 

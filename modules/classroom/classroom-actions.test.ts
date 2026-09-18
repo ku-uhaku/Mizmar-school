@@ -92,6 +92,17 @@ vi.mock("@/lib/db", () => ({
         return {};
       },
     },
+    classSession: {
+      // No séance in this fixture has been closed, so every save is allowed.
+      findUnique: async () => null,
+      upsert: async () => ({ id: "session-1" }),
+      updateMany: async () => ({ count: 1 }),
+    },
+    timetableEntry: {
+      // The grid cell the séance was planned from. None here: these fixtures
+      // are about who may write, not about what the timetable says.
+      findFirst: async () => null,
+    },
     studentRemark: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
         remarksWritten.push(data);
@@ -194,7 +205,7 @@ vi.mock("next/cache", () => ({ refresh: () => {} }));
 const {
   deleteRemarkAction,
   justifyAbsenceAction,
-  saveRegisterAction,
+  saveSessionAction,
   saveRemarkAction,
 } = await import("@/modules/classroom/actions");
 
@@ -224,7 +235,9 @@ function registerForm(extra: Record<string, string> = {}) {
   form.set("timeSlotId", "slot-1");
   form.set("date", "2026-01-15");
   form.append("enrollmentId", "enrol-1");
-  form.append("status", "PRESENT");
+  // A pupil who was away. Presence writes no row, so a PRESENT fixture would
+  // leave every assertion about the write with nothing to look at.
+  form.append("status", "ABSENT");
   form.append("minutesLate", "");
   form.append("reason", "");
   for (const [key, value] of Object.entries(extra)) form.set(key, value);
@@ -259,10 +272,10 @@ beforeEach(() => {
 
 // ── The register ─────────────────────────────────────────────────────────────
 
-describe("saveRegisterAction", () => {
+describe("saveSessionAction", () => {
   it("asks for the marking code before reading anything", async () => {
     granted.clear();
-    const state = await saveRegisterAction(IDLE, registerForm());
+    const state = await saveSessionAction(IDLE, registerForm());
 
     expect(asked).toEqual([PERMISSIONS.CLASSROOM_ATTENDANCE_MARK]);
     expect(state.status).toBe("error");
@@ -270,13 +283,13 @@ describe("saveRegisterAction", () => {
   });
 
   it("takes the register for the teacher's own class", async () => {
-    const state = await saveRegisterAction(IDLE, registerForm());
+    const state = await saveSessionAction(IDLE, registerForm());
     expect(state.status).toBe("success");
     expect(registerWrites).toHaveLength(1);
   });
 
   it("refuses a class the teacher does not teach", async () => {
-    const state = await saveRegisterAction(
+    const state = await saveSessionAction(
       IDLE,
       registerForm({ schoolClassId: "class-2" }),
     );
@@ -291,7 +304,7 @@ describe("saveRegisterAction", () => {
     // class the actor does not teach — a code whose own doc comment already
     // says it is an office decision.
     asOffice();
-    const state = await saveRegisterAction(
+    const state = await saveSessionAction(
       IDLE,
       registerForm({ schoolClassId: "class-1" }),
     );
@@ -301,7 +314,7 @@ describe("saveRegisterAction", () => {
   it("does not let the marking code alone stand in for a colleague", async () => {
     // Which is the difference between a teacher and the office: holding
     // `attendanceMark` marks your own classes and nobody else's.
-    const state = await saveRegisterAction(
+    const state = await saveSessionAction(
       IDLE,
       registerForm({ schoolClassId: "class-2" }),
     );
@@ -311,20 +324,21 @@ describe("saveRegisterAction", () => {
   it("records the teacher from the session, never from the form", async () => {
     const form = registerForm();
     form.set("teacherId", "somebody-else");
-    await saveRegisterAction(IDLE, form);
+    await saveSessionAction(IDLE, form);
 
     expect(registerWrites[0]!["recordedById"]).toBe(TEACHER);
   });
 
-  it("falls back to PRESENT for a status the client invented", async () => {
-    // The column is an enum by convention only, so anything unrecognised is
-    // written as present rather than through.
+  it("reads a status the client invented as present", async () => {
+    // The column is an enum by convention only, so anything unrecognised falls
+    // back to present rather than being written through — which now means no
+    // row is written for that pupil at all.
     const form = registerForm();
     form.delete("status");
     form.append("status", "TRUANT");
-    await saveRegisterAction(IDLE, form);
+    await saveSessionAction(IDLE, form);
 
-    expect(registerWrites[0]!["status"]).toBe("PRESENT");
+    expect(registerWrites).toEqual([]);
   });
 
   it("refuses a register whose columns do not line up", async () => {
@@ -332,14 +346,14 @@ describe("saveRegisterAction", () => {
     // shift every status below it onto the wrong child.
     const form = registerForm();
     form.append("enrollmentId", "enrol-2");
-    const state = await saveRegisterAction(IDLE, form);
+    const state = await saveSessionAction(IDLE, form);
 
     expect(state.status).toBe("error");
     expect(registerWrites).toEqual([]);
   });
 
   it("refuses a date it cannot read", async () => {
-    const state = await saveRegisterAction(
+    const state = await saveSessionAction(
       IDLE,
       registerForm({ date: "not-a-date" }),
     );
@@ -349,7 +363,7 @@ describe("saveRegisterAction", () => {
 
   it("reads the whole-day sentinel as no period at all", async () => {
     const form = registerForm({ timeSlotId: "__none__", subjectId: "" });
-    await saveRegisterAction(IDLE, form);
+    await saveSessionAction(IDLE, form);
     expect(registerWrites[0]).toMatchObject({
       timeSlotId: null,
       subjectId: null,

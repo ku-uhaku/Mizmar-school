@@ -103,6 +103,7 @@ const fr = {
       parents: "Espace parents",
       week: "La semaine scolaire",
       bell: "La sonnerie",
+      marks: "Notation",
     },
 
     resources: {
@@ -123,6 +124,8 @@ const fr = {
       subjects: "Matières",
       programme: "Programme",
       assessmentTypes: "Types de contrôle",
+      gradingRules: "Barèmes de notation",
+      gradingScale: "Échelle de notation",
       rooms: "Salles",
       cities: "Villes",
       neighbourhoods: "Quartiers",
@@ -189,11 +192,16 @@ const fr = {
       subject: "Matière",
       parentSubject: "Matière parente",
       gradeYear: "Année du cycle",
+      reportMaxScore: "Bulletins notés sur",
       defaultCoefficient: "Poids par défaut",
       defaultMaxScore: "Noté sur",
       countsTowardAverage: "Compte dans la moyenne",
       gradesWholeSubject: "Porte sur la matière entière",
       allowTeacherCreate: "Les enseignants peuvent en donner",
+      assessmentType: "Type de contrôle",
+      maxScore: "Noté sur",
+      gradingMaxScore: "Échelle de l'établissement",
+      passMarkBps: "Note de passage",
       supplyCategory: "Famille",
       defaultQuantity: "Quantit\u00e9 habituelle",
       supplyArticleNotes: "D\u00e9tail",
@@ -336,6 +344,19 @@ const fr = {
         "Les notes sont sur 20 au Maroc, mais un oral ou un TP est souvent sur 10.",
       countsTowardAverage:
         "À désactiver pour un travail noté et montré à la famille mais qui ne doit jamais peser sur la moyenne.",
+      reportMaxScore:
+        "L’échelle sur laquelle les moyennes et les bulletins de ce niveau sont exprimés. Laisser vide pour celle de l’établissement.",
+      gradingRuleLevel: "Laisser vide pour s’appliquer à tous les niveaux.",
+      gradingRuleSubject:
+        "Laisser vide pour s’appliquer à toutes les matières du niveau.",
+      gradingRuleMaxScore:
+        "Ce sur quoi un nouveau contrôle de ce type est noté à partir d’ici. Ne renote pas une série déjà passée — voir la note sur GradingRule.",
+      gradingRuleCoefficient:
+        "Laisser vide pour garder le poids propre au type.",
+      gradingMaxScore:
+        "Sur quoi l’établissement note quand un niveau n’a rien précisé.",
+      passMarkBps:
+        "En part de l’échelle ci-dessus : 50 fait de 10/20, ou de 10/10, une réussite.",
       position: "Le plus petit s'affiche en premier.",
       massarCode:
         "Le code correspondant dans MASSAR. Laissez vide tant qu'il n'est pas rattaché.",

@@ -2,8 +2,13 @@ import {
   DEFAULT_APPRECIATION_BANDS,
   assessmentScopeKey,
   defaultAssessmentTitle,
+  gradingDefaults,
+  gradingRuleScopeKey,
 } from "@/modules/assessments/enums";
-import { ASSESSMENT_TYPE_SEEDS } from "@/modules/assessments/presets";
+import {
+  ASSESSMENT_TYPE_SEEDS,
+  GRADING_RULE_SEEDS,
+} from "@/modules/assessments/presets";
 import { LIVE_ENROLMENT_STATUSES } from "@/modules/enrolment/enums";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
@@ -54,6 +59,68 @@ export async function seedAssessmentTypes(
 
   log("assessment types", idByCode.size);
   return idByCode;
+}
+
+/**
+ * This year's barèmes — see `GRADING_RULE_SEEDS` and GradingRule.
+ *
+ * A level or subject the school does not run is skipped rather than refused,
+ * exactly as `seedFeeRatesAndDiscounts` skips a level-specific price for a
+ * level the school does not offer: the catalogue is shared across schools with
+ * different cursus, and a rung naming a niveau nobody has is not an error.
+ *
+ * Idempotent: upserts on `(schoolYearId, assessmentTypeId, scopeKey)`.
+ */
+export async function seedGradingRules(
+  db: SeedDb,
+  {
+    schoolYearId,
+    typeIdByCode,
+    levelIdByCode,
+    subjectIdByCode,
+  }: {
+    schoolYearId: string;
+    typeIdByCode: Map<string, string>;
+    levelIdByCode: Record<string, string>;
+    subjectIdByCode: Record<string, string>;
+  },
+): Promise<number> {
+  let written = 0;
+
+  for (const seed of GRADING_RULE_SEEDS) {
+    const assessmentTypeId = typeIdByCode.get(seed.typeCode);
+    if (!assessmentTypeId) continue;
+
+    const levelId = seed.levelCode ? (levelIdByCode[seed.levelCode] ?? null) : null;
+    if (seed.levelCode && !levelId) continue;
+    const subjectId = seed.subjectCode ? (subjectIdByCode[seed.subjectCode] ?? null) : null;
+    if (seed.subjectCode && !subjectId) continue;
+
+    const scopeKey = gradingRuleScopeKey(levelId, subjectId);
+    await db.gradingRule.upsert({
+      where: {
+        schoolYearId_assessmentTypeId_scopeKey: {
+          schoolYearId,
+          assessmentTypeId,
+          scopeKey,
+        },
+      },
+      update: { maxScore: seed.maxScore, coefficient: seed.coefficient },
+      create: {
+        schoolYearId,
+        assessmentTypeId,
+        levelId,
+        subjectId,
+        maxScore: seed.maxScore,
+        coefficient: seed.coefficient,
+        scopeKey,
+      },
+    });
+    written += 1;
+  }
+
+  log("grading rules", written);
+  return written;
 }
 
 /**
@@ -171,7 +238,7 @@ export async function seedAssessments(
   const terms = await db.term.findMany({
     where: { id: { in: input.termIds } },
     orderBy: { number: "asc" },
-    select: { id: true, startDate: true, endDate: true },
+    select: { id: true, startDate: true, endDate: true, schoolYearId: true },
   });
   if (terms.length === 0) return { papers: 0, grades: 0 };
 
@@ -187,10 +254,25 @@ export async function seedAssessments(
   });
   const typeById = new Map(types.map((type) => [type.id, type]));
 
+  // One query for every class's own niveau, and one for the year's barèmes —
+  // not a lookup per paper. See `gradingDefaults`.
+  const classRows = await db.schoolClass.findMany({
+    where: { id: { in: input.classes.map((schoolClass) => schoolClass.id) } },
+    select: { id: true, levelOffering: { select: { levelId: true } } },
+  });
+  const levelIdByClass = new Map(
+    classRows.map((row) => [row.id, row.levelOffering.levelId]),
+  );
+  const gradingRules = await db.gradingRule.findMany({
+    where: { schoolYearId: terms[0]!.schoolYearId, isActive: true },
+    select: { assessmentTypeId: true, scopeKey: true, maxScore: true, coefficient: true },
+  });
+
   let papers = 0;
   let grades = 0;
 
   for (const schoolClass of input.classes) {
+    const levelId = levelIdByClass.get(schoolClass.id) ?? null;
     const roster = await db.enrollment.findMany({
       where: {
         schoolClassId: schoolClass.id,
@@ -218,6 +300,13 @@ export async function seedAssessments(
 
           const scopeKey = assessmentScopeKey(null);
           const scheduledOn = dayWithin(term.startDate, term.endDate, plan.at);
+          // The niveau's own barème when one is set, the kind's own default
+          // otherwise — see GradingRule.
+          const scale = gradingDefaults(
+            gradingRules,
+            { assessmentTypeId, levelId, subjectId },
+            type,
+          );
 
           const paper = await db.assessment.upsert({
             where: {
@@ -231,6 +320,8 @@ export async function seedAssessments(
                   scopeKey,
                 },
             },
+            // Never `maxScore` here: a re-seed must not rescore a paper
+            // already sat, exactly as a live rule change never rescores one.
             update: { scheduledOn, teacherId, status: "GRADED" },
             create: {
               schoolId: input.schoolId,
@@ -242,10 +333,10 @@ export async function seedAssessments(
               sequence: plan.sequence,
               title: defaultAssessmentTitle(type.name, plan.sequence),
               scheduledOn,
-              // Copied from the type, never read through it — see the note on
-              // the columns.
-              maxScore: type.defaultMaxScore,
-              coefficient: type.defaultCoefficient,
+              // Copied from the resolved scale, never read through it — see
+              // the note on the columns.
+              maxScore: scale.maxScore,
+              coefficient: scale.coefficient,
               countsTowardAverage: type.countsTowardAverage,
               status: "GRADED",
               teacherId,

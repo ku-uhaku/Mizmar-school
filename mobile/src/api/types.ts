@@ -373,6 +373,8 @@ export type TeachingSlot = {
   classCode: string;
   className: string | null;
   levelLabel: string;
+  /** The niveau, for resolving a kind's barème — see `gradingDefaults`. */
+  levelId: string;
   classGroupId: string | null;
   groupLabel: string | null;
   subjectId: string;
@@ -382,11 +384,23 @@ export type TeachingSlot = {
   rosterCount: number;
 };
 
+/**
+ * What one kind of paper is marked out of at one niveau, optionally one
+ * matière. Mirrors `GradingRuleRow` in modules/assessments/enums.ts.
+ */
+export type GradingRule = {
+  assessmentTypeId: string;
+  scopeKey: string;
+  maxScore: number;
+  coefficient: number | null;
+};
+
 /** Everything the "set a piece of work" form offers, in one call. */
 export type AssessmentOptions = {
   types: AssessmentTypeOption[];
   terms: TermOption[];
   teaching: TeachingSlot[];
+  gradingRules: GradingRule[];
 };
 
 // ── Le carnet, vu par son auteur ─────────────────────────────────────────────

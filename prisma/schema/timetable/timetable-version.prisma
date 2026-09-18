@@ -1,0 +1,52 @@
+/// A complete snapshot of one bell schedule's grid — every TimetableEntry in
+/// force for one (schoolYearId, scheduleKind) at one point in time.
+///
+/// A version is not a diff against the previous one — generating always
+/// produces a full, self-contained copy of every entry the grid holds, carried
+/// forward rows and freshly generated rows alike. Reverting is then a single
+/// flip of which version is ACTIVE, never a replay of edits.
+model TimetableVersion {
+  id           String     @id @default(cuid()) @db.VarChar(30)
+  schoolYearId String     @db.VarChar(30)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  /// "STANDARD" | "RAMADAN" — see SCHEDULE_KINDS in modules/timetable/enums.ts.
+  scheduleKind String
+
+  /// "ACTIVE" | "ARCHIVED" — see TIMETABLE_VERSION_STATUSES in
+  /// modules/timetable/enums.ts.
+  status String @default("ACTIVE")
+
+  /// `${schoolYearId}:${scheduleKind}` while ACTIVE, else null.
+  ///
+  /// MySQL treats NULLs as distinct in a unique index, so "only one ACTIVE
+  /// version per scope" cannot be a partial unique index. This mirrors the
+  /// `TimetableEntry.bookingKey` trick: the unique index is on this column
+  /// alone, so two ACTIVE versions of the same scope collide on it and an
+  /// ARCHIVED version never collides with anything.
+  ///
+  /// INVARIANT: always `activeVersionKeyOf(schoolYearId, scheduleKind)` while
+  /// status is ACTIVE, null the instant it is archived. Never set by hand
+  /// outside `activateTimetableVersion`/`writeTimetableDraft`.
+  activeKey String? @db.VarChar(80)
+
+  /// Free text for the version-history list — "Generated: 3AP-A, 3AP-B".
+  label String? @db.VarChar(200)
+
+  /// The generator seed that produced this version. Null for the backfilled
+  /// version holding pre-existing rows, and null for a version that exists
+  /// only because of a revert.
+  seed Int?
+
+  createdById String? @db.VarChar(30)
+  createdBy   User?   @relation("TimetableVersionAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries TimetableEntry[]
+
+  @@unique([activeKey])
+  @@index([schoolYearId, scheduleKind])
+  @@map("timetable_versions")
+}

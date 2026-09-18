@@ -3,6 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { PERMISSIONS } from "@/lib/permissions";
+import { gradingScaleOf } from "@/lib/school-settings";
 import { toDateInputValue } from "@/lib/utils";
 import { currentSchoolId, schoolScope, yearScope } from "@/lib/scope";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
@@ -20,6 +21,7 @@ import {
   questionsTotal,
   statusesForStage,
   type AppreciationBandRow,
+  type GradingRuleRow,
   type MarkStatistics,
 } from "@/modules/assessments/enums";
 
@@ -90,6 +92,21 @@ export async function listAssessmentTypes(
   }));
 }
 
+/**
+ * This year's barèmes, for resolving a kind's scale client-side — see
+ * `gradingDefaults`. The server re-resolves independently on write
+ * (`generateAssessments`), so this is a display default only; a crafted post
+ * cannot use it to set a barème the class's own niveau does not carry.
+ */
+export async function listGradingRules(
+  context: AuthContext,
+): Promise<GradingRuleRow[]> {
+  return db.gradingRule.findMany({
+    where: { ...yearScope(context), isActive: true },
+    select: { assessmentTypeId: true, scopeKey: true, maxScore: true, coefficient: true },
+  });
+}
+
 export type TermOption = {
   id: string;
   number: number;
@@ -128,6 +145,8 @@ export type ClassOption = {
   cycleName: string;
   /** Which level offering it belongs to — what the "a level" scope groups on. */
   levelOfferingId: string;
+  /** The niveau itself, for resolving the kind's barème — see `gradingDefaults`. */
+  levelId: string;
 };
 
 /** The classes of the year, for the picker and the generator. */
@@ -165,6 +184,7 @@ export async function listAssessableClasses(
         select: {
           level: {
             select: {
+              id: true,
               code: true,
               name: true,
               nameAr: true,
@@ -192,6 +212,7 @@ export async function listAssessableClasses(
     ),
     cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
     levelOfferingId: schoolClass.levelOfferingId,
+    levelId: schoolClass.levelOffering.level.id,
   }));
 }
 
@@ -202,6 +223,8 @@ export type DevoirTarget = {
   classCode: string;
   cycleName: string;
   levelNameLabel: string;
+  /** The niveau, for resolving the kind's barème — see `gradingDefaults`. */
+  levelId: string;
   subjectId: string;
   /** The matière in both languages. */
   subjectLabel: string;
@@ -281,6 +304,7 @@ export async function listDevoirTargets(
             select: {
               level: {
                 select: {
+                  id: true,
                   code: true,
                   name: true,
                   nameAr: true,
@@ -311,6 +335,7 @@ export async function listDevoirTargets(
       classCode: assignment.schoolClass.code,
       cycleName: cycleChoiceLabel(offering.level.educationLevel),
       levelNameLabel: levelNameLabel(offering.level, offering.track),
+      levelId: offering.level.id,
       subjectId: assignment.subject.id,
       subjectLabel: bilingual(
         assignment.subject.name,
@@ -1023,6 +1048,13 @@ export type MarkSheet = {
      * `massarCode` on Assessment and the ASSESSMENT_IDENTITY check.
      */
     massarCode: string | null;
+    /**
+     * The scale the class's own niveau reports on — see `Level.reportMaxScore`.
+     * Distinct from `maxScore` above, which is this paper's own: the sheet
+     * shows the school's pass threshold on the *reporting* scale beside the
+     * pass rate for *this* paper.
+     */
+    reportMaxScore: number | null;
   };
   rows: MarkRow[];
   statistics: MarkStatistics;
@@ -1158,7 +1190,13 @@ export async function findMarkSheet(
           allowTeacherCreate: true,
         },
       },
-      schoolClass: { select: { id: true, code: true } },
+      schoolClass: {
+        select: {
+          id: true,
+          code: true,
+          levelOffering: { select: { level: { select: { reportMaxScore: true } } } },
+        },
+      },
       classGroup: { select: { code: true, name: true } },
       term: { select: { id: true, name: true, nameAr: true } },
       questions: {
@@ -1251,6 +1289,7 @@ export async function findMarkSheet(
       countsTowardAverage: assessment.countsTowardAverage,
       notes: assessment.notes,
       massarCode: assessment.massarCode,
+      reportMaxScore: assessment.schoolClass.levelOffering.level.reportMaxScore,
       subjectId: assessment.subject.id,
       subjectName: assessment.subject.name,
       subjectLabel: bilingual(assessment.subject.name, assessment.subject.nameAr),
@@ -1392,7 +1431,7 @@ export type PupilMarks = {
   subjects: PupilSubjectMarks[];
   /** Weighted by each subject's programme coefficient. Null when empty. */
   overall: number | null;
-  /** The scale everything above is expressed on — the school's. */
+  /** The scale everything above is expressed on — the niveau's, or the school's. */
   outOf: number;
   markedCount: number;
 };
@@ -1423,8 +1462,6 @@ export async function loadPupilMarks(
   context: AuthContext,
   enrollmentId: string,
 ): Promise<PupilMarks> {
-  const outOf = context.settings.gradingMaxScore;
-
   const grades = await db.assessmentGrade.findMany({
     where: {
       enrollmentId,
@@ -1456,6 +1493,7 @@ export async function loadPupilMarks(
           trackId: true,
           level: {
             select: {
+              reportMaxScore: true,
               subjects: {
                 select: { subjectId: true, coefficient: true, trackId: true },
               },
@@ -1465,6 +1503,11 @@ export async function loadPupilMarks(
       },
     },
   });
+
+  const outOf = gradingScaleOf(
+    context.settings,
+    enrolment?.levelOffering.level.reportMaxScore ?? null,
+  ).outOf;
 
   // A track-specific weight wins over the level-wide one for that track. Read
   // through the same resolver the programme and the picker use — done inline
@@ -1604,52 +1647,63 @@ export async function loadClassTermMarks(
   schoolClassId: string,
   termId: string,
 ): Promise<ClassTermMark[]> {
-  const outOf = context.settings.gradingMaxScore;
+  // One query for the class's own niveau, run alongside the marks rather than
+  // once per pupil — see `gradingScaleOf`.
+  const [grades, schoolClass] = await Promise.all([
+    db.assessmentGrade.findMany({
+      where: {
+        isAbsent: false,
+        score: { not: null },
+        // The term id comes from the request; the school does not.
+        assessment: {
+          ...schoolScope(context),
+          termId,
+          status: { in: [...COUNTED_STATUSES] },
+          countsTowardAverage: true,
+        },
+        /*
+          Scoped by the *roster*, not by whose class the paper belongs to.
 
-  const grades = await db.assessmentGrade.findMany({
-    where: {
-      isAbsent: false,
-      score: { not: null },
-      // The term id comes from the request; the school does not.
-      assessment: {
-        ...schoolScope(context),
-        termId,
-        status: { in: [...COUNTED_STATUSES] },
-        countsTowardAverage: true,
+          The two are the same thing for every pupil who has not moved. For one
+          who has, they are not: `carryGradesToClass` re-points what it can onto
+          the new class's equivalent papers, but a mark whose paper the new class
+          never set stays behind, and reading by `assessment.schoolClassId` would
+          drop it — the pupil would be ranked, and their report card computed, on
+          a term that begins the day they arrived.
+
+          The other direction falls out of the same rule: a pupil who has left
+          stops counting toward this class's spread. Their bulletin is computed
+          where they now sit, so counting them here as well would rank them
+          twice, against two different cohorts.
+        */
+        enrollment: { schoolYear: schoolScope(context), schoolClassId },
       },
-      /*
-        Scoped by the *roster*, not by whose class the paper belongs to.
-
-        The two are the same thing for every pupil who has not moved. For one
-        who has, they are not: `carryGradesToClass` re-points what it can onto
-        the new class's equivalent papers, but a mark whose paper the new class
-        never set stays behind, and reading by `assessment.schoolClassId` would
-        drop it — the pupil would be ranked, and their report card computed, on
-        a term that begins the day they arrived.
-
-        The other direction falls out of the same rule: a pupil who has left
-        stops counting toward this class's spread. Their bulletin is computed
-        where they now sit, so counting them here as well would rank them
-        twice, against two different cohorts.
-      */
-      enrollment: { schoolYear: schoolScope(context), schoolClassId },
-    },
-    select: {
-      enrollmentId: true,
-      score: true,
-      assessment: {
-        select: {
-          subjectId: true,
-          maxScore: true,
-          coefficient: true,
-          // Only to recognise one paper sat twice — see below.
-          schoolClassId: true,
-          assessmentTypeId: true,
-          sequence: true,
+      select: {
+        enrollmentId: true,
+        score: true,
+        assessment: {
+          select: {
+            subjectId: true,
+            maxScore: true,
+            coefficient: true,
+            // Only to recognise one paper sat twice — see below.
+            schoolClassId: true,
+            assessmentTypeId: true,
+            sequence: true,
+          },
         },
       },
-    },
-  });
+    }),
+    db.schoolClass.findFirst({
+      where: { id: schoolClassId, ...schoolScope(context) },
+      select: { levelOffering: { select: { level: { select: { reportMaxScore: true } } } } },
+    }),
+  ]);
+
+  const outOf = gradingScaleOf(
+    context.settings,
+    schoolClass?.levelOffering.level.reportMaxScore ?? null,
+  ).outOf;
 
   /*
     One mark per paper per pupil.

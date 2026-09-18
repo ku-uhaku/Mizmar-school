@@ -1,0 +1,104 @@
+/// Une séance: one lesson that actually happened, and what was taught in it.
+///
+/// ── Why this exists when the timetable already says what is on ──────────────
+/// The timetable is a plan — a fact about a *week*, rewritten whenever the grid
+/// is regenerated. A séance is a fact about a *day*: it happened, somebody took
+/// it, a theme was covered and work was set. Deriving it from the grid was
+/// enough while the only question was "who was in the room"; it stops being
+/// enough the moment anything has to be written down about the lesson itself,
+/// because there is nowhere in a recurring cell to put it.
+///
+/// So the grid is still where a séance comes from — `timetableEntryId` records
+/// which cell planned it — but the row outlives that cell. Regenerating the
+/// timetable archives the entry and leaves the séance untouched, which is why
+/// the reference is SetNull rather than Cascade.
+///
+/// ── It is also the register's unit ──────────────────────────────────────────
+/// `StudentAttendance` hangs off this row, and `closedAt` is what makes a
+/// register final: the marks are written while the séance is open, and closing
+/// it is the deliberate act that says the appel is done. Only the office may
+/// reopen one. Before this, the same lock lived on every individual mark, which
+/// could not tell "the teacher is still tapping through the class" apart from
+/// "the register is finished".
+model ClassSession {
+  id            String      @id @default(cuid()) @db.VarChar(30)
+  schoolClassId String      @db.VarChar(30)
+  schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
+
+  /// Set when only one half of a split class sat it. Null = the whole class.
+  classGroupId String?     @db.VarChar(30)
+  classGroup   ClassGroup? @relation(fields: [classGroupId], references: [id], onDelete: SetNull)
+
+  /// The grid cell this séance was planned from, when there was one.
+  ///
+  /// SetNull, deliberately: a séance outlives the version of the timetable that
+  /// planned it, and a regenerated grid must not delete last month's lessons.
+  timetableEntryId String?         @db.VarChar(30)
+  timetableEntry   TimetableEntry? @relation(fields: [timetableEntryId], references: [id], onDelete: SetNull)
+
+  /// The period of the bell schedule. Null = the whole day, which is how a
+  /// primary teacher holding the class all morning records one.
+  timeSlotId String?   @db.VarChar(30)
+  timeSlot   TimeSlot? @relation(fields: [timeSlotId], references: [id], onDelete: SetNull)
+
+  /// Midnight of the day it was held — the time of day is carried by the slot,
+  /// exactly as on StudentAttendance, so two reads of one day compare equal.
+  date DateTime
+
+  /// What was taught. Null for a whole-day séance, which belongs to no subject.
+  subjectId String?  @db.VarChar(30)
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  /// Who actually took it — which is not always who the grid planned, since a
+  /// stand-in covering an absent colleague records the séance in their own name.
+  teacherId String? @db.VarChar(30)
+  teacher   User?   @relation("ClassSessionTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+
+  /// The cahier de textes: what was covered, and the work set for next time.
+  /// Free text — there is no chapter or objective catalogue below Subject to
+  /// point at, and a school's progression is its own.
+  theme    String? @db.Text
+  homework String? @db.Text
+
+  /// "HELD" | "CANCELLED" — see modules/classroom/enums.ts
+  ///
+  /// A cancelled séance is kept rather than deleted: "no lesson this Tuesday"
+  /// is itself something the class file has to be able to say, and deleting the
+  /// row would make it indistinguishable from a lesson nobody recorded.
+  status String @default("HELD")
+
+  /// Set when the register is saved, and what makes the marks final. Null means
+  /// the séance is still open — a teacher marking pupil by pupil on the phone
+  /// leaves it open until the appel is finished.
+  closedAt   DateTime?
+  closedById String?   @db.VarChar(30)
+  closedBy   User?     @relation("ClassSessionClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+
+  attendance StudentAttendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Mirrors the two nullable columns that make a séance unique within a day, so
+  /// the index below actually fires. MySQL treats NULLs as distinct, and the
+  /// commonest séance of all — whole class, one period — has a null group.
+  ///
+  /// The group is in the key because two halves of one class can legitimately
+  /// sit different subjects in the same period; the slot is in it because a
+  /// whole-day séance and a period one are different records of different
+  /// things.
+  ///
+  /// INVARIANT: always `sessionScopeKey(timeSlotId, classGroupId)` from
+  /// modules/classroom/enums.ts. Never set it by hand. See lib/db-keys.ts.
+  scopeKey String @db.VarChar(80)
+
+  @@unique([schoolClassId, date, scopeKey])
+  @@index([schoolClassId, date])
+  @@index([classGroupId])
+  @@index([timetableEntryId])
+  @@index([timeSlotId])
+  @@index([subjectId])
+  @@index([teacherId])
+  @@index([closedById])
+  @@map("class_sessions")
+}

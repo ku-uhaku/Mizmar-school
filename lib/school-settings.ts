@@ -171,17 +171,55 @@ function stripNullish(
 
 // ── Notation ────────────────────────────────────────────────────────────────
 
+/** The scale a set of marks is expressed on, and what a pass is on it. */
+export type GradingScale = {
+  /** What every mark and every average is rebased onto. */
+  outOf: number;
+  passMarkBps: number;
+  /** The score at or above which it is a pass, on `outOf`. */
+  passMark: number;
+};
+
+/**
+ * The school's scale, unless the niveau overrides it.
+ *
+ * Takes the override as a bare `Int | null` rather than a Level row: this file
+ * is imported from the browser and from `lib/dal.ts`, and reaching a niveau
+ * from here would mean `lib/` importing a module's queries, which the layering
+ * forbids. Every caller already holds the niveau — see `Level.reportMaxScore`.
+ *
+ * A null or nonsensical override falls back rather than throwing: the setting
+ * is what is wrong, not the bulletin somebody is computing. Same reasoning as
+ * `usableCodeFormat` above.
+ *
+ * Rounded to two decimals rather than left as a float: `passMark` is shown to
+ * teachers ("pass mark: 10") and comparing against 9.999999 would fail a mark
+ * of 10.
+ */
+export function gradingScaleOf(
+  settings: SchoolSettingsValues,
+  reportMaxScore: number | null | undefined,
+): GradingScale {
+  const outOf =
+    reportMaxScore !== null && reportMaxScore !== undefined && reportMaxScore > 0
+      ? reportMaxScore
+      : settings.gradingMaxScore;
+
+  return {
+    outOf,
+    passMarkBps: settings.passMarkBps,
+    passMark: Math.round(((outOf * settings.passMarkBps) / 10_000) * 100) / 100,
+  };
+}
+
 /**
  * The score at or above which a paper is passed, on this school's scale.
  *
- * Rounded to two decimals rather than left as a float: it is shown to teachers
- * ("pass mark: 10") and comparing against 9.999999 would fail a mark of 10.
+ * A thin wrapper over `gradingScaleOf` with no niveau override, kept because
+ * most callers have no niveau in hand and want only the school's own figure.
  */
 export function passMarkOf(settings: SchoolSettingsValues): number {
-  return (
-    Math.round(((settings.gradingMaxScore * settings.passMarkBps) / 10_000) * 100) /
-    100
-  );
+  return gradingScaleOf(settings, null).passMark;
 }
 
 /**

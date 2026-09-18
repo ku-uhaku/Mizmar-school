@@ -1,0 +1,107 @@
+/// What one kind of paper is marked out of here — for one school year, one
+/// niveau, optionally one matière.
+///
+/// ── Why the kind's own default is not enough ────────────────────────────────
+/// `AssessmentType.defaultMaxScore` is one number for the whole school, and a
+/// school running both a primaire and a lycée does not have one. A contrôle
+/// continu is marked out of 10 in 1AP and out of 20 in 2BAC; an oral is out of
+/// 10 except in the langues. Saying that on the kind meant inventing
+/// "CC primaire" and "CC lycée" as separate kinds, which then diverge in
+/// everything else the kind decides — who may set one, whether it counts,
+/// whether it is sat on the matière — for the sake of one integer.
+///
+/// ── Why the year, and not the establishment ─────────────────────────────────
+/// The same reason `LevelSubject` is written against a year: a barème is
+/// settled at the rentrée. Held against the niveau alone, one edit in September
+/// would rewrite what the term's papers had been set under — silently, because
+/// nothing on the screen said which year was being changed. Papers already sat
+/// are safe either way, since `Assessment.maxScore` is frozen per paper, but
+/// the *rule* a head of studies reads back in June must be the rule September's
+/// papers were generated from. A new year starts from a copy of the last one,
+/// exactly as the programme and the price list do.
+///
+/// ── Why both the niveau and the matière are nullable ────────────────────────
+/// They are a scope, narrowest first. A row naming both is "the oral in
+/// اللغة العربية in 1AP"; a row naming only the matière is "the oral in
+/// اللغة العربية, wherever it is taught"; a row naming only the niveau is
+/// "everything sat in 1AP"; no row at all falls back to the kind's own default,
+/// which is what every school marking out of 20 throughout keeps doing without
+/// ever opening the screen. The order is settled once, in `resolveGradingRule`
+/// (modules/assessments/enums.ts), and never re-derived.
+///
+/// ── What it deliberately does not restate ───────────────────────────────────
+/// `countsTowardAverage`, `gradesWholeSubject` and `allowTeacherCreate` stay on
+/// the kind. They are policy *about the kind* — who may set one, whether it
+/// moves the average, whether it is sat on the matière as a whole — and those
+/// answers do not change between 1AP and 2BAC. The barème and the weight are
+/// the two that do, which is why these two and no others are here.
+///
+/// This is the scale a *paper* is set on. The scale marks are rebased onto to
+/// be averaged is a different figure and lives on the niveau — see
+/// `Level.reportMaxScore`.
+model GradingRule {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  /// The year this barème is in force for. Cascade: a year that is deleted
+  /// takes its own rules with it, exactly as it takes its programme.
+  schoolYearId String     @db.VarChar(30)
+  schoolYear   SchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  assessmentTypeId String         @db.VarChar(30)
+  assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Cascade)
+
+  /// Null = every niveau this year. Set = this niveau's barème, which overrides
+  /// the null row for classes at it.
+  levelId String? @db.VarChar(30)
+  level   Level?  @relation(fields: [levelId], references: [id], onDelete: Cascade)
+
+  /// Null = every matière. Set = this one only — an oral out of 20 in the
+  /// langues where the rest of the niveau sits it out of 10.
+  subjectId String?  @db.VarChar(30)
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  /// The denominator a new paper of this kind starts from here.
+  ///
+  /// No `@default`: a rule exists because somebody typed a figure, and a
+  /// default here would be a fourth answer to a question three columns already
+  /// answer. Copied onto `Assessment.maxScore` at creation and frozen there,
+  /// exactly as the kind's default was — changing a rule in March must not
+  /// rescore a round already sat.
+  maxScore Int
+
+  /// Weight of one such paper inside the matière's mark for the term, when it
+  /// differs here.
+  ///
+  /// Null — the ordinary case — keeps `AssessmentType.defaultCoefficient`, so a
+  /// school that only wants to move the barème says nothing about the weight
+  /// rather than restating it. Not to be confused with `LevelSubject.
+  /// coefficient`, which is the *matière's* weight in the niveau average; this
+  /// is the *paper's* weight inside the matière, and neither can express the
+  /// other.
+  coefficient Int?
+
+  /// A rule retired without being deleted, so the papers set under it keep
+  /// making sense. An inactive rule never resolves.
+  isActive Boolean @default(true)
+
+  notes String? @db.Text
+
+  /// Mirrors the two nullable scope columns so the unique index below actually
+  /// fires — without it one kind could be given two "every niveau, every
+  /// matière" barèmes in a year and which one applied would be arbitrary. See
+  /// lib/db-keys.ts.
+  ///
+  /// INVARIANT: always `gradingRuleScopeKey(levelId, subjectId)` from
+  /// modules/assessments/enums.ts.
+  scopeKey String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolYearId, assessmentTypeId, scopeKey])
+  @@index([schoolYearId])
+  @@index([assessmentTypeId])
+  @@index([levelId])
+  @@index([subjectId])
+  @@map("grading_rules")
+}

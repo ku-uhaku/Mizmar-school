@@ -17,6 +17,7 @@ import {
   listAssessments,
   listAssessmentTypes,
   listDevoirTargets,
+  listGradingRules,
   listTerms,
 } from "@/modules/assessments/queries";
 
@@ -78,7 +79,7 @@ export default async function SchoolLifeDevoirsPage({
     context.can(PERMISSIONS.ASSESSMENT_MANAGE) ||
     context.can(PERMISSIONS.ASSESSMENT_GRADE);
 
-  const [assessments, choices, terms, targets, types] = await Promise.all([
+  const [assessments, choices, terms, targets, types, gradingRules] = await Promise.all([
     listAssessments(context, {
       kind: "DEVOIR",
       search: filters.search || undefined,
@@ -94,6 +95,7 @@ export default async function SchoolLifeDevoirsPage({
     listTerms(context),
     canSet ? listDevoirTargets(context) : [],
     canSet ? listAssessmentTypes(context, { teacherCreatableOnly: true }) : [],
+    canSet ? listGradingRules(context) : [],
   ]);
 
   return (
@@ -107,6 +109,7 @@ export default async function SchoolLifeDevoirsPage({
             targets={targets}
             terms={terms}
             types={types}
+            gradingRules={gradingRules}
             defaultDate={defaultDateWithin(context.currentSchoolYear)}
           />
         ) : null}

@@ -200,7 +200,7 @@ const fr = {
       "Un palier va de son propre seuil jusqu'au suivant. Les seuils s'expriment en pourcentage du barème de l'épreuve : la même échelle sert un oral sur 10 et un contrôle sur 20.",
     scaleEmpty: "Aucun barème. Les notes se saisissent sans appréciation proposée.",
     scaleFrom: "À partir de",
-    scaleCovers: "Sur 20",
+    scaleCovers: "Sur {max}",
     scaleLabel: "Appréciation",
     scaleLabelAr: "Appréciation (arabe)",
     scaleColour: "Couleur",

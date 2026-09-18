@@ -2,11 +2,12 @@ import "server-only";
 
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { currentSchoolId } from "@/lib/scope";
+import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import { readWorkbook, writeSheet, type CellEdit } from "@/lib/xlsx";
 import {
   assessmentScopeKey,
   defaultAssessmentTitle,
+  gradingDefaults,
   roundScore,
 } from "@/modules/assessments/enums";
 // Marks are written through the module that owns the invariant, never around
@@ -69,11 +70,29 @@ export async function generateControle(
   });
   if (!type) return { ok: false, reason: "no-type" };
 
+  // The niveau's own barème when one is set, the kind's default otherwise —
+  // see GradingRule and `gradingDefaults`. Resolved before the file's own
+  // scale so a sheet that declares none still files against what this school
+  // actually marks this niveau out of, rather than the type's raw default.
+  const gradingRules = await db.gradingRule.findMany({
+    where: {
+      schoolYearId: currentSchoolYearId(context),
+      assessmentTypeId: type.id,
+      isActive: true,
+    },
+    select: { assessmentTypeId: true, scopeKey: true, maxScore: true, coefficient: true },
+  });
+  const scale = gradingDefaults(
+    gradingRules,
+    { assessmentTypeId: type.id, levelId: held.level?.id ?? null, subjectId: held.subject.id },
+    type,
+  );
+
   const sequence = file.sequence ?? 1;
-  // The file's own scale wins over the type's default. A NotesCC sheet marked
-  // out of 10 that we file as a paper out of 20 turns every mark into half of
-  // itself, and nothing downstream could ever tell.
-  const maxScore = file.maxScore ?? type.defaultMaxScore;
+  // The file's own scale wins over the resolved default. A NotesCC sheet
+  // marked out of 10 that we file as a paper out of 20 turns every mark into
+  // half of itself, and nothing downstream could ever tell.
+  const maxScore = file.maxScore ?? scale.maxScore;
   const scopeKey = assessmentScopeKey(null);
 
   const existing = await db.assessment.findFirst({
@@ -109,9 +128,10 @@ export async function generateControle(
       sequence,
       title: file.assessmentLabel?.trim() || defaultAssessmentTitle(type.name, sequence),
       maxScore,
-      coefficient: type.defaultCoefficient,
-      // Copied from the kind like the weight beside it, so re-configuring the
-      // kind later cannot rescore a ministry sheet already imported under it.
+      coefficient: scale.coefficient,
+      // Copied from the resolved kind like the weight beside it, so
+      // re-configuring the kind or its niveau's rule later cannot rescore a
+      // ministry sheet already imported under it.
       countsTowardAverage: type.countsTowardAverage,
       status: "PUBLISHED",
       massarCode: file.exportId,

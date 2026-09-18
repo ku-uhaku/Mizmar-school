@@ -6,23 +6,21 @@ import { apiError, preflight, withAuth } from "@/lib/mobile-api";
 import { PERMISSIONS } from "@/lib/permissions";
 import { currentSchoolId } from "@/lib/scope";
 import { findRegister } from "@/modules/classroom/queries";
-import { saveRegister } from "@/modules/classroom/service";
+import { saveSession } from "@/modules/classroom/service";
 
 /**
- * "Les autres sont là" — every pupil not yet marked, recorded present.
+ * "Les autres sont là" — the appel is finished.
  *
- * ── Why it only touches the unmarked ────────────────────────────────────────
- * In a class of thirty, two are away. The phone's flow is to tap those two and
- * then say the rest turned up, so this fills the gaps rather than resetting the
- * sheet: a teacher who has already marked a retard must not lose it by pressing
- * the button that finishes the register. The web sheet resets everybody because
- * there the whole grid is in front of you and the save is one deliberate act;
- * here each tap has already been written, so overwriting them would be
- * destroying work rather than defaulting it.
+ * ── Why it now writes nothing ───────────────────────────────────────────────
+ * It used to fill in a PRESENT row for every pupil nobody had tapped. Presence
+ * is the absence of a row, so there is nothing left to fill in: the two pupils
+ * the teacher tapped are already recorded, and everybody else is present by
+ * saying so. What the button means is "I have finished", and that is exactly
+ * what closing the séance records.
  *
- * The roster comes from `findRegister`, which resolves the lesson against the
- * teacher's own assignments — so the ids this writes are the school's, never
- * the request's.
+ * The lesson is still resolved through `findRegister`, which checks it against
+ * the teacher's own assignments — so the séance this closes is the school's,
+ * never the request's.
  */
 const schema = z.object({
   schoolClassId: z.string().min(1),
@@ -58,22 +56,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     const register = await findRegister(context, ref);
     if (!register) return null;
 
-    const unmarked = register.pupils.filter((pupil) => pupil.status === null);
-    if (unmarked.length === 0) {
-      return { ...register, canMark: true };
-    }
-
-    const result = await saveRegister({
+    const result = await saveSession({
       teacherId: context.user.id,
       schoolId: currentSchoolId(context),
       actsForSchool: context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY),
+      // "The rest are here" is the end of the appel, so this is the call that
+      // closes the séance — see `saveSession`.
+      close: true,
       ...ref,
-      marks: unmarked.map((pupil) => ({
-        enrollmentId: pupil.enrollmentId,
-        status: "PRESENT",
-        minutesLate: null,
-        reason: null,
-      })),
+      // No marks: whoever was away has already been tapped, and everybody else
+      // is recorded by not being.
+      marks: [],
     });
     if (!result.ok) return null;
 

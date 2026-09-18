@@ -2,7 +2,7 @@ import "server-only";
 
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
-import { isPassingScore, passMarkOf } from "@/lib/school-settings";
+import { gradingScaleOf, isPassingScore, passMarkOf } from "@/lib/school-settings";
 import { schoolScope, yearScope } from "@/lib/scope";
 import { bilingual } from "@/modules/academics/labels";
 // The scale's rungs and the rule for landing a mark on one belong to
@@ -478,7 +478,7 @@ export async function loadClassResults(
       })));
   if (!term) return null;
 
-  const [bulletins, bands] = await Promise.all([
+  const [bulletins, bands, schoolClass] = await Promise.all([
     db.bulletin.findMany({
       // The class and term come from the request; the school does not.
       where: { schoolClassId, termId: term.id, ...schoolScope(context) },
@@ -503,10 +503,19 @@ export async function loadClassResults(
       },
     }),
     listAppreciationBands(context),
+    // Only for the empty-state fallback below — a class with no bulletin at
+    // all must still read on its own niveau's scale, not the school's.
+    db.schoolClass.findFirst({
+      where: { id: schoolClassId, ...schoolScope(context) },
+      select: { levelOffering: { select: { level: { select: { reportMaxScore: true } } } } },
+    }),
   ]);
 
   const settings = context.settings;
-  const outOf = bulletins[0]?.outOf ?? settings.gradingMaxScore;
+  const outOf =
+    bulletins[0]?.outOf ??
+    gradingScaleOf(settings, schoolClass?.levelOffering.level.reportMaxScore ?? null)
+      .outOf;
 
   const marked = bulletins
     .map((bulletin) => bulletin.generalAverage)

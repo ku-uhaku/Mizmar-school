@@ -20,13 +20,16 @@ import { fieldErrors } from "@/lib/validation";
 import { isTeachingDayIn } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import {
+  activateTimetableVersion,
   applyTimetableDraft,
   buildTimetableDraft,
   closeEntriesFromWeek,
+  ensureActiveVersion,
   entriesInBlock,
   findClash,
   generateSchoolWeeks,
   generateTimeSlots,
+  listTimetableVersions,
   saveLessonBlock,
   type Clash,
   setTeacherAvailability,
@@ -232,6 +235,10 @@ export async function saveTimetableEntryAction(
 
     if (timeSlotIds.length === 0) return failure(t.timetable.slotUnavailable);
 
+    // Created on first use, when a bell schedule is being hand-built and has
+    // never been generated — see `ensureActiveVersion`.
+    const versionId = await ensureActiveVersion(schoolYearId, anchor.scheduleKind);
+
     /*
       The week the edit is being made from, and the window the new rows carry.
 
@@ -278,6 +285,7 @@ export async function saveTimetableEntryAction(
     // people editing the grid at once.
     for (const timeSlotId of timeSlotIds) {
       const clash = await findClash({
+        versionId,
         timeSlotId,
         schoolClassId: schoolClass.id,
         teacherId: teacher?.id ?? null,
@@ -315,6 +323,7 @@ export async function saveTimetableEntryAction(
 
     const saved = await saveLessonBlock(
       {
+        versionId,
         schoolClassId: schoolClass.id,
         timeSlotIds,
         subjectId: subject.id,
@@ -835,6 +844,7 @@ export async function applyTimetableAction(
       schoolId,
       schoolYearId,
       readOptions(request, schoolClassIds),
+      context.user.id,
     );
 
     refresh();
@@ -902,5 +912,79 @@ export async function setTeacherAvailabilityAction(
     return success(
       interpolate(t.timetable.availabilitySaved, { count: result.blocked }),
     );
+  });
+}
+
+// ── Switching between generated grids ────────────────────────────────────────
+
+/**
+ * The version history for one bell schedule of the year in context — what the
+ * "version history" panel lists.
+ *
+ * Gated the same as generating: a version's label may name the classes a run
+ * touched, and only somebody who could draw the grid is entitled to browse
+ * what past drawings looked like.
+ */
+export async function listTimetableVersionsAction(scheduleKind: string): Promise<
+  | { ok: true; versions: Awaited<ReturnType<typeof listTimetableVersions>> }
+  | { ok: false; message: string }
+> {
+  const t = await getDictionary();
+  const context = await requireAuth();
+
+  const schoolId = context.currentSchool?.id;
+  if (!schoolId) return { ok: false, message: t.errors.noSchoolContext };
+
+  const schoolYearId = context.currentSchoolYear?.id;
+  if (!schoolYearId) return { ok: false, message: t.errors.noSchoolYearContext };
+
+  await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+  const versions = await listTimetableVersions(schoolYearId, scheduleKind);
+  return { ok: true, versions };
+}
+
+/**
+ * Switches the grid every ordinary screen shows back to an older version.
+ *
+ * Loses any manual edit made after the version being restored — going back in
+ * time means exactly that. Same permission as generating: reverting is the
+ * same kind of decision as drawing a new week, and this module keeps the two
+ * on one code — see the module's permissions.ts.
+ */
+export async function activateTimetableVersionAction(
+  versionId: string,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+
+    // Re-derived from the database, never trusted from the request — the
+    // version names its own school, and that is what is authorized against.
+    const version = await db.timetableVersion.findUnique({
+      where: { id: versionId },
+      select: { id: true, schoolYear: { select: { schoolId: true } } },
+    });
+    if (!version) return failure(t.errors.notFound);
+
+    await authorizeSchool(
+      version.schoolYear.schoolId,
+      PERMISSIONS.TIMETABLE_MANAGE,
+    );
+
+    // `activateTimetableVersion` writes through the audited client, so the
+    // status flip on both versions is already captured row by row — no manual
+    // event needed here, unlike `applyTimetableDraft`, which bypasses that
+    // client for performance and so records its own summary.
+    const result = await activateTimetableVersion(versionId);
+    if (!result.ok) {
+      return failure(
+        result.message === "ALREADY_ACTIVE"
+          ? t.timetable.versionAlreadyActive
+          : t.errors.notFound,
+      );
+    }
+
+    refresh();
+    return success(t.timetable.versionActivated);
   });
 }

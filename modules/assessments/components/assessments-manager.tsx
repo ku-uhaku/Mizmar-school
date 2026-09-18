@@ -40,6 +40,7 @@ import type {
   ProgrammeEntry,
   TermOption,
 } from "@/modules/assessments/queries";
+import type { GradingRuleRow } from "@/modules/assessments/enums";
 
 /** Radix Tabs needs a non-empty value, and "no stage filter" has to be one. */
 const ALL_STAGES = "__all__";
@@ -57,6 +58,7 @@ export function AssessmentsManager({
   classes,
   terms,
   types,
+  gradingRules,
   programmes,
   classId,
   termId,
@@ -67,6 +69,8 @@ export function AssessmentsManager({
   classes: ClassOption[];
   terms: TermOption[];
   types: AssessmentTypeOption[];
+  /** This year's barèmes — see `listGradingRules` and `gradingDefaults`. */
+  gradingRules: GradingRuleRow[];
   programmes: Record<string, ProgrammeEntry[]>;
   classId: string | null;
   termId: string | null;
@@ -385,6 +389,7 @@ export function AssessmentsManager({
       classes={classes}
       terms={terms}
       types={types}
+      gradingRules={gradingRules}
       programmes={programmes}
       defaultClassId={classId}
       defaultTermId={termId}

@@ -16,6 +16,7 @@ import { GenerateWeeksButton } from "@/modules/timetable/components/generate-wee
 import { ProgrammeGaps } from "@/modules/timetable/components/programme-gaps";
 import { TimetableGenerator } from "@/modules/timetable/components/timetable-generator";
 import { TimetableGrid } from "@/modules/timetable/components/timetable-grid";
+import { TimetableVersionHistory } from "@/modules/timetable/components/version-history";
 import { WeekPicker } from "@/modules/timetable/components/week-picker";
 import {
   listTimetableClasses,
@@ -142,6 +143,9 @@ export default async function TimetablePage({
               // server-side against the real bell schedule anyway.
               periodMinutes={grid?.periodMinutes ?? 30}
             />
+            {/* Beside the generator: "draw a new week" and "go back to an
+              older one" are the same kind of decision about the same grid. */}
+            <TimetableVersionHistory scheduleKind={scheduleKind} />
           </>
         ) : null}
       </PageHeader>

@@ -7,7 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { currentSchoolId } from "@/lib/scope";
 import { ATTENDANCE_STATUSES } from "@/modules/classroom/enums";
 import { findRegister } from "@/modules/classroom/queries";
-import { saveRegister } from "@/modules/classroom/service";
+import { saveSession } from "@/modules/classroom/service";
 
 /**
  * One lesson's register, mirroring `app/(dashboard)/teacher/attendance/page.tsx`:
@@ -48,7 +48,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 /**
  * One pupil, marked. A payload carrying the whole roster would let a save from
  * a stale screen overwrite a mark a colleague — or the same teacher, on
- * another tap — has since made; one mark per call is what `saveRegister`
+ * another tap — has since made; one mark per call is what `saveSession`
  * upserts safely regardless of arrival order.
  */
 const schema = z.object({
@@ -79,9 +79,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       throw new ForbiddenError(PERMISSIONS.CLASSROOM_ATTENDANCE_MARK);
     }
 
-    const result = await saveRegister({
+    const result = await saveSession({
       teacherId: context.user.id,
       schoolId: currentSchoolId(context),
+      // One tap is not the end of an appel: the phone marks pupil by pupil, so
+      // closing here would refuse the second one. `all-present` is what says
+      // the register is finished — see `saveSession`.
+      close: false,
       // Same rule as the web action: the office half of the attendance pair is
       // what relaxes *which roster*, never which school. See the note at the
       // top of modules/classroom/service.ts.

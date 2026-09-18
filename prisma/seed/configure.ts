@@ -3,7 +3,9 @@ import { MOROCCAN_CURSUS } from "@/modules/academics/presets";
 import {
   seedAppreciationBands,
   seedAssessmentTypes,
+  seedGradingRules,
 } from "@/modules/assessments/seed";
+import { LEVEL_REPORT_SCALES } from "@/modules/assessments/presets";
 import { seedFeeRatesAndDiscounts, seedFeeTypes } from "@/modules/billing/seed";
 import { FEE_RATES, FEE_TYPES } from "@/modules/billing/presets";
 import { seedDocumentTypes } from "@/modules/documents/seed";
@@ -90,6 +92,15 @@ export async function configureSchool(
     // a past year without one has no coefficients to draw its bulletins from.
     years.map((year) => year.id),
   );
+  // The niveaux that write their own report cards rather than the school's —
+  // see `LEVEL_REPORT_SCALES`. School-wide like the cursus above it, and
+  // written on every run so an edit to the preset reaches a re-seeded school.
+  for (const [levelCode, reportMaxScore] of Object.entries(LEVEL_REPORT_SCALES)) {
+    const levelId = levelIdByCode[levelCode];
+    if (!levelId) continue;
+    await db.level.update({ where: { id: levelId }, data: { reportMaxScore } });
+  }
+
   const roomIdByCode = await seedRooms(db, school.id, SCHOOL_ROOMS);
 
   // Towns and quartiers: a birthplace and an address are references here, so
@@ -173,6 +184,15 @@ export async function configureSchool(
       rates: FEE_RATES,
       feeTypeIdByCode,
       levelIdByCode,
+    });
+
+    // This year's barèmes — the year's half of grading, against the kinds
+    // declared above it. See GradingRule.
+    await seedGradingRules(db, {
+      schoolYearId: year.id,
+      typeIdByCode: assessmentTypeIdByCode,
+      levelIdByCode,
+      subjectIdByCode,
     });
   }
 

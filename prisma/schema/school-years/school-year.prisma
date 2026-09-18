@@ -34,6 +34,9 @@ model SchoolYear {
   feeRates  FeeRate[]
   discounts Discount[]
 
+  /// This year's barèmes — see prisma/schema/assessments/grading-rule.prisma.
+  gradingRules GradingRule[]
+
   /// The pupils inscribed for this year.
   enrollments Enrollment[]
 
@@ -44,6 +47,10 @@ model SchoolYear {
   /// The weeks the school teaches in, numbered — see
   /// prisma/schema/timetable/school-week.prisma.
   schoolWeeks SchoolWeek[]
+
+  /// Every whole-grid snapshot ever generated for this year, one bell schedule
+  /// at a time — see prisma/schema/timetable/timetable-version.prisma.
+  timetableVersions TimetableVersion[]
 
   /// Who may take what this year — the staffing plan the timetable generator
   /// reads. See prisma/schema/hr/teacher-subject.prisma.

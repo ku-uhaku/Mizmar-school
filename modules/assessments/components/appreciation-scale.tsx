@@ -6,6 +6,7 @@ import { PlusIcon, RotateCcwIcon, SaveIcon, Trash2Icon } from "lucide-react";
 import { SubmitButton } from "@/components/form/submit-button";
 import { useActionFeedback } from "@/components/form/use-action-feedback";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useSettings } from "@/components/providers/settings-provider";
 import { EmptyState } from "@/components/shell/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,9 +57,6 @@ type Row = {
   isActive: boolean;
 };
 
-/** What a rung covers is read out of 20, whatever the paper is marked out of. */
-const PREVIEW_MAX = 20;
-
 let nextKey = 0;
 function keyFor(): string {
   nextKey += 1;
@@ -80,6 +78,9 @@ export function AppreciationScale({
   canManage: boolean;
 }) {
   const { t } = useI18n();
+  // AppreciationBand is school-wide, not per niveau — what a rung covers is
+  // read out of the school's own scale, whatever the paper is marked out of.
+  const previewMax = useSettings().gradingMaxScore;
   const [state, formAction] = React.useActionState(
     saveAppreciationScaleAction,
     IDLE,
@@ -176,7 +177,7 @@ export function AppreciationScale({
                       {t.assessment.scaleFrom}
                     </TableHead>
                     <TableHead className="w-32">
-                      {t.assessment.scaleCovers}
+                      {interpolate(t.assessment.scaleCovers, { max: previewMax })}
                     </TableHead>
                     <TableHead>{t.assessment.scaleLabel}</TableHead>
                     <TableHead className="hidden md:table-cell">
@@ -202,6 +203,7 @@ export function AppreciationScale({
                          which runs to full marks. */
                       ceilingPercent={ceilingOf(sorted, index)}
                       clashes={duplicated.has(row.minPercent.trim())}
+                      previewMax={previewMax}
                       canManage={canManage}
                       onChange={update}
                       onRemove={(key) =>
@@ -264,12 +266,12 @@ export function AppreciationScale({
 
       <p className="text-muted-foreground text-sm">
         {interpolate(t.assessment.scaleExample, {
-          mark: String(PREVIEW_MAX * 0.85),
-          max: String(PREVIEW_MAX),
+          mark: String(previewMax * 0.85),
+          max: String(previewMax),
           label:
             appreciationFor(
-              PREVIEW_MAX * 0.85,
-              PREVIEW_MAX,
+              previewMax * 0.85,
+              previewMax,
               rows
                 .filter((row) => row.isActive && row.minPercent.trim() !== "")
                 .map((row) => ({
@@ -287,6 +289,7 @@ function BandRow({
   row,
   ceilingPercent,
   clashes,
+  previewMax,
   canManage,
   onChange,
   onRemove,
@@ -295,6 +298,8 @@ function BandRow({
   /** The floor of the rung above, or null when this is the top one. */
   ceilingPercent: number | null;
   clashes: boolean;
+  /** The school's own scale — see the note on the preview column. */
+  previewMax: number;
   canManage: boolean;
   onChange: (key: string, patch: Partial<Row>) => void;
   onRemove: (key: string) => void;
@@ -307,10 +312,10 @@ function BandRow({
   // Read out of 20 as the teacher types, so a percentage lands where they meant
   // it to. The top of the band is the next rung's floor, exclusive.
   const covers = hasFloor
-    ? `${round(floor * (PREVIEW_MAX / 100))} – ${
+    ? `${round(floor * (previewMax / 100))} – ${
         ceilingPercent === null
-          ? PREVIEW_MAX
-          : round(ceilingPercent * (PREVIEW_MAX / 100))
+          ? previewMax
+          : round(ceilingPercent * (previewMax / 100))
       }`
     : "—";
 

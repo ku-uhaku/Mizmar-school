@@ -26,7 +26,7 @@ const ar = {
     tabRoster: "التلاميذ",
     tabTeaching: "الأساتذة",
     tabTimetable: "استعمال الزمن",
-    tabRegister: "المناداة",
+    tabSessions: "الحصص",
     tabControls: "الفروض المحروسة",
     tabDevoirs: "الواجبات",
 

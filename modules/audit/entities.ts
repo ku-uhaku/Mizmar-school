@@ -114,6 +114,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   TeachingAssignment: "vieScolaire",
   StudentAttendance: "vieScolaire",
   StudentRemark: "vieScolaire",
+  ClassSession: "vieScolaire",
   Assessment: "vieScolaire",
   AssessmentGrade: "vieScolaire",
   AssessmentQuestion: "vieScolaire",
@@ -128,6 +129,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   // The week.
   TimeSlot: "timetable",
   TimetableEntry: "timetable",
+  TimetableVersion: "timetable",
   TimetableException: "timetable",
   TeacherAbsence: "timetable",
   TeacherUnavailability: "timetable",
@@ -177,6 +179,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   Subject: "configuration",
   LevelSubject: "configuration",
   AssessmentType: "configuration",
+  GradingRule: "configuration",
   DocumentRequestType: "configuration",
   AppreciationBand: "configuration",
   DocumentType: "configuration",

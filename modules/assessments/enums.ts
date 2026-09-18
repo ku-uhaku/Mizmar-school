@@ -1,3 +1,5 @@
+import { nullableKey } from "@/lib/db-keys";
+
 /**
  * Allowed values for this module's "enum-like" String columns — the source of
  * truth for `prisma/schema/assessments/*.prisma`. Labels live in `i18n/*.ts`
@@ -5,7 +7,7 @@
  *
  * Pure data: no server imports, no React. The mark sheet is a client component
  * and computes its own totals from these helpers, so they must cross the
- * boundary.
+ * boundary. `lib/db-keys.ts` is the one exception — it is pure data too.
  */
 
 /**
@@ -176,6 +178,16 @@ export function awaitingValidation(status: string): boolean {
 export const DEFAULT_MAX_SCORE = 20;
 export const DEFAULT_PASS_BPS = 5000;
 
+/**
+ * Bounds on a barème, wherever one is typed by hand: a paper's own `maxScore`,
+ * a kind's `defaultMaxScore`, a `GradingRule.maxScore`, the school's own
+ * `gradingMaxScore`. One out of nothing cannot be scored, and one out of more
+ * than 100 is a data-entry slip rather than a grading scale. Named here so the
+ * zod field, the configuration screens and the form inputs cannot drift apart.
+ */
+export const MAX_SCORE_MIN = 1;
+export const MAX_SCORE_MAX = 100;
+
 /** The most papers of one kind a term can hold — guards the sequence field. */
 export const MAX_SEQUENCE = 20;
 
@@ -214,6 +226,91 @@ export const NOTES_MAX = 500;
  */
 export function assessmentScopeKey(classGroupId: string | null): string {
   return classGroupId ?? "__class__";
+}
+
+// ── Per-niveau barèmes ────────────────────────────────────────────────────────
+
+/**
+ * Mirror for `GradingRule`'s two nullable scope columns — see lib/db-keys.ts.
+ *
+ * Four distinct keys, one per tier `resolveGradingRule` reads in order:
+ * "level:subject", ":subject", "level:", ":".
+ */
+export function gradingRuleScopeKey(
+  levelId: string | null | undefined,
+  subjectId: string | null | undefined,
+): string {
+  return nullableKey(levelId, subjectId);
+}
+
+/** A barème rule, as the resolver needs to read it. */
+export type GradingRuleRow = {
+  assessmentTypeId: string;
+  scopeKey: string;
+  maxScore: number;
+  coefficient: number | null;
+};
+
+/**
+ * The barème one kind of paper is set on, for one niveau and one matière.
+ *
+ * Narrowest wins — the same shape as `buildScheduleLines` in
+ * modules/enrolment/schedule.ts, and for the same reason: a niveau row and a
+ * matière row are not competing prices, one is a default the other refines.
+ *
+ *   level + subject   the oral in اللغة العربية in 1AP
+ *   subject only      the oral in اللغة العربية, wherever it is taught
+ *   level only        everything sat in 1AP
+ *   nothing           null — the caller falls back to the kind's own defaults
+ *
+ * Null rather than a thrown error or a fabricated 20: "this school has said
+ * nothing" is the commonest answer and it has a correct fallback the caller
+ * already holds. Baking 20 in here would make this file disagree with
+ * `AssessmentType.defaultMaxScore` for every school that changed it.
+ */
+export function resolveGradingRule(
+  rows: readonly GradingRuleRow[],
+  target: {
+    assessmentTypeId: string;
+    levelId: string | null;
+    subjectId: string | null;
+  },
+): GradingRuleRow | null {
+  const keys = [
+    gradingRuleScopeKey(target.levelId, target.subjectId),
+    gradingRuleScopeKey(null, target.subjectId),
+    gradingRuleScopeKey(target.levelId, null),
+    gradingRuleScopeKey(null, null),
+  ];
+  for (const key of keys) {
+    const hit = rows.find(
+      (row) =>
+        row.assessmentTypeId === target.assessmentTypeId && row.scopeKey === key,
+    );
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * What a new paper of this kind is set on — the rule if there is one, the
+ * kind's own defaults if there is not.
+ *
+ * One function rather than every writer doing its own `?? type.defaultX`: the
+ * generator, the devoir form and the MASSAR import all write these two
+ * columns, and a caller that forgot the fallback would silently write a
+ * barème of zero.
+ */
+export function gradingDefaults(
+  rows: readonly GradingRuleRow[],
+  target: { assessmentTypeId: string; levelId: string | null; subjectId: string | null },
+  type: { defaultMaxScore: number; defaultCoefficient: number },
+): { maxScore: number; coefficient: number } {
+  const rule = resolveGradingRule(rows, target);
+  return {
+    maxScore: rule?.maxScore ?? type.defaultMaxScore,
+    coefficient: rule?.coefficient ?? type.defaultCoefficient,
+  };
 }
 
 /** The title a generated paper starts with, e.g. "Contrôle continu n°2". */

@@ -1,4 +1,8 @@
-import { bookingKeyOf, planSchoolWeeks } from "@/modules/timetable/enums";
+import {
+  activeVersionKeyOf,
+  bookingKeyOf,
+  planSchoolWeeks,
+} from "@/modules/timetable/enums";
 import { HOLIDAYS, ramadanSlots, standardSlots } from "@/modules/timetable/presets";
 import { log, type SeedDb } from "@/prisma/seed/client";
 
@@ -96,20 +100,48 @@ export type TimetableClass = {
  * in two classrooms at once. Filling only what is genuinely free is also the
  * only reading of "idempotent" that holds once somebody has used the app.
  */
+/**
+ * Finds (or creates, on a first seed) the ACTIVE `TimetableVersion` for one
+ * bell schedule of one year.
+ *
+ * A seed script cannot import `service.ts`'s `ensureActiveVersion` — that file
+ * starts with `import "server-only"`, which throws unconditionally outside the
+ * Next.js bundler — so the same small piece of logic is inlined here. Race
+ * safety does not matter the way it does for a concurrent web request: a seed
+ * runs alone.
+ */
+async function ensureSeedVersion(
+  db: SeedDb,
+  schoolYearId: string,
+  scheduleKind: string,
+): Promise<string> {
+  const activeKey = activeVersionKeyOf(schoolYearId, scheduleKind);
+  const existing = await db.timetableVersion.findUnique({ where: { activeKey } });
+  if (existing) return existing.id;
+
+  const created = await db.timetableVersion.create({
+    data: { schoolYearId, scheduleKind, status: "ACTIVE", activeKey, label: "Seed data" },
+  });
+  return created.id;
+}
+
 export async function seedTimetable(
   db: SeedDb,
   {
+    schoolYearId,
     classes,
     slots,
     termId,
     labRoomIds,
   }: {
+    schoolYearId: string;
     classes: TimetableClass[];
     slots: SeededSlot[];
     termId: string;
     labRoomIds: string[];
   },
 ): Promise<number> {
+  const versionId = await ensureSeedVersion(db, schoolYearId, "STANDARD");
   const teachable = slots
     .filter((slot) => slot.scheduleKind === "STANDARD" && !slot.isBreak)
     .sort((a, b) =>
@@ -150,7 +182,10 @@ export async function seedTimetable(
   // Whatever already stands on these periods, whichever term or booking key it
   // was written under — see the note above.
   const standing = await db.timetableEntry.findMany({
-    where: { timeSlotId: { in: teachable.map((slot) => slot.id) } },
+    where: {
+      versionId,
+      timeSlotId: { in: teachable.map((slot) => slot.id) },
+    },
     select: {
       schoolClassId: true,
       timeSlotId: true,
@@ -234,7 +269,8 @@ export async function seedTimetable(
         for (const period of periods) {
           await db.timetableEntry.upsert({
             where: {
-              schoolClassId_timeSlotId_bookingKey: {
+              versionId_schoolClassId_timeSlotId_bookingKey: {
+                versionId,
                 schoolClassId: klass.id,
                 timeSlotId: period.id,
                 bookingKey,
@@ -246,6 +282,7 @@ export async function seedTimetable(
               roomId: roomId ?? null,
             },
             create: {
+              versionId,
               schoolClassId: klass.id,
               timeSlotId: period.id,
               subjectId: assignment.subjectId,

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ensureChannel } from "@/modules/chat/service";
 import {
   DEFAULT_SETTINGS,
+  gradingScaleOf,
   passMarkOf,
   settingsOf,
   teachingDaysOf,
@@ -181,6 +182,9 @@ async function resolveChild(userId: string, studentId: string) {
       student: {
         select: { firstName: true, lastName: true, schoolId: true },
       },
+      // The niveau's own report scale, when it overrides the school's — see
+      // `loadChildMarks`.
+      levelOffering: { select: { level: { select: { reportMaxScore: true } } } },
     },
   });
 }
@@ -212,7 +216,7 @@ export type PortalMarks = {
    * can reconcile those two numbers over a telephone.
    */
   average: number | null;
-  /** The school's own scale, from `SchoolSettings.gradingMaxScore`. */
+  /** The niveau's own scale, or the school's — see `Level.reportMaxScore`. */
   outOf: number;
   /**
    * The pass mark on that same scale, so the phone can colour an average
@@ -290,9 +294,10 @@ export async function loadChildMarks(
 
   // Normalised before averaging: a paper marked out of 10 and one out of 20 are
   // not comparable numbers, and a mean of the raw scores would be meaningless.
-  // The scale normalised *onto* is the school's own, not a literal twenty.
+  // The scale normalised *onto* is the niveau's own, or the school's.
   const settings = await loadSchoolSettings(child.student.schoolId);
-  const outOf = settings.gradingMaxScore;
+  const scale = gradingScaleOf(settings, child.levelOffering.level.reportMaxScore);
+  const outOf = scale.outOf;
 
   const scored = marks.filter(
     (mark) => mark.score !== null && !mark.isAbsent && mark.maxScore > 0,
@@ -309,7 +314,7 @@ export async function loadChildMarks(
       )
     : null;
 
-  return { marks, average, outOf, passMark: passMarkOf(settings) };
+  return { marks, average, outOf, passMark: scale.passMark };
 }
 
 export type PortalBulletinLine = {
@@ -985,6 +990,11 @@ export async function loadChildTimetable(
     where: {
       schoolClassId: enrolment.schoolClassId,
       timeSlot: { scheduleKind: "STANDARD" },
+      // The grid in force, not every grid there has ever been. An entry belongs
+      // to the TimetableVersion that generated it and an untouched class's rows
+      // are copied forward into each new one, so without this a parent sees the
+      // same lesson once per generation the school has run.
+      version: { status: "ACTIVE" },
     },
     orderBy: [
       { timeSlot: { dayOfWeek: "asc" } },

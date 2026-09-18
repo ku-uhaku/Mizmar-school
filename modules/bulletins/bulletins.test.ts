@@ -167,7 +167,10 @@ describe("the figures are the machine's, the words are a person's", () => {
   function oneClass(existing: { id: string; status: string } | null = null) {
     answers["schoolClass.findFirst"] = {
       id: "class-1",
-      levelOffering: { schoolYearId: "year-1" },
+      levelOffering: {
+        schoolYearId: "year-1",
+        level: { reportMaxScore: null },
+      },
     };
     // `resolveProgramme` reaches the class for its level and track separately.
     answers["schoolClass.findUnique"] = {
@@ -223,6 +226,49 @@ describe("the figures are the machine's, the words are a person's", () => {
     }
     // And the figures are there.
     expect(written).toMatchObject({ generalAverage: 15, rank: 1, classSize: 1 });
+  });
+
+  it("rebases onto the niveau's own scale when it overrides the school's", async () => {
+    oneClass({ id: "b-1", status: "DRAFT" });
+    // The class's niveau writes its bulletins out of 10, not the school's 20.
+    answers["schoolClass.findFirst"] = {
+      id: "class-1",
+      levelOffering: { schoolYearId: "year-1", level: { reportMaxScore: 10 } },
+    };
+    answers["assessmentGrade.findMany"] = [
+      {
+        enrollmentId: "enrol-1",
+        score: 16,
+        assessment: { subjectId: "maths", maxScore: 20, coefficient: 1 },
+      },
+    ];
+
+    const result = await computeClassBulletins(context, "class-1", "term-1");
+    expect(result).toEqual({ ok: true, computed: 1, skipped: 0 });
+
+    const [upsert] = of("bulletin", "upsert");
+    const written = {
+      ...(upsert.args.create as Record<string, unknown>),
+      ...(upsert.args.update as Record<string, unknown>),
+    };
+    // 16/20 rebased onto /10 is 8, and the freeze records the scale it was
+    // computed on.
+    expect(written).toMatchObject({ generalAverage: 8, outOf: 10 });
+  });
+
+  it("with no niveau override, writes exactly what it always did", async () => {
+    // The regression test for "nothing changes for an existing school": a
+    // null `reportMaxScore` must be indistinguishable from before this column
+    // existed.
+    oneClass({ id: "b-1", status: "DRAFT" });
+    await computeClassBulletins(context, "class-1", "term-1");
+
+    const [upsert] = of("bulletin", "upsert");
+    const written = {
+      ...(upsert.args.create as Record<string, unknown>),
+      ...(upsert.args.update as Record<string, unknown>),
+    };
+    expect(written).toMatchObject({ generalAverage: 15, outOf: 20 });
   });
 
   it("leaves a line's appreciation alone when it recomputes the mark", async () => {
@@ -327,7 +373,10 @@ describe("a matière marked through its components", () => {
   function withComponents() {
     answers["schoolClass.findFirst"] = {
       id: "class-1",
-      levelOffering: { schoolYearId: "year-1" },
+      levelOffering: {
+        schoolYearId: "year-1",
+        level: { reportMaxScore: null },
+      },
     };
     answers["schoolClass.findUnique"] = {
       levelOffering: { levelId: "level-1", trackId: null },

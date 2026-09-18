@@ -542,6 +542,7 @@ async function main() {
       });
 
       await seedTimetable(db, {
+        schoolYearId: year.id,
         classes,
         slots,
         termId: year.terms[1],

@@ -4,6 +4,7 @@ import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import { levelSubjectScopeKey } from "@/modules/academics/enums";
+import { gradingRuleScopeKey } from "@/modules/assessments/enums";
 import { feeRateScopeKey } from "@/modules/billing/enums";
 import { assignmentScopeKey, offeringScopeKey } from "@/modules/classes/enums";
 
@@ -129,6 +130,13 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
     orderBy: [{ createdAt: "asc" }],
   },
 
+  "grading-scale": {
+    table: () => db.schoolSettings as unknown as Delegate,
+    model: "SchoolSettings",
+    where: bySchool,
+    orderBy: [{ createdAt: "asc" }],
+  },
+
   "education-levels": {
     table: () => db.educationLevel as unknown as Delegate,
     model: "EducationLevel",
@@ -198,6 +206,32 @@ export const RESOURCE_SCHEMAS: Record<string, ResourceSchema> = {
       scopeKey: levelSubjectScopeKey(values.trackId as string | null),
     }),
     orderBy: [{ position: "asc" }],
+  },
+
+  /*
+    What each kind of paper is marked out of, per niveau — see GradingRule.
+
+    Scoped by both the year and the school for the same reason `programme` is: a
+    header still on last year's context must not reach this year's rows through
+    a stale id.
+  */
+  "grading-rules": {
+    table: () => db.gradingRule as unknown as Delegate,
+    model: "GradingRule",
+    where: (context) => ({
+      ...byYear(context),
+      assessmentType: bySchool(context),
+    }),
+    createData: (context) => ({
+      schoolYear: { connect: { id: context.currentSchoolYear?.id } },
+    }),
+    derive: (values) => ({
+      scopeKey: gradingRuleScopeKey(
+        values.levelId as string | null,
+        values.subjectId as string | null,
+      ),
+    }),
+    orderBy: [{ assessmentType: { position: "asc" } }, { maxScore: "desc" }],
   },
 
   /*

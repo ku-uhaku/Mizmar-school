@@ -8,6 +8,7 @@ import {
   codePrefixOf,
   dueDayOf,
   formatEntityCode,
+  gradingScaleOf,
   isPassingScore,
   isTeachingDayIn,
   parseTeachingDays,
@@ -239,6 +240,39 @@ describe("sequenceFromCode", () => {
 });
 
 // ── Notation ─────────────────────────────────────────────────────────────────
+
+describe("gradingScaleOf", () => {
+  it("with no niveau override, reproduces passMarkOf exactly", () => {
+    // The regression test for "nothing changes for an existing school": an
+    // empty override must be indistinguishable from the school's own figure.
+    for (const extra of [
+      {},
+      { gradingMaxScore: 40 },
+      { passMarkBps: 6000 },
+    ] as Partial<SchoolSettingsValues>[]) {
+      expect(gradingScaleOf(settings(extra), null).passMark).toBe(
+        passMarkOf(settings(extra)),
+      );
+      expect(gradingScaleOf(settings(extra), undefined).outOf).toBe(
+        settings(extra).gradingMaxScore,
+      );
+    }
+  });
+
+  it("rebases onto the niveau's own scale when it overrides the school's", () => {
+    const scale = gradingScaleOf(settings(), 10);
+    expect(scale.outOf).toBe(10);
+    expect(scale.passMark).toBe(5);
+  });
+
+  it("falls back to the school's scale rather than dividing by a bad override", () => {
+    expect(gradingScaleOf(settings(), 0).outOf).toBe(settings().gradingMaxScore);
+    expect(gradingScaleOf(settings(), -5).outOf).toBe(settings().gradingMaxScore);
+    expect(gradingScaleOf(settings(), undefined).outOf).toBe(
+      settings().gradingMaxScore,
+    );
+  });
+});
 
 describe("passMarkOf", () => {
   it("works the pass mark out on the school's own scale", () => {

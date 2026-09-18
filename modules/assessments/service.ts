@@ -7,6 +7,7 @@ import {
   acceptsMarks,
   assessmentScopeKey,
   defaultAssessmentTitle,
+  gradingDefaults,
   MAX_APPRECIATION_BANDS,
   planGradeCarry,
   pointsToQuarters,
@@ -186,11 +187,13 @@ export type GenerateResult = {
  * no-op rather than a duplicate set, so a head of studies who is unsure whether
  * they already generated semester 1 can simply run it again.
  *
- * `maxScore` and `coefficient` are copied off the type rather than referenced
- * through it, so re-weighting the type next year cannot rescore marks already
- * entered. The teacher is resolved from the primary TeachingAssignment at
- * generation time, and a subject with no holder is **refused** rather than
- * written unattributed — see `unstaffed` on the result.
+ * `maxScore` and `coefficient` are copied off the class's niveau's GradingRule,
+ * or off the type where there is none — see `gradingDefaults` — rather than
+ * referenced through either, so re-weighting the rule or the type next year
+ * cannot rescore marks already entered. The teacher is resolved from the
+ * primary TeachingAssignment at generation time, and a subject with no holder
+ * is **refused** rather than written unattributed — see `unstaffed` on the
+ * result.
  *
  * Papers are created as DRAFT. Generating is planning; announcing them to the
  * classes is a separate, deliberate act — see `publishAssessments`.
@@ -200,7 +203,11 @@ export async function generateAssessments(
 ): Promise<GenerateResult> {
   const schoolClass = await db.schoolClass.findUnique({
     where: { id: input.schoolClassId },
-    select: { id: true, schoolId: true },
+    select: {
+      id: true,
+      schoolId: true,
+      levelOffering: { select: { schoolYearId: true, levelId: true } },
+    },
   });
   if (!schoolClass) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
@@ -254,7 +261,7 @@ export async function generateAssessments(
 
   if (requested.length === 0) return { created: 0, skipped: 0, subjects: [], unstaffed: [] };
 
-  const [existing, assignments] = await Promise.all([
+  const [existing, assignments, gradingRules] = await Promise.all([
     db.assessment.findMany({
       where: {
         schoolClassId: input.schoolClassId,
@@ -269,6 +276,16 @@ export async function generateAssessments(
     db.teachingAssignment.findMany({
       where: { schoolClassId: input.schoolClassId, isPrimary: true },
       select: { subjectId: true, teacherId: true },
+    }),
+    // Every barème declared for this kind this year, in one query for the
+    // whole run rather than one per subject — see `gradingDefaults`.
+    db.gradingRule.findMany({
+      where: {
+        schoolYearId: schoolClass.levelOffering.schoolYearId,
+        assessmentTypeId: type.id,
+        isActive: true,
+      },
+      select: { assessmentTypeId: true, scopeKey: true, maxScore: true, coefficient: true },
     }),
   ]);
 
@@ -325,6 +342,18 @@ export async function generateAssessments(
         // Non-null: `requested` was already filtered to the programme.
         const subject = onProgramme.get(target.subjectId)!;
 
+        // The niveau's own barème when one is set, the kind's default
+        // otherwise — see GradingRule and `gradingDefaults`.
+        const scale = gradingDefaults(
+          gradingRules,
+          {
+            assessmentTypeId: type.id,
+            levelId: schoolClass.levelOffering.levelId,
+            subjectId: subject.subjectId,
+          },
+          type,
+        );
+
         return {
           // Denormalised from the class, never taken from the request — see the
           // invariant on Assessment.schoolId.
@@ -338,10 +367,11 @@ export async function generateAssessments(
           title: defaultAssessmentTitle(type.name, input.sequence),
           scheduledOn: target.scheduledOn,
           notes: target.notes,
-          maxScore: type.defaultMaxScore,
-          coefficient: type.defaultCoefficient,
-          // Copied like the two above it, so re-configuring the kind later
-          // cannot rescore a round already sat. See Assessment.
+          maxScore: scale.maxScore,
+          coefficient: scale.coefficient,
+          // Copied like the two above it, so re-configuring the kind — or its
+          // niveau's GradingRule — later cannot rescore a round already sat.
+          // See Assessment.
           countsTowardAverage: type.countsTowardAverage,
           status: "DRAFT",
           // Non-null: `missing` is exactly the targets that resolved a teacher.

@@ -15,11 +15,14 @@ import {
   appreciationFor,
   assessmentScopeKey,
   awaitingValidation,
+  gradingDefaults,
+  gradingRuleScopeKey,
   isPassing,
   markStatistics,
   pointsToQuarters,
   quartersToPoints,
   questionsTotal,
+  resolveGradingRule,
   roundScore,
   sortBands,
   stageOf,
@@ -428,6 +431,107 @@ describe("assessmentScopeKey", () => {
 
   it("never collides a group with the whole class", () => {
     expect(assessmentScopeKey("group-1")).not.toBe(assessmentScopeKey(null));
+  });
+});
+
+// ── Per-niveau barèmes: narrowest scope wins ──────────────────────────────────
+
+describe("gradingRuleScopeKey", () => {
+  it("gives the four tiers pairwise distinct keys", () => {
+    const keys = [
+      gradingRuleScopeKey(null, null),
+      gradingRuleScopeKey("level-1", null),
+      gradingRuleScopeKey(null, "subject-1"),
+      gradingRuleScopeKey("level-1", "subject-1"),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("resolveGradingRule", () => {
+  const type = { assessmentTypeId: "cc" };
+
+  it("returns null with no rows — the empty table must change nothing", () => {
+    expect(
+      resolveGradingRule([], { ...type, levelId: "1AP", subjectId: "ARABE" }),
+    ).toBeNull();
+  });
+
+  it("prefers a level+subject row over every other tier", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey(null, null), maxScore: 20, coefficient: null },
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("1AP", null), maxScore: 10, coefficient: null },
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey(null, "ARABE"), maxScore: 15, coefficient: null },
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("1AP", "ARABE"), maxScore: 8, coefficient: 2 },
+    ];
+    expect(
+      resolveGradingRule(rows, { ...type, levelId: "1AP", subjectId: "ARABE" }),
+    ).toMatchObject({ maxScore: 8, coefficient: 2 });
+  });
+
+  it("falls back to the subject-only row when the level does not match", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey(null, "ARABE"), maxScore: 15, coefficient: null },
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("2BAC", "ARABE"), maxScore: 8, coefficient: null },
+    ];
+    expect(
+      resolveGradingRule(rows, { ...type, levelId: "1AP", subjectId: "ARABE" }),
+    ).toMatchObject({ maxScore: 15 });
+  });
+
+  it("falls back to the level-only row when no subject row matches", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("1AP", null), maxScore: 10, coefficient: null },
+    ];
+    expect(
+      resolveGradingRule(rows, { ...type, levelId: "1AP", subjectId: "ARABE" }),
+    ).toMatchObject({ maxScore: 10 });
+  });
+
+  it("ignores a rule for a different level", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("2BAC", null), maxScore: 10, coefficient: null },
+    ];
+    expect(
+      resolveGradingRule(rows, { ...type, levelId: "1AP", subjectId: null }),
+    ).toBeNull();
+  });
+
+  it("ignores a rule for a different kind", () => {
+    const rows = [
+      { assessmentTypeId: "exam", scopeKey: gradingRuleScopeKey(null, null), maxScore: 10, coefficient: null },
+    ];
+    expect(
+      resolveGradingRule(rows, { ...type, levelId: null, subjectId: null }),
+    ).toBeNull();
+  });
+});
+
+describe("gradingDefaults", () => {
+  const type = { defaultMaxScore: 20, defaultCoefficient: 1 };
+
+  it("with no rows, returns the kind's own numbers verbatim", () => {
+    expect(
+      gradingDefaults([], { assessmentTypeId: "cc", levelId: "1AP", subjectId: null }, type),
+    ).toEqual({ maxScore: 20, coefficient: 1 });
+  });
+
+  it("takes a rule's maxScore but keeps the kind's coefficient when the rule leaves it null", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("1AP", null), maxScore: 10, coefficient: null },
+    ];
+    expect(
+      gradingDefaults(rows, { assessmentTypeId: "cc", levelId: "1AP", subjectId: null }, type),
+    ).toEqual({ maxScore: 10, coefficient: 1 });
+  });
+
+  it("takes both figures when the rule sets both", () => {
+    const rows = [
+      { assessmentTypeId: "cc", scopeKey: gradingRuleScopeKey("1AP", null), maxScore: 10, coefficient: 3 },
+    ];
+    expect(
+      gradingDefaults(rows, { assessmentTypeId: "cc", levelId: "1AP", subjectId: null }, type),
+    ).toEqual({ maxScore: 10, coefficient: 3 });
   });
 });
 
@@ -1247,16 +1351,23 @@ describe("generateAssessments", () => {
     assignments = [{ subjectId: "maths", teacherId: "teacher-1" }],
     existing = [] as { subjectId: string; scopeKey: string }[],
     type = TYPE,
+    gradingRules = [] as {
+      assessmentTypeId: string;
+      scopeKey: string;
+      maxScore: number;
+      coefficient: number | null;
+    }[],
   } = {}) => {
     answers = {
       "schoolClass.findUnique": {
         ...CLASS,
-        levelOffering: { levelId: "level-1", trackId: null },
+        levelOffering: { schoolYearId: "year-1", levelId: "level-1", trackId: null },
       },
       "assessmentType.findFirst": type,
       "levelSubject.findMany": subjects,
       "assessment.findMany": existing,
       "teachingAssignment.findMany": assignments,
+      "gradingRule.findMany": gradingRules,
     };
   };
 
@@ -1308,13 +1419,28 @@ describe("generateAssessments", () => {
 
   it("copies the scale and the weight off the type rather than referencing it", async () => {
     // So that re-weighting the type next year cannot silently rescore marks
-    // already entered against it.
+    // already entered against it. With no GradingRule at all — the ordinary
+    // case — this must reproduce exactly what the type itself says.
     setup();
     await run([target("maths")]);
     const rows = (only("assessment", "createMany").args as {
       data: Record<string, unknown>[];
     }).data;
     expect(rows[0]).toMatchObject({ maxScore: 20, coefficient: 2 });
+  });
+
+  it("takes the niveau's own barème over the type's default when one is set", async () => {
+    setup({
+      gradingRules: [
+        { assessmentTypeId: "type-1", scopeKey: "level-1:", maxScore: 10, coefficient: null },
+      ],
+    });
+    await run([target("maths")]);
+    const rows = (only("assessment", "createMany").args as {
+      data: Record<string, unknown>[];
+    }).data;
+    // The rule sets only the scale, so the type's own weight survives.
+    expect(rows[0]).toMatchObject({ maxScore: 10, coefficient: 2 });
   });
 
   it("creates papers as DRAFT, because generating is planning", async () => {

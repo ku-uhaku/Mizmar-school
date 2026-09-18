@@ -11,9 +11,10 @@ import {
   REMARK_TONES,
   attendanceScopeKey,
   lessonAt,
+  sessionScopeKey,
   startOfDay,
   tallyAttendance,
-  wasPresent,
+  wasMissing,
 } from "@/modules/classroom/enums";
 import { remarkSchema } from "@/modules/classroom/validation";
 
@@ -78,9 +79,8 @@ const db = new Proxy(
 
 vi.mock("@/lib/db", () => ({ db, auditClient: {} }));
 
-const { justifyAbsence, saveRegister, writeRemark } = await import(
-  "@/modules/classroom/service"
-);
+const { justifyAbsence, reopenSession, saveSession, writeRemark } =
+  await import("@/modules/classroom/service");
 
 const of = (model: string, op: string) =>
   calls.filter((call) => call.model === model && call.op === op);
@@ -88,6 +88,20 @@ const of = (model: string, op: string) =>
 const only = (model: string, op: string): Call => {
   const matches = of(model, op);
   expect(matches, `${model}.${op}`).toHaveLength(1);
+  return matches[0]!;
+};
+
+/**
+ * The first of several calls to the same table.
+ *
+ * Saving a register that found somebody missing goes on to tell the family and
+ * the office, and those reads hit the same tables again — so a test about how
+ * the roster was *resolved* has to name the read it means rather than assert
+ * there was only one.
+ */
+const first = (model: string, op: string): Call => {
+  const matches = of(model, op);
+  expect(matches.length, `${model}.${op}`).toBeGreaterThan(0);
   return matches[0]!;
 };
 
@@ -99,29 +113,25 @@ beforeEach(() => {
 // ── The four statuses ────────────────────────────────────────────────────────
 
 describe("attendance statuses", () => {
-  it("counts a late pupil as having turned up", () => {
-    // LATE is a status of its own rather than a flag on PRESENT, but the child
-    // was in the room — an attendance rate that counted them absent would be
-    // wrong about the thing it is named after.
-    expect(ATTENDANCE_STATUSES.filter(wasPresent)).toEqual(["PRESENT", "LATE"]);
-  });
-
   it("treats absent and excused as not in the room", () => {
     expect([...MISSING_STATUSES]).toEqual(["ABSENT", "EXCUSED"]);
     for (const status of MISSING_STATUSES) {
-      expect(wasPresent(status), status).toBe(false);
+      expect(wasMissing(status), status).toBe(true);
     }
   });
 
-  it("splits every status into exactly one of the two", () => {
-    for (const status of ATTENDANCE_STATUSES) {
-      expect(wasPresent(status), status).toBe(!MISSING_STATUSES.includes(status));
-    }
+  it("does not count a retard as a lesson missed", () => {
+    // The child turned up. A school chases lates by accumulation and absences
+    // by the day, and folding one into the other loses both counts.
+    expect(wasMissing("LATE")).toBe(false);
+    expect(wasMissing("PRESENT")).toBe(false);
   });
 
   it("says nothing about a status it has never heard of", () => {
-    for (const nonsense of ["", "present", "ABSENT ", "__proto__"]) {
-      expect(wasPresent(nonsense), nonsense).toBe(false);
+    // The column is an enum by convention only, so a read has to be able to ask
+    // about whatever it found.
+    for (const nonsense of ["", "absent", "ABSENT ", "__proto__"]) {
+      expect(wasMissing(nonsense), nonsense).toBe(false);
     }
   });
 
@@ -138,15 +148,18 @@ describe("attendance statuses", () => {
 });
 
 describe("tallyAttendance", () => {
-  const mark = (status: string | null) => ({ status });
+  const pupil = (status: string | null) => ({ status });
 
-  it("counts each status separately", () => {
+  it("counts an unflagged pupil as present", () => {
+    // The rule the whole model turns on: presence is the absence of a mark, so
+    // a roster of five with one away is four present and one absent — not one
+    // absent and four nobody has decided about.
     const tally = tallyAttendance([
-      mark("PRESENT"),
-      mark("PRESENT"),
-      mark("LATE"),
-      mark("ABSENT"),
-      mark("EXCUSED"),
+      pupil(null),
+      pupil(null),
+      pupil("LATE"),
+      pupil("ABSENT"),
+      pupil("EXCUSED"),
     ]);
     expect(tally).toEqual({
       present: 2,
@@ -162,31 +175,33 @@ describe("tallyAttendance", () => {
     // The whole reason LATE is its own status: three retards and somebody
     // writes to the family, and that count is impossible if it hides inside
     // "present".
-    const tally = tallyAttendance([mark("LATE"), mark("LATE")]);
+    const tally = tallyAttendance([pupil("LATE"), pupil("LATE")]);
     expect(tally.present).toBe(0);
     expect(tally.late).toBe(2);
   });
 
-  it("counts a pupil nobody marked as unmarked, not as present", () => {
-    // A register that was never taken is not a class that turned up.
-    const tally = tallyAttendance([mark(null), mark("PRESENT")]);
-    expect(tally.unmarked).toBe(1);
-    expect(tally.present).toBe(1);
+  it("counts a legacy PRESENT row as present too", () => {
+    // Rows written before presence stopped being stored are still in the
+    // table, and a register that read them as an unknown status would report
+    // the pupil twice.
+    const tally = tallyAttendance([pupil("PRESENT"), pupil(null)]);
+    expect(tally.present).toBe(2);
+    expect(tally.unmarked).toBe(0);
   });
 
   it("adds up to the roster, whatever the mix", () => {
-    const marks = [
-      ...ATTENDANCE_STATUSES.map((status) => mark(status)),
-      mark(null),
-      mark("SOMETHING_ELSE"),
+    const roster = [
+      ...ATTENDANCE_STATUSES.map((status) => pupil(status)),
+      pupil(null),
+      pupil("SOMETHING_ELSE"),
     ];
-    const tally = tallyAttendance(marks);
-    // The stray value is in `total` and in none of the buckets — which is how a
-    // corrupted row shows up as a discrepancy rather than as a wrong count.
-    expect(tally.total).toBe(marks.length);
-    expect(
-      tally.present + tally.late + tally.absent + tally.excused + tally.unmarked,
-    ).toBe(marks.length - 1);
+    const tally = tallyAttendance(roster);
+    // A stray value falls into `present` rather than vanishing: everything on
+    // the roster is accounted for, which is what makes the figures add up.
+    expect(tally.total).toBe(roster.length);
+    expect(tally.present + tally.late + tally.absent + tally.excused).toBe(
+      roster.length,
+    );
   });
 
   it("tallies an empty register as empty", () => {
@@ -295,9 +310,20 @@ describe("attendanceScopeKey", () => {
 
 const ROSTER = [{ id: "enrol-1" }, { id: "enrol-2" }, { id: "enrol-3" }];
 
+/** The séance every save upserts — see `saveSession`. */
+const SESSION = "session-1";
+
+/**
+ * A pupil who was away.
+ *
+ * ABSENT rather than PRESENT, which the fixtures used to default to: presence
+ * is the absence of a row now, so a present pupil writes nothing at all and a
+ * default of PRESENT would make every assertion about *what* was written be an
+ * assertion about nothing.
+ */
 const attendanceMark = (extra: Record<string, unknown> = {}) => ({
   enrollmentId: "enrol-1",
-  status: "PRESENT",
+  status: "ABSENT",
   minutesLate: null as number | null,
   reason: null as string | null,
   ...extra,
@@ -313,7 +339,7 @@ const register = (extra: Record<string, unknown> = {}) => ({
   date: new Date(2026, 0, 15, 8, 30),
   marks: [attendanceMark()],
   ...extra,
-}) as Parameters<typeof saveRegister>[0];
+}) as Parameters<typeof saveSession>[0];
 
 /** What the upserts were asked to create. */
 const written = () =>
@@ -321,26 +347,73 @@ const written = () =>
     (call) => (call.args as { create: Record<string, unknown> }).create,
   );
 
-describe("saveRegister", () => {
+describe("saveSession", () => {
   const teaching = () => {
     answers = {
       "teachingAssignment.findFirst": { classGroupId: null },
       "enrollment.findMany": ROSTER,
+      "classSession.upsert": { id: SESSION },
     };
   };
 
+  /** The séance row the save wrote, as it asked for it to be created. */
+  const session = () =>
+    (only("classSession", "upsert").args as {
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    });
+
   it("records a lesson's register", async () => {
     teaching();
-    const result = await saveRegister(register());
+    const result = await saveSession(register());
 
-    expect(result).toEqual({ ok: true, saved: 1 });
+    expect(result).toEqual({ ok: true, saved: 1, sessionId: SESSION });
     expect(written()[0]).toMatchObject({
       enrollmentId: "enrol-1",
-      status: "PRESENT",
+      status: "ABSENT",
       subjectId: "maths",
       timeSlotId: "slot-1",
       recordedById: "teacher-1",
     });
+  });
+
+  // ── Presence is the absence of a row ────────────────────────────────────────
+
+  it("writes nothing at all for a pupil who was there", async () => {
+    // The point of the model: a register of a class where nobody was away is
+    // an empty write, and the séance closing is what records that it happened.
+    teaching();
+    const result = await saveSession(
+      register({ marks: [attendanceMark({ status: "PRESENT" })] }),
+    );
+
+    expect(of("studentAttendance", "upsert")).toEqual([]);
+    // Still counted as recorded: the appel covered the pupil, it simply had
+    // nothing to say about them.
+    expect(result).toEqual({ ok: true, saved: 1, sessionId: SESSION });
+  });
+
+  it("clears a mark when a pupil is corrected back to present", async () => {
+    // Rewriting it as PRESENT would leave a row that every count still reads as
+    // a mark; the absence the teacher took back has to actually go.
+    teaching();
+    await saveSession(
+      register({ marks: [attendanceMark({ status: "PRESENT" })] }),
+    );
+
+    expect(only("studentAttendance", "deleteMany").args).toMatchObject({
+      where: {
+        enrollmentId: { in: ["enrol-1"] },
+        date: startOfDay(new Date(2026, 0, 15, 8, 30)),
+        scopeKey: "slot-1",
+      },
+    });
+  });
+
+  it("does not reach for a delete when everybody was away", async () => {
+    teaching();
+    await saveSession(register());
+    expect(of("studentAttendance", "deleteMany")).toEqual([]);
   });
 
   // ── Only your own classes ──────────────────────────────────────────────────
@@ -348,7 +421,7 @@ describe("saveRegister", () => {
   it("refuses a class the teacher does not teach", async () => {
     // No assignment, no register. The rule the whole service exists to keep.
     answers = { "enrollment.findMany": ROSTER };
-    const result = await saveRegister(register());
+    const result = await saveSession(register());
 
     expect(result).toEqual({ ok: false, reason: "not-teaching" });
     expect(of("studentAttendance", "upsert")).toEqual([]);
@@ -356,7 +429,7 @@ describe("saveRegister", () => {
 
   it("asks for the assignment by teacher, class and school together", async () => {
     teaching();
-    await saveRegister(register());
+    await saveSession(register());
 
     expect(only("teachingAssignment", "findFirst").args).toMatchObject({
       where: {
@@ -372,7 +445,7 @@ describe("saveRegister", () => {
     // A primary teacher who has the class all morning marks the day, not a
     // subject — and has an assignment for each of the subjects they teach.
     teaching();
-    await saveRegister(register({ subjectId: null, timeSlotId: null }));
+    await saveSession(register({ subjectId: null, timeSlotId: null }));
 
     const where = (only("teachingAssignment", "findFirst").args as {
       where: Record<string, unknown>;
@@ -387,9 +460,9 @@ describe("saveRegister", () => {
       "teachingAssignment.findFirst": { classGroupId: "group-a" },
       "enrollment.findMany": ROSTER,
     };
-    await saveRegister(register());
+    await saveSession(register());
 
-    expect(only("enrollment", "findMany").args).toMatchObject({
+    expect(first("enrollment", "findMany").args).toMatchObject({
       where: { schoolClassId: "class-1", classGroupId: "group-a" },
     });
   });
@@ -402,11 +475,12 @@ describe("saveRegister", () => {
     // left behind.
     answers = {
       "schoolClass.findFirst": { id: "class-1" },
+      "classSession.upsert": { id: SESSION },
       "enrollment.findMany": ROSTER,
     };
-    const result = await saveRegister(register({ actsForSchool: true }));
+    const result = await saveSession(register({ actsForSchool: true }));
 
-    expect(result).toEqual({ ok: true, saved: 1 });
+    expect(result).toEqual({ ok: true, saved: 1, sessionId: SESSION });
     expect(of("teachingAssignment", "findFirst")).toEqual([]);
   });
 
@@ -414,7 +488,7 @@ describe("saveRegister", () => {
     // `actsForSchool` relaxes *which roster*, never *which school* — and the
     // school is the working context, never the request.
     answers = { "enrollment.findMany": ROSTER };
-    const result = await saveRegister(register({ actsForSchool: true }));
+    const result = await saveSession(register({ actsForSchool: true }));
 
     expect(result).toEqual({ ok: false, reason: "not-teaching" });
     expect(of("studentAttendance", "upsert")).toEqual([]);
@@ -423,11 +497,12 @@ describe("saveRegister", () => {
   it("looks the class up under the school in context", async () => {
     answers = {
       "schoolClass.findFirst": { id: "class-1" },
+      "classSession.upsert": { id: SESSION },
       "enrollment.findMany": ROSTER,
     };
-    await saveRegister(register({ actsForSchool: true }));
+    await saveSession(register({ actsForSchool: true }));
 
-    expect(only("schoolClass", "findFirst").args).toMatchObject({
+    expect(first("schoolClass", "findFirst").args).toMatchObject({
       where: { id: "class-1", schoolId: "school-1" },
     });
   });
@@ -437,11 +512,12 @@ describe("saveRegister", () => {
     // silently leave half the register unmarked.
     answers = {
       "schoolClass.findFirst": { id: "class-1" },
+      "classSession.upsert": { id: SESSION },
       "enrollment.findMany": ROSTER,
     };
-    await saveRegister(register({ actsForSchool: true }));
+    await saveSession(register({ actsForSchool: true }));
 
-    const where = (only("enrollment", "findMany").args as {
+    const where = (first("enrollment", "findMany").args as {
       where: Record<string, unknown>;
     }).where;
     expect(where).not.toHaveProperty("classGroupId");
@@ -451,17 +527,17 @@ describe("saveRegister", () => {
 
   it("writes nothing for a pupil who is not in this lesson", async () => {
     teaching();
-    const result = await saveRegister(
+    const result = await saveSession(
       register({ marks: [attendanceMark({ enrollmentId: "someone-else" })] }),
     );
 
-    expect(result).toEqual({ ok: true, saved: 0 });
+    expect(result).toEqual({ ok: true, saved: 0, sessionId: SESSION });
     expect(of("studentAttendance", "upsert")).toEqual([]);
   });
 
   it("writes the seated pupils and drops the rest", async () => {
     teaching();
-    const result = await saveRegister(
+    const result = await saveSession(
       register({
         marks: [
           attendanceMark(),
@@ -470,7 +546,7 @@ describe("saveRegister", () => {
       }),
     );
 
-    expect(result).toEqual({ ok: true, saved: 1 });
+    expect(result).toEqual({ ok: true, saved: 1, sessionId: SESSION });
     expect(written().map((row) => row["enrollmentId"])).toEqual(["enrol-1"]);
   });
 
@@ -478,7 +554,7 @@ describe("saveRegister", () => {
 
   it("keeps the minutes on a retard", async () => {
     teaching();
-    await saveRegister(
+    await saveSession(
       register({
         marks: [attendanceMark({ status: "LATE", minutesLate: 12 })],
       }),
@@ -487,12 +563,13 @@ describe("saveRegister", () => {
   });
 
   it("clears the minutes for every status but LATE", async () => {
-    // A stale figure on a pupil who turned out to be present would put a retard
-    // in their yearly count that nobody recorded.
-    for (const status of ["PRESENT", "ABSENT", "EXCUSED"]) {
+    // A stale figure on a pupil who turned out to be absent would put a retard
+    // in their yearly count that nobody recorded. PRESENT is not in the list
+    // because it writes no row to carry a figure at all.
+    for (const status of ["ABSENT", "EXCUSED"]) {
       calls.length = 0;
       teaching();
-      await saveRegister(
+      await saveSession(
         register({ marks: [attendanceMark({ status, minutesLate: 12 })] }),
       );
       expect(written()[0]!["minutesLate"], status).toBeNull();
@@ -502,7 +579,7 @@ describe("saveRegister", () => {
   it("refuses a retard longer than a lesson", async () => {
     teaching();
     expect(
-      await saveRegister(
+      await saveSession(
         register({
           marks: [
             attendanceMark({ status: "LATE", minutesLate: MAX_MINUTES_LATE + 1 }),
@@ -515,7 +592,7 @@ describe("saveRegister", () => {
   it("refuses negative minutes", async () => {
     teaching();
     expect(
-      await saveRegister(
+      await saveSession(
         register({ marks: [attendanceMark({ status: "LATE", minutesLate: -5 })] }),
       ),
     ).toEqual({ ok: false, reason: "out-of-range" });
@@ -526,11 +603,11 @@ describe("saveRegister", () => {
       calls.length = 0;
       teaching();
       expect(
-        await saveRegister(
+        await saveSession(
           register({ marks: [attendanceMark({ status: "LATE", minutesLate })] }),
         ),
         String(minutesLate),
-      ).toEqual({ ok: true, saved: 1 });
+      ).toEqual({ ok: true, saved: 1, sessionId: SESSION });
     }
   });
 
@@ -538,7 +615,7 @@ describe("saveRegister", () => {
     // Rather than writing the rest: a half-taken register is how one pupil ends
     // up with yesterday's status.
     teaching();
-    const result = await saveRegister(
+    const result = await saveSession(
       register({
         marks: [
           attendanceMark(),
@@ -557,7 +634,7 @@ describe("saveRegister", () => {
   it("refuses a fractional minute rather than rounding it", async () => {
     teaching();
     expect(
-      await saveRegister(
+      await saveSession(
         register({
           marks: [attendanceMark({ status: "LATE", minutesLate: 7.5 })],
         }),
@@ -572,7 +649,7 @@ describe("saveRegister", () => {
     // `isJustified` is absent from the update entirely rather than written
     // false.
     teaching();
-    await saveRegister(register());
+    await saveSession(register());
 
     const call = only("studentAttendance", "upsert").args as {
       update: Record<string, unknown>;
@@ -584,7 +661,7 @@ describe("saveRegister", () => {
 
   it("keys the row on the pupil, the day and the period", async () => {
     teaching();
-    await saveRegister(register());
+    await saveSession(register());
 
     const call = only("studentAttendance", "upsert").args as { where: unknown };
     expect(call.where).toEqual({
@@ -598,7 +675,7 @@ describe("saveRegister", () => {
 
   it("keys a whole-day register on the day sentinel", async () => {
     teaching();
-    await saveRegister(register({ timeSlotId: null, subjectId: null }));
+    await saveSession(register({ timeSlotId: null, subjectId: null }));
 
     const call = only("studentAttendance", "upsert").args as {
       where: { enrollmentId_date_scopeKey: { scopeKey: string } };
@@ -608,7 +685,7 @@ describe("saveRegister", () => {
 
   it("stores midnight, whatever time of day it was taken", async () => {
     teaching();
-    await saveRegister(register({ date: new Date(2026, 0, 15, 16, 45) }));
+    await saveSession(register({ date: new Date(2026, 0, 15, 16, 45) }));
 
     const stored = written()[0]!["date"] as Date;
     expect(stored.getHours()).toBe(0);
@@ -617,10 +694,139 @@ describe("saveRegister", () => {
 
   it("takes an empty register without complaint", async () => {
     teaching();
-    expect(await saveRegister(register({ marks: [] }))).toEqual({
+    expect(await saveSession(register({ marks: [] }))).toEqual({
       ok: true,
       saved: 0,
+      sessionId: SESSION,
     });
+  });
+
+  // ── The séance ──────────────────────────────────────────────────────────────
+
+  it("keys the séance on the class, the day and the period", async () => {
+    teaching();
+    await saveSession(register());
+
+    expect(only("classSession", "upsert").args).toMatchObject({
+      where: {
+        schoolClassId_date_scopeKey: {
+          schoolClassId: "class-1",
+          date: startOfDay(new Date(2026, 0, 15, 8, 30)),
+          scopeKey: sessionScopeKey("slot-1", null),
+        },
+      },
+    });
+  });
+
+  it("files every mark under the séance it saved", async () => {
+    teaching();
+    await saveSession(register());
+    expect(written()[0]).toMatchObject({ sessionId: SESSION });
+  });
+
+  it("writes the cahier de textes with the register", async () => {
+    teaching();
+    await saveSession(
+      register({ theme: "Les fractions.", homework: "Exercice 5 p.42." }),
+    );
+
+    expect(session().create).toMatchObject({
+      theme: "Les fractions.",
+      homework: "Exercice 5 p.42.",
+    });
+  });
+
+  it("leaves the theme alone when the caller says nothing about it", async () => {
+    // The phone saves one pupil at a time and sends no theme with them. Writing
+    // the field anyway would blank what somebody typed on the web.
+    teaching();
+    await saveSession(register());
+
+    expect(session().update).not.toHaveProperty("theme");
+    expect(session().update).not.toHaveProperty("homework");
+  });
+
+  it("records who took the séance, from the session and not the form", async () => {
+    teaching();
+    await saveSession(register());
+    expect(session().create).toMatchObject({ teacherId: "teacher-1" });
+  });
+
+  // ── Closing ─────────────────────────────────────────────────────────────────
+
+  it("closes the séance only when the caller says so", async () => {
+    teaching();
+    await saveSession(register({ close: true }));
+
+    expect(session().update).toMatchObject({
+      closedAt: expect.any(Date),
+      closedById: "teacher-1",
+    });
+  });
+
+  it("leaves it open otherwise, so the phone can mark pupil by pupil", async () => {
+    // A save that closed by itself would refuse the second tap of every
+    // register taken on a phone.
+    teaching();
+    await saveSession(register());
+
+    expect(session().update).not.toHaveProperty("closedAt");
+  });
+
+  it("refuses to write into a closed séance", async () => {
+    teaching();
+    answers["classSession.findUnique"] = {
+      id: SESSION,
+      closedAt: new Date(2026, 0, 15, 9, 0),
+    };
+
+    const result = await saveSession(register());
+
+    expect(result).toEqual({ ok: false, reason: "closed" });
+    expect(of("studentAttendance", "upsert")).toEqual([]);
+    expect(of("classSession", "upsert")).toEqual([]);
+  });
+
+  // ── A séance nobody assured ────────────────────────────────────────────────
+
+  it("records a cancelled séance and takes no register for it", async () => {
+    // Marking a class that never sat would be inventing an attendance.
+    teaching();
+    const result = await saveSession(register({ isCancelled: true }));
+
+    expect(result).toEqual({ ok: true, saved: 0, sessionId: SESSION });
+    expect(session().create).toMatchObject({ status: "CANCELLED" });
+    expect(of("studentAttendance", "upsert")).toEqual([]);
+  });
+});
+
+describe("reopenSession", () => {
+  it("lifts the close, scoped to the school", async () => {
+    answers = { "classSession.updateMany": { count: 1 } };
+
+    const result = await reopenSession({
+      schoolId: "school-1",
+      sessionId: SESSION,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(only("classSession", "updateMany").args).toMatchObject({
+      where: {
+        id: SESSION,
+        schoolClass: { schoolId: "school-1" },
+      },
+      data: { closedAt: null, closedById: null },
+    });
+  });
+
+  it("reaches nothing in another school", async () => {
+    // Scoped in the `where` rather than checked afterwards, so a crafted id
+    // matches no row instead of reopening somebody else's register.
+    answers = { "classSession.updateMany": { count: 0 } };
+
+    expect(
+      await reopenSession({ schoolId: "school-1", sessionId: "elsewhere" }),
+    ).toEqual({ ok: false });
   });
 });
 

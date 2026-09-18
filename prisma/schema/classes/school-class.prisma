@@ -54,6 +54,8 @@ model SchoolClass {
   groups              ClassGroup[]
   assignments         TeachingAssignment[]
   timetableEntries    TimetableEntry[]
+  /// The séances actually taught to this class — see ClassSession.
+  sessions            ClassSession[]
   supplyLists         SupplyList[]
   timetableExceptions TimetableException[]
   assessments         Assessment[]

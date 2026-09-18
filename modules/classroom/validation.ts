@@ -16,9 +16,28 @@ import {
   REMARK_KINDS,
   REMARK_MAX_LENGTH,
   REMARK_TONES,
+  SESSION_TEXT_MAX,
 } from "@/modules/classroom/enums";
 
 /** Built per-request from the dictionary so messages come back localised. */
+
+/**
+ * The cahier de textes for one séance.
+ *
+ * Both fields are optional: a register taken in a hurry is still a register,
+ * and refusing to record who was in the room because nobody typed the theme
+ * would cost the school the half that matters most. Empty comes back as null,
+ * so clearing a theme clears the column rather than storing "".
+ *
+ * Takes no dictionary, unlike its neighbours: nothing here can fail in a way a
+ * sentence would explain — the only rule is a length the textarea also caps.
+ */
+export function sessionSchema() {
+  return z.object({
+    theme: optionalText(SESSION_TEXT_MAX),
+    homework: optionalText(SESSION_TEXT_MAX),
+  });
+}
 
 export function remarkSchema(t: Dictionary) {
   const v = t.validation;

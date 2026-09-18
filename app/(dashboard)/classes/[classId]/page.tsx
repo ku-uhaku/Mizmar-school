@@ -16,6 +16,7 @@ import {
   listAssessableClasses,
   listAssessmentTypes,
   listDevoirTargets,
+  listGradingRules,
   listTerms,
   loadClassPapers,
   loadProgrammesByClass,
@@ -28,6 +29,7 @@ import {
 import {
   findClassRegister,
   listClassLessons,
+  listClassSessions,
   listRemarks,
   loadClassAttendance,
 } from "@/modules/classroom/queries";
@@ -144,10 +146,18 @@ export default async function ClassPage({
     is halfway through is a link they can send to whoever finishes it.
   */
   const canMarkAttendance = context.can(PERMISSIONS.CLASSROOM_ATTENDANCE_MARK);
+  // The same office decision that already backs standing in for a class's own
+  // teacher — see the note at the top of modules/classroom/service.ts.
+  const canReopenSessions = context.can(
+    PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY,
+  );
   const registerDay = parseDayParam(one("reg_date"));
-  const classDay = canSeeAttendance
-    ? await listClassLessons(context, classId, registerDay)
-    : null;
+  const [classDay, journal] = canSeeAttendance
+    ? await Promise.all([
+        listClassLessons(context, classId, registerDay),
+        listClassSessions(context, classId),
+      ])
+    : [null, []];
 
   /*
     Which period the tab opens on: the one being taught, else the one about to
@@ -179,6 +189,7 @@ export default async function ClassPage({
     controlTypes,
     devoirTypes,
     devoirTargets,
+    gradingRules,
     results,
     termAverages,
     attendance,
@@ -215,6 +226,7 @@ export default async function ClassPage({
     canSetPapers
       ? listDevoirTargets(context, { schoolClassId: classId })
       : [],
+    canGenerate || canSetPapers ? listGradingRules(context) : [],
     // The term in play, decided by the query rather than the page — see
     // `loadClassResults`.
     canSeeMarks ? loadClassResults(context, classId, null) : null,
@@ -295,8 +307,10 @@ export default async function ClassPage({
             ? {
                 day: classDay,
                 register,
+                journal,
                 selectedTimeSlotId: register ? selectedTimeSlotId : null,
                 canMark: canMarkAttendance,
+                canReopen: canReopenSessions,
               }
             : null
         }
@@ -318,6 +332,7 @@ export default async function ClassPage({
                 controlTypes,
                 devoirTypes,
                 devoirTargets,
+                gradingRules,
               }
             : null
         }

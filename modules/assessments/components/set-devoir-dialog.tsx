@@ -37,7 +37,7 @@ import { IDLE } from "@/lib/action-state";
 import { checkedOf, valueOf } from "@/lib/form-values";
 import { cn } from "@/lib/utils";
 import { createDevoirAction } from "@/modules/assessments/actions";
-import { NOTES_MAX } from "@/modules/assessments/enums";
+import { gradingDefaults, NOTES_MAX, type GradingRuleRow } from "@/modules/assessments/enums";
 import type {
   AssessmentTypeOption,
   DevoirTarget,
@@ -75,11 +75,14 @@ export function SetDevoirDialog({
   targets,
   terms,
   types,
+  gradingRules,
   defaultDate,
 }: {
   targets: DevoirTarget[];
   terms: TermOption[];
   types: AssessmentTypeOption[];
+  /** This year's barèmes — see `listGradingRules` and `gradingDefaults`. */
+  gradingRules: GradingRuleRow[];
   /** Already clamped into the school year — see lib/school-year.ts. */
   defaultDate: string;
 }) {
@@ -124,6 +127,21 @@ export function SetDevoirDialog({
     types[0]?.id ?? "",
   );
   const kind = types.find((type) => type.id === assessmentTypeId) ?? null;
+
+  /**
+   * The niveau's own barème when the pair's class carries one, the kind's own
+   * default otherwise — see `gradingDefaults`. Display only: the server
+   * resolves again in `generateAssessments`/`createDevoir`, so this cannot be
+   * used to post a scale the pair's own niveau does not carry.
+   */
+  const scale =
+    kind && target
+      ? gradingDefaults(
+          gradingRules,
+          { assessmentTypeId: kind.id, levelId: target.levelId, subjectId: target.subjectId },
+          kind,
+        )
+      : null;
 
   const blockedReason =
     targets.length === 0
@@ -315,7 +333,7 @@ export function SetDevoirDialog({
                   required
                 >
                   <Input
-                    key={`maxScore-${assessmentTypeId}`}
+                    key={`maxScore-${assessmentTypeId}-${target?.key ?? ""}`}
                     {...controlProps("maxScore", state.fieldErrors?.maxScore)}
                     type="number"
                     min={1}
@@ -323,7 +341,7 @@ export function SetDevoirDialog({
                     defaultValue={valueOf(
                       state,
                       "maxScore",
-                      String(kind?.defaultMaxScore ?? 20),
+                      String(scale?.maxScore ?? kind?.defaultMaxScore ?? 20),
                     )}
                     dir="ltr"
                   />
@@ -336,7 +354,7 @@ export function SetDevoirDialog({
                   required
                 >
                   <Input
-                    key={`coefficient-${assessmentTypeId}`}
+                    key={`coefficient-${assessmentTypeId}-${target?.key ?? ""}`}
                     {...controlProps("coefficient", state.fieldErrors?.coefficient)}
                     type="number"
                     min={1}
@@ -344,7 +362,7 @@ export function SetDevoirDialog({
                     defaultValue={valueOf(
                       state,
                       "coefficient",
-                      String(kind?.defaultCoefficient ?? 1),
+                      String(scale?.coefficient ?? kind?.defaultCoefficient ?? 1),
                     )}
                     dir="ltr"
                   />

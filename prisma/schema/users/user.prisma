@@ -87,6 +87,8 @@ model User {
   /// One-off changes to a week's grid.
   timetableExceptions TimetableException[]    @relation("TeacherTimetableExceptions")
   authoredExceptions  TimetableException[]    @relation("TimetableExceptionAuthor")
+  /// Whole-grid snapshots this user generated or reverted to.
+  timetableVersions   TimetableVersion[]      @relation("TimetableVersionAuthor")
   /// Listes de fournitures written, and reviewed.
   supplyListsAuthored SupplyList[]            @relation("SupplyListAuthor")
   documentsRecorded   StudentDocument[]       @relation("StudentDocumentRecorder")
@@ -106,6 +108,11 @@ model User {
   /// both: a register outlives the account that took it.
   pupilAttendance     StudentAttendance[]     @relation("AttendanceRecordedByTeacher")
   pupilRemarks        StudentRemark[]         @relation("RemarkAuthor")
+  /// Séances taken, and séances closed — see ClassSession. SetNull on both,
+  /// for the reason above. Named `class*` throughout because the caisse's
+  /// CashSession already holds the plain `session*` names on this model.
+  classSessionsTaught ClassSession[]          @relation("ClassSessionTeacher")
+  classSessionsClosed ClassSession[]          @relation("ClassSessionClosedBy")
   /// Papers asked for from the phone, and papers dealt with at the desk.
   /// SetNull on both: a request already handled is a fact about the school's
   /// work and must survive the account that filed or answered it.

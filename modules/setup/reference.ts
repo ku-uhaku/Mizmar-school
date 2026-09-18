@@ -215,6 +215,12 @@ export async function writeReferenceData(
   });
   counts.assessmentTypes = ASSESSMENT_TYPE_SEEDS.length;
 
+  // No GradingRule seeded here, deliberately: a barème is a head of studies'
+  // decision, made once the school's own niveaux exist, not a Moroccan default
+  // the wizard can guess. A wizard-configured school marks every kind out of
+  // the type's own defaultMaxScore until somebody opens
+  // /configuration/academics/grading-rules and says otherwise.
+
   /*
     The appréciation scale, written only into a school that has none.
 

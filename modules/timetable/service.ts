@@ -14,7 +14,9 @@ import {
 import { layPeriodBlock } from "@/modules/timetable/presets";
 import { assignmentScopeKey } from "@/modules/classes/enums";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
+import { activeVersionId } from "@/modules/timetable/queries";
 import {
+  activeVersionKeyOf,
   bookingKeyOf,
   minutesSinceMidnight,
   parityOverlaps,
@@ -54,6 +56,39 @@ import {
  * `loadClassTimetable`.
  */
 
+/**
+ * The grid a manual edit writes into, creating it if this scope has never
+ * held one — a bell schedule hand-built from scratch, before any generation
+ * run. `applyTimetableDraft` never calls this: generating always makes its
+ * own new version, see the note there.
+ */
+export async function ensureActiveVersion(
+  schoolYearId: string,
+  scheduleKind: string,
+): Promise<string> {
+  const existing = await activeVersionId(schoolYearId, scheduleKind);
+  if (existing) return existing;
+
+  try {
+    const version = await db.timetableVersion.create({
+      data: {
+        schoolYearId,
+        scheduleKind,
+        status: "ACTIVE",
+        activeKey: activeVersionKeyOf(schoolYearId, scheduleKind),
+        label: "Manual grid",
+      },
+    });
+    return version.id;
+  } catch {
+    // Somebody else's first edit won the race on `activeKey`'s unique index —
+    // their version is the one that exists now, and it is exactly as good.
+    const wonByAnother = await activeVersionId(schoolYearId, scheduleKind);
+    if (wonByAnother) return wonByAnother;
+    throw new Error("Failed to resolve the active timetable version.");
+  }
+}
+
 export type Clash =
   | { kind: "TEACHER"; className: string; slotLabel: string }
   | { kind: "ROOM"; className: string; slotLabel: string }
@@ -80,6 +115,10 @@ export type Clash =
  */
 export async function findClash(
   input: {
+    /** The grid being edited — see the note on TimetableVersion.activeKey.
+     *  A row in a different version, however similar, is history and cannot
+     *  clash with anything being written today. */
+    versionId: string;
     timeSlotId: string;
     schoolClassId: string;
     teacherId: string | null;
@@ -129,6 +168,7 @@ export async function findClash(
 
   const conflicts = await db.timetableEntry.findMany({
     where: {
+      versionId: input.versionId,
       timeSlotId: input.timeSlotId,
       ...(except.length > 0 ? { NOT: { id: { in: except } } } : {}),
       /*
@@ -205,6 +245,8 @@ export type SaveLessonResult =
   | { ok: false; clash: Clash };
 
 export type LessonBlock = {
+  /** The grid this lesson is written into — see `ensureActiveVersion`. */
+  versionId: string;
   schoolClassId: string;
   /** The slots the lesson occupies — one per period, per day it runs on. */
   timeSlotIds: string[];
@@ -269,6 +311,7 @@ export async function saveLessonBlock(
     for (const timeSlotId of block.timeSlotIds) {
       const clash = await findClash(
         {
+          versionId: block.versionId,
           timeSlotId,
           schoolClassId: block.schoolClassId,
           teacherId: block.teacherId,
@@ -293,7 +336,8 @@ export async function saveLessonBlock(
       // edited, and re-placing it should move it rather than refuse.
       await tx.timetableEntry.upsert({
         where: {
-          schoolClassId_timeSlotId_bookingKey: {
+          versionId_schoolClassId_timeSlotId_bookingKey: {
+            versionId: block.versionId,
             schoolClassId: block.schoolClassId,
             timeSlotId,
             bookingKey,
@@ -310,6 +354,7 @@ export async function saveLessonBlock(
           toWeek: block.toWeek,
         },
         create: {
+          versionId: block.versionId,
           schoolClassId: block.schoolClassId,
           timeSlotId,
           subjectId: block.subjectId,
@@ -343,6 +388,7 @@ export async function entriesInBlock(
   const anchor = await db.timetableEntry.findUnique({
     where: { id: entryId },
     select: {
+      versionId: true,
       schoolClassId: true,
       subjectId: true,
       teacherId: true,
@@ -356,6 +402,9 @@ export async function entriesInBlock(
 
   const sameLesson = await db.timetableEntry.findMany({
     where: {
+      // Defensive: a stale id from another version cannot silently pull rows
+      // out of an archived grid into a block being edited today.
+      versionId: anchor.versionId,
       schoolClassId: anchor.schoolClassId,
       subjectId: anchor.subjectId,
       teacherId: anchor.teacherId,
@@ -716,19 +765,28 @@ export async function buildTimetableDraft(
 
   // Everything already on the grid, so the four rules are checked against the
   // real week. When a class is being replaced its own bookings are dropped from
-  // these maps — they are about to be deleted, and counting them would have the
-  // generator refusing to reuse the slots it is emptying.
+  // these maps — they are about to be superseded rather than carried forward
+  // into the new version, and counting them would have the generator refusing
+  // to reuse the slots it is emptying.
+  //
+  // Read against the *active* version only — the table also holds every
+  // superseded grid this scope has ever had, and drawing the four rules
+  // against a version nobody is looking at would refuse slots that are, as
+  // far as any live screen is concerned, free.
   const targetIds = new Set(classes.map((entry) => entry.id));
-  const existing = await db.timetableEntry.findMany({
-    where: { timeSlot: { schoolYearId, scheduleKind: options.scheduleKind } },
-    select: {
-      schoolClassId: true,
-      timeSlotId: true,
-      teacherId: true,
-      roomId: true,
-      subjectId: true,
-    },
-  });
+  const activeId = await activeVersionId(schoolYearId, options.scheduleKind);
+  const existing = activeId
+    ? await db.timetableEntry.findMany({
+        where: { versionId: activeId },
+        select: {
+          schoolClassId: true,
+          timeSlotId: true,
+          teacherId: true,
+          roomId: true,
+          subjectId: true,
+        },
+      })
+    : [];
 
   const busyTeacher: Record<string, string[]> = {};
   const busyRoom: Record<string, string[]> = {};
@@ -1164,6 +1222,19 @@ function labelled(
   }));
 }
 
+/**
+ * `TimetableVersion.label` for a generation run — bounded to the column's
+ * `VARCHAR(200)`, since a whole-school run can touch far more classes than
+ * fit in one readable line. Falls back to a count once naming them all would
+ * overflow, rather than truncating mid-code into something unreadable.
+ */
+function versionLabelFor(classCodes: string[]): string {
+  if (classCodes.length === 0) return "Generated";
+  const joined = `Generated: ${classCodes.join(", ")}`;
+  if (joined.length <= 200) return joined;
+  return `Generated: ${classCodes.length} classes`;
+}
+
 /** The commonest period length in minutes — see the note at the call site. */
 function modalDuration(slots: GeneratorSlot[]): number {
   const tally = new Map<number, number>();
@@ -1185,7 +1256,7 @@ function modalDuration(slots: GeneratorSlot[]): number {
 }
 
 /**
- * Writes a generated grid.
+ * Writes a generated grid as a brand new `TimetableVersion`.
  *
  * ── Why it regenerates instead of taking the preview's rows ─────────────────
  * The draft the browser is holding came from the server, but it comes *back*
@@ -1205,30 +1276,48 @@ function modalDuration(slots: GeneratorSlot[]): number {
  * parity ALL, no week window. A generated grid is the starting point a school
  * then edits, and edits made from a given week already know how to close the
  * old row and open a new one; see `closeEntriesFromWeek`.
+ *
+ * ── Non-destructive by construction ─────────────────────────────────────────
+ * Nothing is ever deleted here. Every class not touched by this run, and every
+ * touched class's lessons the generator chose to leave alone (gap-fill mode,
+ * `replaceExisting: false`), is copied forward from the scope's current active
+ * version into the new one unchanged. The old version is archived, not
+ * dropped — its rows stay exactly as they were, which is what makes reverting
+ * to it later a flip of `activeKey` rather than a reconstruction. See
+ * `TimetableVersion` and `activateTimetableVersion`.
  */
 
 /**
  * Longer than Prisma's 5s default, because a whole-school apply is one
- * transaction holding roughly six hundred lessons. Five seconds is a limit set
+ * transaction holding roughly six hundred lessons — and now also copies
+ * forward whatever untouched classes already had. Five seconds is a limit set
  * for a handful of writes; this is deliberately several hundred, and it must
  * not half-write a school's week.
  */
 const APPLY_TIMEOUT = { timeout: 60_000, maxWait: 10_000 } as const;
 
-/** Lessons per INSERT when the week is being replaced wholesale. */
+/** Lessons per INSERT when a version's rows are written wholesale. */
 const CREATE_CHUNK = 500;
 
 export async function applyTimetableDraft(
   schoolId: string,
   schoolYearId: string,
   options: GeneratorOptions,
+  /** Who generated this version — see `TimetableVersion.createdById`. */
+  actorId: string | null,
 ): Promise<{
   written: number;
   cleared: number;
   assigned: number;
   draft: TimetableDraft;
+  versionId: string;
 }> {
-  const result = await writeTimetableDraft(schoolId, schoolYearId, options);
+  const result = await writeTimetableDraft(
+    schoolId,
+    schoolYearId,
+    options,
+    actorId,
+  );
 
   /*
     One entry for one act, because the transaction below runs unaudited.
@@ -1252,6 +1341,7 @@ export async function applyTimetableDraft(
         written: result.written,
         cleared: result.cleared,
         assigned: result.assigned,
+        versionId: result.versionId,
       },
     });
   }
@@ -1263,17 +1353,22 @@ async function writeTimetableDraft(
   schoolId: string,
   schoolYearId: string,
   options: GeneratorOptions,
+  actorId: string | null,
 ): Promise<{
   written: number;
   cleared: number;
   assigned: number;
   draft: TimetableDraft;
+  versionId: string;
 }> {
   const draft = await buildTimetableDraft(schoolId, schoolYearId, options);
   const classIds = draft.classes.map((entry) => entry.id);
 
   if (classIds.length === 0) {
-    return { written: 0, cleared: 0, assigned: 0, draft };
+    // Nothing to draw, so no new version is worth creating — the scope's
+    // current one (if any) is left exactly as it was.
+    const current = await activeVersionId(schoolYearId, options.scheduleKind);
+    return { written: 0, cleared: 0, assigned: 0, draft, versionId: current ?? "" };
   }
 
   /*
@@ -1295,22 +1390,36 @@ async function writeTimetableDraft(
       exactly as `writeSetup` does.
     */
     const tx = transaction as unknown as TxClient;
-    let cleared = 0;
 
-    if (options.replaceExisting) {
-      const gone = await tx.timetableEntry.deleteMany({
-        where: {
-          schoolClassId: { in: classIds },
-          // Only this bell schedule: regenerating the standard week must not
-          // wipe the Ramadan one, which is a separate decision.
-          timeSlot: {
-            schoolYearId,
-            scheduleKind: options.scheduleKind,
-          },
-        },
+    const activeKey = activeVersionKeyOf(schoolYearId, options.scheduleKind);
+    const previousVersion = await tx.timetableVersion.findUnique({
+      where: { activeKey },
+    });
+
+    const newVersion = await tx.timetableVersion.create({
+      data: {
+        schoolYearId,
+        scheduleKind: options.scheduleKind,
+        status: "ACTIVE",
+        // Not yet the active one — see below. Two rows cannot hold the same
+        // `activeKey` at once, so the old one has to give it up first.
+        activeKey: null,
+        label: versionLabelFor(draft.classes.map((entry) => entry.code)),
+        seed: options.seed,
+        createdById: actorId,
+      },
+    });
+
+    if (previousVersion) {
+      await tx.timetableVersion.update({
+        where: { id: previousVersion.id },
+        data: { status: "ARCHIVED", activeKey: null },
       });
-      cleared = gone.count;
     }
+    await tx.timetableVersion.update({
+      where: { id: newVersion.id },
+      data: { activeKey },
+    });
 
     /*
       The affectations, written before the lessons that depend on them.
@@ -1320,6 +1429,9 @@ async function writeTimetableDraft(
       would look right and be wrong: the class file would still say nobody
       teaches 4AP maths, the next generation would re-decide it from scratch,
       and a head of studies looking for "who has this class" would find nothing.
+      Durable and non-versioned on purpose — see the note on TimetableVersion:
+      a staffing decision survives even if the grid that prompted it is later
+      abandoned by a revert.
 
       Upserted on the same key the manual editor uses, so re-applying settles on
       the newer choice instead of failing the run, and an assignment somebody
@@ -1350,10 +1462,110 @@ async function writeTimetableDraft(
       assigned += 1;
     }
 
+    /*
+      Copy forward what this run did not touch, so nothing is lost by drawing
+      a new version — see the note above the exported function.
+
+        * every class outside this run entirely, and
+        * for a touched class in gap-fill mode (`replaceExisting: false`), the
+          periods the generator left alone because they already held a lesson.
+
+      Both read from `previousVersion` alone: there is nothing to carry forward
+      the first time a scope is ever generated.
+    */
+    let cleared = 0;
+    if (previousVersion) {
+      let toCarry: {
+        schoolClassId: string;
+        classGroupId: string | null;
+        timeSlotId: string;
+        subjectId: string;
+        teacherId: string | null;
+        roomId: string | null;
+        termId: string | null;
+        weekParity: string;
+        fromWeek: number | null;
+        toWeek: number | null;
+        bookingKey: string;
+      }[];
+
+      if (options.replaceExisting) {
+        // Full replace: a touched class's previous lessons are all superseded
+        // — reported as `cleared`, the sentence a user reads, even though
+        // nothing is actually deleted. Only classes outside this run carry
+        // their rows forward unchanged.
+        const [supersededCount, untouched] = await Promise.all([
+          tx.timetableEntry.count({
+            where: { versionId: previousVersion.id, schoolClassId: { in: classIds } },
+          }),
+          tx.timetableEntry.findMany({
+            where: { versionId: previousVersion.id, schoolClassId: { notIn: classIds } },
+            select: {
+              schoolClassId: true,
+              classGroupId: true,
+              timeSlotId: true,
+              subjectId: true,
+              teacherId: true,
+              roomId: true,
+              termId: true,
+              weekParity: true,
+              fromWeek: true,
+              toWeek: true,
+              bookingKey: true,
+            },
+          }),
+        ]);
+        cleared = supersededCount;
+        toCarry = untouched;
+      } else {
+        // Gap-fill: every class keeps whatever the generator did not just
+        // place — touched or not, since a touched class's un-placed periods
+        // are exactly as untouched as any class this run never looked at.
+        const placedSlotsByClass = new Map<string, Set<string>>();
+        for (const placement of draft.placements) {
+          const slots =
+            placedSlotsByClass.get(placement.schoolClassId) ?? new Set<string>();
+          for (const timeSlotId of placement.timeSlotIds) slots.add(timeSlotId);
+          placedSlotsByClass.set(placement.schoolClassId, slots);
+        }
+
+        const candidates = await tx.timetableEntry.findMany({
+          where: { versionId: previousVersion.id },
+          select: {
+            schoolClassId: true,
+            classGroupId: true,
+            timeSlotId: true,
+            subjectId: true,
+            teacherId: true,
+            roomId: true,
+            termId: true,
+            weekParity: true,
+            fromWeek: true,
+            toWeek: true,
+            bookingKey: true,
+          },
+        });
+        toCarry = candidates.filter(
+          (entry) =>
+            !placedSlotsByClass.get(entry.schoolClassId)?.has(entry.timeSlotId),
+        );
+        cleared = candidates.length - toCarry.length;
+      }
+
+      for (let from = 0; from < toCarry.length; from += CREATE_CHUNK) {
+        await tx.timetableEntry.createMany({
+          data: toCarry
+            .slice(from, from + CREATE_CHUNK)
+            .map((entry) => ({ ...entry, versionId: newVersion.id })),
+        });
+      }
+    }
+
     // Every lesson the draft placed, as rows. A block of two periods is two of
     // them — see the note at the top of this file on why a lesson is several
     // rows — and all of them are all-year templates, as the doc comment above
-    // says.
+    // says. Always fresh inserts into the new version: nothing in it yet can
+    // collide with a placement.
     const rows = draft.placements.flatMap((placement) => {
       const bookingKey = bookingKeyOf(
         placement.classGroupId,
@@ -1364,6 +1576,7 @@ async function writeTimetableDraft(
       );
 
       return placement.timeSlotIds.map((timeSlotId) => ({
+        versionId: newVersion.id,
         schoolClassId: placement.schoolClassId,
         timeSlotId,
         subjectId: placement.subjectId,
@@ -1379,52 +1592,112 @@ async function writeTimetableDraft(
     });
 
     let written = 0;
-
-    if (options.replaceExisting) {
-      /*
-        Nothing here can collide, so the week goes in as a handful of INSERTs
-        rather than one round trip per lesson — which, once the trail was off
-        this path, was the rest of the wait.
-
-        The delete above took every row these classes held in this bell
-        schedule, and the generator books a class's ledger slot by slot, so no
-        two placements can share `(class, slot, bookingKey)` either. Chunked
-        because a whole school is several hundred rows and one statement per
-        commit is not a reason to build a megabyte of SQL.
-      */
-      for (let from = 0; from < rows.length; from += CREATE_CHUNK) {
-        const made = await tx.timetableEntry.createMany({
-          data: rows.slice(from, from + CREATE_CHUNK),
-        });
-        written += made.count;
-      }
-    } else {
-      // Nothing was cleared, so the class may already hold this exact booking
-      // key in this slot. Upsert so a generated grid settles on the newer
-      // lesson rather than failing the whole run on one cell.
-      for (const row of rows) {
-        const { schoolClassId, timeSlotId, bookingKey } = row;
-        await tx.timetableEntry.upsert({
-          where: {
-            schoolClassId_timeSlotId_bookingKey: {
-              schoolClassId,
-              timeSlotId,
-              bookingKey,
-            },
-          },
-          update: {
-            subjectId: row.subjectId,
-            teacherId: row.teacherId,
-            roomId: row.roomId,
-          },
-          create: row,
-        });
-        written += 1;
-      }
+    for (let from = 0; from < rows.length; from += CREATE_CHUNK) {
+      const made = await tx.timetableEntry.createMany({
+        data: rows.slice(from, from + CREATE_CHUNK),
+      });
+      written += made.count;
     }
 
-    return { written, cleared, assigned, draft };
+    return { written, cleared, assigned, draft, versionId: newVersion.id };
   }, APPLY_TIMEOUT);
+}
+
+/**
+ * The version history for one bell schedule of one year, newest first — what
+ * the "switch version" panel lists.
+ */
+export async function listTimetableVersions(
+  schoolYearId: string,
+  scheduleKind: string,
+): Promise<
+  {
+    id: string;
+    status: string;
+    label: string | null;
+    seed: number | null;
+    createdAt: Date;
+    createdByName: string | null;
+    entryCount: number;
+  }[]
+> {
+  const versions = await db.timetableVersion.findMany({
+    where: { schoolYearId, scheduleKind },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      label: true,
+      seed: true,
+      createdAt: true,
+      createdBy: {
+        select: {
+          username: true,
+          profile: { select: { firstName: true, lastName: true } },
+        },
+      },
+      _count: { select: { entries: true } },
+    },
+  });
+
+  return versions.map((version) => ({
+    id: version.id,
+    status: version.status,
+    label: version.label,
+    seed: version.seed,
+    createdAt: version.createdAt,
+    createdByName: version.createdBy
+      ? version.createdBy.profile
+        ? `${version.createdBy.profile.firstName} ${version.createdBy.profile.lastName}`.trim()
+        : version.createdBy.username
+      : null,
+    entryCount: version._count.entries,
+  }));
+}
+
+/**
+ * Makes `versionId` the grid every ordinary screen shows for its scope,
+ * archiving whichever version held that title before.
+ *
+ * One atomic flip, not a rebuild: both versions' rows already exist exactly as
+ * they were left, so switching is instant regardless of how large the grid is.
+ * Order matters — `activeKey` is unique, so the current holder has to give it
+ * up before the target can take it.
+ */
+export async function activateTimetableVersion(
+  versionId: string,
+): Promise<{ ok: true } | { ok: false; message: "NOT_FOUND" | "ALREADY_ACTIVE" }> {
+  return db.$transaction(async (tx) => {
+    const target = await tx.timetableVersion.findUnique({
+      where: { id: versionId },
+    });
+    if (!target) return { ok: false, message: "NOT_FOUND" } as const;
+    if (target.status === "ACTIVE") {
+      return { ok: false, message: "ALREADY_ACTIVE" } as const;
+    }
+
+    const current = await tx.timetableVersion.findUnique({
+      where: {
+        activeKey: activeVersionKeyOf(target.schoolYearId, target.scheduleKind),
+      },
+    });
+    if (current) {
+      await tx.timetableVersion.update({
+        where: { id: current.id },
+        data: { status: "ARCHIVED", activeKey: null },
+      });
+    }
+
+    await tx.timetableVersion.update({
+      where: { id: target.id },
+      data: {
+        status: "ACTIVE",
+        activeKey: activeVersionKeyOf(target.schoolYearId, target.scheduleKind),
+      },
+    });
+
+    return { ok: true } as const;
+  });
 }
 
 // ── The year's weeks ─────────────────────────────────────────────────────────

@@ -108,3 +108,34 @@ export const ASSESSMENT_TYPE_SEEDS: AssessmentTypeSeed[] = [
     position: 6,
   },
 ];
+
+/**
+ * The barèmes a Moroccan school actually runs, keyed by the Ministry level and
+ * subject codes the seed resolves to ids — see `MOROCCAN_CURSUS` in
+ * modules/academics/presets.ts.
+ *
+ * Deliberately not empty: a feature nobody can see in the demonstration is a
+ * feature the next reader takes out. A contrôle continu is marked out of 10
+ * through the primaire and out of 20 from the collège up — the case that made
+ * `GradingRule` necessary — and the oral in اللغة العربية is kept at 20 there,
+ * exercising the subject-scoped tier over the level-wide one.
+ */
+export const GRADING_RULE_SEEDS: {
+  typeCode: string;
+  levelCode: string | null;
+  subjectCode: string | null;
+  maxScore: number;
+  coefficient: number | null;
+}[] = [
+  { typeCode: "CC", levelCode: "1AP", subjectCode: null, maxScore: 10, coefficient: null },
+  { typeCode: "CC", levelCode: "2AP", subjectCode: null, maxScore: 10, coefficient: null },
+  { typeCode: "CC", levelCode: "3AP", subjectCode: null, maxScore: 10, coefficient: null },
+  { typeCode: "ORAL", levelCode: "1AP", subjectCode: "AR", maxScore: 20, coefficient: null },
+];
+
+/** Niveaux whose report cards are written on their own scale, by Ministry code. */
+export const LEVEL_REPORT_SCALES: Record<string, number> = {
+  "1AP": 10,
+  "2AP": 10,
+  "3AP": 10,
+};

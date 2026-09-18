@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DevoirsReview } from "@/modules/assessments/components/devoirs-review";
 import { GenerateDialog } from "@/modules/assessments/components/generate-dialog";
 import { SetDevoirDialog } from "@/modules/assessments/components/set-devoir-dialog";
+import type { GradingRuleRow } from "@/modules/assessments/enums";
 import type {
   AssessmentTypeOption,
   ClassPapers,
@@ -18,10 +19,11 @@ import type {
   ClassResults,
   ClassTermAverage,
 } from "@/modules/bulletins/queries";
-import { ClassRegisterPanel } from "@/modules/classroom/components/class-register-panel";
+import { ClassSessionsPanel } from "@/modules/classroom/components/class-sessions-panel";
 import type {
   ClassAttendance,
   ClassDay,
+  ClassSessionRow,
   Register,
   RemarkRow,
 } from "@/modules/classroom/queries";
@@ -60,6 +62,8 @@ export type PaperCreation = {
   devoirTypes: AssessmentTypeOption[];
   /** This class's own class-and-subject pairs — see `listDevoirTargets`. */
   devoirTargets: DevoirTarget[];
+  /** This year's barèmes — see `listGradingRules` and `gradingDefaults`. */
+  gradingRules: GradingRuleRow[];
 };
 
 /**
@@ -126,8 +130,12 @@ export function ClassDetail({
   dayRegister: {
     day: ClassDay;
     register: Register | null;
+    /** The class's recent séances — the cahier de textes. */
+    journal: ClassSessionRow[];
     selectedTimeSlotId: string | null;
     canMark: boolean;
+    /** classroom.attendanceJustify — may reopen a closed séance. */
+    canReopen: boolean;
   } | null;
   /** Null for a reader without `assessment.view` — the tabs are not drawn. */
   controls: ClassPapers | null;
@@ -151,7 +159,10 @@ export function ClassDetail({
   const t = useT();
 
   const pendingRegisters = (dayRegister?.day.lessons ?? []).filter(
-    (lesson) => !lesson.isMarked && lesson.exceptionKind !== "CANCELLED",
+    (lesson) =>
+      !lesson.isClosed &&
+      lesson.exceptionKind !== "CANCELLED" &&
+      lesson.sessionStatus !== "CANCELLED",
   ).length;
 
   return (
@@ -179,8 +190,8 @@ export function ClassDetail({
           </Badge>
         </TabsTrigger>
         {dayRegister ? (
-          <TabsTrigger value="register">
-            {t.schoolClass.tabRegister}
+          <TabsTrigger value="sessions">
+            {t.schoolClass.tabSessions}
             {/* How many of the day's registers are still to take — the one
               number somebody opening this tab is after. Absent once the day is
               done, rather than shown as a zero. */}
@@ -248,13 +259,15 @@ export function ClassDetail({
       </TabsContent>
 
       {dayRegister ? (
-        <TabsContent value="register">
-          <ClassRegisterPanel
+        <TabsContent value="sessions">
+          <ClassSessionsPanel
             schoolClassId={schoolClass.id}
             day={dayRegister.day}
             register={dayRegister.register}
+            journal={dayRegister.journal}
             selectedTimeSlotId={dayRegister.selectedTimeSlotId}
             canMark={dayRegister.canMark}
+            canReopen={dayRegister.canReopen}
           />
         </TabsContent>
       ) : null}
@@ -276,6 +289,7 @@ export function ClassDetail({
                 classes={paperCreation.levelClasses}
                 terms={paperCreation.terms}
                 types={paperCreation.controlTypes}
+                gradingRules={paperCreation.gradingRules}
                 programmes={paperCreation.programmes}
                 defaultClassId={schoolClass.id}
                 defaultTermId={paperCreation.defaultTermId}
@@ -309,6 +323,7 @@ export function ClassDetail({
                 targets={paperCreation.devoirTargets}
                 terms={paperCreation.terms}
                 types={paperCreation.devoirTypes}
+                gradingRules={paperCreation.gradingRules}
                 defaultDate={paperCreation.defaultDate}
               />
             </div>

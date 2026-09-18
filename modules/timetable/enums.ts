@@ -26,6 +26,30 @@ export const SCHEDULE_KINDS = ["STANDARD", "RAMADAN"] as const;
 export type ScheduleKind = (typeof SCHEDULE_KINDS)[number];
 
 /**
+ * A whole-grid snapshot's lifecycle. Style matches SchoolYear.status.
+ *
+ *   ACTIVE    what every ordinary screen shows for its scope — at most one per
+ *             (schoolYearId, scheduleKind), enforced by TimetableVersion.activeKey.
+ *   ARCHIVED  superseded by a later generation, or by a revert. Its rows are
+ *             kept, never deleted, so switching back to it is instant.
+ */
+export const TIMETABLE_VERSION_STATUSES = ["ACTIVE", "ARCHIVED"] as const;
+export type TimetableVersionStatus = (typeof TIMETABLE_VERSION_STATUSES)[number];
+
+/**
+ * Builds `TimetableVersion.activeKey` — see the note on that column for why it
+ * exists. Never set by hand outside `activateTimetableVersion`/
+ * `writeTimetableDraft`, which are the only two places that change which
+ * version is active.
+ */
+export function activeVersionKeyOf(
+  schoolYearId: string,
+  scheduleKind: string,
+): string {
+  return `${schoolYearId}:${scheduleKind}`;
+}
+
+/**
  * Why the school is not teaching on a given day.
  *
  *   SCHOOL_HOLIDAY  vacances scolaires — the announced school breaks

@@ -3,7 +3,7 @@ import "server-only";
 import { displayName, type AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { toDateInputValue } from "@/lib/utils";
-import { currentSchoolId, yearScope } from "@/lib/scope";
+import { currentSchoolId, currentSchoolYearId, yearScope } from "@/lib/scope";
 import { resolveProgrammeRows } from "@/modules/academics/enums";
 import {
   bilingual,
@@ -132,6 +132,46 @@ const levelNamingOf = (offering: {
   cycleName: cycleChoiceLabel(offering.level.educationLevel),
 });
 
+/**
+ * How many periods each class actually holds this year.
+ *
+ * Counted separately rather than through `_count` on the relation: an entry
+ * belongs to whichever `TimetableVersion` generated it, and only the ACTIVE one
+ * (of either bell schedule) is what a class file means by "how many lessons
+ * does this class have" — the rest is superseded history, kept so a grid can be
+ * reverted in one flip. An untouched class's rows are copied forward into every
+ * new version, so an unfiltered count reports a class's week multiplied by the
+ * number of times the school has run the generator.
+ *
+ * `_count` on a relation cannot be filtered this way, so the active versions
+ * are resolved first and the entries counted against them explicitly. The same
+ * reasoning, and the same shape, as `listTimetableClasses` in
+ * modules/timetable/queries.ts.
+ */
+async function periodsByClass(
+  context: AuthContext,
+  schoolClassIds: string[],
+): Promise<Map<string, number>> {
+  if (schoolClassIds.length === 0) return new Map();
+
+  const activeVersions = await db.timetableVersion.findMany({
+    where: { schoolYearId: currentSchoolYearId(context), status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (activeVersions.length === 0) return new Map();
+
+  const counts = await db.timetableEntry.groupBy({
+    by: ["schoolClassId"],
+    where: {
+      schoolClassId: { in: schoolClassIds },
+      versionId: { in: activeVersions.map((version) => version.id) },
+    },
+    _count: true,
+  });
+
+  return new Map(counts.map((row) => [row.schoolClassId, row._count] as const));
+}
+
 export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
   const classes = await db.schoolClass.findMany({
     where: { levelOffering: yearScope(context) },
@@ -166,12 +206,16 @@ export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
         select: {
           groups: true,
           assignments: true,
-          timetableEntries: true,
           ...seated().select,
         },
       },
     },
   });
+
+  const periods = await periodsByClass(
+    context,
+    classes.map((schoolClass) => schoolClass.id),
+  );
 
   return classes.map((schoolClass) => ({
     id: schoolClass.id,
@@ -189,7 +233,7 @@ export async function listClasses(context: AuthContext): Promise<ClassRow[]> {
     roomCode: schoolClass.room?.code ?? null,
     groupCount: schoolClass._count.groups,
     assignmentCount: schoolClass._count.assignments,
-    timetableCount: schoolClass._count.timetableEntries,
+    timetableCount: periods.get(schoolClass.id) ?? 0,
     isActive: schoolClass.isActive,
   }));
 }
@@ -281,7 +325,6 @@ export async function findClass(
         select: {
           groups: true,
           assignments: true,
-          timetableEntries: true,
           ...seated().select,
         },
       },
@@ -289,6 +332,8 @@ export async function findClass(
   });
 
   if (!schoolClass) return null;
+
+  const periods = await periodsByClass(context, [schoolClass.id]);
 
   return {
     id: schoolClass.id,
@@ -307,7 +352,7 @@ export async function findClass(
     roomCode: schoolClass.room?.code ?? null,
     groupCount: schoolClass._count.groups,
     assignmentCount: schoolClass._count.assignments,
-    timetableCount: schoolClass._count.timetableEntries,
+    timetableCount: periods.get(schoolClass.id) ?? 0,
     isActive: schoolClass.isActive,
     groups: schoolClass.groups.map((group) => ({
       id: group.id,
@@ -873,7 +918,7 @@ export async function loadClassOverview(
           track: { select: { code: true, name: true, nameAr: true } },
         },
       },
-      _count: { select: { groups: true, timetableEntries: true } },
+      _count: { select: { groups: true } },
       enrollments: {
         where: { status: { in: [...LIVE_ENROLMENT_STATUSES] } },
         select: {
@@ -898,6 +943,8 @@ export async function loadClassOverview(
   if (!schoolClass) return null;
 
   const offering = schoolClass.levelOffering;
+
+  const periods = await periodsByClass(context, [schoolClass.id]);
 
   const [programmeRows, sisters] = await Promise.all([
     db.levelSubject.findMany({
@@ -1007,7 +1054,7 @@ export async function loadClassOverview(
     subjectCount: programme.length,
     staffedCount: programme.filter((row) => holderBySubject.has(row.subjectId))
       .length,
-    placedPeriods: schoolClass._count.timetableEntries,
+    placedPeriods: periods.get(schoolClass.id) ?? 0,
     programmeMinutes: programme.reduce(
       (total, row) => total + (row.weeklyMinutes ?? 0),
       0,

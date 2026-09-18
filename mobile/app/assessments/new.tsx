@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAssessmentOptions, useCreateAssessment } from "../../src/api/hooks";
+import { gradingDefaults } from "../../src/api/grading";
 import { interpolate, isoDay, useT } from "../../src/i18n";
 import {
   Button,
@@ -60,14 +61,21 @@ export default function NewAssessmentScreen() {
   const data = options.data;
   const slot = slotIndex === null ? null : (data?.teaching[slotIndex] ?? null);
 
-  // Seeded from the school's own defaults for the chosen kind, so a school
-  // marking its devoirs out of 10 does not have to retype it every time.
+  // Seeded from the niveau's own barème for the chosen kind — see
+  // `gradingDefaults` — or the kind's own defaults when the slot has none, so
+  // a school marking its devoirs out of 10 in the primaire does not have to
+  // retype it every time.
   function chooseType(id: string) {
     setTypeId(id);
     const type = data?.types.find((candidate) => candidate.id === id);
     if (type) {
-      setMaxScore(String(type.defaultMaxScore));
-      setCoefficient(String(type.defaultCoefficient));
+      const scale = gradingDefaults(
+        data?.gradingRules ?? [],
+        { assessmentTypeId: id, levelId: slot?.levelId ?? null, subjectId: slot?.subjectId ?? null },
+        type,
+      );
+      setMaxScore(String(scale.maxScore));
+      setCoefficient(String(scale.coefficient));
     }
   }
 

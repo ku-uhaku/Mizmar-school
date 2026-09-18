@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { db } from "@/lib/db";
 import { getDictionary } from "@/lib/i18n/server";
+import { gradingScaleOf } from "@/lib/school-settings";
 import { currentSchoolId, currentSchoolYearId } from "@/lib/scope";
 import {
   consumptionPer100km,
@@ -333,7 +334,7 @@ const RUNNERS: Record<string, Runner> = {
         schoolClass: { select: { code: true } },
         attendance: {
           where: { date: { gte: range.from, lte: range.to } },
-          select: { status: true, isJustified: true },
+          select: { status: true, isJustified: true, minutesLate: true },
         },
       },
     });
@@ -352,9 +353,19 @@ const RUNNERS: Record<string, Runner> = {
           class: row.schoolClass?.code ?? null,
           absences,
           lates,
-          unjustified: row.attendance.filter(
-            (mark) => !mark.isJustified && mark.status !== "PRESENT",
+          excused: row.attendance.filter((mark) => mark.status === "EXCUSED")
+            .length,
+          unjustifiedAbsences: row.attendance.filter(
+            (mark) => mark.status === "ABSENT" && !mark.isJustified,
           ).length,
+          unjustifiedLates: row.attendance.filter(
+            (mark) => mark.status === "LATE" && !mark.isJustified,
+          ).length,
+          // The cumulative retard figure — a school acts on the total minutes
+          // as much as on the count of lates. See modules/classroom/enums.ts.
+          minutesLate: row.attendance
+            .filter((mark) => mark.status === "LATE")
+            .reduce((sum, mark) => sum + (mark.minutesLate ?? 0), 0),
         };
       })
       // A pupil who was never absent is not what this report is for; listing
@@ -2533,7 +2544,12 @@ const RUNNERS: Record<string, Runner> = {
       take: ROW_CAP + 1,
       select: {
         student: { select: { code: true, firstName: true, lastName: true } },
-        schoolClass: { select: { code: true } },
+        schoolClass: {
+          select: {
+            code: true,
+            levelOffering: { select: { level: { select: { reportMaxScore: true } } } },
+          },
+        },
         assessmentGrades: {
           where: {
             score: { not: null },
@@ -2556,11 +2572,22 @@ const RUNNERS: Record<string, Runner> = {
     return rows
       .map((row) => {
         /*
-          Weighted on the school's own scale, and every mark rebased onto it
-          first: a paper out of 10 and one out of 20 cannot be averaged raw, and
-          doing it anyway is how an oral quietly halves somebody's mean.
+          Weighted on the pupil's own niveau's scale — or the school's, when
+          the niveau has said nothing — and every mark rebased onto it first: a
+          paper out of 10 and one out of 20 cannot be averaged raw, and doing
+          it anyway is how an oral quietly halves somebody's mean.
+
+          This is arithmetic on data already joined, not a lookup per row: a
+          school-wide report spans many classes, and a per-row query here would
+          be one round trip per pupil. It also means a column that spans two
+          niveaux mixes their scales — each pupil's average is on the scale
+          their own bulletin uses, which is what a report card says and what a
+          parent asks about, but it is not one column on one ruler.
         */
-        const outOf = context.settings.gradingMaxScore;
+        const outOf = gradingScaleOf(
+          context.settings,
+          row.schoolClass?.levelOffering.level.reportMaxScore ?? null,
+        ).outOf;
         let weighted = 0;
         let weight = 0;
 

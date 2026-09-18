@@ -67,8 +67,12 @@ model Subject {
   supplyLists         SupplyList[]
   /// Restrict on the other side: a subject with marks against it is history.
   assessments         Assessment[]
+  /// Barèmes scoped to this matière — see GradingRule.
+  gradingRules        GradingRule[]
   attendance          StudentAttendance[]
   remarks             StudentRemark[]
+  /// Séances taught in it — see ClassSession.
+  sessions            ClassSession[]
   /// Restrict on both, for the same reason as `assessments`: a subject named
   /// on an issued bulletin cannot be deleted out from under it.
   bulletinLines       BulletinLine[]       @relation("BulletinLineSubject")

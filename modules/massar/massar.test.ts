@@ -361,6 +361,20 @@ describe("the scale", () => {
     );
     expect(issueIds(report)).toContain("SCORE_RANGE");
   });
+
+  it("falls back to the ordinary /20 when neither the file nor an existing paper says", () => {
+    // No file scale and no paper yet — the last-ditch fallback, DEFAULT_MAX_SCORE.
+    const report = runChecks(
+      notesFile({ maxScore: null, pupils: [pupilRow({ score: 25 })] }),
+      held({ assessment: null }),
+    );
+    expect(issueIds(report)).toContain("SCORE_RANGE");
+    const clean = runChecks(
+      notesFile({ maxScore: null, pupils: [pupilRow({ score: 20 })] }),
+      held({ assessment: null }),
+    );
+    expect(issueIds(clean)).not.toContain("SCORE_RANGE");
+  });
 });
 
 // ── Forgiving on the rows ────────────────────────────────────────────────────

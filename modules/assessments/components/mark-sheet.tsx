@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { IDLE } from "@/lib/action-state";
 import { formatNumber, interpolate } from "@/lib/i18n/format";
-import { passMarkOf } from "@/lib/school-settings";
+import { gradingScaleOf } from "@/lib/school-settings";
 import { cn } from "@/lib/utils";
 import { saveMarksAction } from "@/modules/assessments/actions";
 import {
@@ -74,11 +74,12 @@ export function MarkSheet({
   const [state, formAction] = React.useActionState(saveMarksAction, IDLE);
   useActionFeedback(state);
 
-  // The school's pass threshold, so the red under a failing mark appears at the
-  // same score the server will call a fail.
   const settings = useSettings();
-  const passMark = passMarkOf(settings);
   const { assessment, rows } = sheet;
+  // The niveau's own reporting scale, or the school's — shown beside the pass
+  // rate so "60% passed" reads against what this school calls a pass, on the
+  // scale its bulletins actually use.
+  const reportScale = gradingScaleOf(settings, assessment.reportMaxScore);
 
   const [marks, setMarks] = React.useState<
     Record<
@@ -233,8 +234,8 @@ export function MarkSheet({
           // The threshold beside the rate, because "60% passed" means nothing
           // without knowing what this school calls a pass.
           hint={interpolate(t.assessment.passMarkIs, {
-            mark: formatNumber(passMark, locale),
-            max: settings.gradingMaxScore,
+            mark: formatNumber(reportScale.passMark, locale),
+            max: reportScale.outOf,
           })}
           value={live.passRate === null ? "—" : `${live.passRate}%`}
           tone={

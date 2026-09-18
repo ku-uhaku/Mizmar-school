@@ -151,6 +151,7 @@ const ar = {
       Subject: "مادة",
       LevelSubject: "مادة المستوى",
       AssessmentType: "نوع الفرض",
+      GradingRule: "سلم التنقيط",
       DocumentType: "نوع الوثيقة",
       FeeType: "نوع الرسوم",
       FeeRate: "التعريفة",

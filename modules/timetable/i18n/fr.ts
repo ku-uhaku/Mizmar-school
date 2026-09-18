@@ -151,6 +151,22 @@ const fr = {
     noWeeklyHours: "Aucun volume horaire déclaré, donc écartées",
     noTeacherAssigned: "Placées, mais sans enseignant affecté",
 
+    // ── Historique des versions ──────────────────────────────────────────────
+    versionHistory: "Historique des versions",
+    versionHistoryHint:
+      "Toutes les grilles que cet horaire a eues. Revenir à une version plus ancienne ne perd aucune séance — on peut toujours revenir en arrière.",
+    versionActive: "Active",
+    versionArchived: "Archivée",
+    versionActivate: "Utiliser cette version",
+    versionActivateConfirmTitle: "Basculer vers cette version ?",
+    versionActivateConfirmBody:
+      "Cette grille devient celle affichée partout. Toute modification manuelle faite après cette version sera perdue — mais reste récupérable en revenant à la version actuelle.",
+    versionActivated: "Bascule effectuée vers la version choisie.",
+    versionAlreadyActive: "Cette version est déjà active.",
+    versionNoLabel: "Version sans titre",
+    versionCreatedBy: "par {name}",
+    versionEntryCount: "{count} séance(s)",
+
     // ── Ce que la semaine doit encore au programme ──────────────────────────
     programmeGaps: "Reste à placer à la main",
     programmeGapsHint:
@@ -178,6 +194,10 @@ const fr = {
       ALL: "Toutes les semaines",
       A: "Semaine A",
       B: "Semaine B",
+    },
+    daySessions: {
+      MORNING: "Matin",
+      AFTERNOON: "Après-midi",
     },
     scheduleKinds: {
       STANDARD: "Standard",

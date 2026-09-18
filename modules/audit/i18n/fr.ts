@@ -152,6 +152,7 @@ const fr = {
       Subject: "Matière",
       LevelSubject: "Matière du niveau",
       AssessmentType: "Type de contrôle",
+      GradingRule: "Barème",
       DocumentType: "Type de document",
       FeeType: "Type de frais",
       FeeRate: "Tarif",

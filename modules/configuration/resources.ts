@@ -3,6 +3,7 @@ import {
   COEFFICIENT_MIN,
   EDUCATION_CYCLES,
 } from "@/modules/academics/enums";
+import { MAX_SCORE_MAX, MAX_SCORE_MIN } from "@/modules/assessments/enums";
 import {
   BILLING_CYCLES,
   DISCOUNT_KINDS,
@@ -200,6 +201,15 @@ export const RESOURCES: ResourceDef[] = [
         max: 12,
         defaultValue: 1,
       },
+      {
+        name: "reportMaxScore",
+        type: "number",
+        labelKey: "reportMaxScore",
+        hintKey: "reportMaxScore",
+        min: MAX_SCORE_MIN,
+        max: MAX_SCORE_MAX,
+        inTable: true,
+      },
       MASSAR_CODE,
       POSITION,
       IS_ACTIVE,
@@ -298,8 +308,8 @@ export const RESOURCES: ResourceDef[] = [
         type: "number",
         labelKey: "defaultCoefficient",
         hintKey: "defaultCoefficient",
-        min: 1,
-        max: 20,
+        min: COEFFICIENT_MIN,
+        max: COEFFICIENT_MAX,
         defaultValue: 1,
         inTable: true,
       },
@@ -308,9 +318,9 @@ export const RESOURCES: ResourceDef[] = [
         type: "number",
         labelKey: "defaultMaxScore",
         hintKey: "defaultMaxScore",
-        min: 1,
-        max: 100,
-        defaultValue: 20,
+        min: MAX_SCORE_MIN,
+        max: MAX_SCORE_MAX,
+        defaultValue: DEFAULT_SETTINGS.gradingMaxScore,
         inTable: true,
       },
       {
@@ -408,6 +418,120 @@ export const RESOURCES: ResourceDef[] = [
       { name: "isGraded", type: "boolean", labelKey: "isGraded", defaultValue: true },
       { name: "isEliminatory", type: "boolean", labelKey: "isEliminatory" },
       POSITION,
+    ],
+  },
+
+  /*
+    What each kind of paper is marked out of, per niveau.
+
+    Under the year for the same reason the programme is: a barème is settled at
+    the rentrée, and held against the niveau alone one edit in September rewrites
+    what the term's papers were set under. See GradingRule.
+
+    Level and matière are a scope, narrowest first: name both for "the oral in
+    arabe in 1AP", the matière alone for "the oral in arabe everywhere", the
+    niveau alone for "everything in 1AP", neither for the whole school. Leave the
+    screen empty and every kind keeps its own default — which is what a school
+    marking out of 20 throughout wants.
+  */
+  {
+    id: "grading-rules",
+    section: "academics",
+    labelKey: "gradingRules",
+    scope: "YEAR",
+    labelFields: ["maxScore"],
+    fields: [
+      {
+        name: "assessmentTypeId",
+        type: "reference",
+        labelKey: "assessmentType",
+        referenceTo: "assessment-types",
+        required: true,
+        inTable: true,
+      },
+      {
+        name: "levelId",
+        type: "reference",
+        labelKey: "level",
+        hintKey: "gradingRuleLevel",
+        referenceTo: "levels",
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "subjectId",
+        type: "reference",
+        labelKey: "subject",
+        hintKey: "gradingRuleSubject",
+        referenceTo: "subjects",
+        nullable: true,
+        inTable: true,
+      },
+      {
+        name: "maxScore",
+        type: "number",
+        labelKey: "maxScore",
+        hintKey: "gradingRuleMaxScore",
+        required: true,
+        min: MAX_SCORE_MIN,
+        max: MAX_SCORE_MAX,
+        defaultValue: DEFAULT_SETTINGS.gradingMaxScore,
+        inTable: true,
+      },
+      {
+        name: "coefficient",
+        type: "number",
+        labelKey: "coefficient",
+        hintKey: "gradingRuleCoefficient",
+        min: COEFFICIENT_MIN,
+        max: COEFFICIENT_MAX,
+        inTable: true,
+      },
+      IS_ACTIVE,
+      { name: "notes", type: "textarea", labelKey: "notes", maxLength: 500, wide: true },
+    ],
+  },
+
+  /*
+    The school's own scale, and what it calls a pass.
+
+    First in Structure pédagogique for the reason the section comment gives: it
+    decides what every figure the screens below produce *means*. A niveau
+    overrides the scale on its own row — see `reportMaxScore` on `levels` — and
+    this is the answer everything falls back to. See lib/school-settings.ts.
+  */
+  {
+    id: "grading-scale",
+    section: "academics",
+    labelKey: "gradingScale",
+    scope: "SCHOOL",
+    kind: "singleton",
+    labelFields: ["id"],
+    fields: [
+      {
+        name: "gradingMaxScore",
+        type: "number",
+        labelKey: "gradingMaxScore",
+        hintKey: "gradingMaxScore",
+        groupKey: "marks",
+        required: true,
+        min: MAX_SCORE_MIN,
+        max: MAX_SCORE_MAX,
+        defaultValue: DEFAULT_SETTINGS.gradingMaxScore,
+      },
+      {
+        // Stored in basis points, entered as a percentage — the same trick as
+        // `percentBps` on the discounts, and for the same reason.
+        name: "passMarkBps",
+        type: "percent",
+        labelKey: "passMarkBps",
+        hintKey: "passMarkBps",
+        groupKey: "marks",
+        required: true,
+        min: 0,
+        max: 100,
+        defaultValue: DEFAULT_SETTINGS.passMarkBps / 100,
+      },
     ],
   },
 

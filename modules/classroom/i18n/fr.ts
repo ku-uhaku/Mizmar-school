@@ -62,6 +62,43 @@ const fr = {
     saveRegister: "Enregistrer l'appel",
     registerSaved: "{count} élèves enregistrés.",
     markAllPresent: "Tous présents",
+
+    // ── La séance ───────────────────────────────────────────────────────────
+    sessions: "Séances",
+    session: "Séance",
+    sessionsHint:
+      "Les cours du jour, ce qui y a été fait, et qui était présent.",
+    theme: "Thème de la séance",
+    themePlaceholder: "Ce qui a été traité.",
+    homework: "Travail à faire",
+    homeworkPlaceholder: "Ce que la classe doit préparer pour la prochaine fois.",
+    saveSession: "Enregistrer la séance",
+    sessionSaved: "Séance enregistrée — {count} élèves pointés.",
+    sessionClosed: "Clôturée",
+    sessionClosedHint:
+      "L'appel est définitif. Rouvrez la séance pour corriger une présence.",
+    sessionAlreadyClosed:
+      "Cette séance est clôturée. Rouvrez-la avant de l'enregistrer à nouveau.",
+    reopenSession: "Rouvrir",
+    sessionReopened: "Séance rouverte.",
+    sessionCancelled: "Non assurée",
+    markCancelled: "Séance non assurée",
+    markCancelledHint: "Aucun appel n'est fait pour cette séance.",
+    notTakenYet: "À faire",
+    taken: "Faite",
+    periodCount: "{count} heures",
+    journal: "Journal",
+    journalHint: "Ce qui a été fait avec cette classe, du plus récent au plus ancien.",
+    noSessionsYet: "Aucune séance enregistrée.",
+    noSessionsYetHint:
+      "Choisissez une séance ci-dessus, notez le thème et faites l'appel.",
+    noTheme: "Aucun thème saisi.",
+    presentByDefault:
+      "Tout le monde est compté présent. Ne signalez que les absents et les retards.",
+    absentCount: "{count} absents",
+    lateCount: "{count} retards",
+    presentCount: "{count} présents",
+    findPupil: "Rechercher un élève",
     notYourClass: "Vous n'enseignez pas dans cette classe.",
     minutesOutOfRange: "Le retard doit être compris entre 0 et 120 minutes.",
     thisYear: "Cette année",

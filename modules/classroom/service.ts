@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import {
   attendanceScopeKey,
   MAX_MINUTES_LATE,
+  sessionScopeKey,
   startOfDay,
 } from "@/modules/classroom/enums";
 import { dedupeKeyFor } from "@/modules/notifications/enums";
@@ -55,12 +56,12 @@ export type AttendanceMark = {
   reason: string | null;
 };
 
-export type SaveRegisterResult =
-  | { ok: true; saved: number }
-  | { ok: false; reason: "not-teaching" | "out-of-range" };
+export type SaveSessionResult =
+  | { ok: true; saved: number; sessionId: string }
+  | { ok: false; reason: "not-teaching" | "out-of-range" | "closed" };
 
 /**
- * Records a whole lesson's register in one transaction.
+ * Records a séance: what was taught, and who was in the room.
  *
  * Marks arrive for the entire roster and are matched against it before anything
  * is written — the same shape as the mark sheet, and for the same reason: a row
@@ -69,8 +70,18 @@ export type SaveRegisterResult =
  * `minutesLate` is cleared for every status but LATE. Keeping a stale figure on
  * a pupil who turned out to be present would put a retard in their yearly count
  * that nobody recorded.
+ *
+ * ── Closing is a separate act from writing ──────────────────────────────────
+ * `close` is what makes the marks final, and it is deliberately not implied by
+ * saving one. The web sheet sends the whole roster in one go and closes in the
+ * same breath; the phone writes one pupil per tap and closes only when the
+ * teacher says the appel is done. A save that closed by itself would refuse the
+ * second tap of every register taken on a phone.
+ *
+ * A closed séance refuses every write until the office reopens it —
+ * `reopenSession` below.
  */
-export async function saveRegister(
+export async function saveSession(
   input: {
     teacherId: string;
     schoolId: string;
@@ -79,10 +90,17 @@ export async function saveRegister(
     timeSlotId: string | null;
     date: Date;
     marks: AttendanceMark[];
+    /** The cahier de textes. Undefined leaves whatever is already written. */
+    theme?: string | null;
+    homework?: string | null;
+    /** A séance nobody assured. It takes no register. */
+    isCancelled?: boolean;
+    /** Whether this save finishes the appel — see the note above. */
+    close?: boolean;
     /** See the note at the top of this file. */
     actsForSchool: boolean;
   },
-): Promise<SaveRegisterResult> {
+): Promise<SaveSessionResult> {
   const day = startOfDay(input.date);
 
   let classGroupId: string | null = null;
@@ -135,11 +153,126 @@ export async function saveRegister(
 
   const writable = input.marks.filter((mark) => seated.has(mark.enrollmentId));
   const scopeKey = attendanceScopeKey(input.timeSlotId);
+  const sessionKey = sessionScopeKey(input.timeSlotId, classGroupId);
 
-  await db.$transaction(
-    writable.map((mark) => {
+  /*
+    The grid cell this séance was planned from, when there is one.
+
+    Recorded so the cahier de textes can still say which lesson it was after the
+    timetable has been regenerated — the entry is archived, not deleted, and the
+    séance's reference to it is SetNull. Filtered to the version in force, for
+    the reason `listClassLessons` gives: without it the same period matches once
+    per generation the school has ever run.
+  */
+  const planned = input.timeSlotId
+    ? await db.timetableEntry.findFirst({
+        where: {
+          schoolClassId: input.schoolClassId,
+          timeSlotId: input.timeSlotId,
+          ...(classGroupId ? { classGroupId } : {}),
+          version: { status: "ACTIVE" },
+        },
+        select: { id: true, subjectId: true },
+      })
+    : null;
+
+  const current = await db.classSession.findUnique({
+    where: {
+      schoolClassId_date_scopeKey: {
+        schoolClassId: input.schoolClassId,
+        date: day,
+        scopeKey: sessionKey,
+      },
+    },
+    select: { id: true, closedAt: true },
+  });
+
+  // Final is final: a closed séance takes no more marks until somebody
+  // answerable for the school reopens it.
+  if (current?.closedAt) return { ok: false, reason: "closed" };
+
+  const status = input.isCancelled ? "CANCELLED" : "HELD";
+  const closing = input.close
+    ? { closedAt: new Date(), closedById: input.teacherId }
+    : {};
+
+  const written = {
+    subjectId: input.subjectId ?? planned?.subjectId ?? null,
+    // Whoever saved it, which is not always whoever the grid planned — see
+    // `actsForSchool` above.
+    teacherId: input.teacherId,
+    status,
+    // Left alone when the caller says nothing, so a phone saving one pupil
+    // cannot blank a theme somebody typed on the web.
+    ...(input.theme !== undefined ? { theme: input.theme } : {}),
+    ...(input.homework !== undefined ? { homework: input.homework } : {}),
+    ...closing,
+  };
+
+  const session = await db.classSession.upsert({
+    where: {
+      schoolClassId_date_scopeKey: {
+        schoolClassId: input.schoolClassId,
+        date: day,
+        scopeKey: sessionKey,
+      },
+    },
+    create: {
+      schoolClassId: input.schoolClassId,
+      classGroupId,
+      timetableEntryId: planned?.id ?? null,
+      timeSlotId: input.timeSlotId,
+      date: day,
+      scopeKey: sessionKey,
+      ...written,
+    },
+    update: written,
+    select: { id: true },
+  });
+
+  // A lesson nobody assured has no register to take. The séance is still
+  // recorded — "no lesson that Tuesday" is what the cahier de textes has to be
+  // able to say — but marking a class that never sat would be inventing one.
+  if (input.isCancelled) {
+    return { ok: true, saved: 0, sessionId: session.id };
+  }
+
+  /*
+    ── Only what went wrong is written ─────────────────────────────────────────
+    Presence is the absence of a row. A register of thirty-five pupils with two
+    away is two rows, not thirty-five, and "was this child in the room" is
+    answered by finding no row rather than by reading one that says PRESENT.
+
+    It is the cheaper shape by a factor of twenty, but that is not why: it is
+    the shape that cannot disagree with itself. A PRESENT row and a missing row
+    both mean "present", so a half-written register left the two indistinct, and
+    every count had to decide which it trusted. What a séance *held* is now
+    lives on `ClassSession`, which is where the question belongs.
+
+    A pupil corrected back to present therefore has their row deleted, not
+    rewritten — otherwise the mark a teacher took back would go on being counted.
+  */
+  const flagged = writable.filter((mark) => mark.status !== "PRESENT");
+  const cleared = writable
+    .filter((mark) => mark.status === "PRESENT")
+    .map((mark) => mark.enrollmentId);
+
+  await db.$transaction([
+    ...(cleared.length > 0
+      ? [
+          db.studentAttendance.deleteMany({
+            where: {
+              enrollmentId: { in: cleared },
+              date: day,
+              scopeKey,
+            },
+          }),
+        ]
+      : []),
+    ...flagged.map((mark) => {
       const isLate = mark.status === "LATE";
       const data = {
+        sessionId: session.id,
         timeSlotId: input.timeSlotId,
         subjectId: input.subjectId,
         status: mark.status,
@@ -168,7 +301,7 @@ export async function saveRegister(
         update: data,
       });
     }),
-  );
+  ]);
 
   await dispatch("ATTENDANCE_MISSED", () =>
     tellTheFamiliesWhoWereMissed({
@@ -190,7 +323,41 @@ export async function saveRegister(
     }),
   );
 
-  return { ok: true, saved: writable.length };
+  // The roster the appel covered, not the rows it wrote — "32 pupils recorded"
+  // is what the teacher did, and saying "2" because only two were away would
+  // read as a register that half failed.
+  return { ok: true, saved: writable.length, sessionId: session.id };
+}
+
+/**
+ * Reopens a closed séance so its register can be corrected.
+ *
+ * The office's path when a mistake is bigger than a justification can fix — a
+ * wrong subject, a pupil marked by accident — rather than a general-purpose
+ * edit: nothing in this module lets a status be changed outside `saveSession`,
+ * and this does not either. It only lifts the close, so whoever takes the
+ * register still goes through the same roster check as any other save.
+ *
+ * Gated by `CLASSROOM_ATTENDANCE_JUSTIFY` in the action, not a new code — the
+ * same office decision that already backs `actsForSchool` above.
+ *
+ * Scoped by school in the `where` rather than checked afterwards, so a crafted
+ * id reaches nothing.
+ */
+export async function reopenSession(input: {
+  schoolId: string;
+  sessionId: string;
+}): Promise<{ ok: boolean }> {
+  const reopened = await db.classSession.updateMany({
+    where: {
+      id: input.sessionId,
+      closedAt: { not: null },
+      schoolClass: { schoolId: input.schoolId },
+    },
+    data: { closedAt: null, closedById: null },
+  });
+
+  return { ok: reopened.count > 0 };
 }
 
 /**

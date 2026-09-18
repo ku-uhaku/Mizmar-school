@@ -56,6 +56,8 @@ model TimeSlot {
   /// Registers taken during this period. SetNull: rewriting the bell schedule
   /// must not delete last term's absences.
   attendance          StudentAttendance[]
+  /// Séances held in this period, for the same reason and with the same rule.
+  sessions            ClassSession[]
 
   @@unique([schoolYearId, scheduleKind, dayOfWeek, startTime])
   @@index([schoolYearId])

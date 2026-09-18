@@ -7,6 +7,7 @@
  * counts its own totals from these helpers, so they must cross the boundary.
  */
 
+import { nullableKey } from "@/lib/db-keys";
 import { minutesSinceMidnight } from "@/modules/timetable/enums";
 
 /**
@@ -36,6 +37,17 @@ export const MISSING_STATUSES: readonly AttendanceStatus[] = [
 ];
 
 /**
+ * Whether a stored status means the pupil missed the lesson.
+ *
+ * Takes a plain string because that is what the column is: the values are an
+ * enum by convention only, so a read has to be able to ask about whatever it
+ * found rather than about what it hoped for.
+ */
+export function wasMissing(status: string): boolean {
+  return (MISSING_STATUSES as readonly string[]).includes(status);
+}
+
+/**
  * The statuses a justification can be accepted against.
  *
  * A retard is here as well as an absence: a note explaining why a child arrived
@@ -50,9 +62,31 @@ export const JUSTIFIABLE_STATUSES: readonly AttendanceStatus[] = [
   "LATE",
 ];
 
-/** Was the pupil there at all? LATE counts as attending — they turned up. */
-export function wasPresent(status: string): boolean {
-  return status === "PRESENT" || status === "LATE";
+/**
+ * Whether a séance actually took place.
+ *
+ * CANCELLED is recorded rather than left blank: "no lesson that Tuesday" and
+ * "nobody wrote the lesson up" are different facts, and a cahier de textes that
+ * cannot tell them apart is one the inspection does not accept. A cancelled
+ * séance takes no register.
+ */
+export const SESSION_STATUSES = ["HELD", "CANCELLED"] as const;
+export type SessionStatus = (typeof SESSION_STATUSES)[number];
+
+/**
+ * Mirror for the two nullable columns that make a séance unique within a day.
+ *
+ * The slot is in it because a whole-day séance and a period one are records of
+ * different things; the group is in it because two halves of one class can sit
+ * different subjects in the same period. Both are null in the commonest case of
+ * all, and MySQL treats NULLs as distinct — so without this the unique index
+ * would not fire exactly where it matters. See lib/db-keys.ts.
+ */
+export function sessionScopeKey(
+  timeSlotId: string | null,
+  classGroupId: string | null,
+): string {
+  return nullableKey(timeSlotId, classGroupId);
 }
 
 /** What a teacher notes about a pupil. */
@@ -90,6 +124,14 @@ export const REMARK_PAGE_SIZE = 200;
 
 /** Most minutes a retard can sensibly be before it is really an absence. */
 export const MAX_MINUTES_LATE = 120;
+
+/**
+ * Longest a séance's theme or travail à faire may run.
+ *
+ * A paragraph each. The cahier de textes is read at a glance by whoever takes
+ * the next lesson, and a column that invites an essay gets one.
+ */
+export const SESSION_TEXT_MAX = 1000;
 
 /**
  * Mirror for the nullable `timeSlotId`, so the unique index on
@@ -153,24 +195,42 @@ export type AttendanceTally = {
   late: number;
   absent: number;
   excused: number;
-  /** Pupils with no mark at all — the register is not finished. */
+  /**
+   * Always 0, and kept only so the figures still add up to `total`.
+   *
+   * It used to mean "pupils nobody has decided about yet", which was a real
+   * state while a register wrote a row per pupil. It cannot exist now: presence
+   * is the absence of a row, so an unflagged pupil *is* the answer rather than a
+   * gap in it. Whether the appel was taken at all is the séance's business —
+   * see `ClassSession.closedAt`.
+   */
   unmarked: number;
   total: number;
 };
 
-/** The figures under a register, computed from the marks alone. */
+/**
+ * The figures under a register.
+ *
+ * Counted over the roster, not over the rows: a pupil with no mark was there.
+ * Pass the whole class — every pupil, flagged or not — and the present count
+ * falls out as whatever is left.
+ */
 export function tallyAttendance(
-  marks: readonly { status: string | null }[],
+  roster: readonly { status: string | null }[],
 ): AttendanceTally {
   const count = (status: string) =>
-    marks.filter((mark) => mark.status === status).length;
+    roster.filter((pupil) => pupil.status === status).length;
+
+  const late = count("LATE");
+  const absent = count("ABSENT");
+  const excused = count("EXCUSED");
 
   return {
-    present: count("PRESENT"),
-    late: count("LATE"),
-    absent: count("ABSENT"),
-    excused: count("EXCUSED"),
-    unmarked: marks.filter((mark) => mark.status === null).length,
-    total: marks.length,
+    present: roster.length - late - absent - excused,
+    late,
+    absent,
+    excused,
+    unmarked: 0,
+    total: roster.length,
   };
 }

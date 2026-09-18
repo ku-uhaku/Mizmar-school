@@ -17,6 +17,7 @@
     "db:seed:empty": "tsx prisma/seed-empty.ts",
     "db:reset": "prisma migrate reset",
     "db:carry-marks": "tsx scripts/carry-stranded-marks.ts",
+    "db:backfill-timetable-versions": "tsx scripts/backfill-timetable-versions.ts",
     "db:move-misfiled": "tsx --conditions=react-server scripts/move-misfiled-to-school.ts",
     "db:staff-classes": "tsx --conditions=react-server scripts/staff-the-classes.ts",
     "db:studio": "prisma studio",

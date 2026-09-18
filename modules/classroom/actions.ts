@@ -22,12 +22,16 @@ import {
 } from "@/modules/classroom/enums";
 import {
   justifyAbsence,
-  saveRegister,
+  reopenSession,
+  saveSession,
   setRemarkVisibility,
   writeRemark,
   type AttendanceMark,
 } from "@/modules/classroom/service";
-import { remarkSchema } from "@/modules/classroom/validation";
+import {
+  remarkSchema,
+  sessionSchema,
+} from "@/modules/classroom/validation";
 
 /**
  * Actions for the espace enseignant.
@@ -47,14 +51,18 @@ async function teacherContext() {
 }
 
 /**
- * Records one lesson's register.
+ * Records a séance: the cahier de textes and the appel, saved together.
  *
  * The rows travel as parallel arrays indexed by pupil, so every row must
  * contribute exactly one value to every field — the same shape as the mark
  * sheet, and for the same reason: a blank reason must not shift the next
  * pupil's status onto the wrong child.
+ *
+ * Saving from the web closes the séance: the sheet holds the whole roster and
+ * pressing the button is the deliberate act of finishing the appel. The phone
+ * does not — see `saveSession`.
  */
-export async function saveRegisterAction(
+export async function saveSessionAction(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
@@ -108,7 +116,19 @@ export async function saveRegisterAction(
       };
     });
 
-    const result = await saveRegister({
+    const parsed = sessionSchema().safeParse({
+      theme: field(formData, "theme"),
+      homework: field(formData, "homework"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const result = await saveSession({
       // From the session, never the form.
       teacherId: context.user.id,
       schoolId,
@@ -122,20 +142,56 @@ export async function saveRegisterAction(
       timeSlotId,
       date,
       marks,
+      theme: parsed.data.theme,
+      homework: parsed.data.homework,
+      isCancelled: boolField(formData, "isCancelled"),
+      // The web sheet is the whole roster in one act.
+      close: true,
     });
 
     if (!result.ok) {
       return failure(
         result.reason === "not-teaching"
           ? t.classroom.notYourClass
-          : t.classroom.minutesOutOfRange,
+          : result.reason === "closed"
+            ? t.classroom.sessionAlreadyClosed
+            : t.classroom.minutesOutOfRange,
       );
     }
 
     refresh();
     return success(
-      interpolate(t.classroom.registerSaved, { count: result.saved }),
+      interpolate(t.classroom.sessionSaved, { count: result.saved }),
     );
+  });
+}
+
+/**
+ * Reopens a closed séance so its register can be corrected.
+ *
+ * Behind `classroom.attendanceJustify`, the same office decision that already
+ * lets somebody stand in for a class's teacher — see the note at the top of
+ * `service.ts`. This changes no mark itself; it only lets the next save touch
+ * a register a previous one made final.
+ */
+export async function reopenSessionAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const { t, schoolId } = await teacherContext();
+    if (!schoolId) return failure(t.errors.noSchoolContext);
+
+    await authorizeSchool(schoolId, PERMISSIONS.CLASSROOM_ATTENDANCE_JUSTIFY);
+
+    const result = await reopenSession({
+      schoolId,
+      sessionId: field(formData, "sessionId"),
+    });
+    if (!result.ok) return failure(t.errors.notFound);
+
+    refresh();
+    return success(t.classroom.sessionReopened);
   });
 }
 

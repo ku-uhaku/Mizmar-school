@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_SCORE } from "@/modules/assessments/enums";
 import { normaliseArabic, type MassarNotesFile, type MassarPupilRow } from "@/modules/massar/notes-file";
 
 /**
@@ -518,7 +519,7 @@ export function runChecks(file: MassarNotesFile, db: MassarDbContext): MassarRep
       continue;
     }
 
-    const ceiling = maxScore ?? db.assessment?.maxScore ?? 20;
+    const ceiling = maxScore ?? db.assessment?.maxScore ?? DEFAULT_MAX_SCORE;
     if (row.score !== null && (row.score < 0 || row.score > ceiling)) {
       reject({
         id: "SCORE_RANGE",

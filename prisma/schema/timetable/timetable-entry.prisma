@@ -15,6 +15,10 @@ model TimetableEntry {
   schoolClassId String      @db.VarChar(30)
   schoolClass   SchoolClass @relation(fields: [schoolClassId], references: [id], onDelete: Cascade)
 
+  /// The whole-grid snapshot this row belongs to — see TimetableVersion.
+  versionId String           @db.VarChar(30)
+  version   TimetableVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
   /// Set when only one group attends this period, so the other group is free to
   /// be timetabled elsewhere in the same slot.
   classGroupId String?     @db.VarChar(30)
@@ -90,8 +94,15 @@ model TimetableEntry {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// Rule 1: one lesson per class (or group) per slot per term.
-  @@unique([schoolClassId, timeSlotId, bookingKey])
+  /// The séances actually taught from this cell. SetNull on their side — see
+  /// ClassSession: regenerating the grid must not delete what was taught.
+  sessions ClassSession[]
+
+  /// Rule 1: one lesson per class (or group) per slot per term, *within one
+  /// version* — an untouched class's row is copied forward unchanged into
+  /// every new version, so the same (class, slot, bookingKey) legitimately
+  /// exists once per version. See modules/timetable/service.ts.
+  @@unique([versionId, schoolClassId, timeSlotId, bookingKey])
   @@index([schoolClassId])
   @@index([classGroupId])
   @@index([timeSlotId])

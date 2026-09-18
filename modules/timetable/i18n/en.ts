@@ -150,6 +150,22 @@ const en = {
     noWeeklyHours: "No weekly hours declared, so left out",
     noTeacherAssigned: "Placed, but nobody is assigned to teach them",
 
+    // ── Version history ──────────────────────────────────────────────────────
+    versionHistory: "Version history",
+    versionHistoryHint:
+      "Every grid this bell schedule has ever had. Switching to an older one loses no lessons — it can always be switched back.",
+    versionActive: "Active",
+    versionArchived: "Archived",
+    versionActivate: "Use this version",
+    versionActivateConfirmTitle: "Switch to this version?",
+    versionActivateConfirmBody:
+      "This becomes the grid every screen shows. Any manual edit made after it was current will be lost — though it can be recovered by switching back.",
+    versionActivated: "Switched to the selected version.",
+    versionAlreadyActive: "This version is already the active one.",
+    versionNoLabel: "Untitled version",
+    versionCreatedBy: "by {name}",
+    versionEntryCount: "{count} lesson(s)",
+
     // ── What the week still owes the programme ──────────────────────────────
     programmeGaps: "Still to place by hand",
     programmeGapsHint:
@@ -181,6 +197,10 @@ const en = {
     scheduleKinds: {
       STANDARD: "Standard",
       RAMADAN: "Ramadan",
+    },
+    daySessions: {
+      MORNING: "Morning",
+      AFTERNOON: "Afternoon",
     },
   },
 } as const;

@@ -3,7 +3,11 @@ import type { NextResponse } from "next/server";
 import { ForbiddenError } from "@/lib/dal";
 import { preflight, withAuth } from "@/lib/mobile-api";
 import { PERMISSIONS } from "@/lib/permissions";
-import { listAssessmentTypes, listTerms } from "@/modules/assessments/queries";
+import {
+  listAssessmentTypes,
+  listGradingRules,
+  listTerms,
+} from "@/modules/assessments/queries";
 import { listMyTeaching } from "@/modules/classroom/queries";
 
 /**
@@ -25,13 +29,17 @@ export async function GET(): Promise<NextResponse> {
       throw new ForbiddenError(PERMISSIONS.ASSESSMENT_GRADE);
     }
 
-    const [types, terms, teaching] = await Promise.all([
+    const [types, terms, teaching, gradingRules] = await Promise.all([
       listAssessmentTypes(context, { teacherCreatableOnly: true }),
       listTerms(context),
       listMyTeaching(context),
+      // This year's barèmes, for resolving each kind's scale against the
+      // chosen slot's own niveau — see `gradingDefaults` in
+      // mobile/src/api/grading.ts, mirrored from modules/assessments/enums.ts.
+      listGradingRules(context),
     ]);
 
-    return { types, terms, teaching };
+    return { types, terms, teaching, gradingRules };
   });
 }
 

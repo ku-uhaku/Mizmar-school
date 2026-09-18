@@ -121,6 +121,7 @@ const en = {
       parents: "Parents' space",
       week: "The teaching week",
       bell: "The bell",
+      marks: "Marks",
     },
 
     resources: {
@@ -141,6 +142,8 @@ const en = {
       subjects: "Subjects",
       programme: "Programme",
       assessmentTypes: "Assessment kinds",
+      gradingRules: "Marking scales",
+      gradingScale: "Marking scale",
       rooms: "Rooms",
       cities: "Towns",
       neighbourhoods: "Districts",
@@ -207,11 +210,16 @@ const en = {
       subject: "Subject",
       parentSubject: "Parent subject",
       gradeYear: "Year in cycle",
+      reportMaxScore: "Report cards out of",
       defaultCoefficient: "Default weight",
       defaultMaxScore: "Marked out of",
       countsTowardAverage: "Counts toward the average",
       gradesWholeSubject: "Sat on the whole matière",
       allowTeacherCreate: "Teachers may set this",
+      assessmentType: "Assessment kind",
+      maxScore: "Marked out of",
+      gradingMaxScore: "School's own scale",
+      passMarkBps: "Pass mark",
       supplyCategory: "Family",
       defaultQuantity: "Usual quantity",
       supplyArticleNotes: "Detail",
@@ -353,6 +361,17 @@ const en = {
         "Marks are out of 20 in Morocco, but an oral or a TP is often out of 10.",
       countsTowardAverage:
         "Turn off for work that is marked and shown to the family but must never move the average.",
+      reportMaxScore:
+        "The scale this niveau's averages and bulletins are expressed on. Leave blank for the school's own.",
+      gradingRuleLevel: "Leave empty to apply at every level.",
+      gradingRuleSubject: "Leave empty to apply to every subject of the level.",
+      gradingRuleMaxScore:
+        "What a new paper of this kind starts from here. Does not rescore a round already sat — see the note on GradingRule.",
+      gradingRuleCoefficient: "Leave empty to keep the kind's own weight.",
+      gradingMaxScore:
+        "What the school marks out of when a niveau has said nothing of its own.",
+      passMarkBps:
+        "As a share of the scale above: 50 makes 10/20, or 10/10, a pass.",
       position: "Lower sorts first.",
       massarCode: "The code this maps to in MASSAR. Leave blank until mapped.",
       levelCode: "Ministry short code, e.g. 1AP, 3AC, TC, 2BAC.",

@@ -197,7 +197,7 @@ const en = {
       "A rung runs from its own threshold up to the next one. Thresholds are a share of whatever the paper is marked out of, so the same scale serves an oral out of 10 and a paper out of 20.",
     scaleEmpty: "No scale. Marks are entered without a suggested remark.",
     scaleFrom: "From",
-    scaleCovers: "Out of 20",
+    scaleCovers: "Out of {max}",
     scaleLabel: "Remark",
     scaleLabelAr: "Remark (Arabic)",
     scaleColour: "Colour",

@@ -147,6 +147,22 @@ const ar = {
     noWeeklyHours: "لا غلاف زمني مصرّح به، فأُقصيت",
     noTeacherAssigned: "وُضعت دون أستاذ مُسنَد",
 
+    // ── سجلّ الإصدارات ─────────────────────────────────────────────────────
+    versionHistory: "سجلّ الإصدارات",
+    versionHistoryHint:
+      "كل جدول عرفه هذا التوقيت. الرجوع إلى إصدار أقدم لا يُفقد أي حصة — يمكن دائمًا العودة إليه لاحقًا.",
+    versionActive: "نشط",
+    versionArchived: "مؤرشف",
+    versionActivate: "استخدام هذا الإصدار",
+    versionActivateConfirmTitle: "التحويل إلى هذا الإصدار؟",
+    versionActivateConfirmBody:
+      "سيصبح هذا الجدول هو المعروض في كل الشاشات. أي تعديل يدوي أُجري بعد هذا الإصدار سيُفقد — لكن يمكن استرجاعه بالعودة إلى الإصدار الحالي.",
+    versionActivated: "تم التحويل إلى الإصدار المختار.",
+    versionAlreadyActive: "هذا الإصدار نشط بالفعل.",
+    versionNoLabel: "إصدار بلا عنوان",
+    versionCreatedBy: "بواسطة {name}",
+    versionEntryCount: "{count} حصة",
+
     // ── ما تبقّى للبرنامج على هذا الأسبوع ───────────────────────────────────
     programmeGaps: "يبقى وضعها يدويًا",
     programmeGapsHint:
@@ -174,6 +190,10 @@ const ar = {
       ALL: "كل الأسابيع",
       A: "الأسبوع A",
       B: "الأسبوع B",
+    },
+    daySessions: {
+      MORNING: "صباحًا",
+      AFTERNOON: "بعد الزوال",
     },
     scheduleKinds: {
       STANDARD: "عادي",

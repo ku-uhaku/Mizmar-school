@@ -28,7 +28,7 @@ const fr = {
     tabRoster: "Élèves",
     tabTeaching: "Enseignants",
     tabTimetable: "Emploi du temps",
-    tabRegister: "Appel",
+    tabSessions: "Séances",
     tabControls: "Contrôles",
     tabDevoirs: "Devoirs",
 

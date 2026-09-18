@@ -53,6 +53,14 @@ model StudentAttendance {
   recordedById String? @db.VarChar(30)
   recordedBy   User?   @relation("AttendanceRecordedByTeacher", fields: [recordedById], references: [id], onDelete: SetNull)
 
+  /// The séance this mark was taken in — see ClassSession, which is also what
+  /// holds the lock: a mark is final once its séance is closed.
+  ///
+  /// Nullable because a whole-day mark recorded by the office belongs to no
+  /// lesson, and because every row written before séances existed has none.
+  sessionId String?       @db.VarChar(30)
+  session   ClassSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -69,6 +77,7 @@ model StudentAttendance {
   @@index([timeSlotId])
   @@index([subjectId])
   @@index([recordedById])
+  @@index([sessionId])
   @@index([date])
   @@map("student_attendance")
 }

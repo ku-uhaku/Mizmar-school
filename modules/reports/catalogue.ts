@@ -63,7 +63,25 @@ export const REPORTS: ReportDef[] = [
       { key: "class", labelKey: "class", kind: "text" },
       { key: "absences", labelKey: "absences", kind: "number", total: true },
       { key: "lates", labelKey: "lates", kind: "number", total: true },
-      { key: "unjustified", labelKey: "unjustified", kind: "number", total: true },
+      { key: "excused", labelKey: "excused", kind: "number", total: true },
+      {
+        key: "unjustifiedAbsences",
+        labelKey: "unjustifiedAbsences",
+        kind: "number",
+        total: true,
+      },
+      {
+        key: "unjustifiedLates",
+        labelKey: "unjustifiedLates",
+        kind: "number",
+        total: true,
+      },
+      {
+        key: "minutesLate",
+        labelKey: "minutesLate",
+        kind: "number",
+        total: true,
+      },
     ],
   },
 

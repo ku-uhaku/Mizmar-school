@@ -3,6 +3,7 @@ import "server-only";
 import type { AuthContext } from "@/lib/dal";
 import { displayName } from "@/lib/dal";
 import { db } from "@/lib/db";
+import { gradingScaleOf } from "@/lib/school-settings";
 import { schoolScope } from "@/lib/scope";
 import { loadClassTermMarks } from "@/modules/assessments/queries";
 import { resolveProgramme } from "@/modules/assessments/service";
@@ -84,7 +85,12 @@ export async function computeClassBulletins(
   const schoolClass = await db.schoolClass.findFirst({
     // The class id comes from the request; the school comes from the session.
     where: { id: schoolClassId, ...schoolScope(context) },
-    select: { id: true, levelOffering: { select: { schoolYearId: true } } },
+    select: {
+      id: true,
+      levelOffering: {
+        select: { schoolYearId: true, level: { select: { reportMaxScore: true } } },
+      },
+    },
   });
   if (!schoolClass) return { ok: false, reason: "not-found" };
 
@@ -132,7 +138,10 @@ export async function computeClassBulletins(
     loadTeacherNames(schoolClass.id),
   ]);
 
-  const outOf = context.settings.gradingMaxScore;
+  const outOf = gradingScaleOf(
+    context.settings,
+    schoolClass.levelOffering.level.reportMaxScore,
+  ).outOf;
 
   // ── Per pupil, per subject ─────────────────────────────────────────────────
 

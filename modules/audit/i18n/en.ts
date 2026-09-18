@@ -175,6 +175,7 @@ const en = {
       Subject: "Subject",
       LevelSubject: "Level subject",
       AssessmentType: "Assessment type",
+      GradingRule: "Marking scale",
       DocumentType: "Document type",
       FeeType: "Fee type",
       FeeRate: "Fee rate",

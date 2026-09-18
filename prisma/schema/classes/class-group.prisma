@@ -33,6 +33,7 @@ model ClassGroup {
   timetableEntries    TimetableEntry[]
   timetableExceptions TimetableException[]
   enrollments         Enrollment[]
+  sessions            ClassSession[]
 
   @@unique([schoolClassId, code])
   @@index([schoolClassId])

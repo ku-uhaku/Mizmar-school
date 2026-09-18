@@ -24,8 +24,44 @@ import {
   toDateKey,
   type SchoolWeek,
 } from "@/modules/timetable/weeks";
-import { runsInWeekNumber } from "@/modules/timetable/enums";
+import { activeVersionKeyOf, runsInWeekNumber } from "@/modules/timetable/enums";
 import { periodsFromMinutes } from "@/modules/timetable/generator";
+
+/** Matches nothing — see the note on `NO_MATCH` in lib/scope.ts. */
+const NO_VERSION = "__none__";
+
+/**
+ * The id of the grid every ordinary screen shows for one bell schedule of one
+ * year, or `null` when that scope has never been generated (or hand-edited)
+ * yet — a brand-new bell schedule with an empty week.
+ *
+ * The single choke point every read and write of `TimetableEntry` resolves the
+ * active version through, so "which grid is live" is decided in one place —
+ * see the note on `TimetableVersion.activeKey`.
+ */
+export async function activeVersionId(
+  schoolYearId: string,
+  scheduleKind: string,
+): Promise<string | null> {
+  const version = await db.timetableVersion.findUnique({
+    where: { activeKey: activeVersionKeyOf(schoolYearId, scheduleKind) },
+    select: { id: true },
+  });
+  return version?.id ?? null;
+}
+
+/**
+ * `{ versionId }`, ready to spread into a `TimetableEntry` `where` — matching
+ * nothing when the scope has no active version, exactly as `yearScope` matches
+ * nothing with no year in context.
+ */
+export async function activeVersionScope(
+  schoolYearId: string,
+  scheduleKind: string,
+): Promise<{ versionId: string }> {
+  const id = await activeVersionId(schoolYearId, scheduleKind);
+  return { versionId: id ?? NO_VERSION };
+}
 
 /**
  * Reads for the timetable module.
@@ -167,6 +203,11 @@ export async function loadClassTimetable(
   });
   if (!schoolClass) return null;
 
+  const versionScope = await activeVersionScope(
+    currentSchoolYearId(context),
+    scheduleKind,
+  );
+
   const [slots, entries] = await Promise.all([
     db.timeSlot.findMany({
       where: { ...yearScope(context), scheduleKind, isActive: true },
@@ -180,7 +221,7 @@ export async function loadClassTimetable(
       },
     }),
     db.timetableEntry.findMany({
-      where: { schoolClassId },
+      where: { schoolClassId, ...versionScope },
       select: {
         id: true,
         timeSlotId: true,
@@ -547,6 +588,10 @@ export async function loadProgrammeCoverage(
   if (!schoolClass) return empty;
 
   const { levelId, trackId } = schoolClass.levelOffering;
+  const versionScope = await activeVersionScope(
+    currentSchoolYearId(context),
+    scheduleKind,
+  );
 
   const [programme, slots, entries] = await Promise.all([
     db.levelSubject.findMany({
@@ -575,10 +620,7 @@ export async function loadProgrammeCoverage(
     // per subject and not per week: a lesson is on the template or it is not,
     // and a week's one-off cancellation is not a hole in the programme.
     db.timetableEntry.findMany({
-      where: {
-        schoolClassId,
-        timeSlot: { ...yearScope(context), scheduleKind },
-      },
+      where: { schoolClassId, ...versionScope },
       select: { subjectId: true },
     }),
   ]);
@@ -687,9 +729,38 @@ export async function listTimetableClasses(context: AuthContext): Promise<
           track: { select: { code: true, name: true, nameAr: true } },
         },
       },
-      _count: { select: { timetableEntries: true, enrollments: true } },
+      _count: { select: { enrollments: true } },
     },
   });
+
+  /*
+    Counted separately rather than through `_count` on the relation: an entry
+    belongs to whichever `TimetableVersion` generated it, and only the ACTIVE
+    one (of either bell schedule) is what a class file means by "how many
+    lessons does this class have" — the rest is superseded history. `_count`
+    on a relation cannot be filtered this way, so the active versions are
+    resolved first and the entries counted against them explicitly.
+  */
+  const activeVersions = await db.timetableVersion.findMany({
+    where: { schoolYearId: currentSchoolYearId(context), status: "ACTIVE" },
+    select: { id: true },
+  });
+  const activeVersionIds = activeVersions.map((version) => version.id);
+
+  const entryCounts =
+    activeVersionIds.length > 0
+      ? await db.timetableEntry.groupBy({
+          by: ["schoolClassId"],
+          where: {
+            schoolClassId: { in: classes.map((entry) => entry.id) },
+            versionId: { in: activeVersionIds },
+          },
+          _count: true,
+        })
+      : [];
+  const entryCountByClass = new Map(
+    entryCounts.map((row) => [row.schoolClassId, row._count] as const),
+  );
 
   return classes.map((schoolClass) => ({
     id: schoolClass.id,
@@ -703,7 +774,7 @@ export async function listTimetableClasses(context: AuthContext): Promise<
       schoolClass.levelOffering.track,
     ),
     cycleName: cycleChoiceLabel(schoolClass.levelOffering.level.educationLevel),
-    entryCount: schoolClass._count.timetableEntries,
+    entryCount: entryCountByClass.get(schoolClass.id) ?? 0,
     studentCount: schoolClass._count.enrollments,
   }));
 }
@@ -752,6 +823,11 @@ export async function loadTeacherTimetable(
   teacherId: string,
   scheduleKind = "STANDARD",
 ): Promise<TeacherWeek> {
+  const versionScope = await activeVersionScope(
+    currentSchoolYearId(context),
+    scheduleKind,
+  );
+
   const [slots, entries] = await Promise.all([
     db.timeSlot.findMany({
       where: { ...yearScope(context), scheduleKind, isActive: true },
@@ -767,10 +843,9 @@ export async function loadTeacherTimetable(
     db.timetableEntry.findMany({
       where: {
         teacherId,
-        // Bound to the year in context through the slot, and to the school
-        // through the class — a teacher who moved schools does not carry last
-        // year's grid with them.
-        timeSlot: { ...yearScope(context), scheduleKind },
+        ...versionScope,
+        // Bound to the school through the class — a teacher who moved schools
+        // does not carry last year's grid with them.
         schoolClass: { schoolId: currentSchoolId(context) },
       },
       select: {

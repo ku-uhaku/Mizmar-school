@@ -39,9 +39,11 @@ import { formatDate, interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { generateAssessmentsAction } from "@/modules/assessments/actions";
 import {
+  gradingDefaults,
   GENERATE_SCOPES,
   NOTES_MAX,
   type GenerateScope,
+  type GradingRuleRow,
 } from "@/modules/assessments/enums";
 import type {
   AssessmentTypeOption,
@@ -80,6 +82,7 @@ export function GenerateDialog({
   classes,
   terms,
   types,
+  gradingRules,
   programmes,
   defaultClassId,
   defaultTermId,
@@ -89,6 +92,8 @@ export function GenerateDialog({
   classes: ClassOption[];
   terms: TermOption[];
   types: AssessmentTypeOption[];
+  /** This year's barèmes — see `listGradingRules` and `gradingDefaults`. */
+  gradingRules: GradingRuleRow[];
   /** Marked subjects per class, so the picker fills in without a round trip. */
   programmes: Record<string, ProgrammeEntry[]>;
   defaultClassId: string | null;
@@ -210,6 +215,17 @@ export function GenerateDialog({
     }
     return classes;
   }, [scope, classes, classId, levelOfferingId]);
+
+  /**
+   * The one niveau this run targets, when it targets exactly one — CLASS and
+   * LEVEL always do, YEAR spans every niveau the school runs and has none to
+   * show. Used only to preview each kind's barème below; the server resolves
+   * its own, per subject, when the papers are actually written.
+   */
+  const targetLevelId = React.useMemo(() => {
+    const ids = new Set(targetClasses.map((option) => option.levelId));
+    return ids.size === 1 ? [...ids][0]! : null;
+  }, [targetClasses]);
 
   /**
    * The subjects on offer: the union of the target classes' programmes.
@@ -707,12 +723,25 @@ export function GenerateDialog({
                       <SelectValue placeholder={t.assessment.kind} />
                     </SelectTrigger>
                     <SelectContent>
-                      {types.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.label} · /{type.defaultMaxScore} · ×
-                          {type.defaultCoefficient}
-                        </SelectItem>
-                      ))}
+                      {types.map((type) => {
+                        // The niveau's own barème when the run targets one —
+                        // display only, and per level rather than per subject:
+                        // a round covers many subjects at once. The kind's own
+                        // default otherwise. See `gradingDefaults`.
+                        const scale = targetLevelId
+                          ? gradingDefaults(
+                              gradingRules,
+                              { assessmentTypeId: type.id, levelId: targetLevelId, subjectId: null },
+                              type,
+                            )
+                          : { maxScore: type.defaultMaxScore, coefficient: type.defaultCoefficient };
+                        return (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.label} · /{scale.maxScore} · ×
+                            {scale.coefficient}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </FormField>
