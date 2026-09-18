@@ -12,7 +12,7 @@ import {
 } from "@/lib/school-settings";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { currentSchoolId } from "@/lib/scope";
-import { withFamilyPrefix } from "@/modules/families/validation";
+import { withFamilyPrefix, withFamilyPrefixAr } from "@/modules/families/validation";
 // The owners of these invariants, called rather than reimplemented: the fee
 // schedule comes from the price list and the status is derived, and the import
 // is bound by both exactly as the enrolment form is.
@@ -71,8 +71,27 @@ export type ResolvedRefs = {
   levelLabel?: string;
   schoolClassId?: string;
   classLabel?: string;
+  /**
+   * The class the file names, when it does not exist yet and the caller allowed
+   * opening it. Carried as a name so the preview can say "will be created".
+   */
+  classToCreate?: string;
   routeId?: string;
   stopId?: string;
+};
+
+/**
+ * What a caller may ask of a plan beyond the file itself.
+ *
+ * Both are set by the MASSAR class-list import, whose file is one whole class
+ * and carries no household data: the class it names is normally the one the
+ * school has not drawn up yet, and households can only be guessed from the
+ * surname — so a secretary may split a guess that grouped strangers.
+ */
+export type PlanOptions = {
+  createMissingClasses?: boolean;
+  /** Family keys (`ImportRowPlan.familyKey`) whose rows each open their own dossier. */
+  splitFamilies?: readonly string[];
 };
 
 export type ImportRowPlan = {
@@ -167,7 +186,7 @@ async function loadReferences(
         id: true,
         level: { select: { code: true, name: true, nameAr: true } },
         track: { select: { code: true, name: true, nameAr: true } },
-        classes: { select: { id: true, code: true, name: true } },
+        classes: { select: { id: true, code: true, name: true, massarCode: true } },
       },
     });
 
@@ -199,7 +218,9 @@ async function loadReferences(
         // 4AP, and a bare code would seat a child in whichever was read first.
         index(
           refs.classes,
-          [schoolClass.code, schoolClass.name].map((spelling) =>
+          // MASSAR's label is a third spelling: a class already mapped to it is
+          // found by the label a class list prints, whatever the school calls it.
+          [schoolClass.code, schoolClass.name, schoolClass.massarCode].map((spelling) =>
             spelling ? `${offering.id}:${spelling}` : null,
           ),
           { id: schoolClass.id, label: schoolClass.code },
@@ -261,6 +282,7 @@ function resolveRow(
   hasYear: boolean,
   t: Dictionary,
   issues: ImportIssue[],
+  createMissingClasses = false,
 ): ResolvedRefs {
   const resolved: ResolvedRefs = {};
 
@@ -298,7 +320,10 @@ function resolveRow(
     const found = refs.classes.get(
       normaliseHeader(`${offering.id}:${values.className}`),
     );
-    if (!found) {
+    if (!found && createMissingClasses) {
+      resolved.classToCreate = values.className;
+      resolved.classLabel = values.className;
+    } else if (!found) {
       issues.push({
         column: "className",
         message: interpolate(t.imports.errors.unknownClass, {
@@ -365,8 +390,10 @@ export async function planImport(
   context: AuthContext,
   csvText: string,
   t: Dictionary,
+  options: PlanOptions = {},
 ): Promise<ImportPlan> {
   const schoolId = currentSchoolId(context);
+  const split = new Set(options.splitFamilies ?? []);
   const grid = parseCsv(csvText);
 
   if (grid.length === 0) {
@@ -412,11 +439,20 @@ export async function planImport(
 
   const existingFamilies = await db.family.findMany({
     where: { schoolId },
-    select: { code: true, name: true },
+    select: { code: true, name: true, nameAr: true },
   });
-  const familyByName = new Map(
-    existingFamilies.map((family) => [familyKeyOf(family.name), family.code]),
-  );
+  const familyByName = new Map<string, string>();
+  for (const family of existingFamilies) {
+    familyByName.set(familyKeyOf(family.name), family.code);
+  }
+  // A file in Arabic names the household in Arabic, while the dossier may only
+  // have been typed in French. The Arabic spelling is a second way in, and never
+  // overrides a match made on the name.
+  for (const family of existingFamilies) {
+    if (!family.nameAr) continue;
+    const key = familyKeyOf(withFamilyPrefix(stripArabicFamilyWord(family.nameAr)));
+    if (!familyByName.has(key)) familyByName.set(key, family.code);
+  }
 
   // Seen within this file, so the second copy of a child is caught too.
   const seenMassar = new Map<string, number>();
@@ -453,12 +489,24 @@ export async function planImport(
     // opening a second dossier for the same household.
     if (values.familyName) values.familyName = withFamilyPrefix(values.familyName);
 
-    const familyKey = familyKeyOf(values.familyName ?? "");
-    const existingFamilyCode = familyByName.get(familyKey);
+    const groupKey = familyKeyOf(values.familyName ?? "");
+    // A split row is its own household: neither its siblings in the file nor a
+    // dossier already on file, which is the point of splitting it. The line
+    // keeps the key unique without inventing a name.
+    const isSplit = groupKey !== "" && split.has(groupKey);
+    const familyKey = isSplit ? `${groupKey}#${line}` : groupKey;
+    const existingFamilyCode = isSplit ? undefined : familyByName.get(groupKey);
 
     // Names → ids, before the row is judged, so a misspelt class is reported
     // alongside a missing birth date rather than one import run later.
-    const refs = resolveRow(values, references, hasYear, t, issues);
+    const refs = resolveRow(
+      values,
+      references,
+      hasYear,
+      t,
+      issues,
+      options.createMissingClasses,
+    );
     const enrols = Boolean(refs.levelOfferingId);
 
     if (issues.length > 0) {
@@ -569,14 +617,15 @@ export async function commitImport(
   context: AuthContext,
   csvText: string,
   t: Dictionary,
-): Promise<{ created: number; families: number; enrolled: number }> {
+  options: PlanOptions = {},
+): Promise<{ created: number; families: number; enrolled: number; classes: number }> {
   const schoolId = context.currentSchool!.id;
   const schoolYearId = context.currentSchoolYear?.id ?? null;
 
   // Re-planned server-side. The browser's copy is a display, not an authority.
-  const plan = await planImport(context, csvText, t);
+  const plan = await planImport(context, csvText, t, options);
   const toCreate = plan.rows.filter((row) => row.outcome === "CREATE");
-  if (toCreate.length === 0) return { created: 0, families: 0, enrolled: 0 };
+  if (toCreate.length === 0) return { created: 0, families: 0, enrolled: 0, classes: 0 };
 
   const year = new Date().getFullYear();
   const settings = await loadSchoolSettings(schoolId);
@@ -633,6 +682,7 @@ export async function commitImport(
 
   let created = 0;
   let familiesOpened = 0;
+  let classesOpened = 0;
 
   /*
     Enrolments created in the transaction, collected so their fee schedules can
@@ -650,8 +700,47 @@ export async function commitImport(
   await db.$transaction(async (tx) => {
     // Family code → id, filled as dossiers are opened or found.
     const familyIds = new Map<string, string>();
+    // `${levelOfferingId}:${name}` → id, so the second pupil of a class opened
+    // by the first is seated in it rather than opening it again.
+    const openedClasses = new Map<string, string>();
+    const cityIds = new Map<string, string>();
 
     for (const row of toCreate) {
+      let schoolClassId = row.refs.schoolClassId ?? null;
+      if (!schoolClassId && row.refs.classToCreate && row.refs.levelOfferingId) {
+        const key = `${row.refs.levelOfferingId}:${row.refs.classToCreate}`;
+        let opened = openedClasses.get(key) ?? null;
+        if (!opened) {
+          const found = await tx.schoolClass.findFirst({
+            where: {
+              levelOfferingId: row.refs.levelOfferingId,
+              code: row.refs.classToCreate,
+            },
+            select: { id: true },
+          });
+          opened =
+            found?.id ??
+            (
+              await tx.schoolClass.create({
+                data: {
+                  schoolId,
+                  levelOfferingId: row.refs.levelOfferingId,
+                  code: row.refs.classToCreate,
+                  // MASSAR's own label for the class, so the marks sheets that
+                  // follow match on it rather than on a spelling.
+                  massarCode: await freeClassMassarCode(tx, schoolId, row.refs.classToCreate),
+                },
+                select: { id: true },
+              })
+            ).id;
+          if (!found) classesOpened += 1;
+          openedClasses.set(key, opened);
+        }
+        schoolClassId = opened;
+      }
+
+      const birthCityId = await resolveBirthCity(tx, schoolId, row.values.birthCity, cityIds);
+
       const key = row.familyKey;
       // No household named: the pupil's file is opened on its own, which the
       // nullable column exists for. No dossier and no guardians are invented.
@@ -674,6 +763,9 @@ export async function commitImport(
               schoolId,
               code: formatEntityCode(settings.familyCodeFormat, year, familySeq),
               name: row.values.familyName!,
+              // The Arabic spelling of the household, when the file spelt the
+              // child's surname in it — so a later Arabic file finds this dossier.
+              nameAr: withFamilyPrefixAr(row.values.lastNameAr ?? null),
               phone: row.values.familyPhone ?? null,
               email: row.values.familyEmail ?? null,
               addressLine: row.values.addressLine ?? null,
@@ -706,6 +798,7 @@ export async function commitImport(
           gender: row.values.gender!,
           birthDate: new Date(row.values.birthDate!),
           nationality: row.values.nationality ?? "MA",
+          birthCityId,
           neighbourhoodId:
             neighbourhoodByName.get(familyKeyOf(row.values.neighbourhood ?? "")) ??
             null,
@@ -731,7 +824,7 @@ export async function commitImport(
             studentId: student.id,
             schoolYearId,
             levelOfferingId: row.refs.levelOfferingId,
-            schoolClassId: row.refs.schoolClassId ?? null,
+            schoolClassId,
             enrolledOn: row.values.enrolledOn
               ? new Date(row.values.enrolledOn)
               : new Date(),
@@ -806,7 +899,78 @@ export async function commitImport(
     await refreshHouseholdAccess(studentId);
   }
 
-  return { created, families: familiesOpened, enrolled: enrolmentsToBill.length };
+  return {
+    created,
+    families: familiesOpened,
+    enrolled: enrolmentsToBill.length,
+    classes: classesOpened,
+  };
+}
+
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/**
+ * `SchoolClass.massarCode` is unique per school, so a class opened from a file
+ * takes the file's label only if no other class already holds it — a school that
+ * has the same label on another level's class keeps its own mapping untouched.
+ */
+async function freeClassMassarCode(
+  tx: Tx,
+  schoolId: string,
+  label: string,
+): Promise<string | null> {
+  const taken = await tx.schoolClass.findFirst({
+    where: { schoolId, massarCode: label },
+    select: { id: true },
+  });
+  return taken ? null : label;
+}
+
+/**
+ * The birthplace named in a file, as a row of the school's own town list.
+ *
+ * Matched on either spelling and opened when new — see `resolveParentJob` for
+ * why an import grows the list rather than refusing the file. Its code is
+ * derived from the name because `City.code` is unique and required.
+ */
+async function resolveBirthCity(
+  tx: Tx,
+  schoolId: string,
+  name: string | null | undefined,
+  cache: Map<string, string>,
+): Promise<string | null> {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+
+  const cached = cache.get(trimmed);
+  if (cached) return cached;
+
+  const existing = await tx.city.findFirst({
+    where: { schoolId, OR: [{ name: trimmed }, { nameAr: trimmed }] },
+    select: { id: true },
+  });
+  if (existing) {
+    cache.set(trimmed, existing.id);
+    return existing.id;
+  }
+
+  const isArabic = /[؀-ۿ]/.test(trimmed);
+  const created = await tx.city.create({
+    data: {
+      schoolId,
+      code: `IMP-${trimmed.toUpperCase().replace(/\s+/g, "-")}`.slice(0, 32),
+      name: trimmed,
+      nameAr: isArabic ? trimmed : null,
+    },
+    select: { id: true },
+  });
+  cache.set(trimmed, created.id);
+  return created.id;
+}
+
+/** "أسرة طاهري" → "طاهري", so it can be matched against a bare surname. */
+function stripArabicFamilyWord(value: string): string {
+  return value.replace(/^\s*(أسرة|عائلة)(\s+|$)/, "").trim();
 }
 
 /**

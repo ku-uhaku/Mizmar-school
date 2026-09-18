@@ -6,7 +6,9 @@ import { requireAuth } from "@/lib/dal";
 import { getDictionary } from "@/lib/i18n/server";
 import { PERMISSIONS } from "@/lib/permissions";
 import { MassarConsole } from "@/modules/massar/components/massar-console";
+import { RosterConsole } from "@/modules/massar/components/roster-console";
 import { listMassarAssessmentTypes } from "@/modules/massar/queries";
+import { listRosterClasses } from "@/modules/massar/roster-queries";
 
 export const metadata: Metadata = { title: "Notes MASSAR" };
 
@@ -28,6 +30,7 @@ export default async function MassarPage() {
   }
 
   const assessmentTypes = await listMassarAssessmentTypes(context);
+  const rosterClasses = await listRosterClasses(context);
 
   return (
     <>
@@ -46,6 +49,21 @@ export default async function MassarPage() {
         }
         canMap={context.can(PERMISSIONS.MASSAR_MAP)}
       />
+      <div className="mt-8">
+        <PageHeader title={t.massar.roster.title} description={t.massar.roster.subtitle} />
+        <RosterConsole
+          classes={rosterClasses}
+          // A class list opens pupils, dossiers and inscriptions in one go, so it
+          // asks for the three creating permissions as well as the MASSAR one.
+          canImport={
+            context.can(PERMISSIONS.MASSAR_IMPORT) &&
+            context.can(PERMISSIONS.STUDENT_CREATE) &&
+            context.can(PERMISSIONS.FAMILY_CREATE) &&
+            context.can(PERMISSIONS.ENROLMENT_CREATE)
+          }
+          canExport={context.can(PERMISSIONS.MASSAR_EXPORT) && context.can(PERMISSIONS.STUDENT_VIEW)}
+        />
+      </div>
     </>
   );
 }

@@ -132,6 +132,49 @@ const fr = {
     imported: "{count} notes importées, {rejected} lignes rejetées.",
     adopted: "{fields} champ(s) rattaché(s), {pupils} numéro(s) d'élève MASSAR enregistré(s).",
 
+    // ── La liste de classe (ListEleve) ────────────────────────────────────────
+    roster: {
+      title: "Liste de classe (ListEleve)",
+      subtitle:
+        "Chargez une liste de classe téléchargée depuis MASSAR — élèves, familles, classe et inscriptions avec leur échéancier — ou téléchargez-en une d'ici.",
+      importTitle: "Importer une liste de classe",
+      importHint:
+        "Les élèves sont reconnus par leur code MASSAR. Rien n'est écrit avant votre confirmation ci-dessous.",
+      chooseFile: "Choisir le fichier ListEleve",
+      reading: "Lecture…",
+      fileSchool: "Établissement",
+      fileYear: "Année",
+      fileLevel: "Niveau",
+      fileClass: "Classe",
+      filePupils: "Élèves",
+      classWillBeCreated:
+        "La classe « {value} » n'existe pas encore cette année et sera créée.",
+      familiesTitle: "Familles à vérifier",
+      familiesHint:
+        "Le fichier ne contient aucun parent : les élèves qui portent le même nom sont regroupés dans une même famille. Séparez un groupe s'ils ne sont pas parents.",
+      groupedPupils: "{count} élèves portent ce nom",
+      attachedTo: "Rejoint la famille existante {code}",
+      newHousehold: "Nouvelle famille",
+      split: "Séparer",
+      group: "Regrouper",
+      confirm: "Importer {count} élèves",
+      importing: "Importation…",
+      imported:
+        "{count} élèves importés, {families} familles ouvertes, {classes} classe(s) créée(s), {enrolled} inscriptions avec leur échéancier.",
+      exportTitle: "Télécharger une liste de classe",
+      exportHint:
+        "Écrit une classe de l'année en cours au format ListEleve : code MASSAR, noms en arabe, sexe, date et lieu de naissance.",
+      chooseClass: "Choisir une classe",
+      exportAction: "Télécharger la liste",
+      exporting: "Préparation…",
+      exported: "{count} élèves écrits dans la liste.",
+      errNoHeader:
+        "Ce classeur n'est pas une liste de classe MASSAR — le tableau intitulé « الرمز » n'y figure pas.",
+      errWrongYear:
+        "Cette liste est celle de {file}, mais l'année scolaire sélectionnée est {current}. Changez d'année ou téléchargez la bonne liste.",
+      errNoClass: "Choisissez d'abord une classe de cette année.",
+    },
+
     errors: {
       emptyFile: "Aucun fichier, ou fichier trop volumineux.",
       notXlsx:

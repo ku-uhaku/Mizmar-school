@@ -16,6 +16,14 @@ import {
   type MassarPreview,
   type MassarReconciliation,
 } from "@/modules/massar/queries";
+import { commitImport, planImport, type ImportPlan, type PlanOptions } from "@/modules/imports/service";
+import { rosterToCsv } from "@/modules/massar/roster-file";
+import {
+  exportRoster,
+  readRosterFile,
+  yearMatches,
+  type RosterRead,
+} from "@/modules/massar/roster-queries";
 import {
   adoptFromFile,
   exportNotes,
@@ -288,4 +296,176 @@ export async function adoptMappingsAction(
     refresh();
     return success(interpolate(t.massar.adopted, { fields, pupils: result.pupils }));
   });
+}
+
+// ── The class list (ListEleve) ────────────────────────────────────────────────
+
+export type RosterPreviewResult =
+  | {
+      status: "ok";
+      file: {
+        schoolLabel: string | null;
+        schoolYearLabel: string | null;
+        levelLabel: string | null;
+        classLabel: string | null;
+        pupilCount: number;
+      };
+      plan: ImportPlan;
+      /** True when the class the file names is not on this year's books yet. */
+      classWillBeCreated: boolean;
+    }
+  | { status: "error"; message: string };
+
+function rosterShapeMessage(t: Dictionary, reason: Extract<RosterRead, { ok: false }>["reason"]): string {
+  switch (reason) {
+    case "NOT_XLSX":
+      return t.massar.errors.notXlsx;
+    case "NO_SHEET":
+      return t.massar.errors.noSheet;
+    case "NO_HEADER":
+      return t.massar.roster.errNoHeader;
+    case "NO_PUPILS":
+      return t.massar.errors.noPupils;
+  }
+}
+
+/**
+ * Authorize, decode, parse and plan a class list — shared by the preview and the
+ * import so neither can drift from the other.
+ *
+ * The permissions asserted are the union of what the two existing forms need:
+ * a class list opens pupils, dossiers and inscriptions in one go, and holding the
+ * MASSAR permission alone must not be a way around any of them.
+ */
+async function prepareRoster(base64: string, options: { splitFamilies?: string[] }, writing: boolean) {
+  const t = await getDictionary();
+  const base = await requireAuth();
+
+  const schoolId = base.currentSchool?.id;
+  if (!schoolId) return { ok: false as const, message: t.errors.noSchoolContext };
+
+  const context = await authorizeSchool(
+    schoolId,
+    writing ? PERMISSIONS.MASSAR_IMPORT : PERMISSIONS.MASSAR_RECONCILE,
+  );
+  // The preview asserts the same write permissions as the import: it reveals
+  // which pupils a school already holds, which is not for a reader of marks.
+  await authorizeSchool(schoolId, PERMISSIONS.STUDENT_CREATE);
+  await authorizeSchool(schoolId, PERMISSIONS.FAMILY_CREATE);
+  await authorizeSchool(schoolId, PERMISSIONS.ENROLMENT_CREATE);
+
+  const buffer = decode(base64);
+  if (!buffer) return { ok: false as const, message: t.massar.errors.emptyFile };
+
+  const read = readRosterFile(buffer);
+  if (!read.ok) return { ok: false as const, message: rosterShapeMessage(t, read.reason) };
+
+  if (!yearMatches(read.file, context.currentSchoolYear?.name ?? null)) {
+    return {
+      ok: false as const,
+      message: interpolate(t.massar.roster.errWrongYear, {
+        file: read.file.schoolYearLabel ?? "",
+        current: context.currentSchoolYear?.name ?? "—",
+      }),
+    };
+  }
+
+  const splitFamilies = Array.isArray(options.splitFamilies)
+    ? options.splitFamilies.filter((key): key is string => typeof key === "string").slice(0, 500)
+    : [];
+  // Opening a class is configuration, not enrolment: a role that may seat
+  // children in the classes that exist may not be able to add one to the year.
+  const planOptions: PlanOptions = {
+    createMissingClasses: context.can(PERMISSIONS.CONFIGURATION_MANAGE),
+    splitFamilies,
+  };
+
+  return { ok: true as const, t, context, file: read.file, csv: rosterToCsv(read.file), planOptions };
+}
+
+/** Reads the class list and reports what importing it would do. Writes nothing. */
+export async function previewRosterAction(
+  fileBase64: string,
+  options: { splitFamilies?: string[] } = {},
+): Promise<RosterPreviewResult> {
+  const prepared = await prepareRoster(fileBase64, options, false);
+  if (!prepared.ok) return { status: "error", message: prepared.message };
+  const { t, context, file, csv, planOptions } = prepared;
+
+  const plan = await planImport(context, csv, t, planOptions);
+
+  return {
+    status: "ok",
+    file: {
+      schoolLabel: file.schoolLabel,
+      schoolYearLabel: file.schoolYearLabel,
+      levelLabel: file.levelLabel,
+      classLabel: file.classLabel,
+      pupilCount: file.pupils.length,
+    },
+    plan,
+    classWillBeCreated: plan.rows.some((row) => row.refs.classToCreate !== undefined),
+  };
+}
+
+/**
+ * The class list → the database: pupils, households, the class and the
+ * inscriptions with their échéancier.
+ *
+ * Re-planned from the uploaded bytes exactly as the preview was, so the
+ * households a secretary split are the only decisions taken on the browser's
+ * word — and those can only make a row *more* separate, never reach another
+ * school's data.
+ */
+export async function importRosterAction(
+  fileBase64: string,
+  options: { splitFamilies?: string[] } = {},
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const prepared = await prepareRoster(fileBase64, options, true);
+    if (!prepared.ok) return failure(prepared.message);
+    const { t, context, csv, planOptions } = prepared;
+
+    const result = await commitImport(context, csv, t, planOptions);
+    if (result.created === 0) return failure(t.imports.errors.nothingToImport);
+
+    refresh();
+    return success(
+      interpolate(t.massar.roster.imported, {
+        count: result.created,
+        families: result.families,
+        classes: result.classes,
+        enrolled: result.enrolled,
+      }),
+    );
+  });
+}
+
+/**
+ * The database → Excel: one class, as a ListEleve workbook.
+ *
+ * Returned as base64 for the browser to save from a Blob, like `exportNotesAction`.
+ */
+export async function exportRosterAction(schoolClassId: string): Promise<ExportResult> {
+  const t = await getDictionary();
+  const base = await requireAuth();
+  const schoolId = base.currentSchool?.id;
+  if (!schoolId) return { status: "error", message: t.errors.noSchoolContext };
+
+  const context = await authorizeSchool(schoolId, PERMISSIONS.MASSAR_EXPORT);
+  await authorizeSchool(schoolId, PERMISSIONS.STUDENT_VIEW);
+
+  if (typeof schoolClassId !== "string" || schoolClassId === "") {
+    return { status: "error", message: t.massar.roster.errNoClass };
+  }
+
+  const exported = await exportRoster(context, schoolClassId);
+  if (!exported) return { status: "error", message: t.massar.roster.errNoClass };
+
+  return {
+    status: "ok",
+    fileBase64: exported.file.toString("base64"),
+    filename: exported.filename,
+    count: exported.count,
+  };
 }

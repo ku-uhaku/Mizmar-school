@@ -44,6 +44,7 @@ export async function exportStudentRows(
       birthDate: true,
       nationality: true,
       neighbourhood: { select: { name: true } },
+      birthCity: { select: { name: true } },
       /*
         The inscription for the year in context, so an exported file carries the
         level and class back in. One row at most — `Enrollment` is unique per
@@ -126,6 +127,7 @@ export async function exportStudentRows(
       // `parseImportDate` recognises it on the way back in.
       birthDate: student.birthDate.toISOString().slice(0, 10),
       nationality: student.nationality,
+      birthCity: student.birthCity?.name ?? "",
       neighbourhood: student.neighbourhood?.name ?? "",
       familyName: student.family?.name ?? "",
       familyPhone: student.family?.phone ?? "",

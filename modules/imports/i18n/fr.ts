@@ -88,6 +88,7 @@ const fr = {
       gender: "Sexe",
       birthDate: "Date de naissance",
       nationality: "Nationalité",
+      birthCity: "Lieu de naissance",
       neighbourhood: "Quartier",
       familyName: "Famille",
       familyPhone: "Téléphone famille",

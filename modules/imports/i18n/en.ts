@@ -98,6 +98,7 @@ const en = {
       gender: "Sex",
       birthDate: "Date of birth",
       nationality: "Nationality",
+      birthCity: "Place of birth",
       neighbourhood: "Neighbourhood",
       familyName: "Family",
       familyPhone: "Family phone",

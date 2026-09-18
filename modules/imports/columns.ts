@@ -132,6 +132,16 @@ export const IMPORT_COLUMNS: readonly ImportColumn[] = [
     example: "MA",
   },
   {
+    // The town, from the school's own list — matched on either spelling and
+    // opened when it is new, as a parent's occupation is. MASSAR's class list
+    // carries it in Arabic, which is why that spelling is an alias.
+    key: "birthCity",
+    labelKey: "birthCity",
+    kind: "text",
+    aliases: ["lieudenaissance", "lieunaissance", "birthplace", "birthcity", "مكان الازدياد"],
+    example: "Casablanca",
+  },
+  {
     key: "neighbourhood",
     labelKey: "neighbourhood",
     kind: "text",

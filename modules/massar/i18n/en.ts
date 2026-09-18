@@ -141,6 +141,48 @@ const en = {
     imported: "{count} marks imported, {rejected} rows rejected.",
     adopted: "{fields} field(s) mapped, {pupils} MASSAR pupil number(s) recorded.",
 
+    // ── The class list (ListEleve) ────────────────────────────────────────────
+    roster: {
+      title: "Class list (ListEleve)",
+      subtitle:
+        "Load a class list downloaded from MASSAR — pupils, households, the class and each inscription with its fee schedule — or download one from here.",
+      importTitle: "Import a class list",
+      importHint:
+        "Pupils are matched on their MASSAR code. Nothing is written until you confirm below.",
+      chooseFile: "Choose the ListEleve file",
+      reading: "Reading…",
+      fileSchool: "School",
+      fileYear: "Year",
+      fileLevel: "Level",
+      fileClass: "Class",
+      filePupils: "Pupils",
+      classWillBeCreated: "The class “{value}” is not on this year's books and will be created.",
+      familiesTitle: "Households to review",
+      familiesHint:
+        "The file carries no parents, so pupils sharing a surname are grouped into one household. Split a group if they are not related.",
+      groupedPupils: "{count} pupils share this surname",
+      attachedTo: "Joins the existing household {code}",
+      newHousehold: "New household",
+      split: "Split",
+      group: "Group",
+      confirm: "Import {count} pupils",
+      importing: "Importing…",
+      imported:
+        "{count} pupils imported, {families} households opened, {classes} class(es) opened, {enrolled} inscriptions with their fee schedule.",
+      exportTitle: "Download a class list",
+      exportHint:
+        "Writes one class of this year as a ListEleve workbook: MASSAR code, Arabic names, sex, birth date and place.",
+      chooseClass: "Choose a class",
+      exportAction: "Download the list",
+      exporting: "Preparing…",
+      exported: "{count} pupils written to the list.",
+      errNoHeader:
+        "This workbook is not a MASSAR class list — the table headed “الرمز” is not in it.",
+      errWrongYear:
+        "This list is for {file}, but the school year selected is {current}. Switch year, or download the right list.",
+      errNoClass: "Choose a class of this year first.",
+    },
+
     errors: {
       emptyFile: "No file, or the file is too large.",
       notXlsx:

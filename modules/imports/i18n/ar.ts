@@ -80,6 +80,7 @@ const ar = {
       gender: "الجنس",
       birthDate: "تاريخ الازدياد",
       nationality: "الجنسية",
+      birthCity: "مكان الازدياد",
       neighbourhood: "الحي",
       familyName: "الأسرة",
       familyPhone: "هاتف الأسرة",
