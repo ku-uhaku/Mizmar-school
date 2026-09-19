@@ -60,6 +60,8 @@ import { DOCUMENT_PERMISSIONS } from "@/modules/documents/permissions";
 import { STUDENT_PERMISSIONS } from "@/modules/students/permissions";
 import { timetableModule } from "@/modules/timetable/module";
 import { TIMETABLE_PERMISSIONS } from "@/modules/timetable/permissions";
+import { messagingModule } from "@/modules/messaging/module";
+import { MESSAGING_PERMISSIONS } from "@/modules/messaging/permissions";
 import { treasuryModule } from "@/modules/treasury/module";
 import { TREASURY_PERMISSIONS } from "@/modules/treasury/permissions";
 import { transportModule } from "@/modules/transport/module";
@@ -143,6 +145,8 @@ export const MODULES: readonly AppModule[] = [
   // schedules `enrolment` raises, and everything paid out. Billing declares what
   // is owed; this decides what has actually been paid.
   treasuryModule,
+  // Reads the caisse's arrears and writes to the parents who owe them.
+  messagingModule,
 
   // ── Logistique ────────────────────────────────────────────────────────────
   // The fleet, the lines it runs and who rides on them. It owns no charge of
@@ -199,5 +203,6 @@ export const PERMISSIONS = {
   ...IMPORT_PERMISSIONS,
   ...REPORT_PERMISSIONS,
   ...TREASURY_PERMISSIONS,
+  ...MESSAGING_PERMISSIONS,
   ...TRANSPORT_PERMISSIONS,
 } as const;

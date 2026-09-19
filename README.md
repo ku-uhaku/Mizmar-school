@@ -95,6 +95,15 @@ docker compose up -d --build
 The app is on <http://localhost:3000>. The first build takes a few minutes;
 later ones reuse the cached `npm ci` layer.
 
+**WhatsApp reminders (optional).** Late-payment reminders go out through
+[OpenWA](https://github.com/rmyndharis/OpenWA). Fill the `OPENWA_*` and
+`API_MASTER_KEY` lines in `.env.docker`, start with `docker compose --profile
+whatsapp up -d --build`, open <http://127.0.0.1:2785> on the server, create a
+session named as `OPENWA_SESSION` and scan the QR with the school's **dedicated**
+number — WhatsApp may restrict a number driven this way. Messages cost one
+credit each; only a super admin listed in `MESSAGING_OWNER_USERNAMES` can add
+credits, at `/caisse/relances/credits`.
+
 **Three services, in order.** `db` comes up and passes its health check, then
 `migrate` runs once and exits, then `app` starts — so the app never serves a
 request against a schema older than the code running it.

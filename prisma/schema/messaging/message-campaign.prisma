@@ -1,0 +1,41 @@
+/// One send: a message, and the households it was addressed to.
+model MessageCampaign {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  organizationId String       @db.VarChar(30)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  schoolId String @db.VarChar(30)
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// See CAMPAIGN_KINDS in modules/messaging/enums.ts.
+  kind String @db.VarChar(30)
+
+  /// See CAMPAIGN_STATUSES in modules/messaging/enums.ts.
+  status String @default("QUEUED") @db.VarChar(20)
+
+  /// The wording with its `{variables}` still in it. Each delivery stores the
+  /// rendered text, so editing a template later rewrites no history.
+  template String @db.Text
+
+  /// The manager's free note, for the `{remarque}` variable.
+  remark String? @db.Text
+
+  /// The filters the recipients were picked with, as JSON — what was asked,
+  /// kept beside what was sent.
+  filters String @db.Text
+
+  /// Credits taken when it was queued. Unsent ones are refunded on cancel.
+  reservedCredits Int @default(0)
+
+  createdById String? @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries MessageDelivery[]
+
+  @@index([organizationId])
+  @@index([schoolId, status])
+  @@map("message_campaigns")
+}

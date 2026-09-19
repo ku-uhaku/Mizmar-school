@@ -107,6 +107,10 @@ import timetable, {
   nav as timetableNav,
   permissions as timetablePermissions,
 } from "@/modules/timetable/i18n/fr";
+import messaging, {
+  nav as messagingNav,
+  permissions as messagingPermissions,
+} from "@/modules/messaging/i18n/fr";
 import treasury, {
   nav as treasuryNav,
   permissions as treasuryPermissions,
@@ -160,6 +164,7 @@ const fr: Dictionary = {
 
   // Caisse.
   ...treasury,
+  ...messaging,
 
   // Logistique.
   ...transport,
@@ -193,6 +198,7 @@ const fr: Dictionary = {
     ...classroomNav,
     ...timetableNav,
     ...treasuryNav,
+    ...messagingNav,
     ...transportNav,
   },
   permissions: {
@@ -223,6 +229,7 @@ const fr: Dictionary = {
       ...classroomPermissions.groups,
       ...timetablePermissions.groups,
       ...treasuryPermissions.groups,
+      ...messagingPermissions.groups,
       ...transportPermissions.groups,
     },
     codes: {
@@ -252,6 +259,7 @@ const fr: Dictionary = {
       ...classroomPermissions.codes,
       ...timetablePermissions.codes,
       ...treasuryPermissions.codes,
+      ...messagingPermissions.codes,
       ...transportPermissions.codes,
     },
   },

@@ -105,6 +105,10 @@ import timetable, {
   nav as timetableNav,
   permissions as timetablePermissions,
 } from "@/modules/timetable/i18n/en";
+import messaging, {
+  nav as messagingNav,
+  permissions as messagingPermissions,
+} from "@/modules/messaging/i18n/en";
 import treasury, {
   nav as treasuryNav,
   permissions as treasuryPermissions,
@@ -172,6 +176,7 @@ const en = {
 
   // Caisse.
   ...treasury,
+  ...messaging,
 
   // Logistique.
   ...transport,
@@ -206,6 +211,7 @@ const en = {
     ...classroomNav,
     ...timetableNav,
     ...treasuryNav,
+    ...messagingNav,
     ...transportNav,
   },
   permissions: {
@@ -236,6 +242,7 @@ const en = {
       ...classroomPermissions.groups,
       ...timetablePermissions.groups,
       ...treasuryPermissions.groups,
+      ...messagingPermissions.groups,
       ...transportPermissions.groups,
     },
     codes: {
@@ -265,6 +272,7 @@ const en = {
       ...classroomPermissions.codes,
       ...timetablePermissions.codes,
       ...treasuryPermissions.codes,
+      ...messagingPermissions.codes,
       ...transportPermissions.codes,
     },
   },

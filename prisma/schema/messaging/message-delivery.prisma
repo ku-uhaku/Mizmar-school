@@ -1,0 +1,37 @@
+/// One message to one household, and what became of it.
+model MessageDelivery {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  campaignId String          @db.VarChar(30)
+  campaign   MessageCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  /// A soft reference: a household deleted later must not erase the record that
+  /// it was messaged.
+  familyId String @db.VarChar(30)
+
+  /// The number as it was sent, already normalised (digits, country code first).
+  phone String @db.VarChar(20)
+
+  /// The text exactly as sent.
+  body String @db.Text
+
+  /// See DELIVERY_STATUSES in modules/messaging/enums.ts.
+  status String @default("PENDING") @db.VarChar(20)
+
+  error String? @db.VarChar(500)
+
+  /// When the worker claimed it. A SENDING row older than the stale window is
+  /// put back to PENDING — the process that claimed it died.
+  claimedAt DateTime?
+  sentAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One household is messaged once per campaign.
+  @@unique([campaignId, familyId])
+  /// What the worker polls, and what the cool-down reads.
+  @@index([status, createdAt])
+  @@index([familyId, sentAt])
+  @@map("message_deliveries")
+}

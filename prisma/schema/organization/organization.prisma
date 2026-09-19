@@ -31,5 +31,10 @@ model Organization {
   /// What its people are waiting to be told — see modules/notifications.
   notifications Notification[]
 
+  /// WhatsApp credits and what was sent with them — see modules/messaging.
+  messageCredit MessageCredit?
+  creditLedger CreditLedger[]
+  messageCampaigns MessageCampaign[]
+
   @@map("organizations")
 }

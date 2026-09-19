@@ -2194,3 +2194,125 @@ export async function listFamilyReceipts(
 
   return payments.map(toPaymentRow);
 }
+
+// ── Les familles à relancer ──────────────────────────────────────────────────
+
+export type ReminderTarget = {
+  familyId: string;
+  familyCode: string;
+  familyName: string;
+  /** The primary guardian's name, or the household's when it has none. */
+  contactName: string;
+  /** Raw, as typed — normalising it is the messaging module's business. */
+  contactPhone: string | null;
+  childNames: string[];
+  overdueCentimes: number;
+  levelOfferingIds: string[];
+  classIds: string[];
+};
+
+export type ReminderTargets = {
+  targets: ReminderTarget[];
+  levels: { id: string; label: string }[];
+  classes: { id: string; label: string }[];
+};
+
+/**
+ * The households that are behind, with what a reminder needs to be addressed.
+ *
+ * Built on `listFamilyPayments` rather than beside it so "behind" keeps its one
+ * meaning — `overdueCentimes > 0` — and a reminder can never go to a family the
+ * arrears screen does not show. The level and class lists come from the same
+ * enrolments, so a filter can only offer values that match somebody.
+ *
+ * Phone precedence: the primary guardian, then any active guardian, then the
+ * household's own number.
+ */
+export async function listReminderTargets(
+  context: AuthContext,
+): Promise<ReminderTargets> {
+  const schoolId = context.currentSchool?.id;
+  const schoolYearId = context.currentSchoolYear?.id;
+  if (!schoolId || !schoolYearId) return { targets: [], levels: [], classes: [] };
+
+  const late = (await listFamilyPayments(context)).filter(
+    (row) => row.overdueCentimes > 0,
+  );
+  if (late.length === 0) return { targets: [], levels: [], classes: [] };
+
+  const families = await db.family.findMany({
+    where: { schoolId, id: { in: late.map((row) => row.familyId) } },
+    select: {
+      id: true,
+      guardians: {
+        where: { isActive: true },
+        orderBy: [{ isPrimaryContact: "desc" }, { createdAt: "asc" }],
+        select: { firstName: true, lastName: true, phone: true, phoneAlt: true },
+      },
+      children: {
+        where: { enrollments: { some: { schoolYearId } } },
+        select: {
+          firstName: true,
+          enrollments: {
+            where: { schoolYearId },
+            select: {
+              levelOfferingId: true,
+              levelOffering: { select: { level: { select: { name: true } } } },
+              schoolClassId: true,
+              schoolClass: { select: { code: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  const byId = new Map(families.map((family) => [family.id, family]));
+
+  const levels = new Map<string, string>();
+  const classes = new Map<string, string>();
+
+  const targets = late.map((row): ReminderTarget => {
+    const family = byId.get(row.familyId);
+    const guardians = family?.guardians ?? [];
+    const withPhone = guardians.find((g) => g.phone ?? g.phoneAlt);
+    const chosen = withPhone ?? guardians[0] ?? null;
+
+    const levelOfferingIds = new Set<string>();
+    const classIds = new Set<string>();
+    for (const child of family?.children ?? []) {
+      for (const enrollment of child.enrollments) {
+        levelOfferingIds.add(enrollment.levelOfferingId);
+        levels.set(
+          enrollment.levelOfferingId,
+          enrollment.levelOffering.level.name,
+        );
+        if (enrollment.schoolClassId && enrollment.schoolClass) {
+          classIds.add(enrollment.schoolClassId);
+          classes.set(
+            enrollment.schoolClassId,
+            enrollment.schoolClass.name ?? enrollment.schoolClass.code,
+          );
+        }
+      }
+    }
+
+    return {
+      familyId: row.familyId,
+      familyCode: row.familyCode,
+      familyName: row.familyName,
+      contactName: chosen
+        ? `${chosen.firstName} ${chosen.lastName}`.trim()
+        : row.familyName,
+      contactPhone: chosen?.phone ?? chosen?.phoneAlt ?? row.phone,
+      childNames: (family?.children ?? []).map((child) => child.firstName),
+      overdueCentimes: row.overdueCentimes,
+      levelOfferingIds: [...levelOfferingIds],
+      classIds: [...classIds],
+    };
+  });
+
+  const options = (map: Map<string, string>) =>
+    [...map].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label));
+
+  return { targets, levels: options(levels), classes: options(classes) };
+}

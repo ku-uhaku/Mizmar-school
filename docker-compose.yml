@@ -132,7 +132,40 @@ services:
       # (`ssh -L 8080:127.0.0.1:8080 host`) to reach it remotely.
       - "127.0.0.1:${PMA_PORT_HOST:-8080}:80"
 
+  # ── WhatsApp gateway (opt-in) ─────────────────────────────────────────────
+  # Sends the payment reminders. Off unless asked for:
+  #
+  #     docker compose --profile whatsapp up -d --build
+  #
+  # Built from OpenWA's own repository — it publishes no image we can pin.
+  # Reached by the app over the compose network as http://openwa:2785, so the
+  # published port below exists only to scan the pairing QR from the host.
+  # Loopback for the same reason as MySQL: a bare `2785:2785` would put the
+  # dashboard of a WhatsApp account on the internet.
+  #
+  # It drives a real WhatsApp account through a reverse-engineered client, and
+  # WhatsApp may restrict such an account. Pair a dedicated school number, not
+  # a personal one — see README.
+  openwa:
+    build:
+      context: https://github.com/rmyndharis/OpenWA.git#main
+    profiles: ["whatsapp"]
+    restart: unless-stopped
+    # API_MASTER_KEY comes from .env.docker — compose does not interpolate that
+    # file into `environment:`, so it is read as an env_file like the others.
+    env_file: .env.docker
+    environment:
+      PORT: 2785
+      TZ: ${TZ:-Africa/Casablanca}
+    volumes:
+      # The paired session. Losing this volume means scanning the QR again.
+      - openwa-data:/app/data
+    ports:
+      - "127.0.0.1:${OPENWA_PORT_HOST:-2785}:2785"
+
 volumes:
   # Named, so `docker compose down` keeps the school's data. Only
   # `docker compose down -v` destroys it.
   db-data:
+  # The WhatsApp session of the openwa service. See above.
+  openwa-data:

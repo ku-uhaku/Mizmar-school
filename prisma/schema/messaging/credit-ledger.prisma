@@ -1,0 +1,28 @@
+/// Every movement of an organisation's message credits.
+model CreditLedger {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  organizationId String       @db.VarChar(30)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Signed: positive for a top-up or a refund, negative for a reservation.
+  delta Int
+
+  /// See CREDIT_REASONS in modules/messaging/enums.ts.
+  reason String @db.VarChar(20)
+
+  /// Set for RESERVE / REFUND lines, so a campaign's cost can be read back.
+  campaignId String? @db.VarChar(30)
+
+  /// Free text: what was bought, or why it was adjusted.
+  note String? @db.Text
+
+  /// Who did it. A soft reference — the trail must outlive the account.
+  createdById String? @db.VarChar(30)
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([campaignId])
+  @@map("credit_ledger")
+}

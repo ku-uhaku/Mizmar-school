@@ -143,6 +143,9 @@ model School {
   /// modules/notifications.
   notifications Notification[]
 
+  /// modules/messaging.
+  messageCampaigns MessageCampaign[]
+
   @@unique([organizationId, code])
   /// No two schools may map to the same establishment. Many may be unmapped.
   @@unique([organizationId, massarCode])

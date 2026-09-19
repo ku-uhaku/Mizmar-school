@@ -209,6 +209,8 @@ export const SYSTEM_ROLES: {
       PERMISSIONS.TREASURY_TRANSFER,
       PERMISSIONS.TREASURY_CHEQUES,
       PERMISSIONS.TREASURY_CANCEL,
+      // Chasing late payers over WhatsApp: the head decides who is written to.
+      PERMISSIONS.MESSAGING_SEND,
       // The RH of their own school, salaries included — a head is who signs a
       // contract and answers for the payroll.
       PERMISSIONS.HR_VIEW,

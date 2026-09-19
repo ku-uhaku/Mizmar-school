@@ -1,0 +1,24 @@
+/// How many WhatsApp messages an organisation may still send.
+///
+/// One row per organisation, and `balance` moves only through
+/// modules/messaging/service.ts, inside a transaction that also writes the
+/// `CreditLedger` line explaining the move. A balance with no ledger behind it
+/// is a number nobody can dispute or audit.
+///
+/// Held per organisation, not per school: credits are bought once, from the
+/// platform owner, and every school of the organisation draws on the same pot.
+model MessageCredit {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  organizationId String       @unique @db.VarChar(30)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// Never negative: the reserve is a conditional UPDATE (`balance >= n`), so
+  /// two campaigns queued at once cannot spend the same credit twice.
+  balance Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("message_credits")
+}

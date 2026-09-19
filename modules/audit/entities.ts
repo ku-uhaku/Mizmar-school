@@ -35,6 +35,9 @@ import {
 export const UNAUDITED_MODELS: readonly string[] = [
   "ActivityLog",
   "LoginAttempt",
+  // One row per message and rewritten three times as the worker claims and
+  // settles it: bookkeeping of a send whose campaign is already logged.
+  "MessageDelivery",
 ];
 
 /**
@@ -199,6 +202,11 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   // history rather than to the domain of whatever happening produced it.
   PortalSeen: "access",
   Notification: "access",
+  // What a school sent to its parents, and the credits that paid for it.
+  MessageCampaign: "finance",
+  MessageDelivery: "finance",
+  MessageCredit: "finance",
+  CreditLedger: "finance",
   EventAudience: "vieScolaire",
   // The two lists a school agrees about people: what its staff do, and what
   // its pupils' parents do.

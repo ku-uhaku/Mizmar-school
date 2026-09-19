@@ -71,6 +71,7 @@ has no write invariants, so it has no `service.ts`.
 | `academics` | `EducationLevel`, `Level`, `Track`, `Subject`, `LevelSubject` | — (edited under `/configuration`) |
 | `facilities` | `Room` | — (edited under `/configuration`) |
 | `billing` | `FeeType`, `FeeRate`, `Discount` | — (edited under `/configuration`) |
+| `messaging` | `MessageCredit`, `CreditLedger`, `MessageCampaign`, `MessageDelivery` | `/caisse/relances`, `/caisse/relances/[campaignId]`, `/caisse/relances/credits` (owner) |
 
 Owning a table means owning its schema file, its enums and its write
 invariants. Other modules may **read** it through the owner's `queries.ts`.
