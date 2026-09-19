@@ -20,7 +20,12 @@ import { IDLE } from "@/lib/action-state";
 import { interpolate } from "@/lib/i18n/format";
 import { cn } from "@/lib/utils";
 import { setTeacherAvailabilityAction } from "@/modules/timetable/actions";
-import type { AvailabilityGrid } from "@/modules/timetable/queries";
+import { DAY_SESSIONS, formatDuration } from "@/modules/timetable/enums";
+import { WeekAxis } from "@/modules/timetable/components/week-axis";
+import type {
+  AvailabilityGrid,
+  AvailabilitySlot,
+} from "@/modules/timetable/queries";
 
 /**
  * A teacher's horaire: the periods of the week they work.
@@ -38,9 +43,13 @@ import type { AvailabilityGrid } from "@/modules/timetable/queries";
  * afternoon") while keeping `TeacherUnavailability` as the sparse table it
  * should be — a full-time teacher stores no rows at all.
  *
- * Clicking a day or a period header toggles the whole row or column, because
- * every real arrangement is a half-day or a fixed morning and nobody should
- * have to click eight cells to say so.
+ * Clicking a day, or a half-day button, toggles the whole line, because every
+ * real arrangement is a half-day or a fixed morning and nobody should have to
+ * click eight cells to say so.
+ *
+ * Each day is a strip of the slots it really has, on a shared time axis: a 1h
+ * Friday beside 1h30 Mondays no longer leaves the other days with cells that do
+ * not exist.
  */
 export function TeacherAvailability({
   teacherId,
@@ -74,11 +83,7 @@ export function TeacherAvailability({
   const [blocked, setBlocked] = React.useState<Set<string>>(
     () =>
       new Set(
-        grid.rows.flatMap((row) =>
-          Object.values(row.cells)
-            .filter((cell) => cell?.blocked)
-            .map((cell) => cell!.timeSlotId),
-        ),
+        grid.slots.filter((slot) => slot.blocked).map((slot) => slot.timeSlotId),
       ),
   );
 
@@ -97,16 +102,22 @@ export function TeacherAvailability({
     });
   };
 
-  const slotsOf = (predicate: (cell: { timeSlotId: string }) => boolean) =>
-    grid.rows
-      .flatMap((row) => Object.values(row.cells))
-      .filter((cell): cell is { timeSlotId: string; blocked: boolean } =>
-        Boolean(cell),
-      )
-      .filter(predicate)
-      .map((cell) => cell.timeSlotId);
-
   const worked = grid.totalPeriods - blocked.size;
+
+  // One strip per day, made of the slots that day really has. Days do not have
+  // to share their periods: 1h30 on Monday and 1h on Friday is an ordinary week.
+  const days = React.useMemo(() => {
+    const byDay = new Map<number, AvailabilitySlot[]>();
+    for (const slot of grid.slots) {
+      byDay.set(slot.dayOfWeek, [...(byDay.get(slot.dayOfWeek) ?? []), slot]);
+    }
+    return [...byDay.entries()].sort(([a], [b]) => a - b);
+  }, [grid.slots]);
+
+  /** The half-days the week has, for setting "every morning" in one click. */
+  const sessions = DAY_SESSIONS.filter((session) =>
+    grid.slots.some((slot) => slot.session === session),
+  );
 
   return (
     <Card>
@@ -131,102 +142,82 @@ export function TeacherAvailability({
             <input key={id} type="hidden" name="blockedSlotIds" value={id} />
           ))}
 
+          {canManage && sessions.length > 0 ? (
+            // A half-day is how an arrangement is actually described — "not on
+            // Wednesday afternoon", "mornings only" — so it is one click here
+            // rather than a cell per day.
+            <div className="flex flex-wrap items-center gap-1.5">
+              {sessions.map((session) => (
+                <Button
+                  key={session}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    toggle(
+                      grid.slots
+                        .filter((slot) => slot.session === session)
+                        .map((slot) => slot.timeSlotId),
+                    )
+                  }
+                >
+                  {t.configOptions.sessions[session]}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr>
-                  <th className="text-muted-foreground p-1.5 text-start text-xs font-medium">
-                    {t.timetable.day}
-                  </th>
-                  {grid.columns.map((column) => (
-                    <th key={column.key} className="p-1">
+            <WeekAxis
+              corner={t.timetable.day}
+              rowHeightClass="h-14"
+              days={days.map(([dayOfWeek, daySlots]) => ({
+                key: dayOfWeek,
+                label: (
+                  <button
+                    type="button"
+                    disabled={!canManage}
+                    onClick={() => toggle(daySlots.map((slot) => slot.timeSlotId))}
+                    className="text-muted-foreground hover:text-foreground text-xs font-medium whitespace-nowrap disabled:cursor-default"
+                  >
+                    {
+                      t.timetable.daysShort[
+                        String(dayOfWeek) as keyof typeof t.timetable.daysShort
+                      ]
+                    }
+                  </button>
+                ),
+                items: daySlots.map((slot) => {
+                  const off = blocked.has(slot.timeSlotId);
+                  return {
+                    key: slot.timeSlotId,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    children: (
                       <button
                         type="button"
                         disabled={!canManage}
-                        onClick={() =>
-                          toggle(
-                            slotsOf((cell) =>
-                              grid.rows.some(
-                                (row) =>
-                                  row.cells[column.key]?.timeSlotId ===
-                                  cell.timeSlotId,
-                              ),
-                            ),
-                          )
-                        }
-                        className="text-muted-foreground hover:text-foreground w-full text-xs font-medium whitespace-nowrap disabled:cursor-default"
-                        dir="ltr"
+                        aria-pressed={!off}
+                        onClick={() => toggle([slot.timeSlotId], !off)}
+                        className={cn(
+                          "flex h-full w-full flex-col items-center justify-center rounded-md border px-1 text-xs leading-tight transition-colors disabled:cursor-default",
+                          off
+                            ? "bg-muted text-muted-foreground border-dashed"
+                            : "border-success/40 bg-success/10 text-success",
+                        )}
                       >
-                        {column.startTime}
+                        <span dir="ltr" className="text-[10px] tabular-nums opacity-70">
+                          {slot.startTime} · {formatDuration(slot.minutes)}
+                        </span>
+                        <span className="truncate">
+                          {off ? t.timetable.notWorking : t.timetable.working}
+                        </span>
                       </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {grid.rows.map((row) => {
-                  const daySlots = Object.values(row.cells)
-                    .filter(Boolean)
-                    .map((cell) => cell!.timeSlotId);
-
-                  return (
-                    <tr key={row.dayOfWeek} className="border-t">
-                      <th className="p-1 text-start">
-                        <button
-                          type="button"
-                          disabled={!canManage}
-                          onClick={() => toggle(daySlots)}
-                          className="text-muted-foreground hover:text-foreground text-xs font-medium whitespace-nowrap disabled:cursor-default"
-                        >
-                          {
-                            t.timetable.daysShort[
-                              String(
-                                row.dayOfWeek,
-                              ) as keyof typeof t.timetable.daysShort
-                            ]
-                          }
-                        </button>
-                      </th>
-
-                      {grid.columns.map((column) => {
-                        const cell = row.cells[column.key];
-                        if (!cell) {
-                          // The school does not teach this period on this day.
-                          return (
-                            <td key={column.key} className="p-1">
-                              <div className="bg-muted/30 h-9 rounded-md" />
-                            </td>
-                          );
-                        }
-
-                        const off = blocked.has(cell.timeSlotId);
-                        return (
-                          <td key={column.key} className="p-1">
-                            <button
-                              type="button"
-                              disabled={!canManage}
-                              aria-pressed={!off}
-                              onClick={() =>
-                                toggle([cell.timeSlotId], !off)
-                              }
-                              className={cn(
-                                "h-9 w-full rounded-md border text-xs transition-colors disabled:cursor-default",
-                                off
-                                  ? "bg-muted text-muted-foreground border-dashed"
-                                  : "border-success/40 bg-success/10 text-success",
-                              )}
-                            >
-                              {off ? t.timetable.notWorking : t.timetable.working}
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    ),
+                  };
+                }),
+              }))}
+            />
           </div>
 
           {canManage ? (

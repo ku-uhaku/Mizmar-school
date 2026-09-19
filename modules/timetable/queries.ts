@@ -25,7 +25,7 @@ import {
   type SchoolWeek,
 } from "@/modules/timetable/weeks";
 import { activeVersionKeyOf, runsInWeekNumber } from "@/modules/timetable/enums";
-import { periodsFromMinutes } from "@/modules/timetable/generator";
+import { minutesToCover, SLACK_MINUTES } from "@/modules/timetable/generator";
 import { foldRuns, type FoldedCell } from "@/modules/timetable/fold-runs";
 
 /** Matches nothing — see the note on `NO_MATCH` in lib/scope.ts. */
@@ -102,6 +102,11 @@ export type TimetableEntryView = {
    * display span, worked out by merging the run below.
    */
   span: number;
+  /**
+   * How long the block really runs. Not `span * periodMinutes`: with a 1h30
+   * Monday and a 1h Friday there is no single period length to multiply by.
+   */
+  minutes: number;
   /** Every row the block is made of, first period first. */
   entryIds: string[];
   /**
@@ -163,6 +168,20 @@ export type TimetableGrid = {
    * one short slot at the end of Friday must not re-scale the whole grid.
    */
   periodMinutes: number;
+  /**
+   * Every slot of the schedule with its own length, for drawing each day on a
+   * shared time axis. Columns merge equal start–end pairs across days, which
+   * is what makes a 1h Friday beside a 1h30 Monday look like a grid full of
+   * holes; the slots themselves have no such problem.
+   */
+  slots: {
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    minutes: number;
+    isBreak: boolean;
+  }[];
   /** Indexed by ISO day (1 = Monday), then by column key. */
   rows: { dayOfWeek: number; cells: Record<string, TimetableCell> }[];
   scheduleKind: string;
@@ -180,9 +199,9 @@ function minutesOfDay(time: string): number {
 /**
  * The commonest column length, which is what "a period" means for this grid.
  *
- * The mode rather than the mean, for the same reason `modalDuration` in
- * service.ts uses it: a school with one 15-minute récréation column must not
- * have every lesson re-scaled by it.
+ * The mode rather than the mean: a school with one 15-minute récréation column
+ * must not have every lesson re-scaled by it. Display only — the generator and
+ * the coverage figures sum each slot's own length.
  */
 function modalColumnMinutes(
   columns: { startTime: string; endTime: string; isBreak: boolean }[],
@@ -335,37 +354,44 @@ export async function loadClassTimetable(
     a.termId === b.termId;
 
   const rows = teachingDaysOf(context.settings).map((dayOfWeek) => {
+    // Every column starts as "the school does not teach then"; the day's own
+    // slots overwrite the ones it runs.
     const cells: Record<string, TimetableCell> = {};
-
-    // Built column by column, looking back at the cell just filled: a lesson
-    // that continues the previous period is folded into it rather than drawn
-    // again. Merging here, once, is what lets the grid stay a plain table.
-    let running: { key: string; entry: (typeof entries)[number] } | null = null;
-
     for (const column of columns) {
-      const slot = slots.find(
-        (candidate) =>
-          candidate.dayOfWeek === dayOfWeek &&
-          slotKey(candidate.startTime, candidate.endTime) === column.key,
-      );
+      cells[column.key] = {
+        timeSlotId: null,
+        isBreak: false,
+        entry: null,
+        covered: false,
+      };
+    }
 
-      if (!slot) {
-        cells[column.key] = {
-          timeSlotId: null,
-          isBreak: false,
-          entry: null,
-          covered: false,
-        };
-        running = null;
-        continue;
-      }
+    // Walked over the *day's own slots*, not over the shared columns. Columns
+    // are the union of every day's periods, so on a week with a 1h Friday beside
+    // 1h30 Mondays a Friday-only column sits between two Monday periods — and a
+    // walk over the columns would reset at it and never join Monday's two
+    // periods into one double.
+    const daySlots = slots
+      .filter((candidate) => candidate.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
+    // A lesson that continues the previous period is folded into it rather than
+    // drawn again. Merging here, once, is what lets the grid stay simple.
+    let running: {
+      key: string;
+      entry: (typeof entries)[number];
+      endTime: string;
+    } | null = null;
+
+    for (const slot of daySlots) {
+      const key = slotKey(slot.startTime, slot.endTime);
+      const length = minutesOfDay(slot.endTime) - minutesOfDay(slot.startTime);
       const entry = entryBySlot.get(slot.id) ?? null;
 
       // A break interrupts a run: 2h either side of the récréation is two
       // lessons, and drawing them as one would span the break itself.
       if (entry === null || slot.isBreak) {
-        cells[column.key] = {
+        cells[key] = {
           timeSlotId: slot.id,
           isBreak: slot.isBreak,
           entry: null,
@@ -375,15 +401,23 @@ export async function loadClassTimetable(
         continue;
       }
 
-      if (running && sameLesson(running.entry, entry)) {
+      // Contiguous as well as identical: two 1h30 lessons of the same subject
+      // either side of a gap are two lessons, not one of three hours.
+      if (
+        running &&
+        running.endTime === slot.startTime &&
+        sameLesson(running.entry, entry)
+      ) {
         const head = cells[running.key].entry;
         if (head) {
           head.span += 1;
+          head.minutes += length;
           head.entryIds.push(entry.id);
           // What is written under any period of the block belongs to the block.
           head.details.push(...detailViews(entry.details));
         }
-        cells[column.key] = {
+        running.endTime = slot.endTime;
+        cells[key] = {
           timeSlotId: slot.id,
           isBreak: false,
           entry: null,
@@ -392,7 +426,7 @@ export async function loadClassTimetable(
         continue;
       }
 
-      cells[column.key] = {
+      cells[key] = {
         timeSlotId: slot.id,
         isBreak: false,
         covered: false,
@@ -413,11 +447,12 @@ export async function loadClassTimetable(
           termId: entry.termId,
           weekParity: entry.weekParity,
           span: 1,
+          minutes: length,
           entryIds: [entry.id],
           details: detailViews(entry.details),
         },
       };
-      running = { key: column.key, entry };
+      running = { key, entry, endTime: slot.endTime };
     }
 
     return { dayOfWeek, cells };
@@ -426,6 +461,14 @@ export async function loadClassTimetable(
   return {
     columns,
     periodMinutes: modalColumnMinutes(columns),
+    slots: slots.map((slot) => ({
+      id: slot.id,
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      minutes: minutesOfDay(slot.endTime) - minutesOfDay(slot.startTime),
+      isBreak: slot.isBreak,
+    })),
     rows,
     scheduleKind,
     entryCount: inForce.length,
@@ -572,7 +615,7 @@ export type ProgrammeGap = {
   subjectId: string;
   /** Both names, since this is read rather than matched on. */
   subjectLabel: string;
-  /** Periods the programme asks for, and the periods the grid actually holds. */
+  /** Minutes the programme asks for, and the minutes the grid actually holds. */
   wanted: number;
   placed: number;
   /** What is left to place, in minutes — the screen talks in hours. */
@@ -662,25 +705,34 @@ export async function loadProgrammeCoverage(
     }),
     db.timeSlot.findMany({
       where: { ...yearScope(context), scheduleKind, isActive: true },
-      select: { startTime: true, endTime: true, isBreak: true },
+      select: { id: true, startTime: true, endTime: true, isBreak: true },
     }),
     // Everything on this class's grid for the bell schedule in view. Counted
     // per subject and not per week: a lesson is on the template or it is not,
     // and a week's one-off cancellation is not a hole in the programme.
     db.timetableEntry.findMany({
       where: { schoolClassId, ...versionScope },
-      select: { subjectId: true },
+      select: { subjectId: true, timeSlotId: true },
     }),
   ]);
 
   if (slots.length === 0) return empty;
-  const periodMinutes = modalColumnMinutes(slots);
 
+  // Minutes, summed over the real slots: a 1h Friday and a 1h30 Monday are not
+  // the same amount of programme, and this is the same arithmetic the generator
+  // stops on.
+  const minutesOfSlot = new Map(
+    slots.map((slot) => [
+      slot.id,
+      Math.max(0, minutesOfDay(slot.endTime) - minutesOfDay(slot.startTime)),
+    ]),
+  );
   const placedBySubject = new Map<string, number>();
   for (const entry of entries) {
     placedBySubject.set(
       entry.subjectId,
-      (placedBySubject.get(entry.subjectId) ?? 0) + 1,
+      (placedBySubject.get(entry.subjectId) ?? 0) +
+        (minutesOfSlot.get(entry.timeSlotId) ?? 0),
     );
   }
 
@@ -719,16 +771,17 @@ export async function loadProgrammeCoverage(
       continue;
     }
 
-    const wanted = periodsFromMinutes(weeklyMinutes, periodMinutes);
+    const wanted = minutesToCover(weeklyMinutes);
     const placed = placedBySubject.get(row.subject.id) ?? 0;
-    if (placed >= wanted) continue;
+    // Within the slack is complete, as it is for the generator.
+    if (placed >= wanted - SLACK_MINUTES) continue;
 
     gaps.push({
       subjectId: row.subject.id,
       subjectLabel,
       wanted,
       placed,
-      missingMinutes: (wanted - placed) * periodMinutes,
+      missingMinutes: wanted - placed,
       unstaffed: !affectation,
     });
   }
@@ -846,6 +899,19 @@ export type TeacherLesson = {
 
 export type TeacherWeek = {
   columns: SlotColumn[];
+  /**
+   * Every slot with its own length, for drawing each day on a shared time axis.
+   * Columns merge equal start–end pairs across days, which leaves holes as soon
+   * as Friday's bell differs from Monday's.
+   */
+  slots: {
+    id: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    minutes: number;
+    isBreak: boolean;
+  }[];
   /** Indexed by ISO day (1 = Monday), then by column key. Null = free period. */
   rows: {
     dayOfWeek: number;
@@ -986,11 +1052,34 @@ export async function loadTeacherTimetable(
         ? (lessonBySlot.get(slot.id) ?? null)
         : null;
     }
-    return { dayOfWeek, cells, layout: foldRuns(columns, cells) };
+    // Folded over the columns this day actually runs. Over all of them, a
+    // column only Friday has would sit between two Monday periods and end the
+    // run, so Monday's two back-to-back hours would never join into a double.
+    const dayKeys = new Set(
+      slots
+        .filter((candidate) => candidate.dayOfWeek === dayOfWeek)
+        .map((candidate) => slotKey(candidate.startTime, candidate.endTime)),
+    );
+    return {
+      dayOfWeek,
+      cells,
+      layout: foldRuns(
+        columns.filter((column) => dayKeys.has(column.key)),
+        cells,
+      ),
+    };
   });
 
   return {
     columns,
+    slots: slots.map((slot) => ({
+      id: slot.id,
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      minutes: minutesOfDay(slot.endTime) - minutesOfDay(slot.startTime),
+      isBreak: slot.isBreak,
+    })),
     rows,
     scheduleKind,
     lessonCount: entries.length,
@@ -1302,13 +1391,24 @@ export async function listTeacherOptions(
   }));
 }
 
+export type AvailabilitySlot = {
+  timeSlotId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  minutes: number;
+  /** "MORNING" | "AFTERNOON" — lets a whole half-day be set in one click. */
+  session: string;
+  blocked: boolean;
+};
+
 export type AvailabilityGrid = {
-  columns: SlotColumn[];
-  /** Indexed by ISO day, then column key. Null where the school does not teach. */
-  rows: {
-    dayOfWeek: number;
-    cells: Record<string, { timeSlotId: string; blocked: boolean } | null>;
-  }[];
+  /**
+   * Every teaching slot with its own length, in day then clock order. A list,
+   * not a grid of columns: the days no longer share one set of periods, and a
+   * column per distinct start–end pair drew the gaps as empty cells.
+   */
+  slots: AvailabilitySlot[];
   /** How many teaching periods the week holds, for the "works N of M" line. */
   totalPeriods: number;
   blockedPeriods: number;
@@ -1346,7 +1446,13 @@ export async function loadTeacherAvailability(
     db.timeSlot.findMany({
       where: { schoolYearId, scheduleKind, isActive: true, isBreak: false },
       orderBy: [{ startTime: "asc" }, { dayOfWeek: "asc" }],
-      select: { id: true, dayOfWeek: true, startTime: true, endTime: true },
+      select: {
+        id: true,
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+        session: true,
+      },
     }),
     db.teacherUnavailability.findMany({
       where: { teacherId, timeSlot: { schoolYearId, scheduleKind } },
@@ -1356,43 +1462,21 @@ export async function loadTeacherAvailability(
 
   const blockedIds = new Set(blocked.map((row) => row.timeSlotId));
 
-  const columns: SlotColumn[] = [];
-  const seen = new Set<string>();
-  for (const slot of slots) {
-    const key = `${slot.startTime}-${slot.endTime}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    columns.push({
-      key,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      isBreak: false,
-    });
-  }
-
-  const days = [...new Set(slots.map((slot) => slot.dayOfWeek))].sort(
-    (a, b) => a - b,
-  );
-
-  const rows = days.map((dayOfWeek) => {
-    const cells: Record<string, { timeSlotId: string; blocked: boolean } | null> =
-      {};
-    for (const column of columns) {
-      const slot = slots.find(
-        (candidate) =>
-          candidate.dayOfWeek === dayOfWeek &&
-          `${candidate.startTime}-${candidate.endTime}` === column.key,
-      );
-      cells[column.key] = slot
-        ? { timeSlotId: slot.id, blocked: blockedIds.has(slot.id) }
-        : null;
-    }
-    return { dayOfWeek, cells };
-  });
-
   return {
-    columns,
-    rows,
+    slots: [...slots]
+      .sort(
+        (a, b) =>
+          a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime),
+      )
+      .map((slot) => ({
+        timeSlotId: slot.id,
+        dayOfWeek: slot.dayOfWeek,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        minutes: minutesOfDay(slot.endTime) - minutesOfDay(slot.startTime),
+        session: slot.session,
+        blocked: blockedIds.has(slot.id),
+      })),
     totalPeriods: slots.length,
     blockedPeriods: blockedIds.size,
   };

@@ -11,6 +11,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { findClass } from "@/modules/classes/queries";
 import { PrintableWeekTable } from "@/modules/timetable/components/printable-week";
 import type { PrintableWeek } from "@/modules/timetable/components/printable-week";
+import { addMinutesToTime } from "@/modules/timetable/enums";
 import { holidaysByWeekday } from "@/modules/timetable/holidays";
 import {
   loadClassTimetable,
@@ -82,12 +83,18 @@ export default async function ClassTimetablePrintPage({
   const holidays = holidaysByWeekday(weekContext);
 
   const printable: PrintableWeek = {
-    columns: grid.columns,
     rows: grid.rows.map((row) => ({
       dayOfWeek: row.dayOfWeek,
-      cells: grid.columns.map((column) => {
-        const cell = row.cells[column.key];
-        const entry = cell?.entry ?? null;
+      // The day's own slots, not the shared columns: on a week whose Friday
+      // rings a different bell there is no one column set to walk.
+      items: grid.slots
+        .filter((slot) => slot.dayOfWeek === row.dayOfWeek)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+        .flatMap((slot) => {
+        const cell = row.cells[`${slot.startTime}-${slot.endTime}`];
+        // Drawn by the lesson's first slot, which is as wide as the whole of it.
+        if (!cell || cell.covered) return [];
+        const entry = cell.entry ?? null;
 
         // A day off prints as the holiday's name rather than the lessons that
         // would have run: the sheet on the wall must not tell a class to turn
@@ -118,7 +125,10 @@ export default async function ClassTimetablePrintPage({
           .filter(Boolean)
           .join(" · ");
 
-        return {
+        return [{
+          key: slot.id,
+          startTime: slot.startTime,
+          endTime: addMinutesToTime(slot.startTime, entry?.minutes ?? slot.minutes),
           lines: holiday
             ? [holiday]
             : entry || replaced
@@ -138,15 +148,13 @@ export default async function ClassTimetablePrintPage({
                   cancelled ? t.timetable.cancelledThisWeek : "",
                 ].filter(Boolean)
               : [],
-          span: entry?.span ?? 1,
-          covered: cell?.covered ?? false,
-          isBreak: (cell?.isBreak ?? false) || Boolean(holiday),
+          isBreak: cell.isBreak || Boolean(holiday),
           cancelled,
           // The exception carries a replacement subject's name but not its
           // colour, so a REPLACED cell prints without a tint rather than the
           // wrong one.
           colorHex: holiday || replaced ? null : (entry?.colorHex ?? null),
-        };
+        }];
       }),
     })),
   };

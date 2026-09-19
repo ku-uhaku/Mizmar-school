@@ -16,6 +16,7 @@ import { assignmentScopeKey } from "@/modules/classes/enums";
 import { loadSchoolSettings } from "@/lib/school-settings-server";
 import { activeVersionId } from "@/modules/timetable/queries";
 import {
+  MAX_BLOCK_MINUTES,
   activeVersionKeyOf,
   bookingKeyOf,
   minutesSinceMidnight,
@@ -26,7 +27,8 @@ import {
 } from "@/modules/timetable/enums";
 import {
   generateTimetable,
-  periodsFromMinutes,
+  minutesToCover,
+  SLACK_MINUTES,
   type GeneratorDemand,
   type GeneratorSlot,
   type Placement,
@@ -587,10 +589,29 @@ export type GeneratorOptions = {
    * started by hand.
    */
   replaceExisting: boolean;
-  /** Longest run of consecutive periods one subject may take. 1 = never double. */
-  blockSize: number;
-  /** Most periods of one subject in a single day. */
-  maxPerDay: number;
+  /**
+   * Longest lesson, in minutes, made by joining consecutive slots. 0 = one
+   * lesson per slot, whatever its length.
+   */
+  blockMinutes: number;
+  /** Most minutes of one subject in a single day. */
+  maxMinutesPerDay: number;
+  /**
+   * Restrict the run to these slots — the créneaux the user ticked. Undefined
+   * means every teaching slot. Intersected with the year's own slots, so an id
+   * from the request can never reach another school's week.
+   */
+  allowedSlotIds?: string[];
+  /** Subjects to leave out of this run. They are not reported as skipped. */
+  skipSubjectIds?: string[];
+  /** A subject → the only slots it may use. Others are unrestricted. */
+  subjectSlots?: Record<string, string[]>;
+  /**
+   * Subjects fixed to particular créneaux. Honoured only when the run covers
+   * one class: the same pin on every class would send them all, and their
+   * teacher, into the same slot.
+   */
+  pins?: { subjectId: string; timeSlotIds: string[] }[];
 };
 
 /** A subject the generator had to leave out, and the reason a user can act on. */
@@ -665,8 +686,10 @@ export type TimetableDraft = {
     /** True when the second is short of the first. */
     understaffed: boolean;
   };
-  placedPeriods: number;
-  requestedPeriods: number;
+  placedMinutes: number;
+  requestedMinutes: number;
+  /** Minutes placed beyond the programme because the slots do not divide it. */
+  overshootMinutes: number;
 };
 
 /**
@@ -758,8 +781,9 @@ export async function buildTimetableDraft(
     skipped: [],
     assignments: [],
     capacity: { demandMinutes: 0, availableMinutes: 0, understaffed: false },
-    placedPeriods: 0,
-    requestedPeriods: 0,
+    placedMinutes: 0,
+    requestedMinutes: 0,
+    overshootMinutes: 0,
   };
   if (classes.length === 0) return empty;
 
@@ -785,24 +809,35 @@ export async function buildTimetableDraft(
     },
   });
 
-  const slots: GeneratorSlot[] = slotRows.filter((slot) =>
-    teachingDays.has(slot.dayOfWeek),
-  );
-  if (slots.length === 0) return { ...empty, classes: labelled(classes) };
+  // Each slot carries its own length: the week is not made of identical periods.
+  const weekSlots: GeneratorSlot[] = slotRows
+    .filter((slot) => teachingDays.has(slot.dayOfWeek))
+    .map((slot) => ({
+      ...slot,
+      minutes: Math.max(
+        0,
+        minutesSinceMidnight(slot.endTime) - minutesSinceMidnight(slot.startTime),
+      ),
+    }));
+  const slotMinutes = new Map(weekSlots.map((slot) => [slot.id, slot.minutes] as const));
 
-  // The school's ordinary period, for turning declared minutes into periods.
-  // The commonest length rather than the mean: a school with one 30-minute
-  // slot at the end of Friday must not have every subject re-scaled by it.
-  const periodMinutes = modalDuration(slots);
+  // The user's ticked créneaux, intersected with the year's own — see
+  // `GeneratorOptions.allowedSlotIds`.
+  const allowed = options.allowedSlotIds ? new Set(options.allowedSlotIds) : null;
+  const slots = allowed
+    ? weekSlots.filter((slot) => allowed.has(slot.id))
+    : weekSlots;
+  if (slots.length === 0) return { ...empty, classes: labelled(classes) };
 
   /**
    * The week's own ceiling: no class or teacher can be given more minutes of
-   * lessons than there are teachable periods to hold them in. Used as both the
-   * class cap and the fallback teacher cap below, in place of a school-wide
-   * setting that could drift out of step with the bell schedule it was meant
-   * to describe — this always agrees with it, because it is read from it.
+   * lessons than there are teachable minutes to hold them in. Taken from the
+   * whole week, not the ticked créneaux — lessons already on the grid outside
+   * them still count against it. Used as both the class cap and the fallback
+   * teacher cap below, in place of a school-wide setting that could drift out
+   * of step with the bell schedule it was meant to describe.
    */
-  const weekCapacityMinutes = slots.length * periodMinutes;
+  const weekCapacityMinutes = weekSlots.reduce((sum, slot) => sum + slot.minutes, 0);
 
   const levelIds = [
     ...new Set(classes.map((entry) => entry.levelOffering.levelId)),
@@ -863,26 +898,25 @@ export async function buildTimetableDraft(
   // them against the caps rather than pretending everyone starts at zero.
   const teacherLoad: Record<string, number> = {};
   const classLoad: Record<string, number> = {};
-  /** `classId:subjectId` → periods the class already has. */
+  /** `classId:subjectId` → minutes the class already has. */
   const alreadyPlaced = new Map<string, number>();
 
   for (const entry of existing) {
     const isTarget = targetIds.has(entry.schoolClassId);
     if (isTarget && options.replaceExisting) continue;
 
+    const length = slotMinutes.get(entry.timeSlotId) ?? 0;
     if (entry.teacherId) {
       (busyTeacher[entry.teacherId] ??= []).push(entry.timeSlotId);
-      teacherLoad[entry.teacherId] =
-        (teacherLoad[entry.teacherId] ?? 0) + periodMinutes;
+      teacherLoad[entry.teacherId] = (teacherLoad[entry.teacherId] ?? 0) + length;
     }
     if (entry.roomId) (busyRoom[entry.roomId] ??= []).push(entry.timeSlotId);
     (busyClass[entry.schoolClassId] ??= []).push(entry.timeSlotId);
-    classLoad[entry.schoolClassId] =
-      (classLoad[entry.schoolClassId] ?? 0) + periodMinutes;
+    classLoad[entry.schoolClassId] = (classLoad[entry.schoolClassId] ?? 0) + length;
 
     if (isTarget) {
       const key = `${entry.schoolClassId}:${entry.subjectId}`;
-      alreadyPlaced.set(key, (alreadyPlaced.get(key) ?? 0) + 1);
+      alreadyPlaced.set(key, (alreadyPlaced.get(key) ?? 0) + length);
     }
   }
 
@@ -1057,6 +1091,19 @@ export async function buildTimetableDraft(
       cappedByContract.get(teacherId) ?? weekCapacityMinutes;
   }
 
+  const skippedByUser = new Set(options.skipSubjectIds ?? []);
+
+  // Only slots this run may use, so a pin can never reach outside the week the
+  // draft is laid on — and only for a single class, see `GeneratorOptions.pins`.
+  const runSlotIds = new Set(slots.map((slot) => slot.id));
+  const pinnedSlots = new Map<string, string[]>();
+  if (classes.length === 1) {
+    for (const pin of options.pins ?? []) {
+      const ids = pin.timeSlotIds.filter((id) => runSlotIds.has(id));
+      if (ids.length > 0) pinnedSlots.set(pin.subjectId, ids);
+    }
+  }
+
   const demands: GeneratorDemand[] = [];
   const skipped: SkippedSubject[] = [];
   const subjectsById = new Map<
@@ -1092,6 +1139,10 @@ export async function buildTimetableDraft(
         short: subject.shortName ?? subject.code,
         colorHex: subject.colorHex,
       });
+
+      // Left out by the user for this run: not placed, and not "skipped" in the
+      // sense of a programme gap either — they asked for it.
+      if (skippedByUser.has(subject.id)) continue;
 
       const assignment =
         schoolClass.assignments.find(
@@ -1129,15 +1180,16 @@ export async function buildTimetableDraft(
         });
       }
 
-      const wanted = periodsFromMinutes(weeklyMinutes, periodMinutes);
+      const wanted = minutesToCover(weeklyMinutes);
       // What the class already has of this subject counts towards the
       // programme, so a top-up run adds the missing hours instead of a second
       // full week of them.
-      const outstanding =
-        wanted - (alreadyPlaced.get(`${schoolClass.id}:${subject.id}`) ?? 0);
-      if (outstanding <= 0) continue;
+      const have = alreadyPlaced.get(`${schoolClass.id}:${subject.id}`) ?? 0;
+      const outstanding = wanted - have;
+      // Within the slack counts as done, the same test the placer stops on.
+      if (outstanding <= 0 || (have > 0 && outstanding <= SLACK_MINUTES)) continue;
 
-      demands.push({
+      const base = {
         schoolClassId: schoolClass.id,
         subjectId: subject.id,
         classGroupId: assignment?.classGroupId ?? null,
@@ -1146,9 +1198,37 @@ export async function buildTimetableDraft(
         homeRoomId: schoolClass.roomId,
         requiresLab: subject.requiresLab,
         classSize: classSizes.get(schoolClass.id) ?? 0,
-        periods: outstanding,
-        blockSize: Math.max(1, options.blockSize),
-        maxPerDay: Math.max(1, options.maxPerDay),
+      };
+
+      // The fixed créneaux first, as a demand of their own that names its
+      // slots; what is left of the programme is drawn as usual around it.
+      const pinnedIds = pinnedSlots.get(subject.id) ?? [];
+      const pinnedMinutes = pinnedIds.reduce(
+        (sum, id) => sum + (slotMinutes.get(id) ?? 0),
+        0,
+      );
+      if (pinnedIds.length > 0 && pinnedMinutes > 0) {
+        demands.push({
+          ...base,
+          minutes: pinnedMinutes,
+          // Adjacent pinned slots become one lesson, whatever the dialog's
+          // lesson length says: the user fixed those créneaux, not a length.
+          blockMinutes: MAX_BLOCK_MINUTES,
+          maxMinutesPerDay: 24 * 60,
+          allowedSlotIds: pinnedIds,
+          pinned: true,
+        });
+      }
+
+      const remaining = outstanding - pinnedMinutes;
+      if (remaining <= 0 || (pinnedMinutes > 0 && remaining <= SLACK_MINUTES)) continue;
+
+      demands.push({
+        ...base,
+        minutes: remaining,
+        blockMinutes: Math.max(0, options.blockMinutes),
+        maxMinutesPerDay: Math.max(SLACK_MINUTES, options.maxMinutesPerDay),
+        allowedSlotIds: options.subjectSlots?.[subject.id] ?? null,
       });
     }
   }
@@ -1162,7 +1242,7 @@ export async function buildTimetableDraft(
     detail is the shortfall list underneath it.
   */
   const demandMinutes = demands.reduce(
-    (sum, demand) => sum + demand.periods * periodMinutes,
+    (sum, demand) => sum + demand.minutes,
     0,
   );
   const inPlay = new Set(demands.flatMap((demand) => demand.candidateTeachers));
@@ -1185,7 +1265,6 @@ export async function buildTimetableDraft(
     busyRoom,
     busyClass,
     unavailableTeacher,
-    periodMinutes,
     teacherCapacity,
     teacherLoad,
     classCapacity: weekCapacityMinutes,
@@ -1275,8 +1354,9 @@ export async function buildTimetableDraft(
       availableMinutes,
       understaffed: availableMinutes < demandMinutes,
     },
-    placedPeriods: result.placedPeriods,
-    requestedPeriods: result.requestedPeriods,
+    placedMinutes: result.placedMinutes,
+    requestedMinutes: result.requestedMinutes,
+    overshootMinutes: result.overshootMinutes,
   };
 }
 
@@ -1301,26 +1381,6 @@ function versionLabelFor(classCodes: string[]): string {
   const joined = `Generated: ${classCodes.join(", ")}`;
   if (joined.length <= 200) return joined;
   return `Generated: ${classCodes.length} classes`;
-}
-
-/** The commonest period length in minutes — see the note at the call site. */
-function modalDuration(slots: GeneratorSlot[]): number {
-  const tally = new Map<number, number>();
-  for (const slot of slots) {
-    const length =
-      minutesSinceMidnight(slot.endTime) - minutesSinceMidnight(slot.startTime);
-    if (length > 0) tally.set(length, (tally.get(length) ?? 0) + 1);
-  }
-
-  let best = 60;
-  let bestCount = 0;
-  for (const [length, count] of tally) {
-    if (count > bestCount) {
-      best = length;
-      bestCount = count;
-    }
-  }
-  return best;
 }
 
 /**
@@ -1996,6 +2056,24 @@ export type GenerateTimeSlotsInput = {
   /** Insert a break after this many periods (1-based), or null for none. */
   breakAfterPeriod: number | null;
   breakMinutes: number;
+  /**
+   * Clear the ticked days' existing slots of this session first.
+   *
+   * Without it, re-laying Friday as 1h after it was 1h30 leaves the old
+   * 09:30–11:00 slot standing across the new 09:00–10:00 one, because the upsert
+   * is keyed on the start time and only corrects slots that start together.
+   */
+  replace?: boolean;
+};
+
+export type GenerateTimeSlotsResult = {
+  written: number;
+  /**
+   * Lessons on the live grid that stand in the slots a replace would clear. A
+   * slot's lessons go with it, so a replace over a filled grid is refused rather
+   * than quietly emptying it.
+   */
+  blocked: number;
 };
 
 /**
@@ -2020,7 +2098,32 @@ export type GenerateTimeSlotsInput = {
  */
 export async function generateTimeSlots(
   input: GenerateTimeSlotsInput,
-): Promise<number> {
+): Promise<GenerateTimeSlotsResult> {
+  if (input.replace) {
+    const standing = await db.timeSlot.findMany({
+      where: {
+        schoolYearId: input.schoolYearId,
+        scheduleKind: input.scheduleKind,
+        session: input.session,
+        dayOfWeek: { in: input.days },
+      },
+      select: { id: true },
+    });
+    const ids = standing.map((slot) => slot.id);
+
+    if (ids.length > 0) {
+      // Only the live grid blocks it. Superseded versions are snapshots of a
+      // bell that is being replaced on purpose; their rows in these slots go
+      // with them, and no screen can draw them against slots that are gone.
+      const inUse = await db.timetableEntry.count({
+        where: { timeSlotId: { in: ids }, version: { status: "ACTIVE" } },
+      });
+      if (inUse > 0) return { written: 0, blocked: inUse };
+
+      await db.timeSlot.deleteMany({ where: { id: { in: ids } } });
+    }
+  }
+
   // Read fresh per day, before anything is laid, so the block that follows a
   // morning continues its numbering instead of restarting at 1.
   const startPositions = new Map<number, number>();
@@ -2077,7 +2180,7 @@ export async function generateTimeSlots(
     });
   }
 
-  return slots.length;
+  return { written: slots.length, blocked: 0 };
 }
 
 /**

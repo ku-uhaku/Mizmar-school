@@ -18,6 +18,11 @@ const en = {
     generateWeeksHint:
       "Numbers every week the school teaches in, skipping the holidays, and alternates A and B. Safe to run again — it renumbers rather than duplicates.",
     generateTimeSlots: "Lay out a block of periods",
+    replaceSlots: "Replace this session's slots on these days",
+    replaceSlotsHint:
+      "Needed to change a day's slot length, such as Friday from 1h30 to 1h. Refused if lessons are already placed in them.",
+    replaceBlocked:
+      "{count} lesson(s) are placed in these slots. Clear them from the grid first, or generate again afterwards.",
     generateTimeSlotsHint:
       "One start time, one period length, one break — written the same way onto every day you tick. Run it again for the afternoon, or to correct a day. Safe to repeat: it corrects the periods in place rather than duplicating them.",
     timeSlotsGenerated: "{count} periods laid out.",
@@ -153,13 +158,29 @@ const en = {
     allowDoubles: "Allow double periods",
     allowDoublesHint:
       "Puts two consecutive hours of a subject together where the day allows it. Never across a break.",
-    periodsPlaced: "{placed} of {requested} periods placed",
+    minutesPlaced: "{placed} of {requested} placed",
+    overshoot: "{duration} over — the slots do not divide the programme",
+    lessonPerSlot: "One lesson per slot",
+    slotPickerTitle: "Slots to fill",
+    slotPickerHint:
+      "Untick a slot, or a day, to keep this run out of it. Each slot shows its own length.",
+    subjectRulesTitle: "Subjects",
+    subjectRulesHint:
+      "Untick a subject to leave it out of this draw, or choose where it may go. Nothing here is saved.",
+    leftOutByYou: "Left out of this draw",
+    modeAny: "Any slot",
+    modeOnly: "Only in these slots",
+    modeFixed: "Fixed in these slots",
+    modeOnlyHint: "The subject may only be placed in the slots you select. None selected means no limit.",
+    modeFixedHint:
+      "The subject is placed exactly in the slots you select, and the rest of its hours are drawn around them.",
+    pinNeedsOneClass: "Fixing a subject to slots needs a single class. Switch the scope to this class to use it.",
     classesCovered: "{count} classes",
     understaffed: "Not enough teachers for this programme",
     understaffedHint:
       "The programme asks for {demand}h of teaching a week and the available teachers can give {available}h. {missing}h cannot be staffed however the week is arranged — the grid below is what does fit.",
     shortfalls: "Could not be fitted",
-    periodsMissing: "{count} period(s) short",
+    minutesMissing: "{duration} short",
     noWeeklyHours: "No weekly hours declared, so left out",
     noTeacherAssigned: "Placed, but nobody is assigned to teach them",
 

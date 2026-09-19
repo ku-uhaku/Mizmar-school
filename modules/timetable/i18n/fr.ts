@@ -17,6 +17,11 @@ const fr = {
     generateWeeksHint:
       "Numérote chaque semaine effectivement enseignée, saute les vacances et alterne A et B. Relançable sans risque — cela renumérote au lieu de dupliquer.",
     generateTimeSlots: "Caler un bloc de créneaux",
+    replaceSlots: "Remplacer les créneaux de cette session sur ces jours",
+    replaceSlotsHint:
+      "Nécessaire pour changer la durée des créneaux d’un jour, par exemple le vendredi de 1h30 à 1h. Refusé si des cours y sont déjà placés.",
+    replaceBlocked:
+      "{count} cours sont placés dans ces créneaux. Videz-les de la grille d’abord, ou régénérez ensuite.",
     generateTimeSlotsHint:
       "Une heure de début, une durée de créneau, une pause — appliquées à l'identique sur chaque jour coché. Relancez pour l'après-midi, ou pour corriger un jour. Sans risque à relancer : cela corrige les créneaux au lieu de les dupliquer.",
     timeSlotsGenerated: "{count} créneaux calés.",
@@ -154,13 +159,31 @@ const fr = {
     allowDoubles: "Autoriser les séances doubles",
     allowDoublesHint:
       "Place deux heures consécutives d'une matière quand la journée le permet. Jamais à cheval sur une récréation.",
-    periodsPlaced: "{placed} séances placées sur {requested}",
+    minutesPlaced: "{placed} placées sur {requested}",
+    overshoot: "{duration} en trop — les créneaux ne divisent pas le programme",
+    lessonPerSlot: "Un cours par créneau",
+    slotPickerTitle: "Créneaux à remplir",
+    slotPickerHint:
+      "Décochez un créneau, ou un jour, pour l’exclure de ce tirage. Chaque créneau indique sa durée.",
+    subjectRulesTitle: "Matières",
+    subjectRulesHint:
+      "Décochez une matière pour l’écarter de ce tirage, ou choisissez où elle peut aller. Rien n’est enregistré.",
+    leftOutByYou: "Écartées de ce tirage",
+    modeAny: "N’importe quel créneau",
+    modeOnly: "Seulement dans ces créneaux",
+    modeFixed: "Fixée dans ces créneaux",
+    modeOnlyHint:
+      "La matière ne peut être placée que dans les créneaux sélectionnés. Aucun sélectionné : pas de limite.",
+    modeFixedHint:
+      "La matière est placée exactement dans les créneaux sélectionnés, et le reste de ses heures est tiré autour.",
+    pinNeedsOneClass:
+      "Fixer une matière à des créneaux demande une seule classe. Passez la portée sur cette classe pour l’utiliser.",
     classesCovered: "{count} classes",
     understaffed: "Effectif enseignant insuffisant pour ce programme",
     understaffedHint:
       "Le programme demande {demand}h de cours par semaine et les enseignants disponibles peuvent en assurer {available}h. {missing}h ne peuvent être couvertes quelle que soit l'organisation de la semaine — la grille ci-dessous est ce qui tient.",
     shortfalls: "N'ont pas pu être placées",
-    periodsMissing: "{count} séance(s) manquante(s)",
+    minutesMissing: "{duration} manquantes",
     noWeeklyHours: "Aucun volume horaire déclaré, donc écartées",
     noTeacherAssigned: "Placées, mais sans enseignant affecté",
 

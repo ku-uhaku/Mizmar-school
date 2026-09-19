@@ -47,7 +47,7 @@ import {
   bookingKeyOf,
   isTimeOfDay,
   MAX_ENTRY_DETAILS,
-  MAX_LESSON_SPAN,
+  MAX_BLOCK_MINUTES,
   TEACHING_DAYS,
 } from "@/modules/timetable/enums";
 import { schoolWeeks, startOfWeek } from "@/modules/timetable/weeks";
@@ -704,7 +704,7 @@ export async function generateTimeSlotsAction(
       );
     }
 
-    const written = await generateTimeSlots({
+    const { written, blocked } = await generateTimeSlots({
       schoolYearId: year.id,
       days,
       session: parsed.data.session,
@@ -715,7 +715,11 @@ export async function generateTimeSlotsAction(
       breakAfterPeriod:
         parsed.data.breakAfterPeriod > 0 ? parsed.data.breakAfterPeriod : null,
       breakMinutes: parsed.data.breakMinutes,
+      replace: field(formData, "replace") === "on",
     });
+    if (blocked > 0) {
+      return failure(interpolate(t.timetable.replaceBlocked, { count: blocked }));
+    }
 
     refresh();
     return success(
@@ -725,6 +729,36 @@ export async function generateTimeSlotsAction(
 }
 
 // ── Generating a week ────────────────────────────────────────────────────────
+
+/** A list of ids from the request: strings only, and no longer than `max`. */
+function idList(value: unknown, max: number): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .filter((id): id is string => typeof id === "string" && id.length <= 40)
+    .slice(0, max);
+}
+
+function readSubjectSlots(value: unknown): Record<string, string[]> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const result: Record<string, string[]> = {};
+  for (const [subjectId, slots] of Object.entries(value).slice(0, 200)) {
+    const ids = idList(slots, 500);
+    if (ids) result[subjectId] = ids;
+  }
+  return result;
+}
+
+function readPins(
+  value: unknown,
+): { subjectId: string; timeSlotIds: string[] }[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.slice(0, 200).flatMap((pin) => {
+    if (!pin || typeof pin !== "object") return [];
+    const { subjectId, timeSlotIds } = pin as Record<string, unknown>;
+    const ids = idList(timeSlotIds, 100);
+    return typeof subjectId === "string" && ids ? [{ subjectId, timeSlotIds: ids }] : [];
+  });
+}
 
 /** Bounds the numbers so a crafted request cannot ask for a 400-period block. */
 function readOptions(request: GeneratorRequest, schoolClassIds: string[]) {
@@ -736,10 +770,16 @@ function readOptions(request: GeneratorRequest, schoolClassIds: string[]) {
     scheduleKind: request.scheduleKind === "RAMADAN" ? "RAMADAN" : "STANDARD",
     seed: clamp(request.seed, 0, 2 ** 31),
     replaceExisting: request.replaceExisting === true,
-    // A block longer than MAX_LESSON_SPAN is a data-entry slip, not a lesson —
-    // the same bound the manual editor holds itself to.
-    blockSize: clamp(request.blockSize, 1, MAX_LESSON_SPAN),
-    maxPerDay: clamp(request.maxPerDay, 1, 8),
+    // A lesson longer than MAX_BLOCK_MINUTES is a data-entry slip, not a lesson.
+    blockMinutes: clamp(request.blockMinutes, 0, MAX_BLOCK_MINUTES),
+    maxMinutesPerDay: clamp(request.maxMinutesPerDay, 15, MAX_BLOCK_MINUTES * 2),
+    // Only ever narrows: the service intersects it with the year's own slots.
+    allowedSlotIds: idList(request.allowedSlotIds, 500),
+    // Subject ids are only ever matched against the class programme, so a
+    // foreign one matches nothing; slot ids are intersected with the run's own.
+    skipSubjectIds: idList(request.skipSubjectIds, 200),
+    subjectSlots: readSubjectSlots(request.subjectSlots),
+    pins: readPins(request.pins),
   };
 }
 

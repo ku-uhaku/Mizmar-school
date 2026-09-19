@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { interpolate } from "@/lib/i18n/format";
 import { EntryDetailsDialog } from "@/modules/timetable/components/entry-details-dialog";
+import { WeekAxis } from "@/modules/timetable/components/week-axis";
 import type {
   DetailSubjectChoice,
   EntryDetailView,
@@ -114,103 +115,107 @@ export function TeacherWeek({
             {interpolate(t.timetable.teacherWeekEmpty, { name: teacherName })}
           </p>
         ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-muted/50">
-                <th className="text-muted-foreground w-24 px-3 py-2 text-start text-xs font-medium">
-                  {t.timetable.day}
-                </th>
-                {week.columns.map((column) => (
-                  <th
-                    key={column.key}
-                    className="text-muted-foreground px-2 py-2 text-center text-xs font-medium"
-                  >
-                    {/* LTR on the times even in Arabic: "08:00" is a clock
-                      reading, not a phrase, and the bidi algorithm would flip
-                      the two halves of the range around the dash. */}
-                    <span dir="ltr">
-                      {column.startTime}–{column.endTime}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {week.rows.map((row) => (
-                <tr key={row.dayOfWeek} className="border-t">
-                  <th
-                    scope="row"
-                    className="px-3 py-2 text-start text-xs font-medium"
-                  >
+          <WeekAxis
+            corner={t.timetable.day}
+            rowHeightClass="h-16"
+            days={week.rows.map((row) => {
+              const daySlots = week.slots
+                .filter((slot) => slot.dayOfWeek === row.dayOfWeek)
+                .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+              return {
+                key: row.dayOfWeek,
+                label: (
+                  <span className="text-xs">
                     {days[String(row.dayOfWeek)] ?? row.dayOfWeek}
-                  </th>
-                  {week.columns.map((column) => {
-                    const lesson = row.cells[column.key] ?? null;
-                    const layout = row.layout[column.key];
+                  </span>
+                ),
+                items: daySlots.flatMap((slot) => {
+                  const key = `${slot.startTime}-${slot.endTime}`;
+                  const lesson = row.cells[key] ?? null;
+                  const layout = row.layout[key];
 
-                    // Drawn by the period that started the run — its `colSpan`
-                    // already covers this column.
-                    if (layout?.covered) return null;
+                  // Drawn by the period that started the run, which is already
+                  // as wide as the whole session.
+                  if (layout?.covered) return [];
 
-                    // What is under any period of the run belongs to the cell,
-                    // and the session ends where its last period does.
-                    const runKeys = layout?.keys ?? [column.key];
-                    const details = runKeys
-                      .flatMap((key) => row.cells[key]?.details ?? [])
-                      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-                    const endTime =
-                      week.columns.find(
-                        (candidate) =>
-                          candidate.key === runKeys[runKeys.length - 1],
-                      )?.endTime ?? column.endTime;
+                  // What is under any period of the run belongs to the block,
+                  // and the session ends where its last period does.
+                  const runKeys = layout?.keys ?? [key];
+                  const details = runKeys
+                    .flatMap((runKey) => row.cells[runKey]?.details ?? [])
+                    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                  const endTime = runKeys[runKeys.length - 1].split("-")[1] ?? slot.endTime;
 
-                    return (
-                      <td
-                        key={column.key}
-                        colSpan={layout?.span ?? 1}
+                  const box = (children: React.ReactNode, className?: string) => [
+                    {
+                      key: slot.id,
+                      startTime: slot.startTime,
+                      endTime,
+                      children: (
+                        <div
+                          className={cn(
+                            "flex h-full items-center justify-center rounded-md px-1.5 text-center",
+                            className,
+                          )}
+                          style={
+                            lesson?.colorHex
+                              ? {
+                                  backgroundColor: `${lesson.colorHex}22`,
+                                  borderInlineStart: `2px solid ${lesson.colorHex}`,
+                                }
+                              : undefined
+                          }
+                        >
+                          {children}
+                        </div>
+                      ),
+                    },
+                  ];
+
+                  if (slot.isBreak && !lesson) {
+                    return box(
+                      <span
                         className={cn(
-                          "border-s px-2 py-1.5 text-center align-middle",
-                          // A free period is the thing a teacher scans for, so
-                          // it is left plainly empty rather than filled.
-                          column.isBreak && "bg-muted/40",
+                          "text-muted-foreground text-[10px]",
+                          slot.minutes < 40 && "[writing-mode:vertical-rl]",
                         )}
-                        style={
-                          lesson?.colorHex
-                            ? {
-                                backgroundColor: `${lesson.colorHex}22`,
-                                borderInlineStart: `2px solid ${lesson.colorHex}`,
-                              }
-                            : undefined
-                        }
                       >
-                        {lesson ? (
-                          canManage ? (
-                            <button
-                              type="button"
-                              title={t.timetable.detailEditTip}
-                              onClick={() =>
-                                setEditing({
-                                  lesson,
-                                  startTime: column.startTime,
-                                  endTime,
-                                  details,
-                                })
-                              }
-                              className="hover:bg-foreground/5 -mx-2 -my-1.5 block w-[calc(100%+1rem)] cursor-pointer px-2 py-1.5"
-                            >
-                              <LessonBody lesson={lesson} details={details} />
-                            </button>
-                          ) : (
-                            <LessonBody lesson={lesson} details={details} />
-                          )
-                        ) : null}
-                      </td>
+                        {t.timetable.breakLabel}
+                      </span>,
+                      "bg-muted/50",
                     );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  }
+
+                  // A free period is the thing a teacher scans for, so it is left
+                  // plainly empty — outlined, to read as free rather than closed.
+                  if (!lesson) return box(null, "border border-dashed");
+
+                  return box(
+                    canManage ? (
+                      <button
+                        type="button"
+                        title={t.timetable.detailEditTip}
+                        onClick={() =>
+                          setEditing({
+                            lesson,
+                            startTime: slot.startTime,
+                            endTime,
+                            details,
+                          })
+                        }
+                        className="hover:bg-foreground/5 block h-full w-full min-w-0 cursor-pointer rounded-md"
+                      >
+                        <LessonBody lesson={lesson} details={details} />
+                      </button>
+                    ) : (
+                      <LessonBody lesson={lesson} details={details} />
+                    ),
+                  );
+                }),
+              };
+            })}
+          />
         )}
       </CardContent>
 

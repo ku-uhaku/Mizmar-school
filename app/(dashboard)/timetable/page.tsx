@@ -148,10 +148,16 @@ export default async function TimetablePage({
               classCount={classes.length}
               currentClassId={selected.id}
               scheduleKind={scheduleKind}
-              // 30 when the grid has not loaded: the dialog only needs it to
-              // convert hours into periods, and the request is re-derived
-              // server-side against the real bell schedule anyway.
-              periodMinutes={grid?.periodMinutes ?? 30}
+              // Only ever a narrowing: the server re-derives the week's slots
+              // and intersects, so this list is for drawing the picker.
+              slots={(grid?.slots ?? []).filter((slot) => !slot.isBreak)}
+              // This class's programme. Rules chosen against a subject apply to
+              // the same subject in every class of an "every class" run.
+              subjects={(choices?.subjects ?? []).map((subject) => ({
+                id: subject.id,
+                label: subject.shortName ?? subject.label,
+                colorHex: subject.colorHex,
+              }))}
             />
             {/* Beside the generator: "draw a new week" and "go back to an
               older one" are the same kind of decision about the same grid. */}

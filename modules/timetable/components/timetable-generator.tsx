@@ -25,6 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -37,8 +38,8 @@ import { Switch } from "@/components/ui/switch";
 import { interpolate } from "@/lib/i18n/format";
 import {
   formatDuration,
-  LESSON_LENGTHS_MINUTES,
-  periodsForMinutes,
+  GENERATOR_BLOCK_OPTIONS,
+  GENERATOR_DAY_LIMIT_OPTIONS,
 } from "@/modules/timetable/enums";
 import { cn } from "@/lib/utils";
 import {
@@ -68,19 +69,46 @@ import type { GeneratorRequest, TimetableDraft } from "@/modules/timetable/servi
  * crafted request booking any teacher into any class, and it is why the applied
  * result is reported with its own counts rather than the preview's.
  */
+/** A teaching slot the dialog can offer to include or leave out. */
+export type PickableSlot = {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  minutes: number;
+};
+
+/** How one subject is treated in this run. */
+type SubjectMode = "ANY" | "ONLY" | "FIXED";
+
+type SubjectRule = {
+  /** Leave the subject out of this run altogether. */
+  skip: boolean;
+  mode: SubjectMode;
+  /** The créneaux the mode refers to. Empty means no restriction at all. */
+  slotIds: ReadonlySet<string>;
+};
+
+const NO_RULE: SubjectRule = { skip: false, mode: "ANY", slotIds: new Set() };
+
+export type PickableSubject = { id: string; label: string; colorHex: string | null };
+
 export function TimetableGenerator({
   classCount,
   currentClassId,
   scheduleKind,
-  periodMinutes,
+  slots,
+  subjects,
 }: {
   /** How many classes "every class" would cover — for the scope label only.
    *  The names on the preview come from the draft, which is the server's. */
   classCount: number;
   currentClassId: string;
   scheduleKind: string;
-  /** How long one period rings for, so the dialog can talk in hours. */
-  periodMinutes: number;
+  /** The week's teaching slots, so a run can be limited to some of them. */
+  slots: PickableSlot[];
+  /** The programme's subjects, for leaving some out or fixing them to créneaux. */
+  subjects: PickableSubject[];
 }) {
   const t = useT();
   const router = useRouter();
@@ -89,16 +117,20 @@ export function TimetableGenerator({
   const [scope, setScope] = React.useState<"CLASS" | "ALL">("CLASS");
   const [replaceExisting, setReplaceExisting] = React.useState(true);
   /*
-    Both of these are held in *minutes and hours*, not in periods.
-
-    The bell rings every half hour so that a school can start at 08h30 or 09h30
-    — the half hour is there to let the day shift, and nobody teaches for half
-    an hour. Asking a head of studies "how many periods?" would be asking them
-    to do that conversion themselves, and to redo it the day the bell schedule
-    changes. `periodsForMinutes` does it instead, against the grid's own period.
+    Held in minutes, because slots are not all the same length: 1h30 on Monday
+    to Thursday and 1h on Friday is an ordinary week, and the placer sums real
+    slot lengths rather than counting periods against a typical one.
+    0 for the lesson length means one lesson per slot, whatever its length.
   */
-  const [lessonMinutes, setLessonMinutes] = React.useState(60);
-  const [maxHoursPerDay, setMaxHoursPerDay] = React.useState(2);
+  const [blockMinutes, setBlockMinutes] = React.useState(0);
+  const [maxMinutesPerDay, setMaxMinutesPerDay] = React.useState(120);
+  /** Slots the user has switched off. Held as the exclusions so that a slot the
+   *  school adds later is included by default. */
+  const [excluded, setExcluded] = React.useState<ReadonlySet<string>>(new Set());
+  /** Per-subject rules for this run only — nothing here is saved. */
+  const [rules, setRules] = React.useState<ReadonlyMap<string, SubjectRule>>(
+    new Map(),
+  );
 
   const [draft, setDraft] = React.useState<TimetableDraft | null>(null);
   const [pending, startTransition] = React.useTransition();
@@ -106,23 +138,57 @@ export function TimetableGenerator({
 
   /** The exact request that produced the draft on screen, for applying it. */
   const requestFor = React.useCallback(
-    (seed: number): GeneratorRequest => ({
-      // Empty means every class of the year — see GeneratorRequest.
-      schoolClassIds: scope === "ALL" ? [] : [currentClassId],
-      scheduleKind,
-      seed,
-      replaceExisting,
-      blockSize: periodsForMinutes(lessonMinutes, periodMinutes),
-      maxPerDay: periodsForMinutes(maxHoursPerDay * 60, periodMinutes),
-    }),
+    (seed: number): GeneratorRequest => {
+      // Built from the subjects on screen, not from every rule ever set: a
+      // rule left over from another class's programme must not ride along
+      // unseen.
+      const skipSubjectIds: string[] = [];
+      const subjectSlots: Record<string, string[]> = {};
+      const pins: { subjectId: string; timeSlotIds: string[] }[] = [];
+      for (const subject of subjects) {
+        const rule = rules.get(subject.id) ?? NO_RULE;
+        if (rule.skip) {
+          skipSubjectIds.push(subject.id);
+          continue;
+        }
+        if (rule.slotIds.size === 0) continue;
+        if (rule.mode === "ONLY") subjectSlots[subject.id] = [...rule.slotIds];
+        // A pin means one class only — see GeneratorOptions.pins.
+        if (rule.mode === "FIXED" && scope === "CLASS") {
+          pins.push({ subjectId: subject.id, timeSlotIds: [...rule.slotIds] });
+        }
+      }
+
+      return {
+        // Empty means every class of the year — see GeneratorRequest.
+        schoolClassIds: scope === "ALL" ? [] : [currentClassId],
+        scheduleKind,
+        seed,
+        replaceExisting,
+        blockMinutes,
+        maxMinutesPerDay,
+        // Left off when nothing is switched off, so the default request is the
+        // whole week and stays so when slots are added.
+        allowedSlotIds:
+          excluded.size === 0
+            ? undefined
+            : slots.filter((slot) => !excluded.has(slot.id)).map((slot) => slot.id),
+        skipSubjectIds,
+        subjectSlots,
+        pins,
+      };
+    },
     [
       scope,
       currentClassId,
       scheduleKind,
       replaceExisting,
-      lessonMinutes,
-      maxHoursPerDay,
-      periodMinutes,
+      blockMinutes,
+      maxMinutesPerDay,
+      excluded,
+      slots,
+      subjects,
+      rules,
     ],
   );
 
@@ -190,10 +256,16 @@ export function TimetableGenerator({
             classCount={classCount}
             replaceExisting={replaceExisting}
             onReplaceExisting={setReplaceExisting}
-            lessonMinutes={lessonMinutes}
-            onLessonMinutes={setLessonMinutes}
-            maxHoursPerDay={maxHoursPerDay}
-            onMaxHoursPerDay={setMaxHoursPerDay}
+            blockMinutes={blockMinutes}
+            onBlockMinutes={setBlockMinutes}
+            maxMinutesPerDay={maxMinutesPerDay}
+            onMaxMinutesPerDay={setMaxMinutesPerDay}
+            slots={slots}
+            excluded={excluded}
+            onExcluded={setExcluded}
+            subjects={subjects}
+            rules={rules}
+            onRules={setRules}
             // Changing a rule invalidates the grid on screen: applying a draft
             // drawn under the old rules would not be what the switches say.
             onChanged={() => {
@@ -202,7 +274,16 @@ export function TimetableGenerator({
             }}
           />
 
-          {draft ? <DraftPreview draft={draft} /> : null}
+          {draft ? (
+            <DraftPreview
+              draft={draft}
+              // Any change to a rule drops the draft, so what is ticked now is
+              // what this draft was drawn with.
+              leftOut={subjects
+                .filter((subject) => rules.get(subject.id)?.skip)
+                .map((subject) => subject.label)}
+            />
+          ) : null}
         </div>
 
         <DialogFooter className="gap-2 sm:justify-between">
@@ -246,10 +327,16 @@ function Options({
   classCount,
   replaceExisting,
   onReplaceExisting,
-  lessonMinutes,
-  onLessonMinutes,
-  maxHoursPerDay,
-  onMaxHoursPerDay,
+  blockMinutes,
+  onBlockMinutes,
+  maxMinutesPerDay,
+  onMaxMinutesPerDay,
+  slots,
+  excluded,
+  onExcluded,
+  subjects,
+  rules,
+  onRules,
   onChanged,
 }: {
   scope: "CLASS" | "ALL";
@@ -257,10 +344,16 @@ function Options({
   classCount: number;
   replaceExisting: boolean;
   onReplaceExisting: (value: boolean) => void;
-  lessonMinutes: number;
-  onLessonMinutes: (value: number) => void;
-  maxHoursPerDay: number;
-  onMaxHoursPerDay: (value: number) => void;
+  blockMinutes: number;
+  onBlockMinutes: (value: number) => void;
+  maxMinutesPerDay: number;
+  onMaxMinutesPerDay: (value: number) => void;
+  slots: PickableSlot[];
+  excluded: ReadonlySet<string>;
+  onExcluded: (value: ReadonlySet<string>) => void;
+  subjects: PickableSubject[];
+  rules: ReadonlyMap<string, SubjectRule>;
+  onRules: (value: ReadonlyMap<string, SubjectRule>) => void;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -298,18 +391,20 @@ function Options({
         <div className="grid gap-1.5">
           <Label htmlFor="generator-length">{t.timetable.lessonLength}</Label>
           <Select
-            value={String(lessonMinutes)}
+            value={String(blockMinutes)}
             onValueChange={change<string>((value) =>
-              onLessonMinutes(Number(value)),
+              onBlockMinutes(Number(value)),
             )}
           >
             <SelectTrigger id="generator-length" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {LESSON_LENGTHS_MINUTES.map((minutes) => (
+              {GENERATOR_BLOCK_OPTIONS.map((minutes) => (
                 <SelectItem key={minutes} value={String(minutes)}>
-                  {formatDuration(minutes)}
+                  {minutes === 0
+                    ? t.timetable.lessonPerSlot
+                    : formatDuration(minutes)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -319,24 +414,39 @@ function Options({
         <div className="grid gap-1.5">
           <Label htmlFor="generator-max">{t.timetable.maxPerDay}</Label>
           <Select
-            value={String(maxHoursPerDay)}
+            value={String(maxMinutesPerDay)}
             onValueChange={change<string>((value) =>
-              onMaxHoursPerDay(Number(value)),
+              onMaxMinutesPerDay(Number(value)),
             )}
           >
             <SelectTrigger id="generator-max" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {[1, 2, 3, 4].map((hours) => (
-                <SelectItem key={hours} value={String(hours)}>
-                  {formatDuration(hours * 60)}
+              {GENERATOR_DAY_LIMIT_OPTIONS.map((minutes) => (
+                <SelectItem key={minutes} value={String(minutes)}>
+                  {formatDuration(minutes)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
       </div>
+
+      <SlotPicker
+        slots={slots}
+        excluded={excluded}
+        onChange={change(onExcluded)}
+      />
+
+      <SubjectRules
+        subjects={subjects}
+        slots={slots}
+        rules={rules}
+        // Pins need a single class; the mode is offered only then.
+        canPin={scope === "CLASS"}
+        onChange={change(onRules)}
+      />
 
       <ToggleRow
         id="generator-replace"
@@ -381,6 +491,246 @@ function ToggleRow({
 }
 
 /**
+ * The week's slots as toggles, one row per day. Each button is a real slot with
+ * its own length, so a 1h Friday reads differently from a 1h30 Monday. The day
+ * name toggles its whole row.
+ *
+ * Says nothing about what "on" means — the caller does. The run-wide picker
+ * reads it as "may be filled", a subject's picker as "may hold this subject" or
+ * "is fixed to this subject".
+ */
+function SlotToggles({
+  slots,
+  isOn,
+  onSet,
+  strikeWhenOff = true,
+}: {
+  slots: PickableSlot[];
+  isOn: (id: string) => boolean;
+  onSet: (ids: string[], on: boolean) => void;
+  strikeWhenOff?: boolean;
+}) {
+  const t = useT();
+
+  const days = React.useMemo(() => {
+    const byDay = new Map<number, PickableSlot[]>();
+    for (const slot of slots) {
+      byDay.set(slot.dayOfWeek, [...(byDay.get(slot.dayOfWeek) ?? []), slot]);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([day, daySlots]) => ({
+        day,
+        slots: [...daySlots].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      }));
+  }, [slots]);
+
+  return (
+    <div className="grid gap-1">
+      {days.map(({ day, slots: daySlots }) => {
+        const ids = daySlots.map((slot) => slot.id);
+        const allOn = ids.every(isOn);
+        return (
+          <div key={day} className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onSet(ids, !allOn)}
+              className="text-muted-foreground hover:text-foreground w-16 text-start text-xs font-medium"
+            >
+              {
+                t.timetable.daysShort[
+                  String(day) as keyof typeof t.timetable.daysShort
+                ]
+              }
+            </button>
+            {daySlots.map((slot) => {
+              const on = isOn(slot.id);
+              return (
+                <button
+                  key={slot.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onSet([slot.id], !on)}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-[11px] leading-tight transition-colors",
+                    on
+                      ? "border-primary/40 bg-primary/10"
+                      : cn(
+                          "text-muted-foreground/60 border-dashed",
+                          strikeWhenOff && "line-through",
+                        ),
+                  )}
+                  dir="ltr"
+                >
+                  {slot.startTime}
+                  <span className="text-muted-foreground ms-1">
+                    {formatDuration(slot.minutes)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Which créneaux the run may use. Nothing here is a rule about the week — every
+ * slot starts ticked, and unticking one only stops this run placing into it.
+ */
+function SlotPicker({
+  slots,
+  excluded,
+  onChange,
+}: {
+  slots: PickableSlot[];
+  excluded: ReadonlySet<string>;
+  onChange: (value: ReadonlySet<string>) => void;
+}) {
+  const t = useT();
+  if (slots.length === 0) return null;
+
+  return (
+    <div className="grid gap-1.5">
+      <Label>{t.timetable.slotPickerTitle}</Label>
+      <p className="text-muted-foreground text-xs">{t.timetable.slotPickerHint}</p>
+      <SlotToggles
+        slots={slots}
+        isOn={(id) => !excluded.has(id)}
+        onSet={(ids, on) => {
+          const next = new Set(excluded);
+          for (const id of ids) {
+            if (on) next.delete(id);
+            else next.add(id);
+          }
+          onChange(next);
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Per-subject rules for this run: leave a subject out, keep it to some créneaux,
+ * or fix it to particular ones and let the draw fill the rest around it.
+ *
+ * Held only in the dialog. A rule that outlived the run would be a setting
+ * nobody remembers turning on, and a re-roll should start from what is on
+ * screen, not from last Tuesday's experiment.
+ */
+function SubjectRules({
+  subjects,
+  slots,
+  rules,
+  canPin,
+  onChange,
+}: {
+  subjects: PickableSubject[];
+  slots: PickableSlot[];
+  rules: ReadonlyMap<string, SubjectRule>;
+  /** Fixing needs a single class — see `GeneratorOptions.pins`. */
+  canPin: boolean;
+  onChange: (value: ReadonlyMap<string, SubjectRule>) => void;
+}) {
+  const t = useT();
+  if (subjects.length === 0 || slots.length === 0) return null;
+
+  const update = (id: string, patch: Partial<SubjectRule>) => {
+    const next = new Map(rules);
+    next.set(id, { ...(rules.get(id) ?? NO_RULE), ...patch });
+    onChange(next);
+  };
+
+  return (
+    <div className="grid gap-1.5">
+      <Label>{t.timetable.subjectRulesTitle}</Label>
+      <p className="text-muted-foreground text-xs">{t.timetable.subjectRulesHint}</p>
+
+      <div className="grid gap-2">
+        {subjects.map((subject) => {
+          const rule = rules.get(subject.id) ?? NO_RULE;
+          const restricted = rule.mode !== "ANY" && !rule.skip;
+          return (
+            <div key={subject.id} className="grid gap-1.5 rounded-md border p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={!rule.skip}
+                    onCheckedChange={(value) => update(subject.id, { skip: value !== true })}
+                  />
+                  {subject.colorHex ? (
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: subject.colorHex }}
+                    />
+                  ) : null}
+                  <span className={cn("truncate", rule.skip && "text-muted-foreground line-through")}>
+                    {subject.label}
+                  </span>
+                </label>
+
+                <Select
+                  value={rule.mode}
+                  disabled={rule.skip}
+                  onValueChange={(value) =>
+                    update(subject.id, {
+                      mode: value as SubjectMode,
+                      // A different meaning for the same ticks would be a
+                      // trap: "only here" turned into "fixed here" silently.
+                      slotIds: new Set(),
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-44" size="sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ANY">{t.timetable.modeAny}</SelectItem>
+                    <SelectItem value="ONLY">{t.timetable.modeOnly}</SelectItem>
+                    <SelectItem value="FIXED" disabled={!canPin}>
+                      {t.timetable.modeFixed}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {restricted ? (
+                <div className="grid gap-1.5">
+                  <p className="text-muted-foreground text-xs">
+                    {rule.mode === "FIXED"
+                      ? t.timetable.modeFixedHint
+                      : t.timetable.modeOnlyHint}
+                  </p>
+                  <SlotToggles
+                    slots={slots}
+                    strikeWhenOff={false}
+                    isOn={(id) => rule.slotIds.has(id)}
+                    onSet={(ids, on) => {
+                      const next = new Set(rule.slotIds);
+                      for (const id of ids) {
+                        if (on) next.add(id);
+                        else next.delete(id);
+                      }
+                      update(subject.id, { slotIds: next });
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {!canPin ? (
+        <p className="text-muted-foreground text-xs">{t.timetable.pinNeedsOneClass}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * The proposed week, as a grid per class.
  *
  * Drawn from the draft's own slots and placements rather than re-fetched: the
@@ -391,10 +741,17 @@ function ToggleRow({
  * of physics short is worse than one that says so, and the reader has to see
  * the gap before they decide to keep the week.
  */
-function DraftPreview({ draft }: { draft: TimetableDraft }) {
+function DraftPreview({
+  draft,
+  leftOut,
+}: {
+  draft: TimetableDraft;
+  /** Subjects the user chose not to place, so the gap is not a surprise. */
+  leftOut: string[];
+}) {
   const t = useT();
 
-  const complete = draft.placedPeriods === draft.requestedPeriods;
+  const complete = draft.shortfalls.length === 0;
   const noTeacher = draft.skipped.filter((row) => row.reason === "NO_TEACHER");
   const noHours = draft.skipped.filter((row) => row.reason === "NO_HOURS");
 
@@ -402,11 +759,18 @@ function DraftPreview({ draft }: { draft: TimetableDraft }) {
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={complete ? "default" : "outline"}>
-          {interpolate(t.timetable.periodsPlaced, {
-            placed: draft.placedPeriods,
-            requested: draft.requestedPeriods,
+          {interpolate(t.timetable.minutesPlaced, {
+            placed: formatDuration(draft.placedMinutes),
+            requested: formatDuration(draft.requestedMinutes),
           })}
         </Badge>
+        {draft.overshootMinutes > 0 ? (
+          <Badge variant="secondary">
+            {interpolate(t.timetable.overshoot, {
+              duration: formatDuration(draft.overshootMinutes),
+            })}
+          </Badge>
+        ) : null}
         {draft.classes.length > 1 ? (
           <Badge variant="secondary">
             {interpolate(t.timetable.classesCovered, {
@@ -449,12 +813,22 @@ function DraftPreview({ draft }: { draft: TimetableDraft }) {
             {draft.shortfalls.map((row) => (
               <li key={`${row.schoolClassId}:${row.subjectId}`}>
                 {row.className} · {row.subjectName} —{" "}
-                {interpolate(t.timetable.periodsMissing, {
-                  count: row.missing,
+                {interpolate(t.timetable.minutesMissing, {
+                  duration: formatDuration(row.missing),
                 })}
               </li>
             ))}
           </ul>
+        </Notice>
+      ) : null}
+
+      {leftOut.length > 0 ? (
+        <Notice
+          icon={<UserXIcon className="size-4" />}
+          tone="muted"
+          title={t.timetable.leftOutByYou}
+        >
+          <p>{leftOut.join(", ")}</p>
         </Notice>
       ) : null}
 

@@ -68,44 +68,59 @@ export default async function TeacherTimetablePrintPage({
   const holidays = holidaysByWeekday(weekContext);
 
   const printable: PrintableWeek = {
-    columns: grid.columns,
     rows: grid.rows.map((row) => {
       const holiday = holidays[row.dayOfWeek];
 
       return {
         dayOfWeek: row.dayOfWeek,
-        cells: grid.columns.map((column) => {
-          const lesson = row.cells[column.key] ?? null;
+        // The day's own slots, not the shared columns: on a week whose Friday
+        // rings a different bell there is no one column set to walk.
+        items: grid.slots
+          .filter((slot) => slot.dayOfWeek === row.dayOfWeek)
+          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+          .flatMap((slot) => {
+            const key = `${slot.startTime}-${slot.endTime}`;
+            const lesson = row.cells[key] ?? null;
+            const layout = row.layout[key];
 
-          return {
-            // A day off prints as the holiday's name rather than the lessons
-            // that would have run — the same rule as the class sheet.
-            lines: holiday
-              ? [holiday]
-              : lesson
-                ? [
-                    lesson.subjectName,
-                    [lesson.classCode, lesson.groupLabel, lesson.roomCode]
-                      .filter(Boolean)
-                      .join(" · "),
-                    ...(withDetails
-                      ? (row.layout[column.key]?.keys ?? [column.key])
-                          .flatMap((key) => row.cells[key]?.details ?? [])
-                          .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                          .map(
-                          (detail) =>
-                            `${detail.startTime}–${detail.endTime} ${detail.subjectName}`,
-                        )
-                      : []),
-                  ].filter(Boolean)
-                : [],
-            // Folded like the class sheet: a double period is one lesson.
-            span: row.layout[column.key]?.span ?? 1,
-            covered: row.layout[column.key]?.covered ?? false,
-            isBreak: Boolean(column.isBreak) || Boolean(holiday),
-            colorHex: holiday ? null : (lesson?.colorHex ?? null),
-          };
-        }),
+            // Folded like the class sheet: a double period is one lesson, drawn
+            // by its first slot, which is as wide as the whole of it.
+            if (layout?.covered) return [];
+
+            const runKeys = layout?.keys ?? [key];
+            const endTime = runKeys[runKeys.length - 1].split("-")[1] ?? slot.endTime;
+
+            return [
+              {
+                key: slot.id,
+                startTime: slot.startTime,
+                endTime,
+                // A day off prints as the holiday's name rather than the lessons
+                // that would have run — the same rule as the class sheet.
+                lines: holiday
+                  ? [holiday]
+                  : lesson
+                    ? [
+                        lesson.subjectName,
+                        [lesson.classCode, lesson.groupLabel, lesson.roomCode]
+                          .filter(Boolean)
+                          .join(" · "),
+                        ...(withDetails
+                          ? runKeys
+                              .flatMap((runKey) => row.cells[runKey]?.details ?? [])
+                              .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                              .map(
+                                (detail) =>
+                                  `${detail.startTime}–${detail.endTime} ${detail.subjectName}`,
+                              )
+                          : []),
+                      ].filter(Boolean)
+                    : [],
+                isBreak: (slot.isBreak && !lesson) || Boolean(holiday),
+                colorHex: holiday ? null : (lesson?.colorHex ?? null),
+              },
+            ];
+          }),
       };
     }),
   };

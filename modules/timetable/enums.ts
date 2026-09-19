@@ -139,6 +139,24 @@ export const MAX_ENTRY_DETAILS = 6;
 export const LESSON_LENGTHS_MINUTES = [30, 60, 90, 120] as const;
 
 /**
+ * The longest lesson the generator may join from consecutive slots.
+ *
+ * The generator no longer counts periods — slots differ in length, so it sums
+ * their minutes — and this is the ceiling it and its request bound share.
+ */
+export const MAX_BLOCK_MINUTES = 240;
+
+/**
+ * What the generator dialog offers for "how long may one lesson be". 0 is "one
+ * lesson per slot, whatever the slot's length" — the default, and the only
+ * setting that follows a bell of mixed lengths exactly.
+ */
+export const GENERATOR_BLOCK_OPTIONS = [0, 90, 120, 180, 240] as const;
+
+/** Most minutes of one subject a day the dialog offers. */
+export const GENERATOR_DAY_LIMIT_OPTIONS = [60, 90, 120, 180, 240] as const;
+
+/**
  * How many consecutive periods a lesson of `minutes` occupies.
  *
  * Rounded up, and never below one: a school whose bell is 45 minutes asking for

@@ -1,30 +1,32 @@
 import type { Dictionary } from "@/lib/i18n/types";
 import { cn } from "@/lib/utils";
-import type { SlotColumn } from "@/modules/timetable/queries";
+import { WeekAxis } from "@/modules/timetable/components/week-axis";
 
 /**
  * A week, laid out for paper.
  *
  * Deliberately not the on-screen `TimetableGrid`. That one is a drag target: it
  * carries click handlers, hover affordances and an editing dialog, none of
- * which survive a printer. This draws the same week as a plain table with a
- * hairline border, which is what a grid pinned to a staffroom wall actually
- * needs — it does keep the subject's colour, at the same light tint the
- * screen uses, so the sheet on the wall is still readable at a glance.
+ * which survive a printer. This draws the same week with a hairline border,
+ * which is what a grid pinned to a staffroom wall actually needs — it does keep
+ * the subject's colour, at the same light tint the screen uses, so the sheet on
+ * the wall is still readable at a glance.
  *
- * Days are rows and periods are columns, matching the screen — a teacher
- * reading their own copy has already learnt where Tuesday is, and turning the
- * axes on paper would make the two disagree.
+ * Days are rows and time runs across, matching the screen — a teacher reading
+ * their own copy has already learnt where Tuesday is, and turning the axes on
+ * paper would make the two disagree.
+ *
+ * ── Blocks, not columns ─────────────────────────────────────────────────────
+ * Each day carries its own blocks with their own start and end, laid on a shared
+ * time axis by `WeekAxis`. A week whose Friday is shorter than its Monday, or
+ * whose periods are 45 minutes, prints as it is rung instead of as a grid full
+ * of holes.
  */
 
-/** One cell, already reduced to the two or three lines that get printed. */
+/** One block, already reduced to the two or three lines that get printed. */
 export type PrintableCell = {
-  /** Empty means a free period, or one the school does not teach. */
+  /** Empty means a free period. */
   lines: string[];
-  /** Periods this lesson runs over — the `colSpan` of a double period. */
-  span: number;
-  /** Covered by the block that started earlier in the day; skipped entirely. */
-  covered: boolean;
   isBreak: boolean;
   /**
    * Called off for this week only — the subject prints struck through rather
@@ -36,9 +38,15 @@ export type PrintableCell = {
   colorHex?: string | null;
 };
 
+/** A block and where it sits: a lesson may run over several consecutive slots. */
+export type PrintableItem = PrintableCell & {
+  key: string;
+  startTime: string;
+  endTime: string;
+};
+
 export type PrintableWeek = {
-  columns: SlotColumn[];
-  rows: { dayOfWeek: number; cells: PrintableCell[] }[];
+  rows: { dayOfWeek: number; items: PrintableItem[] }[];
 };
 
 export function PrintableWeekTable({
@@ -49,77 +57,72 @@ export function PrintableWeekTable({
   t: Dictionary;
 }) {
   return (
-    <table className="print-table print-week">
-      <thead>
-        <tr>
-          <th className="print-week-day">{t.timetable.day}</th>
-          {week.columns.map((column) => (
-            <th key={column.key} className="text-center">
-              {/* LTR on the times even in Arabic: "08:00" is a clock reading,
-                not a phrase, and the bidi algorithm would otherwise flip the
-                two halves of the range around the dash. */}
-              <span dir="ltr">
-                {column.startTime}
-                <br />
-                {column.endTime}
-              </span>
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {week.rows.map((row) => (
-          <tr key={row.dayOfWeek}>
-            <th scope="row" className="print-week-day">
+    <div className="print-week">
+      <WeekAxis
+        printable
+        corner={t.timetable.day}
+        rowHeightClass="h-[18mm]"
+        days={week.rows.map((row) => ({
+          key: row.dayOfWeek,
+          label: (
+            <span className="print-week-day">
               {
                 t.timetable.days[
                   String(row.dayOfWeek) as keyof typeof t.timetable.days
                 ]
               }
-            </th>
-            {row.cells.map((cell, index) =>
-              // The first cell of a double period spans over the ones after it,
-              // so those must not be drawn at all — see `covered`.
-              cell.covered ? null : (
-                <td
-                  key={week.columns[index]?.key ?? index}
-                  colSpan={cell.span}
-                  className={
-                    cell.isBreak
-                      ? "print-week-break text-center"
-                      : "text-center"
-                  }
-                  style={
-                    cell.colorHex
-                      ? {
-                          backgroundColor: `${cell.colorHex}22`,
-                          borderInlineStart: `2px solid ${cell.colorHex}`,
-                        }
-                      : undefined
-                  }
-                >
-                  {cell.lines.map((line, lineIndex) => (
-                    <span
-                      key={line + lineIndex}
-                      className={cn(
-                        lineIndex === 0
-                          ? "print-week-subject"
-                          : "print-week-meta",
-                        // The subject is struck; the word saying so is not.
-                        lineIndex === 0 &&
-                          cell.cancelled &&
-                          "print-week-cancelled",
-                      )}
-                    >
-                      {line}
-                    </span>
-                  ))}
-                </td>
-              ),
-            )}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            </span>
+          ),
+          items: row.items.map((item) => ({
+            key: item.key,
+            startTime: item.startTime,
+            endTime: item.endTime,
+            children: (
+              <div
+                className={cn(
+                  "print-week-cell",
+                  item.isBreak && "print-week-break",
+                )}
+                style={
+                  item.colorHex
+                    ? {
+                        // A gradient, not a background colour: it lays the
+                        // tint over the cell's opaque white instead of
+                        // replacing it, so the grey of the closed hours can
+                        // never show through a lesson.
+                        backgroundImage: `linear-gradient(${item.colorHex}22, ${item.colorHex}22)`,
+                        borderInlineStart: `2px solid ${item.colorHex}`,
+                      }
+                    : undefined
+                }
+              >
+                {item.lines.map((line, lineIndex) => (
+                  <span
+                    key={line + lineIndex}
+                    className={cn(
+                      lineIndex === 0 ? "print-week-subject" : "print-week-meta",
+                      // The subject is struck; the word saying so is not.
+                      lineIndex === 0 &&
+                        item.cancelled &&
+                        "print-week-cancelled",
+                    )}
+                  >
+                    {line}
+                  </span>
+                ))}
+                {/* The block's own clock reading. The ruler above only marks
+                  whole hours, and a sheet on a wall has no hover to ask. LTR
+                  even in Arabic: a clock reading, not a phrase. */}
+                {item.isBreak ? null : (
+                  <span dir="ltr" className="print-week-meta print-week-time">
+                    {item.startTime}–{item.endTime}
+                  </span>
+                )}
+              </div>
+            ),
+          })),
+        }))}
+      />
+    </div>
   );
 }

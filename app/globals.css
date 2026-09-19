@@ -940,33 +940,38 @@ html.dark[data-accent="teal"] {
    rather than the height being whatever the longest subject demands. The grid
    stays square whatever the school calls its matières. */
 .print-week {
-  table-layout: fixed;
   font-size: 8.5pt;
 }
 
-.print-week th,
-.print-week td {
-  padding: 2px 3px;
-  vertical-align: middle;
-  /* A minimum, not a maximum — a cell needing more still takes it, and the
-     sizes below are chosen so that effectively never happens. */
-  height: 18mm;
-  /* A subject long enough to have no break in it wraps inside its column
-     instead of widening it and pushing the week off the sheet. */
+/* One block. Every strip is the same height (set on the row), so the week stays
+   square whatever the school calls its matières; a block that has more to say
+   clips rather than growing the row. */
+.print-week-cell {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: 1px 3px;
+  text-align: center;
+  border: 0.25mm solid #b5b5b5;
+  border-radius: 1mm;
+  /* Opaque white under the subject's tint, so a lesson is a clean coloured
+     block on the grey of the closed hours rather than a see-through one. */
+  background: #fff;
+  background-clip: padding-box;
   overflow-wrap: anywhere;
   line-height: 1.2;
 }
 
-/* The times, which need no room at all next to a lesson. */
-.print-week thead th {
-  height: auto;
-  padding: 3px;
+/* The day column carries a word, the strip beside it carries the week. */
+.print-week-day {
+  font-weight: 600;
 }
 
-/* The day column carries a word, the period columns share what is left. */
-.print-week-day {
-  width: 22mm;
-  font-weight: 600;
+/* The block's own clock reading sits at the foot, quieter than the rest. */
+.print-week-time {
+  margin-top: auto;
 }
 
 /* The matière leads; who teaches it and where sit under it, quieter and

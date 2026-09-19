@@ -73,14 +73,29 @@ export type GeneratorSlot = {
   endTime: string;
   /** "MORNING" | "AFTERNOON" — see DAY_SESSIONS. */
   session: string;
+  /**
+   * How long the slot really lasts. Slots are not all the same length — 1h30 on
+   * Monday to Thursday, 1h on Friday, 45 minutes in a primary school — so the
+   * placer sums these instead of counting periods against a "typical" one.
+   */
+  minutes: number;
 };
 
 /**
- * One subject's weekly requirement for one class.
+ * How far short of a subject's weekly minutes a run may stop and still count as
+ * complete, and by how much its last slot may run over.
  *
- * `periods` is already in periods, not minutes: turning "270 minutes a week"
- * into "three hours" needs the bell schedule, which the loader has and this
- * does not. See `periodsFromMinutes`.
+ * Fifteen minutes because that is the smallest step a bell is laid out in: a
+ * programme asking for 1h45 against 1h30 slots is met by one slot and a
+ * 15-minute rounding, not reported as a shortfall.
+ */
+export const SLACK_MINUTES = 15;
+
+/**
+ * One subject's weekly requirement for one class, in minutes.
+ *
+ * Minutes rather than periods because the slots differ in length; the count of
+ * lessons falls out of which slots the placer picks.
  */
 export type GeneratorDemand = {
   schoolClassId: string;
@@ -109,14 +124,30 @@ export type GeneratorDemand = {
   requiresLab: boolean;
   /** Pupils to seat, for rejecting a room too small. 0 when unknown. */
   classSize: number;
-  periods: number;
+  minutes: number;
   /**
-   * Periods to place back-to-back where the week allows it. 2 puts SVT on for
-   * a double, 1 spreads every hour. Never more than what is left to place.
+   * Longest lesson, in minutes, that may be made by joining consecutive slots.
+   * 0 means one lesson per slot; 180 lets two 90-minute slots make a double.
+   * A single slot is always allowed, however long.
    */
-  blockSize: number;
-  /** Most periods of this subject in one day. Keeps six hours of maths off Monday. */
-  maxPerDay: number;
+  blockMinutes: number;
+  /**
+   * Most minutes of this subject in one day. Keeps six hours of maths off
+   * Monday. A lone slot longer than this is still allowed on an empty day.
+   */
+  maxMinutesPerDay: number;
+  /**
+   * The only slots this subject may use, or null for any. A hard constraint
+   * like unavailability: a window with one slot outside it is discarded, never
+   * scored.
+   */
+  allowedSlotIds?: string[] | null;
+  /**
+   * A subject the user fixed to particular créneaux. Placed before everything
+   * else, so nothing takes its slots, and the teacher it gets is the one the
+   * rest of the same subject then uses — see `attempt`.
+   */
+  pinned?: boolean;
 };
 
 /** A room the generator may put a class in. */
@@ -140,12 +171,6 @@ export type GeneratorInput = {
   busyClass: Record<string, string[]>;
   /** Periods a teacher does not work at all — TeacherUnavailability. */
   unavailableTeacher: Record<string, string[]>;
-  /**
-   * How long one period is. The load caps below are in minutes because that is
-   * what a contract and a programme are written in; the placer counts periods
-   * and converts with this.
-   */
-  periodMinutes: number;
   /**
    * Most minutes a week each teacher may be given — `Staff.maxWeeklyMinutes`,
    * falling back to the school's standard service. A teacher missing from the
@@ -185,8 +210,10 @@ export type Placement = {
   classGroupId: string | null;
   teacherId: string | null;
   roomId: string | null;
-  /** One per period, in order. A double period is two ids. */
+  /** One per slot, in order. A double is two ids. */
   timeSlotIds: string[];
+  /** What the slots add up to. */
+  minutes: number;
 };
 
 /**
@@ -207,7 +234,7 @@ export type TeacherChoice = {
 export type Shortfall = {
   schoolClassId: string;
   subjectId: string;
-  /** Periods asked for that found no home. */
+  /** Minutes asked for that found no home. */
   missing: number;
 };
 
@@ -216,28 +243,27 @@ export type GeneratorResult = {
   shortfalls: Shortfall[];
   /** Teachers the generator chose, for subjects that had none. */
   assignments: TeacherChoice[];
-  /** Periods actually placed. */
-  placedPeriods: number;
-  /** Periods asked for. */
-  requestedPeriods: number;
+  /** Minutes actually placed, capped at what each subject asked for. */
+  placedMinutes: number;
+  /** Minutes asked for. */
+  requestedMinutes: number;
+  /**
+   * Minutes placed beyond what was asked, because the slots do not divide the
+   * programme evenly (2h for 1h45). Reported rather than silently rounded.
+   */
+  overshootMinutes: number;
 };
 
-// ── Turning a programme into periods ─────────────────────────────────────────
+// ── Turning a programme into minutes ─────────────────────────────────────────
 
 /**
- * How many periods a weekly minute figure buys.
+ * The minutes a declared weekly figure asks the placer to cover.
  *
- * Rounded to the nearest whole period rather than down: a programme asking for
- * 90 minutes against 55-minute periods means two, and giving it one would quietly
- * halve the subject. A figure below half a period still buys one — the school
- * declared the subject, so it gets an hour.
+ * A figure that is set but tiny still buys a slot: the school declared the
+ * subject, so it is not dropped for being under the slack.
  */
-export function periodsFromMinutes(
-  weeklyMinutes: number,
-  periodMinutes: number,
-): number {
-  if (periodMinutes <= 0) return 0;
-  return Math.max(1, Math.round(weeklyMinutes / periodMinutes));
+export function minutesToCover(weeklyMinutes: number): number {
+  return Math.max(SLACK_MINUTES, Math.round(weeklyMinutes));
 }
 
 // ── The placer ───────────────────────────────────────────────────────────────
@@ -291,17 +317,25 @@ function runsByDay(slots: GeneratorSlot[]): Map<number, DayRun[]> {
   return runs;
 }
 
-/** Every window of `size` consecutive periods the week offers, by day. */
-function windowsOfSize(
-  runs: Map<number, DayRun[]>,
-  size: number,
-): { dayOfWeek: number; slots: GeneratorSlot[] }[] {
-  const windows: { dayOfWeek: number; slots: GeneratorSlot[] }[] = [];
+type Window = { dayOfWeek: number; slots: GeneratorSlot[]; minutes: number };
+
+/**
+ * Every window of `size` consecutive slots the week offers, by day, with what
+ * each adds up to. Sized by slot count and measured in minutes, because a
+ * window of two slots is 90 minutes on Friday and 180 on Monday.
+ */
+function windowsOfSize(runs: Map<number, DayRun[]>, size: number): Window[] {
+  const windows: Window[] = [];
 
   for (const [day, dayRuns] of runs) {
     for (const run of dayRuns) {
       for (let start = 0; start + size <= run.length; start += 1) {
-        windows.push({ dayOfWeek: day, slots: run.slice(start, start + size) });
+        const slots = run.slice(start, start + size);
+        windows.push({
+          dayOfWeek: day,
+          slots,
+          minutes: slots.reduce((sum, slot) => sum + slot.minutes, 0),
+        });
       }
     }
   }
@@ -309,14 +343,23 @@ function windowsOfSize(
   return windows;
 }
 
+/** The most slots any run offers — the longest window worth trying. */
+function longestRun(runs: Map<number, DayRun[]>): number {
+  let longest = 0;
+  for (const dayRuns of runs.values()) {
+    for (const run of dayRuns) longest = Math.max(longest, run.length);
+  }
+  return longest;
+}
+
 /** The mutable bookings one attempt builds up as it places. */
 type Ledger = {
   teacher: Map<string, Set<string>>;
   room: Map<string, Set<string>>;
   class: Map<string, Set<string>>;
-  /** `classId:subjectId:day` → periods already placed that day. */
+  /** `classId:subjectId:day` → minutes already placed that day. */
   perDay: Map<string, number>;
-  /** `classId:day` → periods of any subject that day, for levelling the load. */
+  /** `classId:day` → minutes of any subject that day, for levelling the load. */
   dayLoad: Map<string, number>;
   /** Minutes each teacher is carrying, against `teacherCapacity`. */
   teacherMinutes: Map<string, number>;
@@ -433,8 +476,9 @@ function roomSuits(
  *     what stops every class in the school being handed the same shape of week.
  */
 function scoreCandidate(
-  window: { dayOfWeek: number; slots: GeneratorSlot[] },
+  window: Window,
   demand: GeneratorDemand,
+  remaining: number,
   ledger: Ledger,
   random: () => number,
 ): number {
@@ -442,15 +486,20 @@ function scoreCandidate(
   const loadKey = `${demand.schoolClassId}:${window.dayOfWeek}`;
 
   const sameSubjectToday = ledger.perDay.get(subjectKey) ?? 0;
-  const periodsToday = ledger.dayLoad.get(loadKey) ?? 0;
-  const afternoonPeriods = window.slots.filter(
-    (slot) => slot.session === "AFTERNOON",
-  ).length;
+  const minutesToday = ledger.dayLoad.get(loadKey) ?? 0;
+  const afternoonMinutes = window.slots
+    .filter((slot) => slot.session === "AFTERNOON")
+    .reduce((sum, slot) => sum + slot.minutes, 0);
 
+  // Per-hour weights: what the old per-period ones were, on a 60-minute slot.
   return (
-    sameSubjectToday * 100 +
-    periodsToday * 6 +
-    afternoonPeriods * 2 +
+    (sameSubjectToday / 60) * 100 +
+    (minutesToday / 60) * 6 +
+    (afternoonMinutes / 60) * 2 +
+    // Best fit: a 90-minute slot for a 90-minute need, the short Friday slot
+    // for the 45 minutes left over. Without it a 45-minute remainder is happily
+    // given a 90-minute slot and the week overshoots for nothing.
+    Math.abs(window.minutes - remaining) * 0.3 +
     random() * 5
   );
 }
@@ -479,6 +528,7 @@ function placeDemand(
   random: () => number,
 ): { placed: number; journal: Journal } {
   const journal: Journal = { bookings: [], counters: [], placements: 0 };
+  const allowedSlots = demand.allowedSlotIds ? new Set(demand.allowedSlotIds) : null;
 
   const bookInto = (map: Map<string, Set<string>>, key: string, slotId: string) => {
     book(map, key, slotId);
@@ -511,42 +561,62 @@ function placeDemand(
     null,
   ];
 
-  let remaining = demand.periods;
+  let remaining = demand.minutes;
   let placed = 0;
 
-  while (remaining > 0) {
+  // Longest window first, shrinking to a single slot rather than abandoning the
+  // subject; the last tier lets a single slot run over what is left, which is
+  // what 1h45 against 1h30 slots needs. Never tried before a fitting one.
+  const longest = Math.max(1, longestRun(runs));
+  const tiers: { size: number; overshoot: boolean }[] = [];
+  for (let size = longest; size >= 1; size -= 1) tiers.push({ size, overshoot: false });
+  tiers.push({ size: 1, overshoot: true });
+
+  // Done once what is left is within the slack — but never with nothing placed,
+  // so a 15-minute subject still gets its slot.
+  while (remaining > 0 && !(placed > 0 && remaining <= SLACK_MINUTES)) {
     let placedBlock = false;
 
-    // Longest block that still fits in what is left, shrinking to a single
-    // period rather than abandoning the hour.
-    for (
-      let size = Math.min(demand.blockSize, remaining);
-      size >= 1 && !placedBlock;
-      size -= 1
-    ) {
-      // Both ceilings are checked before anything is offered: a class that has
-      // had its 30 hours and a teacher who has had their 22 are both full, and
-      // the placer must stop rather than report a grid nobody can staff.
-      //
-      // `continue`, not `break`: the ceiling is being tested against *this*
-      // block, so a school with an hour of headroom left and doubles turned on
-      // must still be offered the single period. Breaking out here abandoned
-      // the whole subject over a block that was merely one period too long.
-      const classKey = demand.schoolClassId;
-      const classAfter =
-        (ledger.classMinutes.get(classKey) ?? 0) + size * input.periodMinutes;
-      if (input.classCapacity > 0 && classAfter > input.classCapacity) continue;
-
-      if (teacherId) {
-        const cap = input.teacherCapacity[teacherId];
-        const after =
-          (ledger.teacherMinutes.get(teacherId) ?? 0) + size * input.periodMinutes;
-        if (cap !== undefined && cap > 0 && after > cap) continue;
-      }
+    for (const tier of tiers) {
+      if (placedBlock) break;
+      const { size, overshoot } = tier;
 
       const ofSize = windowsOfSize(runs, size).filter((window) => {
-        const key = `${demand.schoolClassId}:${demand.subjectId}:${window.dayOfWeek}`;
-        return (ledger.perDay.get(key) ?? 0) + size <= demand.maxPerDay;
+        if (allowedSlots && !window.slots.every((slot) => allowedSlots.has(slot.id))) {
+          return false;
+        }
+
+        // A lesson joined from several slots may not exceed the block the caller
+        // asked for; a single slot is always a lesson, however long.
+        if (size > 1 && window.minutes > demand.blockMinutes) return false;
+
+        const fits = window.minutes <= remaining + SLACK_MINUTES;
+        if (overshoot ? fits : !fits) return false;
+
+        // Both ceilings are checked before anything is offered: a class that has
+        // had its 30 hours and a teacher who has had their 22 are both full, and
+        // the placer must stop rather than report a grid nobody can staff.
+        //
+        // Per window, not per tier: with slots of different lengths, whether
+        // the ceiling is hit depends on which slot is being offered, and a
+        // school with 45 minutes of headroom must still be offered the short
+        // Friday slot after refusing the 90-minute one.
+        const classAfter =
+          (ledger.classMinutes.get(demand.schoolClassId) ?? 0) + window.minutes;
+        if (input.classCapacity > 0 && classAfter > input.classCapacity) return false;
+
+        if (teacherId) {
+          const cap = input.teacherCapacity[teacherId];
+          const after = (ledger.teacherMinutes.get(teacherId) ?? 0) + window.minutes;
+          if (cap !== undefined && cap > 0 && after > cap) return false;
+        }
+
+        const dayKey = `${demand.schoolClassId}:${demand.subjectId}:${window.dayOfWeek}`;
+        const today = ledger.perDay.get(dayKey) ?? 0;
+        return (
+          today + window.minutes <= demand.maxMinutesPerDay ||
+          (today === 0 && size === 1)
+        );
       });
       if (ofSize.length === 0) continue;
 
@@ -559,7 +629,7 @@ function placeDemand(
         let best = candidates[0];
         let bestScore = Number.POSITIVE_INFINITY;
         for (const candidate of candidates) {
-          const score = scoreCandidate(candidate, demand, ledger, random);
+          const score = scoreCandidate(candidate, demand, remaining, ledger, random);
           if (score < bestScore) {
             bestScore = score;
             best = candidate;
@@ -572,17 +642,14 @@ function placeDemand(
           if (roomId) bookInto(ledger.room, roomId, slot.id);
         }
 
-        const span = best.slots.length;
         bump(
           ledger.perDay,
           `${demand.schoolClassId}:${demand.subjectId}:${best.dayOfWeek}`,
-          span,
+          best.minutes,
         );
-        bump(ledger.dayLoad, `${demand.schoolClassId}:${best.dayOfWeek}`, span);
-        bump(ledger.classMinutes, demand.schoolClassId, span * input.periodMinutes);
-        if (teacherId) {
-          bump(ledger.teacherMinutes, teacherId, span * input.periodMinutes);
-        }
+        bump(ledger.dayLoad, `${demand.schoolClassId}:${best.dayOfWeek}`, best.minutes);
+        bump(ledger.classMinutes, demand.schoolClassId, best.minutes);
+        if (teacherId) bump(ledger.teacherMinutes, teacherId, best.minutes);
 
         placements.push({
           schoolClassId: demand.schoolClassId,
@@ -591,11 +658,12 @@ function placeDemand(
           teacherId,
           roomId,
           timeSlotIds: best.slots.map((slot) => slot.id),
+          minutes: best.minutes,
         });
         journal.placements += 1;
 
-        placed += span;
-        remaining -= span;
+        placed += best.minutes;
+        remaining -= best.minutes;
         placedBlock = true;
         break;
       }
@@ -642,8 +710,11 @@ function attempt(input: GeneratorInput, seed: number): GeneratorResult {
     .map((demand) => ({ demand, jitter: random() }))
     .sort(
       (a, b) =>
-        b.demand.periods - a.demand.periods ||
-        b.demand.blockSize - a.demand.blockSize ||
+        // Pins first: they name their own slots, and anything placed before
+        // them could take one.
+        Number(b.demand.pinned ?? false) - Number(a.demand.pinned ?? false) ||
+        b.demand.minutes - a.demand.minutes ||
+        b.demand.blockMinutes - a.demand.blockMinutes ||
         a.jitter - b.jitter,
     )
     .map((entry) => entry.demand);
@@ -651,16 +722,35 @@ function attempt(input: GeneratorInput, seed: number): GeneratorResult {
   const placements: Placement[] = [];
   const shortfalls: Shortfall[] = [];
   const assignments: TeacherChoice[] = [];
-  let placedPeriods = 0;
-  let requestedPeriods = 0;
+  let placedMinutes = 0;
+  let requestedMinutes = 0;
+  let overshootMinutes = 0;
+  /** `class:subject:group` → the teacher a pin was given, for the rest of it. */
+  const pinnedTeacher = new Map<string, string | null>();
+  /** Subjects already written to `assignments`. */
+  const affected = new Set<string>();
+
+  // Complete means within the slack of what was asked, the same test the placer
+  // stops on.
+  const isComplete = (placed: number, wanted: number) =>
+    placed >= wanted - SLACK_MINUTES;
 
   for (const demand of ordered) {
-    requestedPeriods += demand.periods;
+    requestedMinutes += demand.minutes;
 
     // Least loaded first. Ties keep the caller's order, which is preference
     // rank — a specialist before somebody merely covering.
-    const candidates =
-      demand.candidateTeachers.length > 0 ? [...demand.candidateTeachers] : [null];
+    //
+    // Except that a subject with a pin has already been given its teacher: the
+    // rest of it goes to the same person, or a class would end up with one
+    // maths teacher for Monday 08:00 and another for the remaining hours.
+    // Keyed by group as well, because two halves of a class have their own.
+    const subjectKey = `${demand.schoolClassId}:${demand.subjectId}:${demand.classGroupId ?? ""}`;
+    const candidates = pinnedTeacher.has(subjectKey)
+      ? [pinnedTeacher.get(subjectKey) ?? null]
+      : demand.candidateTeachers.length > 0
+        ? [...demand.candidateTeachers]
+        : [null];
     if (candidates.length > 1) {
       candidates.sort(
         (a, b) =>
@@ -685,9 +775,11 @@ function attempt(input: GeneratorInput, seed: number): GeneratorResult {
         random,
       );
 
-      if (placed === demand.periods) {
+      if (isComplete(placed, demand.minutes)) {
         chosen = teacherId;
         best = null;
+        placedMinutes += Math.min(placed, demand.minutes);
+        overshootMinutes += Math.max(0, placed - demand.minutes);
         break;
       }
 
@@ -710,21 +802,23 @@ function attempt(input: GeneratorInput, seed: number): GeneratorResult {
         random,
       );
       chosen = best.teacherId;
-      placedPeriods += placed;
-      if (placed < demand.periods) {
+      placedMinutes += Math.min(placed, demand.minutes);
+      if (!isComplete(placed, demand.minutes)) {
         shortfalls.push({
           schoolClassId: demand.schoolClassId,
           subjectId: demand.subjectId,
-          missing: demand.periods - placed,
+          missing: demand.minutes - placed,
         });
       }
-    } else {
-      placedPeriods += demand.periods;
     }
 
+    if (demand.pinned) pinnedTeacher.set(subjectKey, chosen);
+
     // Only a teacher the generator *picked* is an affectation. One the school
-    // had already named is not news.
-    if (chosen && !demand.teacherWasAssigned) {
+    // had already named is not news. Once per subject: a pin and the rest of
+    // its hours are two demands but one affectation.
+    if (chosen && !demand.teacherWasAssigned && !affected.has(subjectKey)) {
+      affected.add(subjectKey);
       assignments.push({
         schoolClassId: demand.schoolClassId,
         subjectId: demand.subjectId,
@@ -738,8 +832,9 @@ function attempt(input: GeneratorInput, seed: number): GeneratorResult {
     placements,
     shortfalls,
     assignments,
-    placedPeriods,
-    requestedPeriods,
+    placedMinutes,
+    requestedMinutes,
+    overshootMinutes,
   };
 }
 
@@ -764,15 +859,17 @@ export function generateTimetable(input: GeneratorInput): GeneratorResult {
 
     if (
       best === null ||
-      result.placedPeriods > best.placedPeriods ||
-      (result.placedPeriods === best.placedPeriods &&
-        result.shortfalls.length < best.shortfalls.length)
+      result.placedMinutes > best.placedMinutes ||
+      (result.placedMinutes === best.placedMinutes &&
+        (result.shortfalls.length < best.shortfalls.length ||
+          (result.shortfalls.length === best.shortfalls.length &&
+            result.overshootMinutes < best.overshootMinutes)))
     ) {
       best = result;
     }
 
     // Nothing left to improve on.
-    if (best.placedPeriods === best.requestedPeriods) break;
+    if (best.shortfalls.length === 0 && best.overshootMinutes === 0) break;
   }
 
   return (
@@ -780,8 +877,9 @@ export function generateTimetable(input: GeneratorInput): GeneratorResult {
       placements: [],
       shortfalls: [],
       assignments: [],
-      placedPeriods: 0,
-      requestedPeriods: 0,
+      placedMinutes: 0,
+      requestedMinutes: 0,
+      overshootMinutes: 0,
     }
   );
 }
