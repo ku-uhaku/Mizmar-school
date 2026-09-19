@@ -11,6 +11,7 @@ import { TeacherAvailability } from "@/modules/timetable/components/teacher-avai
 import { TeacherPicker } from "@/modules/timetable/components/teacher-picker";
 import { TeacherWeek } from "@/modules/timetable/components/teacher-week";
 import {
+  listDetailSubjects,
   listTeacherOptions,
   loadTeacherAvailability,
   loadTeacherTimetable,
@@ -79,10 +80,11 @@ export default async function TeacherAvailabilityPage({
     morning needs to see that it already has a lesson in it, and reading one
     screen and remembering the other is how that gets missed.
   */
-  const [grid, week, weekContext] = await Promise.all([
+  const [grid, week, weekContext, detailSubjects] = await Promise.all([
     loadTeacherAvailability(context, selected.id, scheduleKind),
     loadTeacherTimetable(context, selected.id, scheduleKind),
     loadWeekContext(context, weekParam),
+    listDetailSubjects(context),
   ]);
 
   return (
@@ -131,6 +133,8 @@ export default async function TeacherAvailabilityPage({
           scheduleKind={scheduleKind}
           weekNumber={weekContext.current?.index}
           days={t.timetable.days as Record<string, string>}
+          subjects={detailSubjects}
+          canManage={context.can(PERMISSIONS.TIMETABLE_MANAGE)}
         />
       </div>
     </>

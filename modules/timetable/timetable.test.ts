@@ -21,6 +21,7 @@ import {
   slotsOverlap,
   weekWindowsOverlap,
 } from "@/modules/timetable/enums";
+import { foldRuns } from "@/modules/timetable/fold-runs";
 import {
   addDays,
   atMidnight,
@@ -101,7 +102,7 @@ vi.mock("@/lib/school-settings-server", () => ({
   loadSchoolSettings: async () => ({ teachingDays: "1,2,3,4,5,6" }),
 }));
 
-const { findClash, saveLessonBlock } = await import(
+const { findClash, saveEntryDetails, saveLessonBlock } = await import(
   "@/modules/timetable/service"
 );
 
@@ -1062,7 +1063,9 @@ describe("saveLessonBlock", () => {
       create: Record<string, unknown>;
       update: Record<string, unknown>;
     };
-    expect(call.where).toHaveProperty("schoolClassId_timeSlotId_bookingKey");
+    expect(call.where).toHaveProperty(
+      "versionId_schoolClassId_timeSlotId_bookingKey",
+    );
     // The update must not restate the key it matched on, or the row could walk.
     expect(call.update).not.toHaveProperty("bookingKey");
     expect(call.create).toHaveProperty("bookingKey");
@@ -1078,5 +1081,206 @@ describe("saveLessonBlock", () => {
       expect(row["subjectId"]).toBe("maths");
       expect(row["teacherId"]).toBe("teacher-1");
     }
+  });
+});
+
+// ── What is taught inside a lesson ───────────────────────────────────────────
+
+describe("saveEntryDetails", () => {
+  const anchor = {
+    versionId: "v1",
+    schoolClassId: "class-1",
+    subjectId: "math",
+    teacherId: "teacher-1",
+    roomId: null,
+    classGroupId: null,
+    termId: null,
+    timeSlot: { dayOfWeek: 1, startTime: "08:00" },
+  };
+  const period = (id: string, startTime: string, endTime: string) => ({
+    id,
+    timeSlotId: `slot-${id}`,
+    timeSlot: { startTime, endTime },
+  });
+  /** One period, 08:00–09:00. */
+  const inHour = () => {
+    answers = {
+      "timetableEntry.findUnique": anchor,
+      "timetableEntry.findMany": [period("entry-1", "08:00", "09:00")],
+    };
+  };
+  /** A double period, 08:00–10:00. */
+  const inDouble = () => {
+    answers = {
+      "timetableEntry.findUnique": anchor,
+      "timetableEntry.findMany": [
+        period("entry-1", "08:00", "09:00"),
+        period("entry-2", "09:00", "10:00"),
+      ],
+    };
+  };
+  const detail = (subjectId: string, startTime: string, endTime: string) => ({
+    subjectId,
+    startTime,
+    endTime,
+  });
+
+  it("writes the lines under the lesson and leaves the lesson alone", async () => {
+    inHour();
+    const result = await saveEntryDetails("entry-1", [
+      detail("gram", "08:00", "08:30"),
+      detail("hg", "08:30", "09:00"),
+    ]);
+
+    expect(result).toEqual({ ok: true, written: 2 });
+    expect(of("timetableEntryDetail", "createMany")[0]!.args).toEqual({
+      data: [
+        { entryId: "entry-1", ...detail("gram", "08:00", "08:30") },
+        { entryId: "entry-1", ...detail("hg", "08:30", "09:00") },
+      ],
+    });
+    // A detail says what is taught; it never rewrites the booking itself.
+    expect(of("timetableEntry", "upsert")).toEqual([]);
+    expect(of("timetableEntry", "deleteMany")).toEqual([]);
+  });
+
+  it("lets a line run across the hour boundary of a double period", async () => {
+    inDouble();
+    expect(
+      await saveEntryDetails("entry-1", [detail("isl", "08:30", "09:30")]),
+    ).toEqual({ ok: true, written: 1 });
+  });
+
+  it("keeps every line on the first period and clears the later ones", async () => {
+    inDouble();
+    await saveEntryDetails("entry-2", [detail("gram", "08:00", "08:30")]);
+    expect(of("timetableEntryDetail", "deleteMany")[0]!.args).toEqual({
+      where: { entryId: { in: ["entry-1", "entry-2"] } },
+    });
+    expect(
+      (of("timetableEntryDetail", "createMany")[0]!.args as {
+        data: { entryId: string }[];
+      }).data[0].entryId,
+    ).toBe("entry-1");
+  });
+
+  it("lets two subjects share the same minutes", async () => {
+    // Grammaire and Islamique both in the first half hour.
+    inHour();
+    expect(
+      await saveEntryDetails("entry-1", [
+        detail("gram", "08:00", "08:30"),
+        detail("isl", "08:00", "08:30"),
+      ]),
+    ).toEqual({ ok: true, written: 2 });
+  });
+
+  it("clears the details when given none", async () => {
+    inHour();
+    expect(await saveEntryDetails("entry-1", [])).toEqual({
+      ok: true,
+      written: 0,
+    });
+    expect(of("timetableEntryDetail", "deleteMany")).toHaveLength(1);
+    expect(of("timetableEntryDetail", "createMany")).toEqual([]);
+  });
+
+  it("refuses lines outside the session, backwards, or repeated", async () => {
+    for (const details of [
+      [detail("gram", "07:30", "08:30")],
+      [detail("gram", "09:30", "10:30")],
+      [detail("gram", "08:30", "08:00")],
+      [detail("gram", "08:00", "08:30"), detail("gram", "08:00", "08:45")],
+    ]) {
+      inHour();
+      expect(await saveEntryDetails("entry-1", details)).toEqual({ ok: false });
+    }
+    // Refused before anything is touched.
+    expect(of("timetableEntryDetail", "deleteMany")).toEqual([]);
+  });
+
+  it("refuses a lesson that does not exist", async () => {
+    expect(
+      await saveEntryDetails("missing", [detail("gram", "08:00", "08:30")]),
+    ).toEqual({ ok: false });
+  });
+});
+
+// ── Folding a double period ──────────────────────────────────────────────────
+
+
+describe("foldRuns", () => {
+  const columns = ["08", "09", "brk", "10", "11"].map((key) => ({ key }));
+  const lesson = (extra: Record<string, unknown> = {}) => ({
+    schoolClassId: "c1",
+    subjectId: "math",
+    groupLabel: null,
+    roomCode: "LAB",
+    ...extra,
+  });
+
+  it("folds two hours of the same lesson into one spanning cell", () => {
+    const layout = foldRuns(columns, {
+      "08": lesson(),
+      "09": lesson(),
+      brk: null,
+      "10": null,
+      "11": null,
+    });
+    expect(layout["08"]).toMatchObject({ span: 2, covered: false });
+    expect(layout["09"]).toMatchObject({ span: 1, covered: true });
+  });
+
+  it("does not fold across the break", () => {
+    const layout = foldRuns(columns, {
+      "08": null,
+      "09": lesson(),
+      brk: null,
+      "10": lesson(),
+      "11": null,
+    });
+    expect(layout["09"]).toMatchObject({ span: 1, covered: false });
+    expect(layout["10"]).toMatchObject({ span: 1, covered: false });
+  });
+
+  it("keeps different classes, subjects or rooms apart", () => {
+    for (const other of [
+      { schoolClassId: "c2" },
+      { subjectId: "fr" },
+      { roomCode: "INFO" },
+    ]) {
+      const layout = foldRuns(columns, {
+        "08": lesson(),
+        "09": lesson(other),
+        brk: null,
+        "10": null,
+        "11": null,
+      });
+      expect(layout["08"].span, JSON.stringify(other)).toBe(1);
+    }
+  });
+
+  it("keeps a session whole when a detail is written under it", () => {
+    // Adding "Grammaire 08:00–08:30" must not split the double period in two.
+    const layout = foldRuns(columns, {
+      "08": lesson(),
+      "09": lesson(),
+      brk: null,
+      "10": null,
+      "11": null,
+    });
+    expect(layout["08"]).toMatchObject({ span: 2, keys: ["08", "09"] });
+    expect(layout["09"].covered).toBe(true);
+  });
+
+  it("folds a run of three into the first cell", () => {
+    const layout = foldRuns([{ key: "08" }, { key: "09" }, { key: "10" }], {
+      "08": lesson(),
+      "09": lesson(),
+      "10": lesson(),
+    });
+    expect(layout["08"]).toMatchObject({ span: 3, covered: false });
+    expect(layout["09"].covered).toBe(true);
+    expect(layout["10"].covered).toBe(true);
   });
 });

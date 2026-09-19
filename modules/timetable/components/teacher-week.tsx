@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { PrinterIcon } from "lucide-react";
 import Link from "next/link";
 
@@ -15,7 +16,13 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { interpolate } from "@/lib/i18n/format";
-import type { TeacherWeek as TeacherWeekData } from "@/modules/timetable/queries";
+import { EntryDetailsDialog } from "@/modules/timetable/components/entry-details-dialog";
+import type {
+  DetailSubjectChoice,
+  EntryDetailView,
+  TeacherLesson,
+  TeacherWeek as TeacherWeekData,
+} from "@/modules/timetable/queries";
 
 /**
  * The week a teacher actually works, beside the week they are *available* for.
@@ -25,9 +32,11 @@ import type { TeacherWeek as TeacherWeekData } from "@/modules/timetable/queries
  * and this is the result — when have they been. Reading one without the other
  * is how somebody frees a Tuesday morning that already has a lesson in it.
  *
- * Read-only by design. A lesson is moved on the class grid next door, where the
- * class, the room and the clash check all are; editing from here would need
- * every one of those rules a second time.
+ * A lesson is still moved on the class grid next door, where the class, the room
+ * and the clash check all are; editing that from here would need every one of
+ * those rules a second time. What *can* be done here is say what is taught
+ * inside a lesson and when — "Grammaire 08:00–08:30" — by clicking its cell,
+ * which adds lines under the subject and leaves the lesson as it is.
  */
 export function TeacherWeek({
   week,
@@ -36,6 +45,8 @@ export function TeacherWeek({
   scheduleKind,
   weekNumber,
   days,
+  subjects,
+  canManage,
 }: {
   week: TeacherWeekData;
   teacherId: string;
@@ -45,8 +56,19 @@ export function TeacherWeek({
   weekNumber?: number;
   /** ISO day number → its name, from the dictionary. */
   days: Record<string, string>;
+  /** What a line of detail may name — see `listDetailSubjects`. */
+  subjects: DetailSubjectChoice[];
+  canManage: boolean;
 }) {
   const t = useT();
+
+  /** The lesson whose details are being edited, when the dialog is open. */
+  const [editing, setEditing] = React.useState<{
+    lesson: TeacherLesson;
+    startTime: string;
+    endTime: string;
+    details: EntryDetailView[];
+  } | null>(null);
 
   return (
     <Card>
@@ -69,6 +91,18 @@ export function TeacherWeek({
             >
               <PrinterIcon />
               {t.print.timetable}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            {/* Carries the bell schedule and the week through, so printing the
+              Ramadan grid does not silently hand back the standard one. */}
+            <Link
+              href={`/print/teacher/${teacherId}/timetable?schedule=${scheduleKind}${
+                weekNumber ? `&week=${weekNumber}` : ""
+              }&details=1`}
+            >
+              <PrinterIcon />
+              {t.timetable.printWithDetails}
             </Link>
           </Button>
         </CardAction>
@@ -112,10 +146,28 @@ export function TeacherWeek({
                   </th>
                   {week.columns.map((column) => {
                     const lesson = row.cells[column.key] ?? null;
+                    const layout = row.layout[column.key];
+
+                    // Drawn by the period that started the run — its `colSpan`
+                    // already covers this column.
+                    if (layout?.covered) return null;
+
+                    // What is under any period of the run belongs to the cell,
+                    // and the session ends where its last period does.
+                    const runKeys = layout?.keys ?? [column.key];
+                    const details = runKeys
+                      .flatMap((key) => row.cells[key]?.details ?? [])
+                      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+                    const endTime =
+                      week.columns.find(
+                        (candidate) =>
+                          candidate.key === runKeys[runKeys.length - 1],
+                      )?.endTime ?? column.endTime;
 
                     return (
                       <td
                         key={column.key}
+                        colSpan={layout?.span ?? 1}
                         className={cn(
                           "border-s px-2 py-1.5 text-center align-middle",
                           // A free period is the thing a teacher scans for, so
@@ -132,20 +184,25 @@ export function TeacherWeek({
                         }
                       >
                         {lesson ? (
-                          <span className="block min-w-0">
-                            <span className="block truncate text-xs font-medium">
-                              {lesson.subjectShort}
-                            </span>
-                            <span className="text-muted-foreground block truncate text-[11px]">
-                              {[
-                                lesson.classCode,
-                                lesson.groupLabel,
-                                lesson.roomCode,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                          </span>
+                          canManage ? (
+                            <button
+                              type="button"
+                              title={t.timetable.detailEditTip}
+                              onClick={() =>
+                                setEditing({
+                                  lesson,
+                                  startTime: column.startTime,
+                                  endTime,
+                                  details,
+                                })
+                              }
+                              className="hover:bg-foreground/5 -mx-2 -my-1.5 block w-[calc(100%+1rem)] cursor-pointer px-2 py-1.5"
+                            >
+                              <LessonBody lesson={lesson} details={details} />
+                            </button>
+                          ) : (
+                            <LessonBody lesson={lesson} details={details} />
+                          )
                         ) : null}
                       </td>
                     );
@@ -156,6 +213,59 @@ export function TeacherWeek({
           </table>
         )}
       </CardContent>
+
+      {editing ? (
+        <EntryDetailsDialog
+          key={editing.lesson.timetableEntryId}
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          entryId={editing.lesson.timetableEntryId}
+          subjectId={editing.lesson.subjectId}
+          subjectName={editing.lesson.subjectName}
+          slot={{ startTime: editing.startTime, endTime: editing.endTime }}
+          subjects={subjects}
+          details={editing.details}
+        />
+      ) : null}
     </Card>
+  );
+}
+
+/**
+ * The lesson as the cell draws it: the subject it is, the class it is for, and
+ * under them whatever is taught inside it and when. The subject line is never
+ * replaced by a detail — the hour is still Arabe, the details say what of it.
+ */
+function LessonBody({
+  lesson,
+  details,
+}: {
+  lesson: TeacherLesson;
+  /** From every period of the session, not only its first. */
+  details: EntryDetailView[];
+}) {
+  return (
+    <span className="block min-w-0">
+      <span className="block truncate text-xs font-medium">
+        {lesson.subjectShort}
+      </span>
+      <span className="text-muted-foreground block truncate text-[11px]">
+        {[lesson.classCode, lesson.groupLabel, lesson.roomCode]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+      {details.map((detail) => (
+        <span
+          key={detail.id}
+          className="text-foreground/80 block truncate text-[10px] leading-tight"
+        >
+          {/* LTR on the times even in Arabic — a clock reading, not a phrase. */}
+          <span dir="ltr" className="text-muted-foreground me-1">
+            {detail.startTime}–{detail.endTime}
+          </span>
+          {detail.subjectShort}
+        </span>
+      ))}
+    </span>
   );
 }

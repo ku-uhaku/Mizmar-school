@@ -98,6 +98,9 @@ model TimetableEntry {
   /// ClassSession: regenerating the grid must not delete what was taught.
   sessions ClassSession[]
 
+  /// What is taught in it, and when — see TimetableEntryDetail.
+  details TimetableEntryDetail[]
+
   /// Rule 1: one lesson per class (or group) per slot per term, *within one
   /// version* — an untouched class's row is copied forward unchanged into
   /// every new version, so the same (class, slot, bookingKey) legitimately

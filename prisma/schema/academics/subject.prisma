@@ -63,6 +63,8 @@ model Subject {
   /// Teachers qualified to take it — see TeacherSubject.
   qualifiedTeachers   TeacherSubject[]
   timetableEntries    TimetableEntry[]
+  /// Lines of detail under a lesson that name it — see TimetableEntryDetail.
+  timetableEntryDetails TimetableEntryDetail[]
   timetableExceptions TimetableException[]
   supplyLists         SupplyList[]
   /// Restrict on the other side: a subject with marks against it is history.

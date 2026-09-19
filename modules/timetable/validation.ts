@@ -42,6 +42,15 @@ export function timetableEntrySchema(t: Dictionary) {
 }
 
 /**
+ * The lesson whose lines of detail are being saved. The lines themselves arrive
+ * as three parallel lists and are checked by the action, which has the lesson's
+ * own period to check them against.
+ */
+export function entryDetailsSchema(t: Dictionary) {
+  return z.object({ entryId: requiredText(t.validation, { max: 40 }) });
+}
+
+/**
  * A one-off change to one period of one week.
  *
  * `weekStart` arrives as `YYYY-MM-DD` and is re-derived to the Monday of its

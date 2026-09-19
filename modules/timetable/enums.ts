@@ -117,6 +117,13 @@ export type TeachingDay = (typeof TEACHING_DAYS)[number];
 export const MAX_LESSON_SPAN = 8;
 
 /**
+ * The most lines of detail one lesson may carry — see `TimetableEntryDetail`.
+ * A guard against a runaway form: past a handful, the pieces of an hour are
+ * shorter than anything anybody teaches.
+ */
+export const MAX_ENTRY_DETAILS = 6;
+
+/**
  * How long a lesson runs, offered as minutes rather than as a count of periods.
  *
  * ── Why the screens talk in hours and the placer counts periods ─────────────

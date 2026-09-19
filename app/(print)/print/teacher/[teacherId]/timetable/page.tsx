@@ -36,10 +36,13 @@ export default async function TeacherTimetablePrintPage({
   searchParams,
 }: {
   params: Promise<{ teacherId: string }>;
-  searchParams: Promise<{ schedule?: string; week?: string }>;
+  searchParams: Promise<{ schedule?: string; week?: string; details?: string }>;
 }) {
   const { teacherId } = await params;
-  const { schedule, week } = await searchParams;
+  const { schedule, week, details } = await searchParams;
+  // The two sheets: the plain week, and the one that also says what is taught
+  // inside each lesson and when. The plain one is the default.
+  const withDetails = details === "1";
   const context = await requireAuth();
   const t = await getDictionary();
   const locale = await getLocale();
@@ -85,16 +88,20 @@ export default async function TeacherTimetablePrintPage({
                     [lesson.classCode, lesson.groupLabel, lesson.roomCode]
                       .filter(Boolean)
                       .join(" · "),
+                    ...(withDetails
+                      ? (row.layout[column.key]?.keys ?? [column.key])
+                          .flatMap((key) => row.cells[key]?.details ?? [])
+                          .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                          .map(
+                          (detail) =>
+                            `${detail.startTime}–${detail.endTime} ${detail.subjectName}`,
+                        )
+                      : []),
                   ].filter(Boolean)
                 : [],
-            /*
-              Never merged, unlike the class sheet. A class reads a double
-              period as one lesson; a teacher reads their week to find out
-              which periods they are booked for, and a cell spanning two hides
-              that the second one is taken.
-            */
-            span: 1,
-            covered: false,
+            // Folded like the class sheet: a double period is one lesson.
+            span: row.layout[column.key]?.span ?? 1,
+            covered: row.layout[column.key]?.covered ?? false,
             isBreak: Boolean(column.isBreak) || Boolean(holiday),
             colorHex: holiday ? null : (lesson?.colorHex ?? null),
           };

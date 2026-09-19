@@ -30,6 +30,7 @@ import {
   generateSchoolWeeks,
   generateTimeSlots,
   listTimetableVersions,
+  saveEntryDetails,
   saveLessonBlock,
   type Clash,
   setTeacherAvailability,
@@ -37,12 +38,15 @@ import {
   type PreviewResult,
 } from "@/modules/timetable/service";
 import {
+  entryDetailsSchema,
   generateTimeSlotsSchema,
   timetableEntrySchema,
   timetableExceptionSchema,
 } from "@/modules/timetable/validation";
 import {
   bookingKeyOf,
+  isTimeOfDay,
+  MAX_ENTRY_DETAILS,
   MAX_LESSON_SPAN,
   TEACHING_DAYS,
 } from "@/modules/timetable/enums";
@@ -912,6 +916,80 @@ export async function setTeacherAvailabilityAction(
     return success(
       interpolate(t.timetable.availabilitySaved, { count: result.blocked }),
     );
+  });
+}
+
+/**
+ * Saves the lines of detail under one lesson — "Grammaire 08:00–08:30" inside an
+ * Arabe hour. The lesson itself is left exactly as it is.
+ *
+ * The lesson decides the school, and that is what is authorized against; the
+ * subjects are then looked up in it rather than trusted, so a crafted id cannot
+ * name another school's matière. An empty list clears the details.
+ */
+export async function saveEntryDetailsAction(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return withActionErrors(async () => {
+    const t = await getDictionary();
+
+    const parsed = entryDetailsSchema(t).safeParse({
+      entryId: field(formData, "entryId"),
+    });
+    if (!parsed.success) {
+      return failure(
+        t.errors.invalid,
+        fieldErrors(parsed.error),
+        formValues(formData),
+      );
+    }
+
+    const entry = await db.timetableEntry.findUnique({
+      where: { id: parsed.data.entryId },
+      select: { schoolClass: { select: { schoolId: true } } },
+    });
+    if (!entry) return failure(t.errors.notFound);
+
+    const schoolId = entry.schoolClass.schoolId;
+    await authorizeSchool(schoolId, PERMISSIONS.TIMETABLE_MANAGE);
+
+    const subjectIds = listField(formData, "detailSubjectId");
+    const starts = listField(formData, "detailStart");
+    const ends = listField(formData, "detailEnd");
+    if (
+      subjectIds.length !== starts.length ||
+      starts.length !== ends.length ||
+      subjectIds.length > MAX_ENTRY_DETAILS ||
+      [...starts, ...ends].some((time) => !isTimeOfDay(time))
+    ) {
+      return failure(t.timetable.detailsInvalid);
+    }
+
+    const known = new Set(
+      (
+        await db.subject.findMany({
+          where: { id: { in: subjectIds }, schoolId },
+          select: { id: true },
+        })
+      ).map((subject) => subject.id),
+    );
+    if (subjectIds.some((id) => !known.has(id))) {
+      return failure(t.errors.notFound);
+    }
+
+    const saved = await saveEntryDetails(
+      parsed.data.entryId,
+      subjectIds.map((subjectId, index) => ({
+        subjectId,
+        startTime: starts[index],
+        endTime: ends[index],
+      })),
+    );
+    if (!saved.ok) return failure(t.timetable.detailsInvalid);
+
+    refresh();
+    return success(t.timetable.detailsSaved);
   });
 }
 

@@ -36,10 +36,13 @@ export default async function ClassTimetablePrintPage({
   searchParams,
 }: {
   params: Promise<{ classId: string }>;
-  searchParams: Promise<{ schedule?: string; week?: string }>;
+  searchParams: Promise<{ schedule?: string; week?: string; details?: string }>;
 }) {
   const { classId } = await params;
-  const { schedule, week } = await searchParams;
+  const { schedule, week, details } = await searchParams;
+  // The two sheets: the plain week, and the one that also says what is taught
+  // inside each lesson and when. The plain one is the default.
+  const withDetails = details === "1";
   const context = await requireAuth();
   const t = await getDictionary();
   const locale = await getLocale();
@@ -122,6 +125,14 @@ export default async function ClassTimetablePrintPage({
               ? [
                   subjectName,
                   meta,
+                  // Only when the lesson stands: a replaced period is a
+                  // different lesson and its details do not carry over.
+                  ...(replaced || !withDetails
+                    ? []
+                    : (entry?.details ?? []).map(
+                        (detail) =>
+                          `${detail.startTime}–${detail.endTime} ${detail.subjectName}`,
+                      )),
                   // Said in words as well as struck through: a line through a
                   // photocopied word is easy to take for a fold.
                   cancelled ? t.timetable.cancelledThisWeek : "",

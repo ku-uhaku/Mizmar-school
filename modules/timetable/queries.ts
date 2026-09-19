@@ -26,6 +26,7 @@ import {
 } from "@/modules/timetable/weeks";
 import { activeVersionKeyOf, runsInWeekNumber } from "@/modules/timetable/enums";
 import { periodsFromMinutes } from "@/modules/timetable/generator";
+import { foldRuns, type FoldedCell } from "@/modules/timetable/fold-runs";
 
 /** Matches nothing — see the note on `NO_MATCH` in lib/scope.ts. */
 const NO_VERSION = "__none__";
@@ -103,7 +104,41 @@ export type TimetableEntryView = {
   span: number;
   /** Every row the block is made of, first period first. */
   entryIds: string[];
+  /**
+   * What is taught inside the lesson and when — "Grammaire 08:00–08:30". Shown
+   * under the subject; the lesson itself is unchanged. Of the first period only,
+   * for a block that spans several.
+   */
+  details: EntryDetailView[];
 };
+
+/** One line of detail under a lesson — see `TimetableEntryDetail`. */
+export type EntryDetailView = {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  subjectShort: string;
+  startTime: string;
+  endTime: string;
+};
+
+type DetailRow = {
+  id: string;
+  subjectId: string;
+  startTime: string;
+  endTime: string;
+  subject: { name: string; shortName: string | null; code: string };
+};
+
+const detailViews = (rows: DetailRow[]): EntryDetailView[] =>
+  rows.map((row) => ({
+    id: row.id,
+    subjectId: row.subjectId,
+    subjectName: row.subject.name,
+    subjectShort: row.subject.shortName ?? row.subject.code,
+    startTime: row.startTime,
+    endTime: row.endTime,
+  }));
 
 export type TimetableCell = {
   /** The slot this cell sits in. Null when the school does not teach then. */
@@ -233,6 +268,16 @@ export async function loadClassTimetable(
         weekParity: true,
         fromWeek: true,
         toWeek: true,
+        details: {
+          orderBy: [{ startTime: "asc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            subjectId: true,
+            startTime: true,
+            endTime: true,
+            subject: { select: { name: true, shortName: true, code: true } },
+          },
+        },
         subject: {
           select: { name: true, shortName: true, code: true, colorHex: true },
         },
@@ -335,6 +380,8 @@ export async function loadClassTimetable(
         if (head) {
           head.span += 1;
           head.entryIds.push(entry.id);
+          // What is written under any period of the block belongs to the block.
+          head.details.push(...detailViews(entry.details));
         }
         cells[column.key] = {
           timeSlotId: slot.id,
@@ -367,6 +414,7 @@ export async function loadClassTimetable(
           weekParity: entry.weekParity,
           span: 1,
           entryIds: [entry.id],
+          details: detailViews(entry.details),
         },
       };
       running = { key: column.key, entry };
@@ -787,16 +835,28 @@ export type TeacherLesson = {
   schoolClassId: string;
   classCode: string;
   groupLabel: string | null;
+  subjectId: string;
   subjectName: string;
   subjectShort: string;
   colorHex: string | null;
   roomCode: string | null;
+  /** What is taught inside the lesson and when — see `EntryDetailView`. */
+  details: EntryDetailView[];
 };
 
 export type TeacherWeek = {
   columns: SlotColumn[];
   /** Indexed by ISO day (1 = Monday), then by column key. Null = free period. */
-  rows: { dayOfWeek: number; cells: Record<string, TeacherLesson | null> }[];
+  rows: {
+    dayOfWeek: number;
+    cells: Record<string, TeacherLesson | null>;
+    /**
+     * How the row is laid out once runs of the same lesson are folded together,
+     * as the class grid does: the first period of a run spans it, and the
+     * periods after it are `covered` and not drawn.
+     */
+    layout: Record<string, FoldedCell>;
+  }[];
   scheduleKind: string;
   lessonCount: number;
   /** Distinct classes taught across the week — the headline figure. */
@@ -814,9 +874,9 @@ export type TeacherWeek = {
  * class it is a period the school does not teach, for a teacher it is a free
  * period, which is the thing they scan the grid for.
  *
- * Double periods are not merged here. A class grid merges them because the
- * lesson is one block; a teacher reading their own week wants to see each
- * period they are booked for, and a merged cell hides that the 10:00 is taken.
+ * Runs of the same lesson are folded into one spanning cell, as on the class
+ * grid — two "Maths" side by side read as two lessons when it is one double
+ * period. The time headings above still show every period the cell covers.
  */
 export async function loadTeacherTimetable(
   context: AuthContext,
@@ -851,6 +911,17 @@ export async function loadTeacherTimetable(
       select: {
         id: true,
         timeSlotId: true,
+        subjectId: true,
+        details: {
+          orderBy: [{ startTime: "asc" }, { createdAt: "asc" }],
+          select: {
+            id: true,
+            subjectId: true,
+            startTime: true,
+            endTime: true,
+            subject: { select: { name: true, shortName: true, code: true } },
+          },
+        },
         subject: {
           select: { name: true, shortName: true, code: true, colorHex: true },
         },
@@ -893,10 +964,12 @@ export async function loadTeacherTimetable(
         groupLabel: entry.classGroup
           ? (entry.classGroup.name ?? entry.classGroup.code)
           : null,
+        subjectId: entry.subjectId,
         subjectName: entry.subject.name,
         subjectShort: entry.subject.shortName ?? entry.subject.code,
         colorHex: entry.subject.colorHex,
         roomCode: entry.room?.code ?? null,
+        details: detailViews(entry.details),
       } satisfies TeacherLesson,
     ]),
   );
@@ -913,7 +986,7 @@ export async function loadTeacherTimetable(
         ? (lessonBySlot.get(slot.id) ?? null)
         : null;
     }
-    return { dayOfWeek, cells };
+    return { dayOfWeek, cells, layout: foldRuns(columns, cells) };
   });
 
   return {
@@ -1146,6 +1219,49 @@ export async function loadWeekOverlay(
 // ── When a teacher works ─────────────────────────────────────────────────────
 
 export type TeacherOption = { id: string; label: string; blockedCount: number };
+
+export type DetailSubjectChoice = {
+  id: string;
+  label: string;
+  /** The subject this is a component of, when it is one. */
+  parentId: string | null;
+  parentLabel: string | null;
+};
+
+/**
+ * What a line of detail may name: any active subject of the school,
+ * components included.
+ *
+ * Not narrowed to the lesson's own components. Islamique is a subject of its own
+ * in the programme yet is taught inside the Arabe hour in a school that grades
+ * them together, and refusing it would send the head of studies to another
+ * screen to change the programme first. The dialog puts the lesson's own
+ * components at the top, which is what it usually wants.
+ */
+export async function listDetailSubjects(
+  context: AuthContext,
+): Promise<DetailSubjectChoice[]> {
+  const subjects = await db.subject.findMany({
+    where: { schoolId: currentSchoolId(context), isActive: true },
+    orderBy: [{ name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      nameAr: true,
+      parentId: true,
+      parent: { select: { name: true, nameAr: true } },
+    },
+  });
+
+  return subjects.map((subject) => ({
+    id: subject.id,
+    label: bilingual(subject.name, subject.nameAr),
+    parentId: subject.parentId,
+    parentLabel: subject.parent
+      ? bilingual(subject.parent.name, subject.parent.nameAr)
+      : null,
+  }));
+}
 
 /**
  * The school's teachers, with how many periods each is unavailable for.

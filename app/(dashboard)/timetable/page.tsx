@@ -114,6 +114,16 @@ export default async function TimetablePage({
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm">
+          <Link
+            href={`/print/class/${selected.id}/timetable?schedule=${scheduleKind}${
+              weekContext.current ? `&week=${weekContext.current.index}` : ""
+            }&details=1`}
+          >
+            <PrinterIcon />
+            {t.timetable.printWithDetails}
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
           <Link href={`/classes/${selected.id}`}>{t.timetable.openClass}</Link>
         </Button>
         {/* Beside the generator, because it is the constraint the generator

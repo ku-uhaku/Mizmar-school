@@ -374,6 +374,67 @@ export async function saveLessonBlock(
   });
 }
 
+export type EntryDetailInput = {
+  subjectId: string;
+  startTime: string;
+  endTime: string;
+};
+
+/**
+ * Replaces the lines of detail under one lesson — "Grammaire 08:00–08:30".
+ *
+ * Whole set at a time, for the reason `setTeacherAvailability` replaces its own:
+ * the dialog shows the full list and its answer is the full list, so the last
+ * save wins and a stale tab cannot quietly bring back a line somebody removed.
+ *
+ * The lesson itself is never touched, and no clash rule runs: a detail says what
+ * is taught in the session, it does not reserve anybody. The one thing checked is
+ * that a line sits inside the session its lesson runs over, and that no subject
+ * is listed twice at the same minute.
+ */
+export async function saveEntryDetails(
+  entryId: string,
+  details: EntryDetailInput[],
+): Promise<{ ok: true; written: number } | { ok: false }> {
+  // The whole session, not the one period clicked: a double period is one cell
+  // on screen, so a line under it may run across the hour boundary. Resolved
+  // from the database, which is also what stops the request naming rows that
+  // are not this lesson's.
+  const run = await entriesInBlock(entryId);
+  if (run.length === 0) return { ok: false };
+
+  const runStart = minutesSinceMidnight(run[0].startTime);
+  const runEnd = minutesSinceMidnight(run[run.length - 1].endTime);
+  const seen = new Set<string>();
+
+  for (const detail of details) {
+    const start = minutesSinceMidnight(detail.startTime);
+    const end = minutesSinceMidnight(detail.endTime);
+    const key = `${detail.subjectId}@${detail.startTime}`;
+    if (start >= end || start < runStart || end > runEnd || seen.has(key)) {
+      return { ok: false };
+    }
+    seen.add(key);
+  }
+
+  // Kept on the first period of the run, whatever period each line falls in:
+  // one place to read them from, and one to clear. Lines written earlier under
+  // the later periods are cleared with the rest.
+  const headId = run[0].id;
+  await db.$transaction(async (tx) => {
+    await tx.timetableEntryDetail.deleteMany({
+      where: { entryId: { in: run.map((entry) => entry.id) } },
+    });
+    if (details.length > 0) {
+      await tx.timetableEntryDetail.createMany({
+        data: details.map((detail) => ({ entryId: headId, ...detail })),
+      });
+    }
+  });
+
+  return { ok: true, written: details.length };
+}
+
 /**
  * The rows one displayed block is made of: the same lesson, in consecutive
  * periods of the same day.
@@ -384,7 +445,9 @@ export async function saveLessonBlock(
  */
 export async function entriesInBlock(
   entryId: string,
-): Promise<{ id: string; timeSlotId: string }[]> {
+): Promise<
+  { id: string; timeSlotId: string; startTime: string; endTime: string }[]
+> {
   const anchor = await db.timetableEntry.findUnique({
     where: { id: entryId },
     select: {
@@ -440,7 +503,12 @@ export async function entriesInBlock(
     run.push(sameLesson[i]);
   }
 
-  return run.map((entry) => ({ id: entry.id, timeSlotId: entry.timeSlotId }));
+  return run.map((entry) => ({
+    id: entry.id,
+    timeSlotId: entry.timeSlotId,
+    startTime: entry.timeSlot.startTime,
+    endTime: entry.timeSlot.endTime,
+  }));
 }
 
 // ── When a teacher works ─────────────────────────────────────────────────────

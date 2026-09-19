@@ -1,0 +1,41 @@
+/// A line of detail under a lesson: "Grammaire 08:00–08:30" inside an Arabe hour.
+///
+/// ── Why a detail and not a lesson ───────────────────────────────────────────
+/// The lesson stays what the timetable says it is — one subject, one teacher,
+/// one room, one period — and every clash rule, register and séance keeps
+/// working on it untouched. A teacher who gives Grammaire and then Histoire-Géo
+/// inside their Arabe hour has not changed the subject of the hour; they are
+/// saying what is taught in it and when. So this is information about a lesson,
+/// not a second booking of the slot, and it never takes part in a clash check:
+/// two details may share the same minutes (Grammaire and Islamique both at
+/// 08:00–08:30) because nothing here reserves anybody.
+///
+/// It follows the row it describes: regenerating the timetable replaces the
+/// lesson, and the detail goes with it (Cascade).
+model TimetableEntryDetail {
+  id String @id @default(cuid()) @db.VarChar(30)
+
+  entryId String         @db.VarChar(30)
+  entry   TimetableEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  /// The matière or component being taught — usually a component of the
+  /// lesson's own subject, but any subject of the school may be named.
+  /// Restrict: a subject a timetable describes is not deleted out from under it.
+  subjectId String  @db.VarChar(30)
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+
+  /// Wall-clock "HH:MM", inside the period the lesson sits in — a service-layer
+  /// invariant, see `saveEntryDetails`. Text for the same reason as
+  /// `TimeSlot.startTime`.
+  startTime String
+  endTime   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The same subject twice at the same minute is a double-click, not a detail.
+  @@unique([entryId, subjectId, startTime])
+  @@index([entryId])
+  @@index([subjectId])
+  @@map("timetable_entry_details")
+}

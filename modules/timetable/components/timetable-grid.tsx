@@ -443,6 +443,22 @@ function Cell({
           </span>
         ) : null}
 
+        {/* What is taught inside the lesson and when. The subject above is
+          still the lesson's; these only say what of the hour it is. */}
+        {!replaced
+          ? entry?.details.map((detail) => (
+              <span
+                key={detail.id}
+                className="text-foreground/80 block truncate text-[10px] leading-tight"
+              >
+                <span dir="ltr" className="text-muted-foreground me-1">
+                  {detail.startTime}–{detail.endTime}
+                </span>
+                {detail.subjectShort}
+              </span>
+            ))
+          : null}
+
         {cancelled ? (
           <span className="text-destructive block truncate text-[10px] font-medium">
             {t.timetable.cancelledThisWeek}

@@ -129,6 +129,7 @@ export const MODEL_DOMAINS: Record<Prisma.ModelName, ActivityDomain> = {
   // The week.
   TimeSlot: "timetable",
   TimetableEntry: "timetable",
+  TimetableEntryDetail: "timetable",
   TimetableVersion: "timetable",
   TimetableException: "timetable",
   TeacherAbsence: "timetable",
